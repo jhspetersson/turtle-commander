@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
+  <!-- Shell dome -->
+  <path d="M5 15 C5 10 7 6 10 6 C13 6 15 10 15 15" fill="none" stroke="#CED0D6" stroke-width="2" stroke-linecap="round"/>
+  <!-- Shell horizontal segment -->
+  <line x1="5.5" y1="12" x2="14.5" y2="12" stroke="#CED0D6" stroke-width="1.2"/>
+  <!-- Shell vertical segment -->
+  <line x1="10" y1="7" x2="10" y2="15" stroke="#CED0D6" stroke-width="1.2"/>
+  <!-- Body base -->
+  <line x1="3" y1="15" x2="17" y2="15" stroke="#CED0D6" stroke-width="2" stroke-linecap="round"/>
+  <!-- Head -->
+  <circle cx="17.5" cy="13" r="1.5" fill="none" stroke="#CED0D6" stroke-width="1.5"/>
+  <!-- Front leg -->
+  <line x1="14" y1="15" x2="14.5" y2="17.5" stroke="#CED0D6" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Back leg -->
+  <line x1="6" y1="15" x2="5.5" y2="17.5" stroke="#CED0D6" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

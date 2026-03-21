@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+  <!-- Folder back -->
+  <path d="M4 10 L4 34 Q4 36 6 36 L34 36 Q36 36 36 34 L36 14 Q36 12 34 12 L19 12 L16 8 Q15.5 7 14.5 7 L6 7 Q4 7 4 10Z" fill="#E8A317"/>
+  <!-- Folder front -->
+  <path d="M3 16 L3 34 Q3 36.5 6 36.5 L34 36.5 Q37 36.5 37 34 L37 16 Q37 14 34.5 14 L5.5 14 Q3 14 3 16Z" fill="#F5C242"/>
+  <!-- Turtle body -->
+  <ellipse cx="20" cy="25" rx="9" ry="6.5" fill="#4A8C3F"/>
+  <!-- Turtle shell -->
+  <ellipse cx="20" cy="24" rx="7.5" ry="5.5" fill="#5BAD4F"/>
+  <!-- Shell pattern - center line -->
+  <line x1="20" y1="18.5" x2="20" y2="29.5" stroke="#4A8C3F" stroke-width="0.8"/>
+  <!-- Shell pattern - horizontal -->
+  <line x1="12.5" y1="24" x2="27.5" y2="24" stroke="#4A8C3F" stroke-width="0.8"/>
+  <!-- Shell pattern - diagonals -->
+  <line x1="14" y1="20.5" x2="26" y2="20.5" stroke="#4A8C3F" stroke-width="0.6"/>
+  <line x1="14" y1="27.5" x2="26" y2="27.5" stroke="#4A8C3F" stroke-width="0.6"/>
+  <!-- Turtle head -->
+  <ellipse cx="29.5" cy="25.5" rx="2.8" ry="2.2" fill="#3D7A33"/>
+  <!-- Turtle eye -->
+  <circle cx="30.5" cy="24.8" r="0.7" fill="#1A1A1A"/>
+  <!-- Turtle front leg -->
+  <ellipse cx="27" cy="30" rx="1.8" ry="1.2" fill="#3D7A33" transform="rotate(-25 27 30)"/>
+  <!-- Turtle back leg -->
+  <ellipse cx="13" cy="29.5" rx="1.8" ry="1.2" fill="#3D7A33" transform="rotate(25 13 29.5)"/>
+  <!-- Turtle front top leg -->
+  <ellipse cx="26.5" cy="20" rx="1.8" ry="1.2" fill="#3D7A33" transform="rotate(25 26.5 20)"/>
+  <!-- Turtle back top leg -->
+  <ellipse cx="13.5" cy="20.5" rx="1.8" ry="1.2" fill="#3D7A33" transform="rotate(-25 13.5 20.5)"/>
+  <!-- Turtle tail -->
+  <path d="M11 25.5 Q9 25.5 9.5 26.5" stroke="#3D7A33" stroke-width="1" fill="none" stroke-linecap="round"/>
+</svg>
