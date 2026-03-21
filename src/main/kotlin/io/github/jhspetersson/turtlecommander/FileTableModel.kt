@@ -85,7 +85,7 @@ class FileTableModel : AbstractTableModel() {
         // Rename is handled via CellEditor stop callback in FileTab
     }
 
-    private fun formatSize(bytes: Long): String {
+    fun formatSize(bytes: Long): String {
         if (bytes < 1024) return "$bytes B"
         val kb = bytes / 1024.0
         if (kb < 1024) return "%.1f KB".format(kb)

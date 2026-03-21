@@ -31,6 +31,7 @@ import java.awt.event.MouseEvent
 import java.nio.file.Path
 import javax.swing.DefaultCellEditor
 import javax.swing.JComponent
+import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.JTable
 import javax.swing.JTextField
@@ -56,6 +57,7 @@ class FileTab(
 
     private val driveCombo = ComboBox<String>()
     private val pathField = JTextField()
+    private val statusLabel = JLabel(" ")
     private var updatingDriveCombo = false
     private val cursorPositions = mutableMapOf<Path, Int>()
     private var stateService: FileManagerStateService? = null
@@ -232,9 +234,36 @@ class FileTab(
 
             dragEnabled = true
             transferHandler = FileEntryTransferHandler()
+
+            selectionModel.addListSelectionListener { updateStatusBar() }
         }
 
         add(JBScrollPane(table), BorderLayout.CENTER)
+
+        statusLabel.border = javax.swing.BorderFactory.createEmptyBorder(2, 4, 2, 4)
+        add(statusLabel, BorderLayout.SOUTH)
+    }
+
+    private fun updateStatusBar() {
+        val entries = tableModel.let { model ->
+            (0 until model.rowCount).mapNotNull { model.getEntryAt(it) }
+        }.filter { !it.isParentLink }
+
+        val dirs = entries.count { it.isDirectory }
+        val files = entries.count { !it.isDirectory }
+        val totalSize = entries.filter { !it.isDirectory }.sumOf { it.size }
+
+        val sb = StringBuilder()
+        sb.append("$dirs dir(s), $files file(s), ${tableModel.formatSize(totalSize)}")
+
+        val selectedEntries = getSelectedEntries()
+        if (selectedEntries.isNotEmpty()) {
+            val selectedFiles = selectedEntries.filter { !it.isDirectory }
+            val selectedSize = selectedFiles.sumOf { it.size }
+            sb.append("  |  ${selectedEntries.size} selected, ${tableModel.formatSize(selectedSize)}")
+        }
+
+        statusLabel.text = sb.toString()
     }
 
     private fun getSelectedEntry(): FileEntry? {
@@ -270,6 +299,7 @@ class FileTab(
             currentPath = path
             pathField.text = path.toString()
             tableModel.setEntries(entries)
+            updateStatusBar()
             onDirectoryChanged(this@FileTab)
 
             // Restore column state for this path
