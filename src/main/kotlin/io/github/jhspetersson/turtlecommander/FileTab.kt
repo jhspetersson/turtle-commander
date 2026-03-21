@@ -638,6 +638,20 @@ class FileTab(
         }
     }
 
+    private fun inactiveSelectionBackground(): java.awt.Color {
+        val active = table.selectionBackground
+        val bg = table.background
+        return java.awt.Color(
+            (active.red + bg.red) / 2,
+            (active.green + bg.green) / 2,
+            (active.blue + bg.blue) / 2,
+        )
+    }
+
+    private fun inactiveSelectionForeground(): java.awt.Color {
+        return table.foreground
+    }
+
     private inner class FileNameCellRenderer : DefaultTableCellRenderer() {
         override fun getTableCellRendererComponent(
             table: JTable,
@@ -648,6 +662,10 @@ class FileTab(
             column: Int,
         ): Component {
             super.getTableCellRendererComponent(table, value, isSelected, false, row, column)
+            if (isSelected && !table.hasFocus()) {
+                background = inactiveSelectionBackground()
+                foreground = inactiveSelectionForeground()
+            }
             val modelRow = table.convertRowIndexToModel(row)
             val entry = tableModel.getEntryAt(modelRow)
             val highlighting = TurtleCommanderSettings.getInstance().state.enableFileNameHighlighting
@@ -662,12 +680,15 @@ class FileTab(
                 else -> FileTypeManager.getInstance().getFileTypeByFileName(entry.name).icon
                     ?: AllIcons.FileTypes.Any_type
             }
-            foreground = if (highlighting && !isSelected && entry != null && entry.isDirectory && entry.directoryType != DirectoryType.NONE) {
-                DirectoryIcons.getColor(entry.directoryType)
+            if (isSelected && !table.hasFocus()) {
+                foreground = inactiveSelectionForeground()
             } else if (!isSelected) {
-                table.foreground
-            } else {
-                foreground
+                background = table.background
+                foreground = if (highlighting && entry != null && entry.isDirectory && entry.directoryType != DirectoryType.NONE) {
+                    DirectoryIcons.getColor(entry.directoryType)
+                } else {
+                    table.foreground
+                }
             }
             return this
         }
@@ -685,7 +706,15 @@ class FileTab(
             val modelRow = table.convertRowIndexToModel(row)
             val modelCol = table.convertColumnIndexToModel(column)
             val displayValue = tableModel.getDisplayValue(modelRow, modelCol)
-            return super.getTableCellRendererComponent(table, displayValue, isSelected, false, row, column)
+            val comp = super.getTableCellRendererComponent(table, displayValue, isSelected, false, row, column)
+            if (isSelected && !table.hasFocus()) {
+                background = inactiveSelectionBackground()
+                foreground = inactiveSelectionForeground()
+            } else if (!isSelected) {
+                background = table.background
+                foreground = table.foreground
+            }
+            return comp
         }
     }
 
