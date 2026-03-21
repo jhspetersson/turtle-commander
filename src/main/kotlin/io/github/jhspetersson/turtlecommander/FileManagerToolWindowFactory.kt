@@ -100,6 +100,8 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
                     bottomBar.isVisible = s.showCommandBar
                     leftPanel.applyFonts()
                     rightPanel.applyFonts()
+                    leftPanel.applyVisibilitySettings()
+                    rightPanel.applyVisibilitySettings()
                     mainPanel.revalidate()
                     mainPanel.repaint()
                 }

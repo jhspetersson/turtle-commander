@@ -22,6 +22,8 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
     class State {
         var enableFileNameHighlighting: Boolean = true
         var showCommandBar: Boolean = true
+        var hideDriveSelector: Boolean = false
+        var hideStatusBar: Boolean = false
         var alwaysOverwriteFiles: Boolean = false
         var panelFontFamily: String = ""
         var panelFontSize: Int = 0

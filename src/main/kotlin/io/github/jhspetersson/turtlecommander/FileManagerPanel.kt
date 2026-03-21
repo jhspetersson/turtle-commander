@@ -447,6 +447,15 @@ class FileManagerPanel(
         }
     }
 
+    fun applyVisibilitySettings() {
+        val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
+        for (i in 0 until tabbedPane.tabCount) {
+            if (i == plusIndex) continue
+            val tab = tabbedPane.getComponentAt(i) as? FileTab ?: continue
+            tab.applyVisibilitySettings()
+        }
+    }
+
     fun showDriveSelector() {
         getActiveTab()?.showDriveSelector()
     }

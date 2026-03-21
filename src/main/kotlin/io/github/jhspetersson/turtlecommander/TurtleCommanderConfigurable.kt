@@ -20,6 +20,8 @@ class TurtleCommanderConfigurable : Configurable {
 
     private var highlightingCheckBox: JCheckBox? = null
     private var commandBarCheckBox: JCheckBox? = null
+    private var hideDriveSelectorCheckBox: JCheckBox? = null
+    private var hideStatusBarCheckBox: JCheckBox? = null
     private var overwriteCheckBox: JCheckBox? = null
     private var panelFontCombo: ComboBox<String>? = null
     private var panelFontSizeSpinner: JSpinner? = null
@@ -34,6 +36,8 @@ class TurtleCommanderConfigurable : Configurable {
 
         highlightingCheckBox = JCheckBox("Enable file name highlighting for project directories", settings.enableFileNameHighlighting)
         commandBarCheckBox = JCheckBox("Show command bar (F5 Copy, F6 Move, etc.)", settings.showCommandBar)
+        hideDriveSelectorCheckBox = JCheckBox("Hide drive selector", settings.hideDriveSelector)
+        hideStatusBarCheckBox = JCheckBox("Hide status bar", settings.hideStatusBar)
         overwriteCheckBox = JCheckBox("Always overwrite existing files during copy/move", settings.alwaysOverwriteFiles)
 
         val defaultLabel = "(Default)"
@@ -85,12 +89,16 @@ class TurtleCommanderConfigurable : Configurable {
 
         highlightingCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         commandBarCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
+        hideDriveSelectorCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
+        hideStatusBarCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         overwriteCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
 
         val inner = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             add(highlightingCheckBox)
             add(commandBarCheckBox)
+            add(hideDriveSelectorCheckBox)
+            add(hideStatusBarCheckBox)
             add(overwriteCheckBox)
             add(javax.swing.Box.createVerticalStrut(8))
             add(fontGrid)
@@ -106,6 +114,8 @@ class TurtleCommanderConfigurable : Configurable {
         val defaultLabel = "(Default)"
         return highlightingCheckBox?.isSelected != settings.enableFileNameHighlighting
             || commandBarCheckBox?.isSelected != settings.showCommandBar
+            || hideDriveSelectorCheckBox?.isSelected != settings.hideDriveSelector
+            || hideStatusBarCheckBox?.isSelected != settings.hideStatusBar
             || overwriteCheckBox?.isSelected != settings.alwaysOverwriteFiles
             || getSelectedFontFamily(panelFontCombo, defaultLabel) != settings.panelFontFamily
             || ((panelFontSizeSpinner?.value as? Number)?.toInt() ?: 0) != (if (settings.panelFontSize > 0) settings.panelFontSize else 13)
@@ -119,6 +129,8 @@ class TurtleCommanderConfigurable : Configurable {
         val defaultLabel = "(Default)"
         settings.enableFileNameHighlighting = highlightingCheckBox?.isSelected ?: settings.enableFileNameHighlighting
         settings.showCommandBar = commandBarCheckBox?.isSelected ?: settings.showCommandBar
+        settings.hideDriveSelector = hideDriveSelectorCheckBox?.isSelected ?: settings.hideDriveSelector
+        settings.hideStatusBar = hideStatusBarCheckBox?.isSelected ?: settings.hideStatusBar
         settings.alwaysOverwriteFiles = overwriteCheckBox?.isSelected ?: settings.alwaysOverwriteFiles
         settings.panelFontFamily = getSelectedFontFamily(panelFontCombo, defaultLabel)
         settings.panelFontSize = (panelFontSizeSpinner?.value as? Number)?.toInt() ?: 0
@@ -132,6 +144,8 @@ class TurtleCommanderConfigurable : Configurable {
         val defaultLabel = "(Default)"
         highlightingCheckBox?.isSelected = settings.enableFileNameHighlighting
         commandBarCheckBox?.isSelected = settings.showCommandBar
+        hideDriveSelectorCheckBox?.isSelected = settings.hideDriveSelector
+        hideStatusBarCheckBox?.isSelected = settings.hideStatusBar
         overwriteCheckBox?.isSelected = settings.alwaysOverwriteFiles
         panelFontCombo?.selectedItem = settings.panelFontFamily.ifEmpty { defaultLabel }
         panelFontSizeSpinner?.value = if (settings.panelFontSize > 0) settings.panelFontSize else 13
@@ -142,6 +156,8 @@ class TurtleCommanderConfigurable : Configurable {
     override fun disposeUIResources() {
         highlightingCheckBox = null
         commandBarCheckBox = null
+        hideDriveSelectorCheckBox = null
+        hideStatusBarCheckBox = null
         overwriteCheckBox = null
         panelFontCombo = null
         panelFontSizeSpinner = null

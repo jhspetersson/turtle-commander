@@ -71,6 +71,13 @@ class FileTab(
         setupTable()
         loadDrives()
         applyPanelFont()
+        applyVisibilitySettings()
+    }
+
+    fun applyVisibilitySettings() {
+        val settings = TurtleCommanderSettings.getInstance().state
+        driveCombo.isVisible = !settings.hideDriveSelector
+        statusLabel.isVisible = !settings.hideStatusBar
     }
 
     fun applyPanelFont() {
