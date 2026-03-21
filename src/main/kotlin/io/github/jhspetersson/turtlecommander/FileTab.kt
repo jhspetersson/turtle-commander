@@ -142,6 +142,8 @@ class FileTab(
     private fun setupTable() {
         table.apply {
             setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION)
+            setCellSelectionEnabled(false)
+            setRowSelectionAllowed(true)
             autoResizeMode = JBTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS
             rowHeight = 20
 
@@ -220,11 +222,6 @@ class FileTab(
 
             addFocusListener(object : java.awt.event.FocusListener {
                 override fun focusGained(e: java.awt.event.FocusEvent) {
-                    val row = selectedRow
-                    if (row >= 0) {
-                        setColumnSelectionInterval(0, 0)
-                        selectionModel.setLeadSelectionIndex(row)
-                    }
                     repaint()
                 }
                 override fun focusLost(e: java.awt.event.FocusEvent) {
@@ -650,7 +647,7 @@ class FileTab(
             row: Int,
             column: Int,
         ): Component {
-            super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column)
+            super.getTableCellRendererComponent(table, value, isSelected, false, row, column)
             val modelRow = table.convertRowIndexToModel(row)
             val entry = tableModel.getEntryAt(modelRow)
             val highlighting = TurtleCommanderSettings.getInstance().state.enableFileNameHighlighting
@@ -688,7 +685,7 @@ class FileTab(
             val modelRow = table.convertRowIndexToModel(row)
             val modelCol = table.convertColumnIndexToModel(column)
             val displayValue = tableModel.getDisplayValue(modelRow, modelCol)
-            return super.getTableCellRendererComponent(table, displayValue, isSelected, hasFocus, row, column)
+            return super.getTableCellRendererComponent(table, displayValue, isSelected, false, row, column)
         }
     }
 
