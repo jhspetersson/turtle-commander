@@ -344,75 +344,79 @@ abstract class TabContextAction : AnAction() {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
-        e.presentation.isEnabled = TabContextMenuState.clickedPanel != null
-                && TabContextMenuState.clickedTabIndex >= 0
+        val (panel, _) = resolveTabContext(e)
+        e.presentation.isEnabled = panel != null
+    }
+
+    protected fun resolveTabContext(e: AnActionEvent): Pair<FileManagerPanel?, Int> {
+        val contextPanel = TabContextMenuState.clickedPanel
+        if (contextPanel != null && TabContextMenuState.clickedTabIndex >= 0) {
+            return contextPanel to TabContextMenuState.clickedTabIndex
+        }
+        val project = e.project ?: return null to -1
+        val panel = project.service<FileManagerStateService>().getActivePanel() ?: return null to -1
+        val index = panel.getActiveTabIndex()
+        return if (index >= 0) panel to index else null to -1
     }
 }
 
 class CloseTabAction : TabContextAction() {
     override fun update(e: AnActionEvent) {
-        super.update(e)
-        val panel = TabContextMenuState.clickedPanel ?: return
-        e.presentation.isEnabled = e.presentation.isEnabled && panel.getRealTabCount() > 1
+        val (panel, _) = resolveTabContext(e)
+        e.presentation.isEnabled = panel != null && panel.getRealTabCount() > 1
     }
 
     override fun actionPerformed(e: AnActionEvent) {
-        val panel = TabContextMenuState.clickedPanel ?: return
-        panel.closeTab(TabContextMenuState.clickedTabIndex)
+        val (panel, tabIndex) = resolveTabContext(e)
+        panel?.closeTab(tabIndex)
     }
 }
 
 class CloseOtherTabsAction : TabContextAction() {
     override fun update(e: AnActionEvent) {
-        super.update(e)
-        val panel = TabContextMenuState.clickedPanel ?: return
-        e.presentation.isEnabled = e.presentation.isEnabled && panel.getRealTabCount() > 1
+        val (panel, _) = resolveTabContext(e)
+        e.presentation.isEnabled = panel != null && panel.getRealTabCount() > 1
     }
 
     override fun actionPerformed(e: AnActionEvent) {
-        val panel = TabContextMenuState.clickedPanel ?: return
-        panel.closeOtherTabs(TabContextMenuState.clickedTabIndex)
+        val (panel, tabIndex) = resolveTabContext(e)
+        panel?.closeOtherTabs(tabIndex)
     }
 }
 
 class CloseAllTabsAction : TabContextAction() {
     override fun update(e: AnActionEvent) {
-        super.update(e)
-        val panel = TabContextMenuState.clickedPanel ?: return
-        e.presentation.isEnabled = e.presentation.isEnabled && panel.getRealTabCount() > 1
+        val (panel, _) = resolveTabContext(e)
+        e.presentation.isEnabled = panel != null && panel.getRealTabCount() > 1
     }
 
     override fun actionPerformed(e: AnActionEvent) {
-        val panel = TabContextMenuState.clickedPanel ?: return
-        panel.closeAllTabs()
+        val (panel, _) = resolveTabContext(e)
+        panel?.closeAllTabs()
     }
 }
 
 class CloseTabsToTheLeftAction : TabContextAction() {
     override fun update(e: AnActionEvent) {
-        super.update(e)
-        e.presentation.isEnabled = e.presentation.isEnabled
-                && TabContextMenuState.clickedTabIndex > 0
+        val (panel, tabIndex) = resolveTabContext(e)
+        e.presentation.isEnabled = panel != null && tabIndex > 0
     }
 
     override fun actionPerformed(e: AnActionEvent) {
-        val panel = TabContextMenuState.clickedPanel ?: return
-        panel.closeTabsToTheLeft(TabContextMenuState.clickedTabIndex)
+        val (panel, tabIndex) = resolveTabContext(e)
+        panel?.closeTabsToTheLeft(tabIndex)
     }
 }
 
 class CloseTabsToTheRightAction : TabContextAction() {
     override fun update(e: AnActionEvent) {
-        super.update(e)
-        val panel = TabContextMenuState.clickedPanel ?: return
-        val plusIndex = panel.getRealTabCount()
-        e.presentation.isEnabled = e.presentation.isEnabled
-                && TabContextMenuState.clickedTabIndex < plusIndex - 1
+        val (panel, tabIndex) = resolveTabContext(e)
+        e.presentation.isEnabled = panel != null && tabIndex < (panel?.getRealTabCount() ?: 0) - 1
     }
 
     override fun actionPerformed(e: AnActionEvent) {
-        val panel = TabContextMenuState.clickedPanel ?: return
-        panel.closeTabsToTheRight(TabContextMenuState.clickedTabIndex)
+        val (panel, tabIndex) = resolveTabContext(e)
+        panel?.closeTabsToTheRight(tabIndex)
     }
 }
 

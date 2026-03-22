@@ -453,7 +453,15 @@ class FileManagerPanel(
         (component as? FileTab)?.dispose()
         (component as? SearchResultsPanel)?.dispose()
         tabbedPane.removeTabAt(tabIndex)
+        focusActiveTab()
     }
+
+    fun closeActiveTab() {
+        val index = tabbedPane.selectedIndex
+        if (index >= 0) closeTab(index)
+    }
+
+    fun getActiveTabIndex(): Int = tabbedPane.selectedIndex
 
     fun closeOtherTabs(tabIndex: Int) {
         val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
