@@ -131,6 +131,37 @@ class ToggleSelectionAction : FileManagerAction() {
     }
 }
 
+class SearchFilesAction : FileManagerAction() {
+    override fun actionPerformed(e: AnActionEvent) {
+        val tab = findActiveTab(e) ?: return
+        val project = e.project ?: return
+        val dialog = FileSearchDialog(project, tab.currentPath)
+        if (!dialog.showAndGet()) return
+        val criteria = dialog.getCriteria()
+        val stateService = project.service<FileManagerStateService>()
+        stateService.getActivePanel()?.openSearchTab(criteria)
+    }
+}
+
+class ContextSearchInDirectoryAction : AnAction("Search in Directory...", "Search for files in the selected directory", AllIcons.Actions.Find) {
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+
+    override fun update(e: AnActionEvent) {
+        val entry = FileContextMenuState.clickedEntry
+        e.presentation.isEnabledAndVisible = entry != null && entry.isDirectory && !entry.isParentLink
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val entry = FileContextMenuState.clickedEntry ?: return
+        val project = e.project ?: return
+        val dialog = FileSearchDialog(project, entry.path)
+        if (!dialog.showAndGet()) return
+        val criteria = dialog.getCriteria()
+        val stateService = project.service<FileManagerStateService>()
+        stateService.getActivePanel()?.openSearchTab(criteria)
+    }
+}
+
 class RefreshAction : FileManagerAction() {
     override fun actionPerformed(e: AnActionEvent) {
         findActiveTab(e)?.refresh()

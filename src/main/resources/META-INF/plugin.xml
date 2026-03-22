@@ -113,6 +113,17 @@
                 <keyboard-shortcut first-keystroke="SPACE" keymap="$default"/>
                 <keyboard-shortcut first-keystroke="INSERT" keymap="$default"/>
             </action>
+            <action id="TurtleCommander.SearchFiles"
+                    class="io.github.jhspetersson.turtlecommander.SearchFilesAction"
+                    text="Search Files"
+                    description="Search for files in the current directory">
+                <keyboard-shortcut first-keystroke="alt F7" keymap="$default"/>
+            </action>
+            <action id="TurtleCommander.SearchInDirectory"
+                    class="io.github.jhspetersson.turtlecommander.ContextSearchInDirectoryAction"
+                    text="Search in Directory..."
+                    icon="AllIcons.Actions.Find"
+                    description="Search for files in the selected directory"/>
             <action id="TurtleCommander.Refresh"
                     class="io.github.jhspetersson.turtlecommander.RefreshAction"
                     text="Refresh"
@@ -251,6 +262,8 @@
             <reference ref="TurtleCommander.PackFiles"/>
             <reference ref="TurtleCommander.ExtractFiles"/>
             <reference ref="TurtleCommander.ExtractHere"/>
+            <separator/>
+            <reference ref="TurtleCommander.SearchInDirectory"/>
             <separator/>
             <reference ref="TurtleCommander.AddToFavorites"/>
         </group>

@@ -42,6 +42,7 @@ class FileManagerPanel(
     private val tableViewButton = ViewModeButton(AllIcons.Actions.PreviewDetails, "Table view", true)
     private val listViewButton = ViewModeButton(AllIcons.Actions.ListFiles, "List view", false)
     private val treeViewButton = ViewModeButton(AllIcons.Actions.ShowAsTree, "Tree view", false)
+    private lateinit var viewTogglePanel: JPanel
 
     private var dragSourceIndex = -1
     private var dropTargetIndex = -1
@@ -147,7 +148,7 @@ class FileManagerPanel(
             }
         })
 
-        val viewTogglePanel = JPanel(FlowLayout(FlowLayout.RIGHT, 0, 0)).apply {
+        viewTogglePanel = JPanel(FlowLayout(FlowLayout.RIGHT, 0, 0)).apply {
             isOpaque = false
             border = JBUI.Borders.empty(8, 0, 0, 8)
             val group = ButtonGroup()
@@ -330,11 +331,39 @@ class FileManagerPanel(
         addNewTab(currentTab?.currentPath ?: initialPath)
     }
 
-    fun openDirectoryInNewTab(path: Path) {
-        addNewTab(path)
+    fun openDirectoryInNewTab(path: Path, selectName: String? = null) {
+        addNewTab(path, selectName)
     }
 
-    private fun addNewTab(path: Path) {
+    fun openSearchTab(criteria: FileSearchCriteria) {
+        val searchPanel = SearchResultsPanel(project, criteria)
+
+        val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
+        val insertIndex = if (plusIndex >= 0) plusIndex else tabbedPane.tabCount
+        val title = "Search: ${criteria.namePattern ?: criteria.rootPath.fileName ?: "Results"}"
+        tabbedPane.insertTab(title, AllIcons.Actions.Find, searchPanel, null, insertIndex)
+        tabbedPane.setTabComponentAt(insertIndex, createSearchTabHeader(title, searchPanel))
+        tabbedPane.selectedIndex = insertIndex
+
+        searchPanel.startSearch()
+    }
+
+    private fun createSearchTabHeader(title: String, searchPanel: SearchResultsPanel): JPanel {
+        val panel = JPanel(BorderLayout(4, 0))
+        panel.isOpaque = false
+        val label = JLabel(title)
+        TurtleCommanderSettings.getInstance().getTabFont()?.let { label.font = it }
+        panel.add(label, BorderLayout.CENTER)
+        val closeButton = TabCloseButton {
+            searchPanel.dispose()
+            val idx = tabbedPane.indexOfComponent(searchPanel)
+            if (idx >= 0) tabbedPane.removeTabAt(idx)
+        }
+        panel.add(closeButton, BorderLayout.EAST)
+        return panel
+    }
+
+    private fun addNewTab(path: Path, selectName: String? = null) {
         val fileTab = FileTab(
             project = project,
             initialPath = path,
@@ -361,7 +390,7 @@ class FileManagerPanel(
 
         val fileOps = project.service<FileOperationService>()
         fileOps.launch {
-            fileTab.navigateTo(path)
+            fileTab.navigateTo(path, selectName = selectName)
         }
     }
 
@@ -419,7 +448,9 @@ class FileManagerPanel(
         val realTabCount = tabbedPane.tabCount - 1
         if (realTabCount <= 1) return
         if (tabIndex < 0 || tabIndex == plusIndex) return
-        (tabbedPane.getComponentAt(tabIndex) as? FileTab)?.dispose()
+        val component = tabbedPane.getComponentAt(tabIndex)
+        (component as? FileTab)?.dispose()
+        (component as? SearchResultsPanel)?.dispose()
         tabbedPane.removeTabAt(tabIndex)
     }
 
@@ -532,6 +563,12 @@ class FileManagerPanel(
     }
 
     private fun syncViewToggle() {
+        val selected = tabbedPane.selectedComponent
+        if (selected is SearchResultsPanel) {
+            viewTogglePanel.isVisible = false
+            return
+        }
+        viewTogglePanel.isVisible = true
         val tab = getActiveTab()
         when (tab?.viewMode) {
             ViewMode.LIST -> listViewButton.isSelected = true
