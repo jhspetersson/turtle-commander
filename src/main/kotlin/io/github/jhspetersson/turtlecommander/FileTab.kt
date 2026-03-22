@@ -88,6 +88,7 @@ class FileTab(
     private val cursorPositions = mutableMapOf<Path, Int>()
     private var stateService: FileManagerStateService? = null
     private var initialized = false
+    private var enableFileNameHighlighting = TurtleCommanderSettings.getInstance().state.enableFileNameHighlighting
 
     var currentPath: Path = initialPath
         private set
@@ -119,6 +120,7 @@ class FileTab(
         val settings = TurtleCommanderSettings.getInstance().state
         driveCombo.isVisible = !settings.hideDriveSelector
         statusPanel.isVisible = !settings.hideStatusBar
+        enableFileNameHighlighting = settings.enableFileNameHighlighting
     }
 
     fun applyPanelFont() {
@@ -1761,11 +1763,10 @@ class FileTab(
             }
             val modelRow = table.convertRowIndexToModel(row)
             val entry = tableModel.getEntryAt(modelRow)
-            val highlighting = TurtleCommanderSettings.getInstance().state.enableFileNameHighlighting
             icon = when {
                 entry == null -> null
                 entry.isParentLink -> AllIcons.Nodes.UpLevel
-                entry.isDirectory -> if (highlighting) {
+                entry.isDirectory -> if (enableFileNameHighlighting) {
                     DirectoryIcons.getIcon(entry.directoryType)
                 } else {
                     AllIcons.Nodes.Folder
@@ -1777,7 +1778,7 @@ class FileTab(
                 foreground = inactiveSelectionForeground()
             } else if (!isSelected) {
                 background = table.background
-                foreground = if (highlighting && entry != null && entry.isDirectory && entry.directoryType != DirectoryType.NONE) {
+                foreground = if (enableFileNameHighlighting && entry != null && entry.isDirectory && entry.directoryType != DirectoryType.NONE) {
                     DirectoryIcons.getColor(entry.directoryType)
                 } else {
                     table.foreground
@@ -2079,10 +2080,9 @@ class FileTab(
             super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
             val entry = value as? FileEntry ?: return this
             text = entry.name
-            val highlighting = TurtleCommanderSettings.getInstance().state.enableFileNameHighlighting
             icon = when {
                 entry.isParentLink -> AllIcons.Nodes.UpLevel
-                entry.isDirectory -> if (highlighting) {
+                entry.isDirectory -> if (enableFileNameHighlighting) {
                     DirectoryIcons.getIcon(entry.directoryType)
                 } else {
                     AllIcons.Nodes.Folder
@@ -2090,7 +2090,7 @@ class FileTab(
                 else -> FileTypeManager.getInstance().getFileTypeByFileName(entry.name).icon
                     ?: AllIcons.FileTypes.Any_type
             }
-            if (!isSelected && highlighting && entry.isDirectory && entry.directoryType != DirectoryType.NONE) {
+            if (!isSelected && enableFileNameHighlighting && entry.isDirectory && entry.directoryType != DirectoryType.NONE) {
                 foreground = DirectoryIcons.getColor(entry.directoryType)
             }
             return this
@@ -2116,10 +2116,9 @@ class FileTab(
             val entry = node.userObject as? FileEntry
             if (entry != null) {
                 text = entry.name
-                val highlighting = TurtleCommanderSettings.getInstance().state.enableFileNameHighlighting
                 icon = when {
                     entry.isParentLink -> AllIcons.Nodes.UpLevel
-                    entry.isDirectory -> if (highlighting) {
+                    entry.isDirectory -> if (enableFileNameHighlighting) {
                         DirectoryIcons.getIcon(entry.directoryType)
                     } else {
                         AllIcons.Nodes.Folder
@@ -2127,7 +2126,7 @@ class FileTab(
                     else -> FileTypeManager.getInstance().getFileTypeByFileName(entry.name).icon
                         ?: AllIcons.FileTypes.Any_type
                 }
-                if (!sel && highlighting && entry.isDirectory && entry.directoryType != DirectoryType.NONE) {
+                if (!sel && enableFileNameHighlighting && entry.isDirectory && entry.directoryType != DirectoryType.NONE) {
                     foreground = DirectoryIcons.getColor(entry.directoryType)
                 }
             }
