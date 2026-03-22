@@ -9,6 +9,7 @@ import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
 import kotlin.math.abs
 
+
 class FileSearchService(
     private val criteria: FileSearchCriteria,
     private val isWindows: Boolean = System.getProperty("os.name").lowercase().contains("win"),
@@ -91,7 +92,8 @@ class FileSearchService(
 
         if (nameMatcher != null && !nameMatcher(name)) return
 
-        if (criteria.sizeFilter != null && !attrs.isDirectory) {
+        if (criteria.sizeFilter != null) {
+            if (attrs.isDirectory) return
             if (!matchesSize(attrs.size(), criteria.sizeFilter)) return
         }
 
@@ -133,15 +135,12 @@ class FileSearchService(
 
     private fun matchesDate(millis: Long, filter: DateFilter): Boolean {
         return when (filter.mode) {
-            DateFilterMode.EARLIER -> millis < filter.dateMillis
-            DateFilterMode.LATER -> millis > filter.dateMillis
-            DateFilterMode.APPROX_EQUAL -> {
-                val tolerance = 24L * 60 * 60 * 1000 // 24 hours
-                abs(millis - filter.dateMillis) <= tolerance
-            }
+            DateFilterMode.EARLIER -> millis < filter.startMillis
+            DateFilterMode.LATER -> millis > filter.endMillis
+            DateFilterMode.APPROX_EQUAL -> millis in filter.startMillis..filter.endMillis
             DateFilterMode.IN_BETWEEN -> {
-                val low = minOf(filter.dateMillis, filter.dateMillis2 ?: filter.dateMillis)
-                val high = maxOf(filter.dateMillis, filter.dateMillis2 ?: filter.dateMillis)
+                val low = minOf(filter.startMillis, filter.startMillis2 ?: filter.startMillis)
+                val high = maxOf(filter.endMillis, filter.endMillis2 ?: filter.endMillis)
                 millis in low..high
             }
         }
@@ -158,19 +157,9 @@ class FileSearchService(
                     if (attrs.isArchive) append('A')
                 }
             } else {
-                java.nio.file.Files.getPosixFilePermissions(path).joinToString("") { perm ->
-                    when (perm) {
-                        java.nio.file.attribute.PosixFilePermission.OWNER_READ -> "r"
-                        java.nio.file.attribute.PosixFilePermission.OWNER_WRITE -> "w"
-                        java.nio.file.attribute.PosixFilePermission.OWNER_EXECUTE -> "x"
-                        java.nio.file.attribute.PosixFilePermission.GROUP_READ -> "r"
-                        java.nio.file.attribute.PosixFilePermission.GROUP_WRITE -> "w"
-                        java.nio.file.attribute.PosixFilePermission.GROUP_EXECUTE -> "x"
-                        java.nio.file.attribute.PosixFilePermission.OTHERS_READ -> "r"
-                        java.nio.file.attribute.PosixFilePermission.OTHERS_WRITE -> "w"
-                        java.nio.file.attribute.PosixFilePermission.OTHERS_EXECUTE -> "x"
-                    }
-                }
+                java.nio.file.attribute.PosixFilePermissions.toString(
+                    java.nio.file.Files.getPosixFilePermissions(path)
+                )
             }
         } catch (_: Exception) {
             ""

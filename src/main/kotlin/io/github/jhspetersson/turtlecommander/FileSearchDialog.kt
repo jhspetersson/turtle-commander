@@ -40,8 +40,12 @@ enum class SizeFilterMode { MORE_THAN, APPROX_EQUAL, LESS_THAN, IN_BETWEEN }
 
 data class DateFilter(
     val mode: DateFilterMode,
-    val dateMillis: Long,
-    val dateMillis2: Long?,
+    val startMillis: Long,
+    val endMillis: Long,
+    val startMillis2: Long?,
+    val endMillis2: Long?,
+    val text1: String,
+    val text2: String?,
 )
 
 enum class DateFilterMode { EARLIER, APPROX_EQUAL, LATER, IN_BETWEEN }
@@ -52,76 +56,76 @@ class FileSearchDialog(
     initialCriteria: FileSearchCriteria? = null,
 ) : DialogWrapper(project) {
 
+    companion object {
+        fun bytesToUnit(bytes: Long): Pair<String, String> {
+            return when {
+                bytes >= 1024L * 1024 * 1024 -> Pair("%.1f".format(bytes / (1024.0 * 1024 * 1024)), "GB")
+                bytes >= 1024L * 1024 -> Pair("%.1f".format(bytes / (1024.0 * 1024)), "MB")
+                bytes >= 1024L -> Pair("%.1f".format(bytes / 1024.0), "KB")
+                else -> Pair(bytes.toString(), "B")
+            }
+        }
+    }
+
     private val rootField = JBTextField(initialRoot.toString())
 
-    private val nameCheckBox = JCheckBox("Search by name", initialCriteria?.namePattern != null)
+    private val nameCheckBox = JCheckBox("Search by name", initialCriteria == null || initialCriteria.namePattern != null)
     private val nameField = JBTextField(initialCriteria?.namePattern ?: "*")
     private val globRadio = JRadioButton("Glob", initialCriteria?.namePatternMode != NamePatternMode.REGEXP)
     private val regexpRadio = JRadioButton("Regexp", initialCriteria?.namePatternMode == NamePatternMode.REGEXP)
 
     private val sizeCheckBox = JCheckBox("Search by size", initialCriteria?.sizeFilter != null)
-    private val sizeModeCombo = ComboBox(DefaultComboBoxModel(arrayOf("More than", "Approximately equal", "Less than", "In between")))
-    private val sizeField1 = JBTextField(10)
-    private val sizeField2 = JBTextField(10)
-    private val sizeUnitCombo = ComboBox(DefaultComboBoxModel(arrayOf("B", "KB", "MB", "GB")))
+    private val sizeModeCombo = ComboBox(DefaultComboBoxModel(arrayOf("More than", "Approximately equal", "Less than", "In between"))).apply {
+        initialCriteria?.sizeFilter?.let { selectedIndex = it.mode.ordinal }
+    }
+    private val sizeField1 = JBTextField(10).apply {
+        initialCriteria?.sizeFilter?.let { text = bytesToUnit(it.sizeBytes).first }
+    }
+    private val sizeField2 = JBTextField(10).apply {
+        initialCriteria?.sizeFilter?.sizeBytes2?.let { text = bytesToUnit(it).first }
+    }
+    private val sizeUnitCombo = ComboBox(DefaultComboBoxModel(arrayOf("B", "KB", "MB", "GB"))).apply {
+        selectedItem = initialCriteria?.sizeFilter?.let { bytesToUnit(it.sizeBytes).second } ?: "MB"
+    }
     private val sizeField2Label = JBLabel("and")
 
     private val creationDateCheckBox = JCheckBox("Search by creation date", initialCriteria?.creationDateFilter != null)
-    private val creationDateModeCombo = ComboBox(DefaultComboBoxModel(arrayOf("Earlier than", "Approximately equal", "Later than", "In between")))
-    private val creationDateField1 = JBTextField(12)
-    private val creationDateField2 = JBTextField(12)
+    private val creationDateModeCombo = ComboBox(DefaultComboBoxModel(arrayOf("Earlier than", "Approximately equal", "Later than", "In between"))).apply {
+        initialCriteria?.creationDateFilter?.let { selectedIndex = it.mode.ordinal }
+    }
+    private val creationDateField1 = JBTextField(16).apply {
+        emptyText.text = "yyyy[-MM[-dd[ HH:mm]]]"
+        initialCriteria?.creationDateFilter?.let { text = it.text1 }
+    }
+    private val creationDateField2 = JBTextField(16).apply {
+        emptyText.text = "yyyy[-MM[-dd[ HH:mm]]]"
+        initialCriteria?.creationDateFilter?.text2?.let { text = it }
+    }
     private val creationDateField2Label = JBLabel("and")
 
     private val modificationDateCheckBox = JCheckBox("Search by modification date", initialCriteria?.modificationDateFilter != null)
-    private val modificationDateModeCombo = ComboBox(DefaultComboBoxModel(arrayOf("Earlier than", "Approximately equal", "Later than", "In between")))
-    private val modificationDateField1 = JBTextField(12)
-    private val modificationDateField2 = JBTextField(12)
+    private val modificationDateModeCombo = ComboBox(DefaultComboBoxModel(arrayOf("Earlier than", "Approximately equal", "Later than", "In between"))).apply {
+        initialCriteria?.modificationDateFilter?.let { selectedIndex = it.mode.ordinal }
+    }
+    private val modificationDateField1 = JBTextField(16).apply {
+        emptyText.text = "yyyy[-MM[-dd[ HH:mm]]]"
+        initialCriteria?.modificationDateFilter?.let { text = it.text1 }
+    }
+    private val modificationDateField2 = JBTextField(16).apply {
+        emptyText.text = "yyyy[-MM[-dd[ HH:mm]]]"
+        initialCriteria?.modificationDateFilter?.text2?.let { text = it }
+    }
     private val modificationDateField2Label = JBLabel("and")
-
-    private val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm")
 
     init {
         title = "Search Files"
         setOKButtonText("Search")
 
-        if (initialCriteria != null) {
-            initFromCriteria(initialCriteria)
-        }
+        init()
 
         setupEnabling()
         setupSizeInBetween()
         setupDateInBetween()
-
-        init()
-    }
-
-    private fun initFromCriteria(c: FileSearchCriteria) {
-        c.sizeFilter?.let { sf ->
-            sizeModeCombo.selectedIndex = sf.mode.ordinal
-            val (value1, unit1) = bytesToUnit(sf.sizeBytes)
-            sizeField1.text = value1
-            sizeUnitCombo.selectedItem = unit1
-            sf.sizeBytes2?.let { val (v2, _) = bytesToUnit(it); sizeField2.text = v2 }
-        }
-        c.creationDateFilter?.let { df ->
-            creationDateModeCombo.selectedIndex = df.mode.ordinal
-            creationDateField1.text = dateFormat.format(java.util.Date(df.dateMillis))
-            df.dateMillis2?.let { creationDateField2.text = dateFormat.format(java.util.Date(it)) }
-        }
-        c.modificationDateFilter?.let { df ->
-            modificationDateModeCombo.selectedIndex = df.mode.ordinal
-            modificationDateField1.text = dateFormat.format(java.util.Date(df.dateMillis))
-            df.dateMillis2?.let { modificationDateField2.text = dateFormat.format(java.util.Date(it)) }
-        }
-    }
-
-    private fun bytesToUnit(bytes: Long): Pair<String, String> {
-        return when {
-            bytes >= 1024L * 1024 * 1024 -> Pair("%.1f".format(bytes / (1024.0 * 1024 * 1024)), "GB")
-            bytes >= 1024L * 1024 -> Pair("%.1f".format(bytes / (1024.0 * 1024)), "MB")
-            bytes >= 1024L -> Pair("%.1f".format(bytes / 1024.0), "KB")
-            else -> Pair(bytes.toString(), "B")
-        }
     }
 
     private fun setupEnabling() {
@@ -285,8 +289,6 @@ class FileSearchDialog(
         field2: JBTextField,
         field2Label: JBLabel,
     ): JPanel {
-        field1.emptyText.text = "yyyy-MM-dd HH:mm"
-        field2.emptyText.text = "yyyy-MM-dd HH:mm"
         return JPanel(GridBagLayout()).apply {
             alignmentX = JComponent.LEFT_ALIGNMENT
             border = BorderFactory.createEmptyBorder(2, 20, 0, 0)
@@ -346,11 +348,63 @@ class FileSearchDialog(
     ): DateFilter? {
         if (!checkBox.isSelected) return null
         val mode = DateFilterMode.entries[modeCombo.selectedIndex]
-        val date1 = try { dateFormat.parse(field1.text.trim()).time } catch (_: Exception) { return null }
-        val date2 = if (mode == DateFilterMode.IN_BETWEEN) {
-            try { dateFormat.parse(field2.text.trim()).time } catch (_: Exception) { return null }
+        val text1 = field1.text.trim()
+        val (start1, end1) = parseDateRange(text1) ?: return null
+        val text2 = field2.text.trim()
+        val range2 = if (mode == DateFilterMode.IN_BETWEEN) {
+            parseDateRange(text2) ?: return null
         } else null
-        return DateFilter(mode, date1, date2)
+        return DateFilter(mode, start1, end1, range2?.first, range2?.second, text1, if (mode == DateFilterMode.IN_BETWEEN) text2 else null)
+    }
+
+    private fun parseDateRange(text: String): Pair<Long, Long>? {
+        if (text.isBlank()) return null
+        val cal = java.util.Calendar.getInstance()
+        // yyyy-MM-dd HH:mm
+        try {
+            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm")
+            sdf.isLenient = false
+            val d = sdf.parse(text)
+            cal.time = d
+            val start = cal.timeInMillis
+            cal.add(java.util.Calendar.MINUTE, 1)
+            cal.add(java.util.Calendar.MILLISECOND, -1)
+            return Pair(start, cal.timeInMillis)
+        } catch (_: Exception) {}
+        // yyyy-MM-dd
+        try {
+            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd")
+            sdf.isLenient = false
+            val d = sdf.parse(text)
+            cal.time = d
+            val start = cal.timeInMillis
+            cal.add(java.util.Calendar.DAY_OF_MONTH, 1)
+            cal.add(java.util.Calendar.MILLISECOND, -1)
+            return Pair(start, cal.timeInMillis)
+        } catch (_: Exception) {}
+        // yyyy-MM
+        try {
+            val sdf = java.text.SimpleDateFormat("yyyy-MM")
+            sdf.isLenient = false
+            val d = sdf.parse(text)
+            cal.time = d
+            val start = cal.timeInMillis
+            cal.add(java.util.Calendar.MONTH, 1)
+            cal.add(java.util.Calendar.MILLISECOND, -1)
+            return Pair(start, cal.timeInMillis)
+        } catch (_: Exception) {}
+        // yyyy
+        try {
+            val sdf = java.text.SimpleDateFormat("yyyy")
+            sdf.isLenient = false
+            val d = sdf.parse(text)
+            cal.time = d
+            val start = cal.timeInMillis
+            cal.add(java.util.Calendar.YEAR, 1)
+            cal.add(java.util.Calendar.MILLISECOND, -1)
+            return Pair(start, cal.timeInMillis)
+        } catch (_: Exception) {}
+        return null
     }
 
     override fun getPreferredFocusedComponent() = nameField
