@@ -2147,8 +2147,7 @@ class FileTab(
 
 fun isArchiveFile(entry: FileEntry): Boolean {
     if (entry.isDirectory) return false
-    val ext = entry.name.substringAfterLast('.', "").lowercase()
-    return ext in ZipFileSystemProvider.ARCHIVE_EXTENSIONS
+    return VirtualFileSystemRegistry.supportsByExtension(entry.name)
 }
 
 enum class ViewMode { TABLE, LIST, TREE }

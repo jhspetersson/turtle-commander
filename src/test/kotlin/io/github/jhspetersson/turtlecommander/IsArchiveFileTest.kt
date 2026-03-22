@@ -41,19 +41,33 @@ class IsArchiveFileTest {
     }
 
     @Test
-    fun `tar file is not archive per isArchiveFile`() {
-        // isArchiveFile only checks ZipFileSystemProvider.ARCHIVE_EXTENSIONS
-        assertFalse(isArchiveFile(fileEntry("data.tar")))
+    fun `tar file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("data.tar")))
     }
 
     @Test
-    fun `gz file is not archive per isArchiveFile`() {
-        assertFalse(isArchiveFile(fileEntry("data.gz")))
+    fun `gz file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("data.gz")))
     }
 
     @Test
-    fun `7z file is not archive per isArchiveFile`() {
-        assertFalse(isArchiveFile(fileEntry("data.7z")))
+    fun `tgz file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("data.tgz")))
+    }
+
+    @Test
+    fun `bz2 file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("data.bz2")))
+    }
+
+    @Test
+    fun `tbz2 file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("data.tbz2")))
+    }
+
+    @Test
+    fun `7z file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("data.7z")))
     }
 
     @Test

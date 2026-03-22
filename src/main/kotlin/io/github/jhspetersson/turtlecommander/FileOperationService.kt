@@ -9,7 +9,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
@@ -544,9 +543,8 @@ class FileOperationService(
     suspend fun countArchiveEntries(archivePath: Path): Int = withContext(Dispatchers.IO) {
         var count = 0
         try {
-            val uri = java.net.URI.create("jar:" + archivePath.toUri())
-            FileSystems.newFileSystem(uri, mapOf("create" to "false")).use { zipFs ->
-                val root = zipFs.getPath("/")
+            VirtualFileSystemRegistry.create(archivePath).use { vfs ->
+                val root = vfs.root
                 Files.walkFileTree(root, object : java.nio.file.SimpleFileVisitor<Path>() {
                     override fun visitFile(file: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {
                         count++
@@ -578,9 +576,8 @@ class FileOperationService(
         var autoSkip = false
 
         try {
-            val uri = java.net.URI.create("jar:" + archivePath.toUri())
-            FileSystems.newFileSystem(uri, mapOf("create" to "false")).use { zipFs ->
-                val root = zipFs.getPath("/")
+            VirtualFileSystemRegistry.create(archivePath).use { vfs ->
+                val root = vfs.root
                 Files.walkFileTree(root, object : java.nio.file.SimpleFileVisitor<Path>() {
                     override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {
                         if (isCancelled()) return java.nio.file.FileVisitResult.TERMINATE
