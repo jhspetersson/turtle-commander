@@ -467,6 +467,12 @@ class FileManagerPanel(
     fun refreshActiveTab() {
         getActiveTab()?.refresh()
     }
+
+    fun refreshActiveTab(selectName: String) {
+        val tab = getActiveTab() ?: return
+        val fileOps = project.service<FileOperationService>()
+        fileOps.launch { tab.navigateTo(tab.currentPath, selectName = selectName) }
+    }
 }
 
 private class DraggableTabbedPaneWrapper(

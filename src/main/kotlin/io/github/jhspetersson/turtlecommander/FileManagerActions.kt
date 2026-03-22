@@ -545,6 +545,19 @@ class ContextDeleteAction : AnAction("Delete", "Delete selected files", AllIcons
     }
 }
 
+class PackFilesAction : AnAction("Pack Files", "Pack selected files into a zip archive", AllIcons.FileTypes.Archive) {
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+
+    override fun update(e: AnActionEvent) {
+        val tab = FileContextMenuState.clickedTab
+        e.presentation.isEnabled = tab != null && tab.getSelectedEntries().isNotEmpty()
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        FileContextMenuState.clickedTab?.performPack()
+    }
+}
+
 class AddToFavoritesAction : AnAction("Add to Favorites", "Add directory to favorites", AllIcons.Nodes.Favorite) {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 

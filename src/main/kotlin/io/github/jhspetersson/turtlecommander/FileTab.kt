@@ -645,6 +645,166 @@ class FileTab(
         }
     }
 
+    fun performPack() {
+        val selected = getSelectedEntries()
+        if (selected.isEmpty()) return
+        val destination = otherPanelPathProvider() ?: currentPath
+
+        val archiveName = if (selected.size == 1) {
+            selected[0].name + ".zip"
+        } else {
+            "archive.zip"
+        }
+        val defaultArchivePath = destination.resolve(archiveName).toString()
+
+        val packDialog = PackDialog(project, selected, defaultArchivePath)
+        if (!packDialog.showAndGet()) return
+
+        var archivePath = Path.of(packDialog.archivePath)
+        if (archivePath.parent == null) {
+            archivePath = currentPath.resolve(archivePath)
+        }
+        val deleteAfterPacking = packDialog.deleteAfterPacking
+        val sourcePaths = selected.map { it.path }
+
+        val archiveExists = java.nio.file.Files.exists(archivePath)
+        var appendToExisting = false
+
+        if (archiveExists) {
+            val result = com.intellij.openapi.ui.Messages.showDialog(
+                project,
+                "Archive already exists:\n${archivePath.fileName}\n\nWhat would you like to do?",
+                "Archive Exists",
+                arrayOf("Overwrite", "Add to Existing", "Cancel"),
+                0,
+                com.intellij.openapi.ui.Messages.getQuestionIcon(),
+            )
+            when (result) {
+                0 -> {} // overwrite - will delete and recreate
+                1 -> appendToExisting = true
+                else -> return
+            }
+        }
+
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Packing files", true) {
+            override fun run(indicator: ProgressIndicator) {
+                indicator.isIndeterminate = true
+                indicator.text = "Counting files..."
+
+                runBlocking {
+                    val totalFiles = fileOps.countFiles(sourcePaths)
+                    indicator.isIndeterminate = false
+                    var packedCount = 0
+
+                    try {
+                        val env = mutableMapOf<String, String>()
+                        if (!appendToExisting && !archiveExists) {
+                            env["create"] = "true"
+                        }
+                        if (!appendToExisting && archiveExists) {
+                            withContext(Dispatchers.IO) {
+                                java.nio.file.Files.delete(archivePath)
+                            }
+                            env["create"] = "true"
+                        }
+
+                        val uri = java.net.URI.create("jar:" + archivePath.toUri())
+                        withContext(Dispatchers.IO) {
+                            java.nio.file.FileSystems.newFileSystem(uri, env).use { zipFs ->
+                                for (source in sourcePaths) {
+                                    if (indicator.isCanceled) break
+                                    if (source.toFile().isDirectory) {
+                                        java.nio.file.Files.walkFileTree(source, object : java.nio.file.SimpleFileVisitor<Path>() {
+                                            override fun preVisitDirectory(dir: Path, attrs: java.nio.file.attribute.BasicFileAttributes): java.nio.file.FileVisitResult {
+                                                if (indicator.isCanceled) return java.nio.file.FileVisitResult.TERMINATE
+                                                val relativePath = source.parent.relativize(dir).toString().replace("\\", "/")
+                                                val zipDir = zipFs.getPath(relativePath)
+                                                try {
+                                                    java.nio.file.Files.createDirectories(zipDir)
+                                                } catch (_: java.nio.file.FileAlreadyExistsException) {}
+                                                packedCount++
+                                                indicator.fraction = packedCount.toDouble() / totalFiles
+                                                indicator.text = "Packing $packedCount / $totalFiles"
+                                                indicator.text2 = dir.fileName.toString()
+                                                return java.nio.file.FileVisitResult.CONTINUE
+                                            }
+
+                                            override fun visitFile(file: Path, attrs: java.nio.file.attribute.BasicFileAttributes): java.nio.file.FileVisitResult {
+                                                if (indicator.isCanceled) return java.nio.file.FileVisitResult.TERMINATE
+                                                val relativePath = source.parent.relativize(file).toString().replace("\\", "/")
+                                                val zipEntry = zipFs.getPath(relativePath)
+                                                java.nio.file.Files.copy(file, zipEntry, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                                                packedCount++
+                                                indicator.fraction = packedCount.toDouble() / totalFiles
+                                                indicator.text = "Packing $packedCount / $totalFiles"
+                                                indicator.text2 = file.fileName.toString()
+                                                return java.nio.file.FileVisitResult.CONTINUE
+                                            }
+                                        })
+                                    } else {
+                                        val zipEntry = zipFs.getPath(source.fileName.toString())
+                                        java.nio.file.Files.copy(source, zipEntry, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                                        packedCount++
+                                        indicator.fraction = packedCount.toDouble() / totalFiles
+                                        indicator.text = "Packing $packedCount / $totalFiles"
+                                        indicator.text2 = source.fileName.toString()
+                                    }
+                                }
+                            }
+                        }
+
+                        if (!indicator.isCanceled && deleteAfterPacking) {
+                            indicator.isIndeterminate = false
+                            indicator.fraction = 0.0
+                            indicator.text = "Deleting source files..."
+                            var deletedCount = 0
+
+                            fileOps.deleteFilesWithProgress(
+                                paths = sourcePaths,
+                                onProgress = { count, name ->
+                                    deletedCount = count
+                                    indicator.fraction = count.toDouble() / totalFiles
+                                    indicator.text = "Deleting $count / $totalFiles"
+                                    indicator.text2 = name
+                                },
+                                onError = { path, error ->
+                                    fileErrorNotification("Failed to delete ${path.fileName}: ${error.message}")
+                                },
+                                isCancelled = { indicator.isCanceled },
+                            )
+                        }
+                    } catch (e: Exception) {
+                        fileErrorNotification("Packing failed: ${e.message}")
+                    }
+
+                    val archiveFileName = archivePath.fileName.toString()
+                    val archiveParent = archivePath.parent
+                    if (archiveParent != null && archiveParent == currentPath) {
+                        navigateTo(currentPath, selectName = archiveFileName)
+                        withContext(Dispatchers.EDT) {
+                            onRefreshOtherPanel()
+                        }
+                    } else {
+                        navigateTo(currentPath)
+                        val otherPath = otherPanelPathProvider()
+                        if (archiveParent != null && otherPath != null && archiveParent == otherPath) {
+                            withContext(Dispatchers.EDT) {
+                                val svc = stateService ?: return@withContext
+                                val activePanel = svc.getActivePanel()
+                                val otherPanel = if (activePanel == svc.leftPanel) svc.rightPanel else svc.leftPanel
+                                otherPanel?.refreshActiveTab(archiveFileName)
+                            }
+                        } else {
+                            withContext(Dispatchers.EDT) {
+                                onRefreshOtherPanel()
+                            }
+                        }
+                    }
+                }
+            }
+        })
+    }
+
     private fun inactiveSelectionBackground(): java.awt.Color {
         val active = table.selectionBackground
         val bg = table.background

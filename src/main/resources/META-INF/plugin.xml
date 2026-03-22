@@ -188,6 +188,11 @@
                     text="Delete"
                     icon="AllIcons.Actions.GC"
                     description="Delete selected files"/>
+            <action id="TurtleCommander.PackFiles"
+                    class="io.github.jhspetersson.turtlecommander.PackFilesAction"
+                    text="Pack Files"
+                    icon="AllIcons.FileTypes.Archive"
+                    description="Pack selected files into a zip archive"/>
             <action id="TurtleCommander.AddToFavorites"
                     class="io.github.jhspetersson.turtlecommander.AddToFavoritesAction"
                     text="Add to Favorites"
@@ -207,6 +212,8 @@
             <reference ref="TurtleCommander.ContextRename"/>
             <separator/>
             <reference ref="TurtleCommander.ContextDelete"/>
+            <separator/>
+            <reference ref="TurtleCommander.PackFiles"/>
             <separator/>
             <reference ref="TurtleCommander.AddToFavorites"/>
         </group>
