@@ -689,6 +689,67 @@ class QuickAccessFavoriteAction : AnAction() {
     }
 }
 
+class CompareFilesAction : AnAction("Compare Files", "Compare two files", AllIcons.Actions.Diff) {
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+
+    override fun update(e: AnActionEvent) {
+        val (_, _) = resolveFiles(e)
+        e.presentation.isEnabledAndVisible = resolveFiles(e).let { it.first != null && it.second != null }
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project ?: return
+        val (left, right) = resolveFiles(e)
+        if (left == null || right == null) return
+
+        val vfsLeft = com.intellij.openapi.vfs.LocalFileSystem.getInstance().findFileByNioFile(left.path)
+        val vfsRight = com.intellij.openapi.vfs.LocalFileSystem.getInstance().findFileByNioFile(right.path)
+        if (vfsLeft == null || vfsRight == null) return
+
+        val factory = com.intellij.diff.DiffContentFactory.getInstance()
+        val leftContent = factory.create(project, vfsLeft)
+        val rightContent = factory.create(project, vfsRight)
+
+        val request = com.intellij.diff.requests.SimpleDiffRequest(
+            "${left.name} vs ${right.name}",
+            leftContent,
+            rightContent,
+            left.name,
+            right.name,
+        )
+        com.intellij.diff.DiffManager.getInstance().showDiff(project, request)
+    }
+
+    private fun resolveFiles(e: AnActionEvent): Pair<FileEntry?, FileEntry?> {
+        val tab = FileContextMenuState.clickedTab ?: return null to null
+        val selected = tab.getSelectedEntries().filter { !it.isDirectory && !it.isParentLink }
+
+        if (selected.size == 2) {
+            return selected[0] to selected[1]
+        }
+
+        if (selected.size == 1) {
+            val project = e.project ?: return null to null
+            val stateService = project.service<FileManagerStateService>()
+            val leftPanel = stateService.leftPanel
+            val rightPanel = stateService.rightPanel
+            val otherPanel = if (leftPanel?.getActiveTab() === tab) rightPanel else leftPanel
+            val otherSelected = otherPanel?.getActiveTab()?.getSelectedEntries()
+                ?.filter { !it.isDirectory && !it.isParentLink }
+            if (otherSelected?.size == 1) {
+                // Left panel's file always goes on the left side
+                return if (leftPanel?.getActiveTab() === tab) {
+                    selected[0] to otherSelected[0]
+                } else {
+                    otherSelected[0] to selected[0]
+                }
+            }
+        }
+
+        return null to null
+    }
+}
+
 class AddToFavoritesAction : AnAction("Add to Favorites", "Add directory to favorites", AllIcons.Nodes.Favorite) {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 

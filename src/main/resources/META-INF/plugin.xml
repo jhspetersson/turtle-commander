@@ -252,6 +252,11 @@
                     text="Add to Favorites"
                     icon="AllIcons.Nodes.Favorite"
                     description="Add directory to favorites"/>
+            <action id="TurtleCommander.CompareFiles"
+                    class="io.github.jhspetersson.turtlecommander.CompareFilesAction"
+                    text="Compare Files"
+                    icon="AllIcons.Actions.Diff"
+                    description="Compare two files"/>
             <action id="TurtleCommander.QuickAccess.1" class="io.github.jhspetersson.turtlecommander.QuickAccessFavoriteAction" text="Favorite 1">
                 <keyboard-shortcut first-keystroke="ctrl 1" keymap="$default"/>
             </action>
@@ -298,6 +303,8 @@
             <reference ref="TurtleCommander.PackFiles"/>
             <reference ref="TurtleCommander.ExtractFiles"/>
             <reference ref="TurtleCommander.ExtractHere"/>
+            <separator/>
+            <reference ref="TurtleCommander.CompareFiles"/>
             <separator/>
             <reference ref="TurtleCommander.SearchInDirectory"/>
             <separator/>
