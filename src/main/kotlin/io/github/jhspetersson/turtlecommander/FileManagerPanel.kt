@@ -7,9 +7,11 @@ import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.ui.components.JBTabbedPane
+import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.awt.Cursor
 import java.awt.Dimension
+import java.awt.FlowLayout
 import java.awt.Graphics
 import java.awt.Graphics2D
 import java.awt.Point
@@ -18,9 +20,11 @@ import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.awt.event.MouseMotionAdapter
 import java.nio.file.Path
+import javax.swing.ButtonGroup
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
+import javax.swing.JToggleButton
 import javax.swing.SwingUtilities
 
 class FileManagerPanel(
@@ -35,6 +39,9 @@ class FileManagerPanel(
     var otherPanel: FileManagerPanel? = null
     private var stateService: FileManagerStateService? = null
 
+    private val tableViewButton = ViewModeButton(AllIcons.Actions.PreviewDetails, "Table view", true)
+    private val listViewButton = ViewModeButton(AllIcons.Actions.ListFiles, "List view", false)
+
     private var dragSourceIndex = -1
     private var dropTargetIndex = -1
     private var dragActive = false
@@ -48,6 +55,7 @@ class FileManagerPanel(
             if (tabbedPane.selectedIndex == plusIndex && plusIndex > 0) {
                 tabbedPane.selectedIndex = plusIndex - 1
             }
+            syncViewToggle()
         }
 
         tabbedPane.addMouseListener(object : MouseAdapter() {
@@ -138,7 +146,45 @@ class FileManagerPanel(
             }
         })
 
-        add(DraggableTabbedPaneWrapper(tabbedPane, this), BorderLayout.CENTER)
+        val viewTogglePanel = JPanel(FlowLayout(FlowLayout.RIGHT, 0, 0)).apply {
+            isOpaque = false
+            border = JBUI.Borders.empty(8, 0, 0, 8)
+            val group = ButtonGroup()
+            group.add(tableViewButton)
+            group.add(listViewButton)
+            add(tableViewButton)
+            add(listViewButton)
+        }
+
+        tableViewButton.addActionListener {
+            getActiveTab()?.setViewMode(ViewMode.TABLE)
+        }
+        listViewButton.addActionListener {
+            getActiveTab()?.setViewMode(ViewMode.LIST)
+        }
+
+        val tabbedPaneWrapper = DraggableTabbedPaneWrapper(tabbedPane, this)
+        val layeredWrapper = JPanel().apply {
+            isOpaque = false
+            layout = javax.swing.OverlayLayout(this)
+
+            val topRight = JPanel(BorderLayout()).apply {
+                isOpaque = false
+                add(viewTogglePanel, BorderLayout.EAST)
+            }
+            val toggleOverlay = JPanel(BorderLayout()).apply {
+                isOpaque = false
+                add(topRight, BorderLayout.NORTH)
+            }
+            toggleOverlay.alignmentX = 0.5f
+            toggleOverlay.alignmentY = 0.5f
+            tabbedPaneWrapper.alignmentX = 0.5f
+            tabbedPaneWrapper.alignmentY = 0.5f
+            add(toggleOverlay)
+            add(tabbedPaneWrapper)
+        }
+
+        add(layeredWrapper, BorderLayout.CENTER)
     }
 
     private fun updateDropIndicator(localPoint: Point) {
@@ -241,9 +287,22 @@ class FileManagerPanel(
             addNewTab(initialPath)
         } else {
             paths.forEach { addNewTab(it) }
+            // Restore view modes
+            val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
+            var tabIdx = 0
+            for (i in 0 until tabbedPane.tabCount) {
+                if (i == plusIndex) continue
+                val tab = tabbedPane.getComponentAt(i) as? FileTab ?: continue
+                val modeName = panelState.tabViewModes.getOrNull(tabIdx)
+                if (modeName == ViewMode.LIST.name) {
+                    tab.setViewMode(ViewMode.LIST)
+                }
+                tabIdx++
+            }
             val idx = panelState.selectedTabIndex.coerceIn(0, (tabbedPane.tabCount - 2).coerceAtLeast(0))
             tabbedPane.selectedIndex = idx
         }
+        syncViewToggle()
     }
 
     fun saveState(): FileManagerStateService.PanelState {
@@ -253,6 +312,7 @@ class FileManagerPanel(
             if (i == plusIndex) continue
             val tab = tabbedPane.getComponentAt(i) as? FileTab ?: continue
             state.tabPaths.add(tab.currentPath.toString())
+            state.tabViewModes.add(tab.viewMode.name)
             tab.saveColumnState()
         }
         state.selectedTabIndex = tabbedPane.selectedIndex
@@ -465,8 +525,22 @@ class FileManagerPanel(
         getActiveTab()?.showDriveSelector()
     }
 
+    private fun syncViewToggle() {
+        val tab = getActiveTab()
+        if (tab != null && tab.viewMode == ViewMode.LIST) {
+            listViewButton.isSelected = true
+        } else {
+            tableViewButton.isSelected = true
+        }
+    }
+
     fun focusActiveTab() {
-        getActiveTab()?.table?.requestFocusInWindow()
+        val tab = getActiveTab() ?: return
+        if (tab.viewMode == ViewMode.LIST) {
+            tab.list.requestFocusInWindow()
+        } else {
+            tab.table.requestFocusInWindow()
+        }
     }
 
     fun refreshActiveTab() {
@@ -530,6 +604,33 @@ private class NewTabButton(private val onClick: () -> Unit) : JComponent() {
         val x = (width - icon.iconWidth) / 2
         val y = (height - icon.iconHeight) / 2
         icon.paintIcon(this, g, x, y)
+    }
+}
+
+private class ViewModeButton(
+    private val icon: javax.swing.Icon,
+    tooltip: String,
+    selected: Boolean,
+) : JToggleButton(icon, selected) {
+    init {
+        toolTipText = tooltip
+        isFocusable = false
+        preferredSize = Dimension(24, 24)
+        margin = com.intellij.util.ui.JBUI.emptyInsets()
+        isContentAreaFilled = false
+        border = javax.swing.BorderFactory.createEmptyBorder(2, 2, 2, 2)
+    }
+
+    override fun paintComponent(g: Graphics) {
+        if (isSelected) {
+            val g2 = g as Graphics2D
+            g2.color = com.intellij.ui.JBColor(
+                java.awt.Color(0, 0, 0, 30),
+                java.awt.Color(255, 255, 255, 40),
+            )
+            g2.fillRoundRect(0, 0, width, height, 6, 6)
+        }
+        super.paintComponent(g)
     }
 }
 

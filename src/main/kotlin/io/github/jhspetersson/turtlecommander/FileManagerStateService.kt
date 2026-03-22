@@ -68,6 +68,8 @@ class FileManagerStateService(
     class PanelState {
         @XCollection(elementTypes = [String::class])
         var tabPaths: MutableList<String> = mutableListOf()
+        @XCollection(elementTypes = [String::class])
+        var tabViewModes: MutableList<String> = mutableListOf()
         var selectedTabIndex: Int = 0
     }
 

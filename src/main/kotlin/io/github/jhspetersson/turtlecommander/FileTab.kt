@@ -15,12 +15,14 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.awt.BorderLayout
+import java.awt.CardLayout
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.datatransfer.DataFlavor
@@ -30,6 +32,8 @@ import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.nio.file.Path
 import javax.swing.DefaultCellEditor
+import javax.swing.DefaultListCellRenderer
+import javax.swing.DefaultListModel
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
@@ -55,6 +59,13 @@ class FileTab(
     val table = JBTable(tableModel)
     private val defaultTableFont by lazy { table.font }
 
+    private val listModel = DefaultListModel<FileEntry>()
+    val list = JBList(listModel)
+    private val viewCardLayout = CardLayout()
+    private val viewPanel = JPanel(viewCardLayout)
+    var viewMode: ViewMode = ViewMode.TABLE
+        private set
+
     private val driveCombo = ComboBox<String>()
     private val pathField = BreadcrumbPathField()
     private val statusLabel = JLabel(" ")
@@ -72,6 +83,8 @@ class FileTab(
     init {
         setupHeader()
         setupTable()
+        setupList()
+        setupViewPanel()
         loadDrives()
         applyPanelFont()
         applyVisibilitySettings()
@@ -90,12 +103,18 @@ class FileTab(
         if (font != null) {
             table.font = font
             table.rowHeight = font.size + 6
+            list.font = font
+            list.fixedCellHeight = font.size + 6
         } else if (size > 0) {
             table.font = defaultTableFont.deriveFont(size.toFloat())
             table.rowHeight = size + 6
+            list.font = defaultTableFont.deriveFont(size.toFloat())
+            list.fixedCellHeight = size + 6
         } else {
             table.font = defaultTableFont
             table.rowHeight = 20
+            list.font = defaultTableFont
+            list.fixedCellHeight = 20
         }
     }
 
@@ -274,11 +293,95 @@ class FileTab(
 
             selectionModel.addListSelectionListener { updateStatusBar() }
         }
+    }
 
-        add(JBScrollPane(table), BorderLayout.CENTER)
+    private fun setupList() {
+        list.apply {
+            selectionMode = ListSelectionModel.MULTIPLE_INTERVAL_SELECTION
+            layoutOrientation = javax.swing.JList.VERTICAL_WRAP
+            visibleRowCount = 0
+            cellRenderer = FileListCellRenderer()
+
+            addMouseListener(object : MouseAdapter() {
+                override fun mouseClicked(e: MouseEvent) {
+                    if (e.clickCount == 2) {
+                        openSelectedEntry()
+                    }
+                }
+
+                override fun mousePressed(e: MouseEvent) {
+                    handleListContextMenu(e)
+                }
+
+                override fun mouseReleased(e: MouseEvent) {
+                    handleListContextMenu(e)
+                }
+            })
+
+            addListSelectionListener { updateStatusBar() }
+        }
+    }
+
+    private fun handleListContextMenu(e: MouseEvent) {
+        if (!e.isPopupTrigger) return
+        val index = list.locationToIndex(e.point)
+        if (index >= 0 && !list.isSelectedIndex(index)) {
+            list.selectedIndex = index
+        }
+        val entry = if (index >= 0) listModel.getElementAt(index) else null
+        FileContextMenuState.clickedEntry = entry
+        FileContextMenuState.clickedTab = this
+
+        val am = com.intellij.openapi.actionSystem.ActionManager.getInstance()
+        val group = am.getAction("TurtleCommander.FileContextMenu") as? com.intellij.openapi.actionSystem.ActionGroup ?: return
+        val popupMenu = am.createActionPopupMenu("TurtleCommander.FileContextMenu", group)
+        popupMenu.component.show(list, e.x, e.y)
+    }
+
+    private fun setupViewPanel() {
+        viewPanel.add(JBScrollPane(table), VIEW_TABLE)
+        viewPanel.add(JBScrollPane(list), VIEW_LIST)
+        viewCardLayout.show(viewPanel, VIEW_TABLE)
+
+        add(viewPanel, BorderLayout.CENTER)
 
         statusLabel.border = javax.swing.BorderFactory.createEmptyBorder(2, 4, 2, 4)
         add(statusLabel, BorderLayout.SOUTH)
+    }
+
+    fun setViewMode(mode: ViewMode) {
+        viewMode = mode
+        viewCardLayout.show(viewPanel, if (mode == ViewMode.TABLE) VIEW_TABLE else VIEW_LIST)
+        if (mode == ViewMode.LIST) {
+            syncListSelection()
+            list.requestFocusInWindow()
+        } else {
+            syncTableSelection()
+            table.requestFocusInWindow()
+        }
+    }
+
+    private fun syncListSelection() {
+        val selectedEntries = getSelectedEntries()
+        list.clearSelection()
+        val indices = selectedEntries.mapNotNull { entry ->
+            (0 until listModel.size()).firstOrNull { listModel.getElementAt(it).path == entry.path }
+        }.toIntArray()
+        if (indices.isNotEmpty()) {
+            list.selectedIndices = indices
+        }
+    }
+
+    private fun syncTableSelection() {
+        val selectedPaths = list.selectedValuesList.map { it.path }.toSet()
+        table.clearSelection()
+        for (viewRow in 0 until table.rowCount) {
+            val modelRow = table.convertRowIndexToModel(viewRow)
+            val entry = tableModel.getEntryAt(modelRow) ?: continue
+            if (entry.path in selectedPaths) {
+                table.addRowSelectionInterval(viewRow, viewRow)
+            }
+        }
     }
 
     private fun updateStatusBar() {
@@ -304,6 +407,9 @@ class FileTab(
     }
 
     private fun getSelectedEntry(): FileEntry? {
+        if (viewMode == ViewMode.LIST) {
+            return list.selectedValue
+        }
         val viewRow = table.selectedRow
         if (viewRow < 0) return null
         val modelRow = table.convertRowIndexToModel(viewRow)
@@ -351,6 +457,11 @@ class FileTab(
             }
 
             tableModel.setEntries(entries)
+
+            // Update list model
+            listModel.clear()
+            entries.forEach { listModel.addElement(it) }
+
             updateStatusBar()
             onDirectoryChanged(this@FileTab)
 
@@ -392,6 +503,19 @@ class FileTab(
                 table.setRowSelectionInterval(0, 0)
             }
 
+            // Select in list view too
+            val listTarget = if (selectName != null) {
+                (0 until listModel.size()).firstOrNull { listModel.getElementAt(it).name == selectName }
+            } else {
+                null
+            }
+            if (listTarget != null) {
+                list.selectedIndex = listTarget
+                list.ensureIndexIsVisible(listTarget)
+            } else if (listModel.size() > 0) {
+                list.selectedIndex = 0
+            }
+
             initialized = true
         }
     }
@@ -424,6 +548,9 @@ class FileTab(
     }
 
     fun getSelectedEntries(): List<FileEntry> {
+        if (viewMode == ViewMode.LIST) {
+            return list.selectedValuesList.filter { !it.isParentLink }
+        }
         return table.selectedRows.toList()
             .map { table.convertRowIndexToModel(it) }
             .mapNotNull { tableModel.getEntryAt(it) }
@@ -1220,13 +1347,46 @@ class FileTab(
         }
     }
 
+    private inner class FileListCellRenderer : DefaultListCellRenderer() {
+        override fun getListCellRendererComponent(
+            list: javax.swing.JList<*>,
+            value: Any?,
+            index: Int,
+            isSelected: Boolean,
+            cellHasFocus: Boolean,
+        ): Component {
+            super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
+            val entry = value as? FileEntry ?: return this
+            text = entry.name
+            val highlighting = TurtleCommanderSettings.getInstance().state.enableFileNameHighlighting
+            icon = when {
+                entry.isParentLink -> AllIcons.Nodes.UpLevel
+                entry.isDirectory -> if (highlighting) {
+                    DirectoryIcons.getIcon(entry.directoryType)
+                } else {
+                    AllIcons.Nodes.Folder
+                }
+                else -> FileTypeManager.getInstance().getFileTypeByFileName(entry.name).icon
+                    ?: AllIcons.FileTypes.Any_type
+            }
+            if (!isSelected && highlighting && entry.isDirectory && entry.directoryType != DirectoryType.NONE) {
+                foreground = DirectoryIcons.getColor(entry.directoryType)
+            }
+            return this
+        }
+    }
+
     companion object {
         val FILE_ENTRY_FLAVOR = DataFlavor(
             DataFlavor.javaJVMLocalObjectMimeType + ";class=java.util.List",
             "FileEntry List",
         )
+        private const val VIEW_TABLE = "table"
+        private const val VIEW_LIST = "list"
     }
 }
+
+enum class ViewMode { TABLE, LIST }
 
 private class FileEntryTransferable(private val entries: List<FileEntry>) : Transferable {
     private val supportedFlavors = arrayOf(FileTab.FILE_ENTRY_FLAVOR, DataFlavor.javaFileListFlavor)
