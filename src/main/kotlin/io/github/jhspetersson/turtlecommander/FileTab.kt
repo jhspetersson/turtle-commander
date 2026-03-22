@@ -24,7 +24,6 @@ import kotlinx.coroutines.withContext
 import java.awt.BorderLayout
 import java.awt.CardLayout
 import java.awt.Component
-import java.awt.Dimension
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.Transferable
 import java.awt.datatransfer.UnsupportedFlavorException
@@ -141,7 +140,6 @@ class FileTab(
         val headerPanel = JPanel(BorderLayout())
 
         driveCombo.apply {
-            preferredSize = Dimension(100, preferredSize.height)
             addPopupMenuListener(object : javax.swing.event.PopupMenuListener {
                 override fun popupMenuWillBecomeVisible(e: javax.swing.event.PopupMenuEvent) {}
                 override fun popupMenuWillBecomeInvisible(e: javax.swing.event.PopupMenuEvent) {
@@ -154,14 +152,8 @@ class FileTab(
                         currentVfs = null
                     }
                     if (drivePath != currentPath) {
-                        val otherPath = otherPanelPathProvider()
-                        val targetPath = if (otherPath != null && otherPath.root == drivePath.root) {
-                            otherPath
-                        } else {
-                            drivePath
-                        }
                         fileOps.launch {
-                            navigateTo(targetPath)
+                            navigateTo(drivePath)
                         }
                     }
                     table.requestFocusInWindow()
@@ -742,10 +734,17 @@ class FileTab(
         driveCombo.removeAllItems()
         roots.forEach { driveCombo.addItem(it) }
 
-        val currentRoot = currentPath.root?.toString() ?: roots.firstOrNull()
-        if (currentRoot != null) {
-            driveCombo.selectedItem = roots.find { it.equals(currentRoot, ignoreCase = true) } ?: roots.firstOrNull()
+        val bestMatch = roots
+            .filter { currentPath.startsWith(it) }
+            .maxByOrNull { it.length }
+            ?: roots.firstOrNull()
+        if (bestMatch != null) {
+            driveCombo.selectedItem = bestMatch
         }
+
+        val widest = roots.maxByOrNull { it.length } ?: ""
+        driveCombo.setPrototypeDisplayValue(widest)
+        driveCombo.revalidate()
     }
 
     suspend fun navigateTo(path: Path, selectName: String? = null) {
@@ -806,14 +805,19 @@ class FileTab(
 
             // Update drive combo (only for real FS)
             if (vfs == null) {
-                val currentRoot = path.root?.toString() ?: ""
                 updatingDriveCombo = true
                 try {
+                    var bestIndex = -1
+                    var bestLength = -1
                     for (i in 0 until driveCombo.itemCount) {
-                        if (driveCombo.getItemAt(i).equals(currentRoot, ignoreCase = true)) {
-                            driveCombo.selectedIndex = i
-                            break
+                        val item = driveCombo.getItemAt(i)
+                        if (path.startsWith(item) && item.length > bestLength) {
+                            bestIndex = i
+                            bestLength = item.length
                         }
+                    }
+                    if (bestIndex >= 0) {
+                        driveCombo.selectedIndex = bestIndex
                     }
                 } finally {
                     updatingDriveCombo = false

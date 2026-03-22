@@ -25,7 +25,9 @@ class FileOperationService(
     @Suppress("unused") private val project: Project,
     private val cs: CoroutineScope,
 ) {
-    private val isWindows = System.getProperty("os.name").lowercase().contains("win")
+    private val osName = System.getProperty("os.name").lowercase()
+    private val isWindows = osName.contains("win")
+    private val isMac = osName.contains("mac")
 
     fun launch(block: suspend CoroutineScope.() -> Unit): Job = cs.launch(block = block)
 
@@ -416,25 +418,34 @@ class FileOperationService(
             File.listRoots().map { it.absolutePath }
         } else {
             val roots = mutableListOf("/")
-            val mediaDir = Path.of("/media")
-            val mntDir = Path.of("/mnt")
-            if (mediaDir.exists() && mediaDir.isDirectory()) {
-                try {
-                    Files.newDirectoryStream(mediaDir).use { stream ->
-                        stream.filter { it.isDirectory() }.forEach { roots.add(it.toString()) }
-                    }
-                } catch (_: Exception) {
+
+            val home = System.getProperty("user.home")
+            if (home != null) {
+                val homePath = Path.of(home)
+                if (homePath.exists() && homePath.isDirectory()) {
+                    roots.add(homePath.toString())
                 }
             }
-            if (mntDir.exists() && mntDir.isDirectory()) {
-                try {
-                    Files.newDirectoryStream(mntDir).use { stream ->
-                        stream.filter { it.isDirectory() }.forEach { roots.add(it.toString()) }
-                    }
-                } catch (_: Exception) {
-                }
+
+            if (isMac) {
+                addSubdirectories(roots, Path.of("/Volumes"))
+            } else {
+                addSubdirectories(roots, Path.of("/media"))
+                addSubdirectories(roots, Path.of("/mnt"))
             }
+
             roots
+        }
+    }
+
+    private fun addSubdirectories(roots: MutableList<String>, dir: Path) {
+        if (dir.exists() && dir.isDirectory()) {
+            try {
+                Files.newDirectoryStream(dir).use { stream ->
+                    stream.filter { it.isDirectory() }.forEach { roots.add(it.toString()) }
+                }
+            } catch (_: Exception) {
+            }
         }
     }
 
