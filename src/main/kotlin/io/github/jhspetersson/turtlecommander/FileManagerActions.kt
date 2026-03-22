@@ -578,6 +578,32 @@ class PackFilesAction : AnAction("Pack Files", "Pack selected files into a zip a
     }
 }
 
+class ExtractFilesAction : AnAction("Extract Files...", "Extract archive to a directory", AllIcons.Actions.Uninstall) {
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+
+    override fun update(e: AnActionEvent) {
+        val entry = FileContextMenuState.clickedEntry
+        e.presentation.isEnabledAndVisible = entry != null && isArchiveFile(entry)
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        FileContextMenuState.clickedTab?.performExtract()
+    }
+}
+
+class ExtractHereAction : AnAction("Extract Here", "Extract archive into current directory", AllIcons.Actions.Uninstall) {
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+
+    override fun update(e: AnActionEvent) {
+        val entry = FileContextMenuState.clickedEntry
+        e.presentation.isEnabledAndVisible = entry != null && isArchiveFile(entry)
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        FileContextMenuState.clickedTab?.performExtractHere()
+    }
+}
+
 class AddToFavoritesAction : AnAction("Add to Favorites", "Add directory to favorites", AllIcons.Nodes.Favorite) {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 

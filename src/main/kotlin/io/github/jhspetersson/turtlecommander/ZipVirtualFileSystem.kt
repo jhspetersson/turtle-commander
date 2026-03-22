@@ -10,11 +10,13 @@ import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
 
 class ZipFileSystemProvider : VirtualFileSystemProvider {
-    private val supportedExtensions = setOf("zip", "jar")
+    companion object {
+        val ARCHIVE_EXTENSIONS = setOf("zip", "jar", "war", "ear")
+    }
 
     override fun supports(path: Path): Boolean {
         val ext = path.fileName?.toString()?.substringAfterLast('.', "")?.lowercase() ?: ""
-        return ext in supportedExtensions && Files.isRegularFile(path)
+        return ext in ARCHIVE_EXTENSIONS && Files.isRegularFile(path)
     }
 
     override fun create(archivePath: Path): VirtualFileSystem {

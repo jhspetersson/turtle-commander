@@ -210,6 +210,16 @@
                     text="Pack Files"
                     icon="AllIcons.FileTypes.Archive"
                     description="Pack selected files into a zip archive"/>
+            <action id="TurtleCommander.ExtractFiles"
+                    class="io.github.jhspetersson.turtlecommander.ExtractFilesAction"
+                    text="Extract Files..."
+                    icon="AllIcons.Actions.Uninstall"
+                    description="Extract archive to a directory"/>
+            <action id="TurtleCommander.ExtractHere"
+                    class="io.github.jhspetersson.turtlecommander.ExtractHereAction"
+                    text="Extract Here"
+                    icon="AllIcons.Actions.Uninstall"
+                    description="Extract archive into current directory"/>
             <action id="TurtleCommander.AddToFavorites"
                     class="io.github.jhspetersson.turtlecommander.AddToFavoritesAction"
                     text="Add to Favorites"
@@ -232,6 +242,8 @@
             <reference ref="TurtleCommander.ContextDelete"/>
             <separator/>
             <reference ref="TurtleCommander.PackFiles"/>
+            <reference ref="TurtleCommander.ExtractFiles"/>
+            <reference ref="TurtleCommander.ExtractHere"/>
             <separator/>
             <reference ref="TurtleCommander.AddToFavorites"/>
         </group>

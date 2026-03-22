@@ -530,6 +530,103 @@ class FileOperationService(
         }
     }
 
+    suspend fun countArchiveEntries(archivePath: Path): Int = withContext(Dispatchers.IO) {
+        var count = 0
+        try {
+            val uri = java.net.URI.create("jar:" + archivePath.toUri())
+            FileSystems.newFileSystem(uri, mapOf("create" to "false")).use { zipFs ->
+                val root = zipFs.getPath("/")
+                Files.walkFileTree(root, object : java.nio.file.SimpleFileVisitor<Path>() {
+                    override fun visitFile(file: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {
+                        count++
+                        return java.nio.file.FileVisitResult.CONTINUE
+                    }
+
+                    override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {
+                        if (dir != root) count++
+                        return java.nio.file.FileVisitResult.CONTINUE
+                    }
+                })
+            }
+        } catch (_: Exception) {
+        }
+        count
+    }
+
+    suspend fun extractArchiveWithProgress(
+        archivePath: Path,
+        destination: Path,
+        overwriteAll: Boolean,
+        onProgress: suspend (extractedCount: Int, currentFile: String) -> Unit,
+        onOverwriteConfirm: suspend (path: Path) -> OverwriteResponse,
+        onError: suspend (path: Path, error: Exception) -> Unit,
+        isCancelled: () -> Boolean,
+    ): Unit = withContext(Dispatchers.IO) {
+        var extractedCount = 0
+        var autoOverwrite = overwriteAll
+        var autoSkip = false
+
+        try {
+            val uri = java.net.URI.create("jar:" + archivePath.toUri())
+            FileSystems.newFileSystem(uri, mapOf("create" to "false")).use { zipFs ->
+                val root = zipFs.getPath("/")
+                Files.walkFileTree(root, object : java.nio.file.SimpleFileVisitor<Path>() {
+                    override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {
+                        if (isCancelled()) return java.nio.file.FileVisitResult.TERMINATE
+                        if (dir == root) return java.nio.file.FileVisitResult.CONTINUE
+                        val relativePath = root.relativize(dir).toString()
+                        val targetDir = destination.resolve(relativePath)
+                        try {
+                            Files.createDirectories(targetDir)
+                        } catch (e: Exception) {
+                            kotlinx.coroutines.runBlocking { onError(targetDir, e) }
+                        }
+                        extractedCount++
+                        kotlinx.coroutines.runBlocking { onProgress(extractedCount, relativePath) }
+                        return java.nio.file.FileVisitResult.CONTINUE
+                    }
+
+                    override fun visitFile(file: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {
+                        if (isCancelled()) return java.nio.file.FileVisitResult.TERMINATE
+                        val relativePath = root.relativize(file).toString()
+                        val targetFile = destination.resolve(relativePath)
+                        try {
+                            Files.createDirectories(targetFile.parent)
+                            if (Files.exists(targetFile)) {
+                                if (autoOverwrite) {
+                                    Files.copy(file, targetFile, StandardCopyOption.REPLACE_EXISTING)
+                                } else if (!autoSkip) {
+                                    val response = kotlinx.coroutines.runBlocking { onOverwriteConfirm(targetFile) }
+                                    when (response) {
+                                        OverwriteResponse.YES -> Files.copy(file, targetFile, StandardCopyOption.REPLACE_EXISTING)
+                                        OverwriteResponse.NO -> {}
+                                        OverwriteResponse.YES_TO_ALL -> {
+                                            autoOverwrite = true
+                                            Files.copy(file, targetFile, StandardCopyOption.REPLACE_EXISTING)
+                                        }
+                                        OverwriteResponse.NO_TO_ALL -> {
+                                            autoSkip = true
+                                        }
+                                    }
+                                }
+                            } else {
+                                Files.copy(file, targetFile)
+                            }
+                        } catch (e: Exception) {
+                            kotlinx.coroutines.runBlocking { onError(targetFile, e) }
+                        }
+                        extractedCount++
+                        kotlinx.coroutines.runBlocking { onProgress(extractedCount, relativePath) }
+                        return java.nio.file.FileVisitResult.CONTINUE
+                    }
+                })
+            }
+        } catch (e: Exception) {
+            thisLogger().warn("Failed to extract archive $archivePath: ${e.message}")
+            onError(archivePath, e)
+        }
+    }
+
     private fun deleteDirectoryRecursive(path: Path) {
         Files.walkFileTree(path, object : java.nio.file.SimpleFileVisitor<Path>() {
             override fun visitFile(file: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {

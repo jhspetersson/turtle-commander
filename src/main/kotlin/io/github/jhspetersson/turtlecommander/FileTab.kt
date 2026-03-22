@@ -1378,6 +1378,86 @@ class FileTab(
         })
     }
 
+    fun performExtract() {
+        val selected = getSelectedEntries().filter { isArchiveFile(it) }
+        if (selected.isEmpty()) return
+        val destination = otherPanelPathProvider() ?: currentPath
+
+        val dialog = ExtractDialog(project, selected, destination.toString())
+        if (!dialog.showAndGet()) return
+
+        var destPath = Path.of(dialog.destinationPath)
+        if (!destPath.isAbsolute) {
+            destPath = currentPath.resolve(destPath)
+        }
+        val overwriteAll = dialog.overwriteExisting
+
+        extractArchives(selected.map { it.path }, destPath, overwriteAll)
+    }
+
+    fun performExtractHere() {
+        val selected = getSelectedEntries().filter { isArchiveFile(it) }
+        if (selected.isEmpty()) return
+        extractArchives(selected.map { it.path }, currentPath, overwriteAll = false)
+    }
+
+    private fun extractArchives(archivePaths: List<Path>, destination: Path, overwriteAll: Boolean) {
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Extracting files", true) {
+            override fun run(indicator: ProgressIndicator) {
+                runBlocking {
+                    for (archivePath in archivePaths) {
+                        if (indicator.isCanceled) break
+
+                        indicator.isIndeterminate = true
+                        indicator.text = "Counting entries in ${archivePath.fileName}..."
+
+                        val totalEntries = fileOps.countArchiveEntries(archivePath)
+                        indicator.isIndeterminate = false
+
+                        fileOps.extractArchiveWithProgress(
+                            archivePath = archivePath,
+                            destination = destination,
+                            overwriteAll = overwriteAll,
+                            onProgress = { count, name ->
+                                indicator.fraction = count.toDouble() / totalEntries
+                                indicator.text = "Extracting $count / $totalEntries"
+                                indicator.text2 = name
+                            },
+                            onOverwriteConfirm = { path ->
+                                withContext(Dispatchers.EDT) {
+                                    val result = Messages.showDialog(
+                                        project,
+                                        "File already exists:\n${path.fileName}\n\nOverwrite?",
+                                        "File Exists",
+                                        arrayOf("Yes", "No", "Yes to All", "No to All"),
+                                        0,
+                                        Messages.getQuestionIcon(),
+                                    )
+                                    when (result) {
+                                        0 -> FileOperationService.OverwriteResponse.YES
+                                        1 -> FileOperationService.OverwriteResponse.NO
+                                        2 -> FileOperationService.OverwriteResponse.YES_TO_ALL
+                                        3 -> FileOperationService.OverwriteResponse.NO_TO_ALL
+                                        else -> FileOperationService.OverwriteResponse.NO
+                                    }
+                                }
+                            },
+                            onError = { path, error ->
+                                fileErrorNotification("Failed to extract ${path.fileName}: ${error.message}")
+                            },
+                            isCancelled = { indicator.isCanceled },
+                        )
+                    }
+
+                    refreshAfterVfsChange()
+                    withContext(Dispatchers.EDT) {
+                        onRefreshOtherPanel()
+                    }
+                }
+            }
+        })
+    }
+
     private fun inactiveSelectionBackground(): java.awt.Color {
         val active = table.selectionBackground
         val bg = table.background
@@ -1748,6 +1828,12 @@ class FileTab(
         private const val VIEW_LIST = "list"
         private const val VIEW_TREE = "tree"
     }
+}
+
+fun isArchiveFile(entry: FileEntry): Boolean {
+    if (entry.isDirectory) return false
+    val ext = entry.name.substringAfterLast('.', "").lowercase()
+    return ext in ZipFileSystemProvider.ARCHIVE_EXTENSIONS
 }
 
 enum class ViewMode { TABLE, LIST, TREE }
