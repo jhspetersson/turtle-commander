@@ -161,6 +161,7 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
             "TurtleCommander.LeftDriveSelector",
             "TurtleCommander.RightDriveSelector",
             "TurtleCommander.NewTab",
+            "TurtleCommander.ShowContextMenu",
             "TurtleCommander.SearchFiles",
             "TurtleCommander.ContextCopy",
             "TurtleCommander.ContextCut",

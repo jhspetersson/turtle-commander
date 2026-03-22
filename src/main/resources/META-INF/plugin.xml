@@ -113,6 +113,13 @@
                 <keyboard-shortcut first-keystroke="SPACE" keymap="$default"/>
                 <keyboard-shortcut first-keystroke="INSERT" keymap="$default"/>
             </action>
+            <action id="TurtleCommander.ShowContextMenu"
+                    class="io.github.jhspetersson.turtlecommander.ShowContextMenuAction"
+                    text="Show Context Menu"
+                    description="Show context menu for the selected entry">
+                <keyboard-shortcut first-keystroke="CONTEXT_MENU" keymap="$default"/>
+                <keyboard-shortcut first-keystroke="shift F10" keymap="$default"/>
+            </action>
             <action id="TurtleCommander.SearchFiles"
                     class="io.github.jhspetersson.turtlecommander.SearchFilesAction"
                     text="Search Files"

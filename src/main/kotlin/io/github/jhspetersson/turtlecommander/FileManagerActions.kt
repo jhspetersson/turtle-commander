@@ -131,6 +131,12 @@ class ToggleSelectionAction : FileManagerAction() {
     }
 }
 
+class ShowContextMenuAction : FileManagerAction() {
+    override fun actionPerformed(e: AnActionEvent) {
+        findActiveTab(e)?.showContextMenu()
+    }
+}
+
 class SearchFilesAction : FileManagerAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val tab = findActiveTab(e) ?: return

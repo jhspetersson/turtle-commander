@@ -998,6 +998,46 @@ class FileTab(
             .filter { !it.isParentLink }
     }
 
+    fun showContextMenu() {
+        val entry = getSelectedEntry()
+        FileContextMenuState.clickedEntry = entry
+        FileContextMenuState.clickedTab = this
+
+        val am = com.intellij.openapi.actionSystem.ActionManager.getInstance()
+        val group = am.getAction("TurtleCommander.FileContextMenu") as? com.intellij.openapi.actionSystem.ActionGroup ?: return
+        val popupMenu = am.createActionPopupMenu("TurtleCommander.FileContextMenu", group)
+
+        when (viewMode) {
+            ViewMode.TABLE -> {
+                val row = table.selectedRow
+                if (row >= 0) {
+                    val rect = table.getCellRect(row, 0, true)
+                    popupMenu.component.show(table, rect.x, rect.y + rect.height)
+                } else {
+                    popupMenu.component.show(table, 0, 0)
+                }
+            }
+            ViewMode.LIST -> {
+                val index = list.selectedIndex
+                if (index >= 0) {
+                    val rect = list.getCellBounds(index, index)
+                    popupMenu.component.show(list, rect.x, rect.y + rect.height)
+                } else {
+                    popupMenu.component.show(list, 0, 0)
+                }
+            }
+            ViewMode.TREE -> {
+                val row = tree.leadSelectionRow
+                if (row >= 0) {
+                    val rect = tree.getRowBounds(row)
+                    popupMenu.component.show(tree, rect.x, rect.y + rect.height)
+                } else {
+                    popupMenu.component.show(tree, 0, 0)
+                }
+            }
+        }
+    }
+
     fun openSelectedEntry() {
         val entry = getSelectedEntry() ?: return
         if (entry.isParentLink) {
