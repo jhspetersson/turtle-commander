@@ -30,6 +30,7 @@ import java.awt.datatransfer.Transferable
 import java.awt.datatransfer.UnsupportedFlavorException
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import java.nio.file.Files
 import java.nio.file.Path
 import javax.swing.DefaultCellEditor
 import javax.swing.DefaultListCellRenderer
@@ -78,6 +79,8 @@ class FileTab(
     private val driveCombo = ComboBox<String>()
     private val pathField = BreadcrumbPathField()
     private val statusLabel = JLabel(" ")
+    private val freeSpaceLabel = JLabel(" ")
+    private val statusPanel = JPanel(BorderLayout())
     private var updatingDriveCombo = false
     private val cursorPositions = mutableMapOf<Path, Int>()
     private var stateService: FileManagerStateService? = null
@@ -103,7 +106,7 @@ class FileTab(
     fun applyVisibilitySettings() {
         val settings = TurtleCommanderSettings.getInstance().state
         driveCombo.isVisible = !settings.hideDriveSelector
-        statusLabel.isVisible = !settings.hideStatusBar
+        statusPanel.isVisible = !settings.hideStatusBar
     }
 
     fun applyPanelFont() {
@@ -451,7 +454,10 @@ class FileTab(
         add(viewPanel, BorderLayout.CENTER)
 
         statusLabel.border = javax.swing.BorderFactory.createEmptyBorder(2, 4, 2, 4)
-        add(statusLabel, BorderLayout.SOUTH)
+        freeSpaceLabel.border = javax.swing.BorderFactory.createEmptyBorder(2, 4, 2, 4)
+        statusPanel.add(statusLabel, BorderLayout.WEST)
+        statusPanel.add(freeSpaceLabel, BorderLayout.EAST)
+        add(statusPanel, BorderLayout.SOUTH)
     }
 
     fun setViewMode(mode: ViewMode) {
@@ -706,6 +712,15 @@ class FileTab(
         }
 
         statusLabel.text = sb.toString()
+
+        try {
+            val fileStore = Files.getFileStore(currentPath)
+            val usableSpace = fileStore.usableSpace
+            val totalSpace = fileStore.totalSpace
+            freeSpaceLabel.text = "${tableModel.formatSize(usableSpace)} of ${tableModel.formatSize(totalSpace)} free"
+        } catch (_: Exception) {
+            freeSpaceLabel.text = ""
+        }
     }
 
     private fun getSelectedEntry(): FileEntry? {

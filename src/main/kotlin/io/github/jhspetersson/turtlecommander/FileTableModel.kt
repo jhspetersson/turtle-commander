@@ -92,6 +92,8 @@ class FileTableModel : AbstractTableModel() {
         val mb = kb / 1024.0
         if (mb < 1024) return "%.1f MB".format(mb)
         val gb = mb / 1024.0
-        return "%.1f GB".format(gb)
+        if (gb < 1024) return "%.1f GB".format(gb)
+        val tb = gb / 1024.0
+        return "%.1f TB".format(tb)
     }
 }
