@@ -125,6 +125,12 @@ class GoToLastAction : FileManagerAction() {
     }
 }
 
+class ToggleSelectionAction : FileManagerAction() {
+    override fun actionPerformed(e: AnActionEvent) {
+        findActiveTab(e)?.toggleSelectionAndMoveDown()
+    }
+}
+
 class RefreshAction : FileManagerAction() {
     override fun actionPerformed(e: AnActionEvent) {
         findActiveTab(e)?.refresh()

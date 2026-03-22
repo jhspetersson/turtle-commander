@@ -106,6 +106,13 @@
                     description="Select the last entry in the file list">
                 <keyboard-shortcut first-keystroke="END" keymap="$default"/>
             </action>
+            <action id="TurtleCommander.ToggleSelection"
+                    class="io.github.jhspetersson.turtlecommander.ToggleSelectionAction"
+                    text="Toggle Selection"
+                    description="Toggle selection of the current entry and move to the next one">
+                <keyboard-shortcut first-keystroke="SPACE" keymap="$default"/>
+                <keyboard-shortcut first-keystroke="INSERT" keymap="$default"/>
+            </action>
             <action id="TurtleCommander.Refresh"
                     class="io.github.jhspetersson.turtlecommander.RefreshAction"
                     text="Refresh"

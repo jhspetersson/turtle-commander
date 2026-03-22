@@ -306,7 +306,10 @@ class FileTab(
             dragEnabled = true
             transferHandler = FileEntryTransferHandler()
 
-            selectionModel.addListSelectionListener { updateStatusBar() }
+            selectionModel.addListSelectionListener {
+                if (!insideToggle) toggledRows.clear()
+                updateStatusBar()
+            }
         }
     }
 
@@ -892,6 +895,91 @@ class FileTab(
     fun showDriveSelector() {
         driveCombo.requestFocusInWindow()
         driveCombo.showPopup()
+    }
+
+    private val toggledRows = mutableSetOf<Int>()
+    private var insideToggle = false
+
+    private fun applyToggledSelection(cursorRow: Int) {
+        val rowsToSelect = toggledRows.toMutableSet()
+        rowsToSelect.add(cursorRow)
+        table.clearSelection()
+        for (row in rowsToSelect) {
+            if (row in 0 until table.rowCount) {
+                table.addRowSelectionInterval(row, row)
+            }
+        }
+    }
+
+    fun toggleSelectionAndMoveDown() {
+        insideToggle = true
+        try {
+        when (viewMode) {
+            ViewMode.TABLE -> {
+                val row = table.selectionModel.leadSelectionIndex
+                if (row < 0) return
+                val modelRow = table.convertRowIndexToModel(row)
+                val entry = tableModel.getEntryAt(modelRow)
+                if (entry != null && !entry.isParentLink) {
+                    if (row in toggledRows) {
+                        toggledRows.remove(row)
+                    } else {
+                        toggledRows.add(row)
+                    }
+                }
+                val nextRow = if (row + 1 < table.rowCount) row + 1 else row
+                applyToggledSelection(nextRow)
+                table.selectionModel.leadSelectionIndex = nextRow
+                table.scrollRectToVisible(table.getCellRect(nextRow, 0, true))
+            }
+            ViewMode.LIST -> {
+                val index = list.selectionModel.leadSelectionIndex
+                if (index < 0) return
+                val entry = listModel.getElementAt(index)
+                val selectedSet = list.selectedIndices.toMutableSet()
+                if (entry != null && !entry.isParentLink) {
+                    if (index in selectedSet) {
+                        selectedSet.remove(index)
+                    } else {
+                        selectedSet.add(index)
+                    }
+                }
+                val nextIndex = if (index + 1 < listModel.size()) index + 1 else index
+                selectedSet.add(nextIndex)
+                list.clearSelection()
+                for (i in selectedSet) {
+                    list.addSelectionInterval(i, i)
+                }
+                list.ensureIndexIsVisible(nextIndex)
+            }
+            ViewMode.TREE -> {
+                val leadRow = tree.leadSelectionRow
+                if (leadRow < 0) return
+                val path = tree.getPathForRow(leadRow) ?: return
+                val node = path.lastPathComponent as? DefaultMutableTreeNode
+                val entry = node?.userObject as? FileEntry
+                val selectedPaths = (tree.selectionPaths ?: emptyArray()).toMutableSet()
+                if (entry != null && !entry.isParentLink) {
+                    if (path in selectedPaths) {
+                        selectedPaths.remove(path)
+                    } else {
+                        selectedPaths.add(path)
+                    }
+                }
+                val nextRow = if (leadRow + 1 < tree.rowCount) leadRow + 1 else leadRow
+                val nextPath = tree.getPathForRow(nextRow)
+                if (nextPath != null) selectedPaths.add(nextPath)
+                tree.selectionPaths = selectedPaths.toTypedArray()
+                tree.scrollPathToVisible(nextPath)
+            }
+        }
+        } finally {
+            insideToggle = false
+        }
+    }
+
+    fun clearToggledRows() {
+        toggledRows.clear()
     }
 
     fun getSelectedEntries(): List<FileEntry> {

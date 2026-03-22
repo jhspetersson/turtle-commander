@@ -10,6 +10,7 @@ A dual-panel file manager integrated into IntelliJ-based IDEs, inspired by class
 - Table, list, and tree view modes
 - File operations: view (F3), open (F4), copy (F5), move (F6), delete (F8), rename (F2), create directory (F7), create file (Shift+F4)
 - Create zip archives, browse and modify archive contents, and extract files from archives
+- Select files with space and insert
 - Clipboard-style copy/cut/paste (Ctrl+C, Ctrl+X, Ctrl+V) with buffer indicator in the tool window header
 - Drag-and-drop between panels and to/from the Project tool window
 - Draggable and reorderable tabs with the context menu
