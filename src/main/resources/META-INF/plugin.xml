@@ -158,7 +158,9 @@
             <action id="TurtleCommander.CloseTab"
                     class="io.github.jhspetersson.turtlecommander.CloseTabAction"
                     text="Close"
-                    description="Close the selected tab"/>
+                    description="Close the selected tab">
+                <keyboard-shortcut first-keystroke="ctrl W" keymap="$default"/>
+            </action>
             <action id="TurtleCommander.CloseOtherTabs"
                     class="io.github.jhspetersson.turtlecommander.CloseOtherTabsAction"
                     text="Close Other Tabs"
