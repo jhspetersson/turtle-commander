@@ -304,9 +304,9 @@ class FileOperationService(
                             }
                         }
                     }
-                    Files.move(source, target, StandardCopyOption.REPLACE_EXISTING)
+                    crossFileSystemMove(source, target, StandardCopyOption.REPLACE_EXISTING)
                 } else {
-                    Files.move(source, target)
+                    crossFileSystemMove(source, target)
                 }
             } catch (e: Exception) {
                 thisLogger().warn("Failed to move $source to $destination: ${e.message}")
@@ -460,16 +460,37 @@ class FileOperationService(
     private fun copyDirectoryRecursive(source: Path, target: Path) {
         Files.walkFileTree(source, object : java.nio.file.SimpleFileVisitor<Path>() {
             override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {
-                val targetDir = target.resolve(source.relativize(dir))
+                val relativePath = source.relativize(dir).toString()
+                val targetDir = if (relativePath.isEmpty()) target else target.resolve(relativePath)
                 Files.createDirectories(targetDir)
                 return java.nio.file.FileVisitResult.CONTINUE
             }
 
             override fun visitFile(file: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {
-                Files.copy(file, target.resolve(source.relativize(file)), StandardCopyOption.REPLACE_EXISTING)
+                val relativePath = source.relativize(file).toString()
+                Files.copy(file, target.resolve(relativePath), StandardCopyOption.REPLACE_EXISTING)
                 return java.nio.file.FileVisitResult.CONTINUE
             }
         })
+    }
+
+    private fun crossFileSystemMove(source: Path, target: Path, vararg options: java.nio.file.CopyOption) {
+        if (source.fileSystem == target.fileSystem) {
+            Files.move(source, target, *options)
+        } else {
+            val replaceExisting = StandardCopyOption.REPLACE_EXISTING in options
+            if (source.isDirectory()) {
+                copyDirectoryRecursive(source, target)
+                deleteDirectoryRecursive(source)
+            } else {
+                if (replaceExisting) {
+                    Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING)
+                } else {
+                    Files.copy(source, target)
+                }
+                Files.delete(source)
+            }
+        }
     }
 
     private fun detectDirectoryType(dir: Path): DirectoryType {

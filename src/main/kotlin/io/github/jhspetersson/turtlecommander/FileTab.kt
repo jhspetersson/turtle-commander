@@ -66,6 +66,9 @@ class FileTab(
     var currentPath: Path = initialPath
         private set
 
+    var currentVfs: VirtualFileSystem? = null
+        private set
+
     init {
         setupHeader()
         setupTable()
@@ -107,6 +110,11 @@ class FileTab(
                     if (updatingDriveCombo) return
                     val selected = selectedItem as? String ?: return
                     val drivePath = Path.of(selected)
+                    // Exit VFS if active
+                    if (currentVfs != null) {
+                        currentVfs?.close()
+                        currentVfs = null
+                    }
                     if (drivePath != currentPath) {
                         val otherPath = otherPanelPathProvider()
                         val targetPath = if (otherPath != null && otherPath.root == drivePath.root) {
@@ -128,6 +136,11 @@ class FileTab(
 
         pathField.apply {
             addActionListener {
+                if (currentVfs != null) {
+                    // In VFS mode, ignore path field edits
+                    table.requestFocusInWindow()
+                    return@addActionListener
+                }
                 var path = try { Path.of(text) } catch (_: Exception) { currentPath }
                 while (!path.toFile().isDirectory) {
                     path = path.parent ?: break
@@ -188,14 +201,7 @@ class FileTab(
             addMouseListener(object : MouseAdapter() {
                 override fun mouseClicked(e: MouseEvent) {
                     if (e.clickCount == 2) {
-                        val entry = getSelectedEntry() ?: return
-                        if (entry.isDirectory || entry.isParentLink) {
-                            fileOps.launch {
-                                navigateTo(entry.path)
-                            }
-                        } else {
-                            openFile(entry)
-                        }
+                        openSelectedEntry()
                     }
                 }
 
@@ -289,7 +295,12 @@ class FileTab(
     }
 
     suspend fun navigateTo(path: Path, selectName: String? = null) {
-        val entries = fileOps.listFiles(path)
+        val vfs = currentVfs
+        val entries = if (vfs != null) {
+            vfs.listFiles(path)
+        } else {
+            fileOps.listFiles(path)
+        }
         withContext(Dispatchers.EDT) {
             // Save cursor position and column state for the current directory
             val selectedRow = table.selectedRow
@@ -301,7 +312,17 @@ class FileTab(
             }
 
             currentPath = path
-            pathField.text = path.toString()
+
+            // Update path display
+            if (vfs != null) {
+                val relativePath = path.toString()
+                val separator = if (vfs.archivePath.toString().contains("\\")) "\\" else "/"
+                pathField.text = vfs.archivePath.toString() +
+                    if (vfs.isRoot(path)) "" else (separator + relativePath.removePrefix("/").replace("/", separator))
+            } else {
+                pathField.text = path.toString()
+            }
+
             tableModel.setEntries(entries)
             updateStatusBar()
             onDirectoryChanged(this@FileTab)
@@ -311,17 +332,20 @@ class FileTab(
                 restoreColumnState(path)
             }
 
-            val currentRoot = path.root?.toString() ?: ""
-            updatingDriveCombo = true
-            try {
-                for (i in 0 until driveCombo.itemCount) {
-                    if (driveCombo.getItemAt(i).equals(currentRoot, ignoreCase = true)) {
-                        driveCombo.selectedIndex = i
-                        break
+            // Update drive combo (only for real FS)
+            if (vfs == null) {
+                val currentRoot = path.root?.toString() ?: ""
+                updatingDriveCombo = true
+                try {
+                    for (i in 0 until driveCombo.itemCount) {
+                        if (driveCombo.getItemAt(i).equals(currentRoot, ignoreCase = true)) {
+                            driveCombo.selectedIndex = i
+                            break
+                        }
                     }
+                } finally {
+                    updatingDriveCombo = false
                 }
-            } finally {
-                updatingDriveCombo = false
             }
 
             // Select by name, restore saved position, or default to first row
@@ -346,7 +370,25 @@ class FileTab(
     }
 
     fun refresh() {
-        fileOps.launch { navigateTo(currentPath) }
+        val vfs = currentVfs
+        if (vfs != null) {
+            val relativePath = currentPath.toString()
+            vfs.flush()
+            fileOps.launch { navigateTo(vfs.getPath(relativePath)) }
+        } else {
+            fileOps.launch { navigateTo(currentPath) }
+        }
+    }
+
+    private suspend fun refreshAfterVfsChange(selectName: String? = null) {
+        val vfs = currentVfs
+        if (vfs != null) {
+            val relativePath = currentPath.toString()
+            vfs.flush()
+            navigateTo(vfs.getPath(relativePath), selectName = selectName)
+        } else {
+            navigateTo(currentPath, selectName = selectName)
+        }
     }
 
     fun showDriveSelector() {
@@ -363,18 +405,52 @@ class FileTab(
 
     fun openSelectedEntry() {
         val entry = getSelectedEntry() ?: return
-        if (entry.isDirectory || entry.isParentLink) {
+        if (entry.isParentLink) {
+            goUp()
+            return
+        }
+        if (entry.isDirectory) {
             fileOps.launch { navigateTo(entry.path) }
+        } else if (currentVfs == null && VirtualFileSystemRegistry.supports(entry.path)) {
+            enterVfs(entry.path)
         } else {
             openFile(entry)
         }
     }
 
     fun goUp() {
+        val vfs = currentVfs
+        if (vfs != null && vfs.isRoot(currentPath)) {
+            exitVfs()
+            return
+        }
         val parent = currentPath.parent
         if (parent != null) {
             fileOps.launch { navigateTo(parent) }
         }
+    }
+
+    private fun enterVfs(archivePath: Path) {
+        try {
+            val vfs = VirtualFileSystemRegistry.create(archivePath)
+            currentVfs = vfs
+            fileOps.launch { navigateTo(vfs.root) }
+        } catch (e: Exception) {
+            fileErrorNotification("Cannot open archive: ${e.message}")
+        }
+    }
+
+    private fun exitVfs() {
+        val vfs = currentVfs ?: return
+        val archive = vfs.archivePath
+        vfs.close()
+        currentVfs = null
+        fileOps.launch { navigateTo(archive.parent ?: archive, selectName = archive.fileName.toString()) }
+    }
+
+    fun dispose() {
+        currentVfs?.close()
+        currentVfs = null
     }
 
     fun performCopy() {
@@ -432,7 +508,7 @@ class FileTab(
                         isCancelled = { indicator.isCanceled },
                     )
 
-                    navigateTo(currentPath)
+                    refreshAfterVfsChange()
                     withContext(Dispatchers.EDT) {
                         onRefreshOtherPanel()
                     }
@@ -494,7 +570,7 @@ class FileTab(
                         isCancelled = { indicator.isCanceled },
                     )
 
-                    navigateTo(currentPath)
+                    refreshAfterVfsChange()
                     withContext(Dispatchers.EDT) {
                         onRefreshOtherPanel()
                     }
@@ -554,7 +630,7 @@ class FileTab(
                         isCancelled = { indicator.isCanceled },
                     )
 
-                    navigateTo(currentPath)
+                    refreshAfterVfsChange()
                     withContext(Dispatchers.EDT) {
                         onRefreshOtherPanel()
                     }
@@ -593,7 +669,7 @@ class FileTab(
                         isCancelled = { indicator.isCanceled },
                     )
 
-                    navigateTo(currentPath)
+                    refreshAfterVfsChange()
                 }
             }
         })
@@ -780,12 +856,12 @@ class FileTab(
                     val archiveFileName = archivePath.fileName.toString()
                     val archiveParent = archivePath.parent
                     if (archiveParent != null && archiveParent == currentPath) {
-                        navigateTo(currentPath, selectName = archiveFileName)
+                        refreshAfterVfsChange(selectName = archiveFileName)
                         withContext(Dispatchers.EDT) {
                             onRefreshOtherPanel()
                         }
                     } else {
-                        navigateTo(currentPath)
+                        refreshAfterVfsChange()
                         val otherPath = otherPanelPathProvider()
                         if (archiveParent != null && otherPath != null && archiveParent == otherPath) {
                             withContext(Dispatchers.EDT) {
@@ -955,6 +1031,15 @@ class FileTab(
     }
 
     private fun openFile(entry: FileEntry) {
+        val vfs = currentVfs
+        if (vfs != null) {
+            val relativePath = entry.path.toString().replace("\\", "/").removePrefix("/")
+            val jarUrl = vfs.archivePath.toString() + "!/" + relativePath
+            val jarVfs = com.intellij.openapi.vfs.JarFileSystem.getInstance()
+            val virtualFile = jarVfs.findFileByPath(jarUrl) ?: return
+            OpenFileDescriptor(project, virtualFile).navigate(true)
+            return
+        }
         val virtualFile = LocalFileSystem.getInstance().findFileByNioFile(entry.path) ?: return
         OpenFileDescriptor(project, virtualFile).navigate(true)
     }
@@ -963,7 +1048,7 @@ class FileTab(
         fileOps.launch {
             try {
                 fileOps.renameFile(entry.path, newName)
-                navigateTo(currentPath)
+                refreshAfterVfsChange(selectName = newName)
             } catch (e: Exception) {
                 fileErrorNotification("Rename failed: ${e.message}")
             }

@@ -353,6 +353,7 @@ class FileManagerPanel(
         val realTabCount = tabbedPane.tabCount - 1
         if (realTabCount <= 1) return
         if (tabIndex < 0 || tabIndex == plusIndex) return
+        (tabbedPane.getComponentAt(tabIndex) as? FileTab)?.dispose()
         tabbedPane.removeTabAt(tabIndex)
     }
 
@@ -363,6 +364,7 @@ class FileManagerPanel(
             .filter { it != tabIndex && it != plusIndex }
             .sortedDescending()
         for (idx in indicesToRemove) {
+            (tabbedPane.getComponentAt(idx) as? FileTab)?.dispose()
             tabbedPane.removeTabAt(idx)
         }
     }
@@ -375,6 +377,7 @@ class FileManagerPanel(
         // Keep at least one tab
         if (indicesToRemove.size <= 1) return
         for (idx in indicesToRemove.drop(1)) {
+            (tabbedPane.getComponentAt(idx) as? FileTab)?.dispose()
             tabbedPane.removeTabAt(idx)
         }
     }
@@ -386,6 +389,7 @@ class FileManagerPanel(
             .filter { it != plusIndex }
             .sortedDescending()
         for (idx in indicesToRemove) {
+            (tabbedPane.getComponentAt(idx) as? FileTab)?.dispose()
             tabbedPane.removeTabAt(idx)
         }
     }
@@ -397,6 +401,7 @@ class FileManagerPanel(
             .filter { it != plusIndex }
             .sortedDescending()
         for (idx in indicesToRemove) {
+            (tabbedPane.getComponentAt(idx) as? FileTab)?.dispose()
             tabbedPane.removeTabAt(idx)
         }
     }
