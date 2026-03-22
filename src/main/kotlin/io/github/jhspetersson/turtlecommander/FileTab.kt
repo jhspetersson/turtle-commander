@@ -39,11 +39,17 @@ import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.JTable
 import javax.swing.JTextField
+import javax.swing.JTree
 import javax.swing.ListSelectionModel
 import javax.swing.TransferHandler
 import javax.swing.event.CellEditorListener
 import javax.swing.event.ChangeEvent
 import javax.swing.table.DefaultTableCellRenderer
+import javax.swing.tree.DefaultMutableTreeNode
+import javax.swing.tree.DefaultTreeCellRenderer
+import javax.swing.tree.DefaultTreeModel
+import javax.swing.tree.TreePath
+import javax.swing.tree.TreeSelectionModel
 
 class FileTab(
     private val project: Project,
@@ -61,6 +67,9 @@ class FileTab(
 
     private val listModel = DefaultListModel<FileEntry>()
     val list = JBList(listModel)
+    private val treeRootNode = DefaultMutableTreeNode()
+    private val treeModel = DefaultTreeModel(treeRootNode)
+    val tree = JTree(treeModel)
     private val viewCardLayout = CardLayout()
     private val viewPanel = JPanel(viewCardLayout)
     var viewMode: ViewMode = ViewMode.TABLE
@@ -84,6 +93,7 @@ class FileTab(
         setupHeader()
         setupTable()
         setupList()
+        setupTree()
         setupViewPanel()
         loadDrives()
         applyPanelFont()
@@ -105,16 +115,22 @@ class FileTab(
             table.rowHeight = font.size + 6
             list.font = font
             list.fixedCellHeight = font.size + 6
+            tree.font = font
+            tree.rowHeight = font.size + 6
         } else if (size > 0) {
             table.font = defaultTableFont.deriveFont(size.toFloat())
             table.rowHeight = size + 6
             list.font = defaultTableFont.deriveFont(size.toFloat())
             list.fixedCellHeight = size + 6
+            tree.font = defaultTableFont.deriveFont(size.toFloat())
+            tree.rowHeight = size + 6
         } else {
             table.font = defaultTableFont
             table.rowHeight = 20
             list.font = defaultTableFont
             list.fixedCellHeight = 20
+            tree.font = defaultTableFont
+            tree.rowHeight = 20
         }
     }
 
@@ -338,9 +354,98 @@ class FileTab(
         popupMenu.component.show(list, e.x, e.y)
     }
 
+    private fun setupTree() {
+        tree.apply {
+            isRootVisible = false
+            showsRootHandles = true
+            background = table.background
+            selectionModel.selectionMode = TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION
+            cellRenderer = FileTreeCellRenderer()
+
+            addMouseListener(object : MouseAdapter() {
+                override fun mouseClicked(e: MouseEvent) {
+                    if (e.clickCount == 2) {
+                        val node = lastSelectedPathComponent as? DefaultMutableTreeNode ?: return
+                        val entry = node.userObject as? FileEntry ?: return
+                        if (entry.isParentLink) {
+                            goUp()
+                        } else if (entry.isDirectory) {
+                            // Handled by tree expansion
+                        } else if (currentVfs == null && VirtualFileSystemRegistry.supports(entry.path)) {
+                            enterVfs(entry.path)
+                        } else {
+                            openFile(entry)
+                        }
+                    }
+                }
+
+                override fun mousePressed(e: MouseEvent) {
+                    handleTreeContextMenu(e)
+                }
+
+                override fun mouseReleased(e: MouseEvent) {
+                    handleTreeContextMenu(e)
+                }
+            })
+
+            addTreeSelectionListener { updateStatusBar() }
+
+            addTreeWillExpandListener(object : javax.swing.event.TreeWillExpandListener {
+                override fun treeWillExpand(event: javax.swing.event.TreeExpansionEvent) {
+                    val node = event.path.lastPathComponent as? DefaultMutableTreeNode ?: return
+                    val entry = node.userObject as? FileEntry ?: return
+                    if (entry.isDirectory && !entry.isParentLink && node.childCount == 1) {
+                        val firstChild = node.getChildAt(0) as? DefaultMutableTreeNode
+                        if (firstChild?.userObject is String) {
+                            // Loading placeholder — load real children
+                            node.removeAllChildren()
+                            try {
+                                val children = kotlinx.coroutines.runBlocking {
+                                    val vfs = currentVfs
+                                    if (vfs != null) vfs.listFiles(entry.path) else fileOps.listFiles(entry.path)
+                                }
+                                for (child in children) {
+                                    if (child.isParentLink) continue
+                                    val childNode = DefaultMutableTreeNode(child)
+                                    if (child.isDirectory) {
+                                        childNode.add(DefaultMutableTreeNode("Loading..."))
+                                    }
+                                    node.add(childNode)
+                                }
+                            } catch (_: Exception) {
+                                // ignore
+                            }
+                            treeModel.nodeStructureChanged(node)
+                        }
+                    }
+                }
+
+                override fun treeWillCollapse(event: javax.swing.event.TreeExpansionEvent) {}
+            })
+        }
+    }
+
+    private fun handleTreeContextMenu(e: MouseEvent) {
+        if (!e.isPopupTrigger) return
+        val treePath = tree.getPathForLocation(e.x, e.y)
+        if (treePath != null) {
+            tree.selectionPath = treePath
+        }
+        val node = tree.lastSelectedPathComponent as? DefaultMutableTreeNode
+        val entry = node?.userObject as? FileEntry
+        FileContextMenuState.clickedEntry = entry
+        FileContextMenuState.clickedTab = this
+
+        val am = com.intellij.openapi.actionSystem.ActionManager.getInstance()
+        val group = am.getAction("TurtleCommander.FileContextMenu") as? com.intellij.openapi.actionSystem.ActionGroup ?: return
+        val popupMenu = am.createActionPopupMenu("TurtleCommander.FileContextMenu", group)
+        popupMenu.component.show(tree, e.x, e.y)
+    }
+
     private fun setupViewPanel() {
         viewPanel.add(JBScrollPane(table), VIEW_TABLE)
         viewPanel.add(JBScrollPane(list), VIEW_LIST)
+        viewPanel.add(JBScrollPane(tree), VIEW_TREE)
         viewCardLayout.show(viewPanel, VIEW_TABLE)
 
         add(viewPanel, BorderLayout.CENTER)
@@ -350,39 +455,236 @@ class FileTab(
     }
 
     fun setViewMode(mode: ViewMode) {
-        viewMode = mode
-        viewCardLayout.show(viewPanel, if (mode == ViewMode.TABLE) VIEW_TABLE else VIEW_LIST)
-        if (mode == ViewMode.LIST) {
-            syncListSelection()
-            list.requestFocusInWindow()
-        } else {
-            syncTableSelection()
-            table.requestFocusInWindow()
-        }
-    }
+        val previousMode = viewMode
+        if (previousMode == mode) return
 
-    private fun syncListSelection() {
+        // Capture selection from the current (old) view before switching
         val selectedEntries = getSelectedEntries()
-        list.clearSelection()
-        val indices = selectedEntries.mapNotNull { entry ->
-            (0 until listModel.size()).firstOrNull { listModel.getElementAt(it).path == entry.path }
-        }.toIntArray()
-        if (indices.isNotEmpty()) {
-            list.selectedIndices = indices
-        }
-    }
+        val selectedNames = selectedEntries.map { it.name }.toSet()
 
-    private fun syncTableSelection() {
-        val selectedPaths = list.selectedValuesList.map { it.path }.toSet()
-        table.clearSelection()
-        for (viewRow in 0 until table.rowCount) {
-            val modelRow = table.convertRowIndexToModel(viewRow)
-            val entry = tableModel.getEntryAt(modelRow) ?: continue
-            if (entry.path in selectedPaths) {
-                table.addRowSelectionInterval(viewRow, viewRow)
+        // For tree -> flat: navigate to the parent directory of the selected entries and select them
+        val treeNavigation = if (previousMode == ViewMode.TREE && mode != ViewMode.TREE && selectedEntries.isNotEmpty()) {
+            val lastEntry = selectedEntries.last()
+            val targetDir = lastEntry.path.parent ?: currentPath
+            val namesInDir = selectedEntries
+                .filter { (it.path.parent ?: currentPath) == targetDir }
+                .map { it.name }
+                .toSet()
+            Pair(targetDir, namesInDir)
+        } else null
+
+        viewMode = mode
+        val card = when (mode) {
+            ViewMode.TABLE -> VIEW_TABLE
+            ViewMode.LIST -> VIEW_LIST
+            ViewMode.TREE -> VIEW_TREE
+        }
+        viewCardLayout.show(viewPanel, card)
+
+        when (mode) {
+            ViewMode.TABLE -> {
+                if (treeNavigation != null) {
+                    val (targetDir, namesInDir) = treeNavigation
+                    if (targetDir != currentPath) {
+                        fileOps.launch {
+                            navigateTo(targetDir, selectName = namesInDir.firstOrNull())
+                            if (namesInDir.size > 1) {
+                                withContext(Dispatchers.EDT) { selectEntriesByName(namesInDir) }
+                            }
+                        }
+                    } else {
+                        selectEntriesByName(namesInDir)
+                    }
+                } else {
+                    selectEntriesByName(selectedNames)
+                }
+                table.requestFocusInWindow()
+            }
+            ViewMode.LIST -> {
+                if (treeNavigation != null) {
+                    val (targetDir, namesInDir) = treeNavigation
+                    if (targetDir != currentPath) {
+                        fileOps.launch {
+                            navigateTo(targetDir, selectName = namesInDir.firstOrNull())
+                            if (namesInDir.size > 1) {
+                                withContext(Dispatchers.EDT) { selectEntriesByName(namesInDir) }
+                            }
+                        }
+                    } else {
+                        selectEntriesByName(namesInDir)
+                    }
+                } else {
+                    selectEntriesByName(selectedNames)
+                }
+                list.requestFocusInWindow()
+            }
+            ViewMode.TREE -> {
+                rebuildFullTree(selectedNames)
+                tree.requestFocusInWindow()
             }
         }
     }
+
+    private fun rebuildFullTree(selectNames: Set<String> = emptySet()) {
+        fileOps.launch {
+            val vfs = currentVfs
+
+            // Collect ancestor paths from root to currentPath (inclusive)
+            val ancestors = mutableListOf<Path>()
+            if (vfs != null) {
+                var p: Path? = currentPath
+                while (p != null && !vfs.isRoot(p)) {
+                    ancestors.add(0, p)
+                    p = p.parent
+                }
+                ancestors.add(0, vfs.root)
+            } else {
+                var p: Path? = currentPath
+                while (p != null) {
+                    ancestors.add(0, p)
+                    p = p.parent
+                }
+            }
+
+            // For each ancestor (except the root), load its parent's children (siblings).
+            // For the last ancestor (currentPath), load its own children too.
+            // Structure: ancestorSiblings[i] = siblings of ancestors[i] (children of ancestors[i]'s parent)
+            // For ancestors[0] (root), we load its children directly since it has no parent to list siblings from.
+            data class LevelData(
+                val ancestorPath: Path,
+                val entries: List<FileEntry>,  // entries at this level (siblings of the ancestor)
+            )
+
+            val levels = mutableListOf<LevelData>()
+
+            // Level 0: children of the root
+            val rootEntries = try {
+                if (vfs != null) vfs.listFiles(ancestors[0]) else fileOps.listFiles(ancestors[0])
+            } catch (_: Exception) {
+                emptyList()
+            }.filter { !it.isParentLink }
+            levels.add(LevelData(ancestors[0], rootEntries))
+
+            // Levels 1..n-1: for each non-root ancestor, list its parent's children
+            // But we already have ancestors[i-1]'s children from the previous level if ancestors[i-1] == parent.
+            // Actually, ancestors[i] is a child of ancestors[i-1], so we need children of ancestors[i-1].
+            // We already loaded children of ancestors[0] above. For ancestors[1], its parent is ancestors[0],
+            // and we already have those entries. So we only need to load children of ancestors[i] for i >= 1.
+            for (i in 1 until ancestors.size) {
+                val entries = try {
+                    if (vfs != null) vfs.listFiles(ancestors[i]) else fileOps.listFiles(ancestors[i])
+                } catch (_: Exception) {
+                    emptyList()
+                }.filter { !it.isParentLink }
+                levels.add(LevelData(ancestors[i], entries))
+            }
+
+            withContext(Dispatchers.EDT) {
+                treeRootNode.removeAllChildren()
+
+                val ancestorNodes = mutableListOf<DefaultMutableTreeNode>()
+                var currentParentNode = treeRootNode
+
+                for (levelIdx in levels.indices) {
+                    val level = levels[levelIdx]
+                    val entries = level.entries
+                    val nextAncestorPath = ancestors.getOrNull(levelIdx + 1)
+                    val ancestorPathNormalized = nextAncestorPath?.normalize()
+
+                    // First pass: find the ancestor node for the next level (if any)
+                    var nextParentNode: DefaultMutableTreeNode? = null
+
+                    for (entry in entries) {
+                        val node = DefaultMutableTreeNode(entry)
+                        if (entry.isDirectory && nextParentNode == null && nextAncestorPath != null &&
+                                (entry.path == nextAncestorPath ||
+                                 entry.path.normalize() == ancestorPathNormalized ||
+                                 entry.path.toAbsolutePath().normalize() == nextAncestorPath.toAbsolutePath().normalize())) {
+                            // This directory is on the ancestor path — its children come from the next level
+                            nextParentNode = node
+                            ancestorNodes.add(node)
+                            currentParentNode.add(node)
+                        } else if (entry.isDirectory) {
+                            // Sibling directory — add lazy placeholder
+                            node.add(DefaultMutableTreeNode("Loading..."))
+                            currentParentNode.add(node)
+                        } else {
+                            currentParentNode.add(node)
+                        }
+                    }
+
+                    // If we didn't find the ancestor entry in the listing (e.g., hidden dir, permission issue),
+                    // create an explicit node for it so the tree structure stays correct
+                    if (nextParentNode == null && nextAncestorPath != null) {
+                        val syntheticEntry = FileEntry(
+                            name = nextAncestorPath.fileName?.toString() ?: nextAncestorPath.toString(),
+                            path = nextAncestorPath,
+                            isDirectory = true,
+                            size = 0,
+                            lastModified = null,
+                            permissions = "",
+                        )
+                        nextParentNode = DefaultMutableTreeNode(syntheticEntry)
+                        ancestorNodes.add(nextParentNode)
+                        currentParentNode.add(nextParentNode)
+                    }
+
+                    // Advance to the next level's parent AFTER all siblings have been added
+                    if (nextParentNode != null) {
+                        currentParentNode = nextParentNode
+                    }
+                }
+
+                treeModel.nodeStructureChanged(treeRootNode)
+
+                // Expand all ancestor nodes so the path to current directory is visible
+                for (node in ancestorNodes) {
+                    tree.expandPath(TreePath(node.path))
+                }
+
+                // Select entries by name in the current directory node
+                if (selectNames.isNotEmpty()) {
+                    val currentDirNode = if (ancestorNodes.isNotEmpty()) ancestorNodes.last() else treeRootNode
+                    val treePaths = (0 until currentDirNode.childCount).mapNotNull { i ->
+                        val child = currentDirNode.getChildAt(i) as DefaultMutableTreeNode
+                        val entry = child.userObject as? FileEntry
+                        if (entry != null && entry.name in selectNames) TreePath(child.path) else null
+                    }.toTypedArray()
+                    if (treePaths.isNotEmpty()) {
+                        tree.selectionPaths = treePaths
+                        tree.scrollPathToVisible(treePaths.first())
+                    }
+                }
+            }
+        }
+    }
+
+    private fun getTreeSelectedEntries(): List<FileEntry> {
+        return (tree.selectionPaths ?: emptyArray()).mapNotNull { path ->
+            val node = path.lastPathComponent as? DefaultMutableTreeNode
+            node?.userObject as? FileEntry
+        }.filter { !it.isParentLink }
+    }
+
+    private fun selectEntriesByName(names: Set<String>) {
+        if (viewMode == ViewMode.TABLE) {
+            table.clearSelection()
+            for (viewRow in 0 until table.rowCount) {
+                val modelRow = table.convertRowIndexToModel(viewRow)
+                val entry = tableModel.getEntryAt(modelRow) ?: continue
+                if (entry.name in names) {
+                    table.addRowSelectionInterval(viewRow, viewRow)
+                }
+            }
+        } else if (viewMode == ViewMode.LIST) {
+            list.clearSelection()
+            val indices = (0 until listModel.size()).filter { listModel.getElementAt(it).name in names }.toIntArray()
+            if (indices.isNotEmpty()) {
+                list.selectedIndices = indices
+            }
+        }
+    }
+
 
     private fun updateStatusBar() {
         val entries = tableModel.let { model ->
@@ -409,6 +711,10 @@ class FileTab(
     private fun getSelectedEntry(): FileEntry? {
         if (viewMode == ViewMode.LIST) {
             return list.selectedValue
+        }
+        if (viewMode == ViewMode.TREE) {
+            val node = tree.lastSelectedPathComponent as? DefaultMutableTreeNode ?: return null
+            return node.userObject as? FileEntry
         }
         val viewRow = table.selectedRow
         if (viewRow < 0) return null
@@ -461,6 +767,19 @@ class FileTab(
             // Update list model
             listModel.clear()
             entries.forEach { listModel.addElement(it) }
+
+            // Update tree model (only when not in full tree mode, which manages its own structure)
+            if (viewMode != ViewMode.TREE) {
+                treeRootNode.removeAllChildren()
+                for (entry in entries) {
+                    val node = DefaultMutableTreeNode(entry)
+                    if (entry.isDirectory && !entry.isParentLink) {
+                        node.add(DefaultMutableTreeNode("Loading..."))
+                    }
+                    treeRootNode.add(node)
+                }
+                treeModel.nodeStructureChanged(treeRootNode)
+            }
 
             updateStatusBar()
             onDirectoryChanged(this@FileTab)
@@ -550,6 +869,12 @@ class FileTab(
     fun getSelectedEntries(): List<FileEntry> {
         if (viewMode == ViewMode.LIST) {
             return list.selectedValuesList.filter { !it.isParentLink }
+        }
+        if (viewMode == ViewMode.TREE) {
+            return (tree.selectionPaths ?: emptyArray()).mapNotNull { path ->
+                val node = path.lastPathComponent as? DefaultMutableTreeNode
+                node?.userObject as? FileEntry
+            }.filter { !it.isParentLink }
         }
         return table.selectedRows.toList()
             .map { table.convertRowIndexToModel(it) }
@@ -1376,6 +1701,44 @@ class FileTab(
         }
     }
 
+    private inner class FileTreeCellRenderer : DefaultTreeCellRenderer() {
+        init {
+            backgroundNonSelectionColor = table.background
+        }
+
+        override fun getTreeCellRendererComponent(
+            tree: JTree,
+            value: Any?,
+            sel: Boolean,
+            expanded: Boolean,
+            leaf: Boolean,
+            row: Int,
+            hasFocus: Boolean,
+        ): Component {
+            super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus)
+            val node = value as? DefaultMutableTreeNode ?: return this
+            val entry = node.userObject as? FileEntry
+            if (entry != null) {
+                text = entry.name
+                val highlighting = TurtleCommanderSettings.getInstance().state.enableFileNameHighlighting
+                icon = when {
+                    entry.isParentLink -> AllIcons.Nodes.UpLevel
+                    entry.isDirectory -> if (highlighting) {
+                        DirectoryIcons.getIcon(entry.directoryType)
+                    } else {
+                        AllIcons.Nodes.Folder
+                    }
+                    else -> FileTypeManager.getInstance().getFileTypeByFileName(entry.name).icon
+                        ?: AllIcons.FileTypes.Any_type
+                }
+                if (!sel && highlighting && entry.isDirectory && entry.directoryType != DirectoryType.NONE) {
+                    foreground = DirectoryIcons.getColor(entry.directoryType)
+                }
+            }
+            return this
+        }
+    }
+
     companion object {
         val FILE_ENTRY_FLAVOR = DataFlavor(
             DataFlavor.javaJVMLocalObjectMimeType + ";class=java.util.List",
@@ -1383,10 +1746,11 @@ class FileTab(
         )
         private const val VIEW_TABLE = "table"
         private const val VIEW_LIST = "list"
+        private const val VIEW_TREE = "tree"
     }
 }
 
-enum class ViewMode { TABLE, LIST }
+enum class ViewMode { TABLE, LIST, TREE }
 
 private class FileEntryTransferable(private val entries: List<FileEntry>) : Transferable {
     private val supportedFlavors = arrayOf(FileTab.FILE_ENTRY_FLAVOR, DataFlavor.javaFileListFlavor)

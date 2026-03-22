@@ -41,6 +41,7 @@ class FileManagerPanel(
 
     private val tableViewButton = ViewModeButton(AllIcons.Actions.PreviewDetails, "Table view", true)
     private val listViewButton = ViewModeButton(AllIcons.Actions.ListFiles, "List view", false)
+    private val treeViewButton = ViewModeButton(AllIcons.Actions.ShowAsTree, "Tree view", false)
 
     private var dragSourceIndex = -1
     private var dropTargetIndex = -1
@@ -152,8 +153,10 @@ class FileManagerPanel(
             val group = ButtonGroup()
             group.add(tableViewButton)
             group.add(listViewButton)
+            group.add(treeViewButton)
             add(tableViewButton)
             add(listViewButton)
+            add(treeViewButton)
         }
 
         tableViewButton.addActionListener {
@@ -161,6 +164,9 @@ class FileManagerPanel(
         }
         listViewButton.addActionListener {
             getActiveTab()?.setViewMode(ViewMode.LIST)
+        }
+        treeViewButton.addActionListener {
+            getActiveTab()?.setViewMode(ViewMode.TREE)
         }
 
         val tabbedPaneWrapper = DraggableTabbedPaneWrapper(tabbedPane, this)
@@ -294,8 +300,8 @@ class FileManagerPanel(
                 if (i == plusIndex) continue
                 val tab = tabbedPane.getComponentAt(i) as? FileTab ?: continue
                 val modeName = panelState.tabViewModes.getOrNull(tabIdx)
-                if (modeName == ViewMode.LIST.name) {
-                    tab.setViewMode(ViewMode.LIST)
+                if (modeName != null && modeName != ViewMode.TABLE.name) {
+                    try { tab.setViewMode(ViewMode.valueOf(modeName)) } catch (_: Exception) {}
                 }
                 tabIdx++
             }
@@ -527,19 +533,19 @@ class FileManagerPanel(
 
     private fun syncViewToggle() {
         val tab = getActiveTab()
-        if (tab != null && tab.viewMode == ViewMode.LIST) {
-            listViewButton.isSelected = true
-        } else {
-            tableViewButton.isSelected = true
+        when (tab?.viewMode) {
+            ViewMode.LIST -> listViewButton.isSelected = true
+            ViewMode.TREE -> treeViewButton.isSelected = true
+            else -> tableViewButton.isSelected = true
         }
     }
 
     fun focusActiveTab() {
         val tab = getActiveTab() ?: return
-        if (tab.viewMode == ViewMode.LIST) {
-            tab.list.requestFocusInWindow()
-        } else {
-            tab.table.requestFocusInWindow()
+        when (tab.viewMode) {
+            ViewMode.TABLE -> tab.table.requestFocusInWindow()
+            ViewMode.LIST -> tab.list.requestFocusInWindow()
+            ViewMode.TREE -> tab.tree.requestFocusInWindow()
         }
     }
 
