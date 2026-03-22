@@ -185,6 +185,14 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
             return if (leftFocused) leftPanel else rightPanel
         }
 
+        bar.add(JButton("F3 View").apply {
+            isFocusable = false
+            addActionListener { activePanel().getActiveTab()?.viewSelectedFile() }
+        })
+        bar.add(JButton("F4 Open").apply {
+            isFocusable = false
+            addActionListener { activePanel().getActiveTab()?.openSelectedInAssociatedApp() }
+        })
         bar.add(JButton("F5 Copy").apply {
             isFocusable = false
             addActionListener { activePanel().getActiveTab()?.performCopy() }

@@ -33,6 +33,18 @@
                     description="Open selected file or directory">
                 <keyboard-shortcut first-keystroke="ENTER" keymap="$default"/>
             </action>
+            <action id="TurtleCommander.ViewFile"
+                    class="io.github.jhspetersson.turtlecommander.ViewFileAction"
+                    text="View File"
+                    description="Open selected file in editor">
+                <keyboard-shortcut first-keystroke="F3" keymap="$default"/>
+            </action>
+            <action id="TurtleCommander.OpenInApp"
+                    class="io.github.jhspetersson.turtlecommander.OpenInAppAction"
+                    text="Open in Associated Application"
+                    description="Open file with system default application">
+                <keyboard-shortcut first-keystroke="F4" keymap="$default"/>
+            </action>
             <action id="TurtleCommander.GoUp"
                     class="io.github.jhspetersson.turtlecommander.GoUpAction"
                     text="Go Up"
@@ -148,6 +160,11 @@
                     text="Open"
                     icon="AllIcons.Actions.MenuOpen"
                     description="Open file in editor"/>
+            <action id="TurtleCommander.OpenInAssociatedApp"
+                    class="io.github.jhspetersson.turtlecommander.OpenInAssociatedAppAction"
+                    text="Open in Associated Application"
+                    icon="AllIcons.Actions.Execute"
+                    description="Open file with system default application"/>
             <action id="TurtleCommander.OpenInExplorer"
                     class="io.github.jhspetersson.turtlecommander.OpenInExplorerAction"
                     text="Open in Explorer"
@@ -202,6 +219,7 @@
         <group id="TurtleCommander.FileContextMenu" text="File Context Menu" popup="true">
             <reference ref="TurtleCommander.OpenInNewTab"/>
             <reference ref="TurtleCommander.OpenFile"/>
+            <reference ref="TurtleCommander.OpenInAssociatedApp"/>
             <reference ref="TurtleCommander.OpenInExplorer"/>
             <separator/>
             <reference ref="TurtleCommander.ContextCopy"/>

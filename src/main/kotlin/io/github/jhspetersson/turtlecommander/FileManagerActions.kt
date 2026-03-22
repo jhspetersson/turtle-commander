@@ -38,6 +38,18 @@ class OpenEntryAction : FileManagerAction() {
     }
 }
 
+class ViewFileAction : FileManagerAction() {
+    override fun actionPerformed(e: AnActionEvent) {
+        findActiveTab(e)?.viewSelectedFile()
+    }
+}
+
+class OpenInAppAction : FileManagerAction() {
+    override fun actionPerformed(e: AnActionEvent) {
+        findActiveTab(e)?.openSelectedInAssociatedApp()
+    }
+}
+
 class GoUpAction : FileManagerAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val tab = findActiveTab(e) ?: return
@@ -404,6 +416,19 @@ class OpenFileAction : AnAction("Open", "Open file in editor", AllIcons.Actions.
 
     override fun actionPerformed(e: AnActionEvent) {
         FileContextMenuState.clickedTab?.openSelectedEntry()
+    }
+}
+
+class OpenInAssociatedAppAction : AnAction("Open in Associated Application", "Open file with system default application", AllIcons.Actions.Execute) {
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+
+    override fun update(e: AnActionEvent) {
+        val entry = FileContextMenuState.clickedEntry
+        e.presentation.isEnabledAndVisible = entry != null && !entry.isDirectory && !entry.isParentLink
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        FileContextMenuState.clickedTab?.openSelectedInAssociatedApp()
     }
 }
 

@@ -445,6 +445,24 @@ class FileTab(
         }
     }
 
+    fun viewSelectedFile() {
+        val entry = getSelectedEntry() ?: return
+        if (!entry.isParentLink && !entry.isDirectory) {
+            openFile(entry)
+        }
+    }
+
+    fun openSelectedInAssociatedApp() {
+        val entry = getSelectedEntry() ?: return
+        if (!entry.isParentLink && !entry.isDirectory) {
+            try {
+                java.awt.Desktop.getDesktop().open(entry.path.toFile())
+            } catch (e: Exception) {
+                fileErrorNotification("Failed to open file: ${e.message}")
+            }
+        }
+    }
+
     fun goUp() {
         val vfs = currentVfs
         if (vfs != null && vfs.isRoot(currentPath)) {
