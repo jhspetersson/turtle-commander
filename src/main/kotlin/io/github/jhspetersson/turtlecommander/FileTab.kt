@@ -72,7 +72,11 @@ class FileTab(
     val tree = JTree(treeModel)
     private val viewCardLayout = CardLayout()
     private val viewPanel = JPanel(viewCardLayout)
-    var viewMode: ViewMode = ViewMode.TABLE
+    var viewMode: ViewMode = try {
+        ViewMode.valueOf(TurtleCommanderSettings.getInstance().state.defaultViewMode)
+    } catch (_: Exception) {
+        ViewMode.TABLE
+    }
         private set
 
     private val driveCombo = ComboBox<String>()
@@ -441,7 +445,12 @@ class FileTab(
         viewPanel.add(JBScrollPane(table), VIEW_TABLE)
         viewPanel.add(JBScrollPane(list), VIEW_LIST)
         viewPanel.add(JBScrollPane(tree), VIEW_TREE)
-        viewCardLayout.show(viewPanel, VIEW_TABLE)
+        val initialCard = when (viewMode) {
+            ViewMode.TABLE -> VIEW_TABLE
+            ViewMode.LIST -> VIEW_LIST
+            ViewMode.TREE -> VIEW_TREE
+        }
+        viewCardLayout.show(viewPanel, initialCard)
 
         add(viewPanel, BorderLayout.CENTER)
 

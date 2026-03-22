@@ -29,6 +29,7 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
         var panelFontSize: Int = 0
         var tabFontFamily: String = ""
         var tabFontSize: Int = 0
+        var defaultViewMode: String = "TABLE"
     }
 
     fun getPanelFont(): Font? {

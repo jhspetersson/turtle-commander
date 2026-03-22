@@ -27,6 +27,7 @@ class TurtleCommanderConfigurable : Configurable {
     private var panelFontSizeSpinner: JSpinner? = null
     private var tabFontCombo: ComboBox<String>? = null
     private var tabFontSizeSpinner: JSpinner? = null
+    private var defaultViewModeCombo: ComboBox<String>? = null
 
     override fun getDisplayName(): String = "Turtle Commander"
 
@@ -57,6 +58,15 @@ class TurtleCommanderConfigurable : Configurable {
             if (settings.tabFontSize > 0) settings.tabFontSize else 12, 8, 48, 1
         ))
 
+        val viewModeItems = arrayOf("Table", "List", "Tree")
+        defaultViewModeCombo = ComboBox(DefaultComboBoxModel(viewModeItems)).apply {
+            selectedItem = when (settings.defaultViewMode) {
+                "LIST" -> "List"
+                "TREE" -> "Tree"
+                else -> "Table"
+            }
+        }
+
         val fontGrid = JPanel(GridBagLayout()).apply {
             alignmentX = JComponent.LEFT_ALIGNMENT
             val gbc = GridBagConstraints().apply {
@@ -65,6 +75,13 @@ class TurtleCommanderConfigurable : Configurable {
             }
 
             gbc.gridx = 0; gbc.gridy = 0
+            gbc.insets = JBUI.insets(2, 0, 2, 4)
+            add(JBLabel("Default tab view:"), gbc)
+            gbc.insets = JBUI.insets(2, 4, 2, 4)
+            gbc.gridx = 1
+            add(defaultViewModeCombo!!, gbc)
+
+            gbc.gridx = 0; gbc.gridy = 1
             gbc.insets = JBUI.insets(2, 0, 2, 4)
             add(JBLabel("File panel font:"), gbc)
             gbc.insets = JBUI.insets(2, 4, 2, 4)
@@ -75,7 +92,7 @@ class TurtleCommanderConfigurable : Configurable {
             gbc.gridx = 3
             add(panelFontSizeSpinner!!, gbc)
 
-            gbc.gridx = 0; gbc.gridy = 1
+            gbc.gridx = 0; gbc.gridy = 2
             gbc.insets = JBUI.insets(2, 0, 2, 4)
             add(JBLabel("Tab font:"), gbc)
             gbc.insets = JBUI.insets(2, 4, 2, 4)
@@ -121,6 +138,7 @@ class TurtleCommanderConfigurable : Configurable {
             || ((panelFontSizeSpinner?.value as? Number)?.toInt() ?: 0) != (if (settings.panelFontSize > 0) settings.panelFontSize else 13)
             || getSelectedFontFamily(tabFontCombo, defaultLabel) != settings.tabFontFamily
             || ((tabFontSizeSpinner?.value as? Number)?.toInt() ?: 0) != (if (settings.tabFontSize > 0) settings.tabFontSize else 12)
+            || getSelectedViewMode() != settings.defaultViewMode
     }
 
     override fun apply() {
@@ -136,6 +154,7 @@ class TurtleCommanderConfigurable : Configurable {
         settings.panelFontSize = (panelFontSizeSpinner?.value as? Number)?.toInt() ?: 0
         settings.tabFontFamily = getSelectedFontFamily(tabFontCombo, defaultLabel)
         settings.tabFontSize = (tabFontSizeSpinner?.value as? Number)?.toInt() ?: 0
+        settings.defaultViewMode = getSelectedViewMode()
         service.fireSettingsChanged()
     }
 
@@ -151,6 +170,11 @@ class TurtleCommanderConfigurable : Configurable {
         panelFontSizeSpinner?.value = if (settings.panelFontSize > 0) settings.panelFontSize else 13
         tabFontCombo?.selectedItem = settings.tabFontFamily.ifEmpty { defaultLabel }
         tabFontSizeSpinner?.value = if (settings.tabFontSize > 0) settings.tabFontSize else 12
+        defaultViewModeCombo?.selectedItem = when (settings.defaultViewMode) {
+            "LIST" -> "List"
+            "TREE" -> "Tree"
+            else -> "Table"
+        }
     }
 
     override fun disposeUIResources() {
@@ -163,6 +187,15 @@ class TurtleCommanderConfigurable : Configurable {
         panelFontSizeSpinner = null
         tabFontCombo = null
         tabFontSizeSpinner = null
+        defaultViewModeCombo = null
+    }
+
+    private fun getSelectedViewMode(): String {
+        return when (defaultViewModeCombo?.selectedItem as? String) {
+            "List" -> "LIST"
+            "Tree" -> "TREE"
+            else -> "TABLE"
+        }
     }
 
     private fun getSelectedFontFamily(combo: ComboBox<String>?, defaultLabel: String): String {
