@@ -134,6 +134,12 @@ class FileManagerStateService(
 
     fun getFavorites(): List<String> = myState.favoritePaths.toList()
 
+    fun setFavorites(paths: List<String>) {
+        myState.favoritePaths.clear()
+        myState.favoritePaths.addAll(paths)
+        fireFavoritesChanged()
+    }
+
     private fun fireFavoritesChanged() {
         project.messageBus.syncPublisher(FAVORITES_TOPIC).favoritesChanged()
     }

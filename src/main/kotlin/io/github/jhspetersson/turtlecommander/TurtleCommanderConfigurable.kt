@@ -1,15 +1,22 @@
 package io.github.jhspetersson.turtlecommander
 
+import com.intellij.openapi.components.service
 import com.intellij.openapi.options.Configurable
+import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.ui.components.JBLabel
+import com.intellij.ui.components.JBList
+import com.intellij.ui.components.JBTextField
 import java.awt.GraphicsEnvironment
 import java.awt.BorderLayout
+import java.awt.Dimension
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import com.intellij.util.ui.JBUI
 import javax.swing.BoxLayout
 import javax.swing.DefaultComboBoxModel
+import javax.swing.DefaultListModel
+import javax.swing.JButton
 import javax.swing.JCheckBox
 import javax.swing.JComponent
 import javax.swing.JPanel
@@ -28,6 +35,8 @@ class TurtleCommanderConfigurable : Configurable {
     private var tabFontCombo: ComboBox<String>? = null
     private var tabFontSizeSpinner: JSpinner? = null
     private var defaultViewModeCombo: ComboBox<String>? = null
+    private var favoritesListModel: DefaultListModel<String>? = null
+    private var favoritesList: JBList<String>? = null
 
     override fun getDisplayName(): String = "Turtle Commander"
 
@@ -110,6 +119,74 @@ class TurtleCommanderConfigurable : Configurable {
         hideStatusBarCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         overwriteCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
 
+        // Favorites editor
+        val favListModel = DefaultListModel<String>()
+        favoritesListModel = favListModel
+        val currentProject = ProjectManager.getInstance().openProjects.firstOrNull()
+        if (currentProject != null) {
+            val stateService = currentProject.service<FileManagerStateService>()
+            stateService.getFavorites().forEach { favListModel.addElement(it) }
+        }
+
+        val favList = JBList(favListModel)
+        favoritesList = favList
+        favList.visibleRowCount = 6
+
+        val addButton = JButton("Add").apply {
+            addActionListener {
+                val path = com.intellij.openapi.ui.Messages.showInputDialog(
+                    "Enter favorite path:", "Add Favorite", null
+                )
+                if (!path.isNullOrBlank()) {
+                    favListModel.addElement(path.trim())
+                }
+            }
+        }
+        val removeButton = JButton("Remove").apply {
+            addActionListener {
+                val idx = favList.selectedIndex
+                if (idx >= 0) favListModel.remove(idx)
+            }
+        }
+        val moveUpButton = JButton("Up").apply {
+            addActionListener {
+                val idx = favList.selectedIndex
+                if (idx > 0) {
+                    val item = favListModel.remove(idx)
+                    favListModel.add(idx - 1, item)
+                    favList.selectedIndex = idx - 1
+                }
+            }
+        }
+        val moveDownButton = JButton("Down").apply {
+            addActionListener {
+                val idx = favList.selectedIndex
+                if (idx >= 0 && idx < favListModel.size() - 1) {
+                    val item = favListModel.remove(idx)
+                    favListModel.add(idx + 1, item)
+                    favList.selectedIndex = idx + 1
+                }
+            }
+        }
+
+        val favButtonPanel = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+            add(addButton)
+            add(removeButton)
+            add(javax.swing.Box.createVerticalStrut(8))
+            add(moveUpButton)
+            add(moveDownButton)
+        }
+
+        val favoritesPanel = JPanel(BorderLayout(8, 0)).apply {
+            alignmentX = JComponent.LEFT_ALIGNMENT
+            border = javax.swing.BorderFactory.createTitledBorder("Favorites")
+            add(javax.swing.JScrollPane(favList), BorderLayout.CENTER)
+            add(favButtonPanel, BorderLayout.EAST)
+            preferredSize = Dimension(Int.MAX_VALUE, 200)
+            maximumSize = Dimension(Int.MAX_VALUE, 200)
+        }
+
         val inner = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             add(highlightingCheckBox)
@@ -119,6 +196,8 @@ class TurtleCommanderConfigurable : Configurable {
             add(overwriteCheckBox)
             add(javax.swing.Box.createVerticalStrut(8))
             add(fontGrid)
+            add(javax.swing.Box.createVerticalStrut(8))
+            add(favoritesPanel)
         }
 
         return JPanel(BorderLayout()).apply {
@@ -139,6 +218,19 @@ class TurtleCommanderConfigurable : Configurable {
             || getSelectedFontFamily(tabFontCombo, defaultLabel) != settings.tabFontFamily
             || ((tabFontSizeSpinner?.value as? Number)?.toInt() ?: 0) != (if (settings.tabFontSize > 0) settings.tabFontSize else 12)
             || getSelectedViewMode() != settings.defaultViewMode
+            || isFavoritesModified()
+    }
+
+    private fun isFavoritesModified(): Boolean {
+        val model = favoritesListModel ?: return false
+        val currentProject = ProjectManager.getInstance().openProjects.firstOrNull() ?: return false
+        val stateService = currentProject.service<FileManagerStateService>()
+        val saved = stateService.getFavorites()
+        if (model.size() != saved.size) return true
+        for (i in 0 until model.size()) {
+            if (model.getElementAt(i) != saved[i]) return true
+        }
+        return false
     }
 
     override fun apply() {
@@ -156,6 +248,16 @@ class TurtleCommanderConfigurable : Configurable {
         settings.tabFontSize = (tabFontSizeSpinner?.value as? Number)?.toInt() ?: 0
         settings.defaultViewMode = getSelectedViewMode()
         service.fireSettingsChanged()
+
+        val model = favoritesListModel
+        if (model != null) {
+            val currentProject = ProjectManager.getInstance().openProjects.firstOrNull()
+            if (currentProject != null) {
+                val stateService = currentProject.service<FileManagerStateService>()
+                val newFavorites = (0 until model.size()).map { model.getElementAt(it) }
+                stateService.setFavorites(newFavorites)
+            }
+        }
     }
 
     override fun reset() {
@@ -175,6 +277,16 @@ class TurtleCommanderConfigurable : Configurable {
             "TREE" -> "Tree"
             else -> "Table"
         }
+
+        val model = favoritesListModel
+        if (model != null) {
+            model.clear()
+            val currentProject = ProjectManager.getInstance().openProjects.firstOrNull()
+            if (currentProject != null) {
+                val stateService = currentProject.service<FileManagerStateService>()
+                stateService.getFavorites().forEach { model.addElement(it) }
+            }
+        }
     }
 
     override fun disposeUIResources() {
@@ -188,6 +300,8 @@ class TurtleCommanderConfigurable : Configurable {
         tabFontCombo = null
         tabFontSizeSpinner = null
         defaultViewModeCombo = null
+        favoritesListModel = null
+        favoritesList = null
     }
 
     private fun getSelectedViewMode(): String {
