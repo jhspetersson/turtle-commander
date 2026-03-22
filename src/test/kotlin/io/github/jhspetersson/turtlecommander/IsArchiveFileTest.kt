@@ -1,0 +1,93 @@
+package io.github.jhspetersson.turtlecommander
+
+import org.junit.Assert.*
+import org.junit.Test
+import java.nio.file.Path
+
+class IsArchiveFileTest {
+
+    private fun fileEntry(name: String, isDirectory: Boolean = false) = FileEntry(
+        name = name,
+        path = Path.of("/test/$name"),
+        isDirectory = isDirectory,
+        size = 100,
+        lastModified = null,
+        permissions = "",
+    )
+
+    @Test
+    fun `zip file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("data.zip")))
+    }
+
+    @Test
+    fun `jar file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("lib.jar")))
+    }
+
+    @Test
+    fun `war file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("app.war")))
+    }
+
+    @Test
+    fun `ear file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("enterprise.ear")))
+    }
+
+    @Test
+    fun `directory is not archive`() {
+        assertFalse(isArchiveFile(fileEntry("archive.zip", isDirectory = true)))
+    }
+
+    @Test
+    fun `tar file is not archive per isArchiveFile`() {
+        // isArchiveFile only checks ZipFileSystemProvider.ARCHIVE_EXTENSIONS
+        assertFalse(isArchiveFile(fileEntry("data.tar")))
+    }
+
+    @Test
+    fun `gz file is not archive per isArchiveFile`() {
+        assertFalse(isArchiveFile(fileEntry("data.gz")))
+    }
+
+    @Test
+    fun `7z file is not archive per isArchiveFile`() {
+        assertFalse(isArchiveFile(fileEntry("data.7z")))
+    }
+
+    @Test
+    fun `txt file is not archive`() {
+        assertFalse(isArchiveFile(fileEntry("readme.txt")))
+    }
+
+    @Test
+    fun `file without extension is not archive`() {
+        assertFalse(isArchiveFile(fileEntry("Makefile")))
+    }
+
+    @Test
+    fun `uppercase ZIP extension is recognized`() {
+        // Extension is lowercased before comparison
+        assertTrue(isArchiveFile(fileEntry("DATA.ZIP")))
+    }
+
+    @Test
+    fun `mixed case Jar extension is recognized`() {
+        assertTrue(isArchiveFile(fileEntry("library.Jar")))
+    }
+
+    @Test
+    fun `parent link is not archive`() {
+        val entry = FileEntry(
+            name = "..",
+            path = Path.of("/test"),
+            isDirectory = true,
+            size = 0,
+            lastModified = null,
+            permissions = "",
+            isParentLink = true,
+        )
+        assertFalse(isArchiveFile(entry))
+    }
+}
