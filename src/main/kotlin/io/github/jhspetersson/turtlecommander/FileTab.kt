@@ -218,7 +218,7 @@ class FileTab(
             setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION)
             setCellSelectionEnabled(false)
             setRowSelectionAllowed(true)
-            autoResizeMode = JBTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS
+            autoResizeMode = JBTable.AUTO_RESIZE_OFF
             rowHeight = 20
 
             columnModel.getColumn(0).cellRenderer = FileNameCellRenderer()
