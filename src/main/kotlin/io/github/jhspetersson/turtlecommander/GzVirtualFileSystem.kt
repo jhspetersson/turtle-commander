@@ -2,7 +2,9 @@ package io.github.jhspetersson.turtlecommander
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
+import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
@@ -26,13 +28,39 @@ class GzFileSystemProvider : VirtualFileSystemProvider {
         return if (name.endsWith(".tar.gz") || name.endsWith(".tgz")) {
             TarVirtualFileSystem(archivePath) { GzipCompressorInputStream(Files.newInputStream(it)) }
         } else {
-            GzSingleFileVirtualFileSystem(archivePath)
+            CompressedSingleFileVirtualFileSystem(archivePath, ".gz") { GzipCompressorInputStream(it) }
         }
     }
 }
 
-class GzSingleFileVirtualFileSystem(
+class Bz2FileSystemProvider : VirtualFileSystemProvider {
+    companion object {
+        val ARCHIVE_EXTENSIONS = setOf("bz2", "tbz2", "tbz")
+    }
+
+    override fun supports(path: Path): Boolean {
+        val ext = path.fileName?.toString()?.substringAfterLast('.', "")?.lowercase() ?: ""
+        return ext in ARCHIVE_EXTENSIONS && Files.isRegularFile(path)
+    }
+
+    override fun supportsExtension(ext: String): Boolean {
+        return ext in ARCHIVE_EXTENSIONS
+    }
+
+    override fun create(archivePath: Path): VirtualFileSystem {
+        val name = archivePath.fileName?.toString()?.lowercase() ?: ""
+        return if (name.endsWith(".tar.bz2") || name.endsWith(".tbz2") || name.endsWith(".tbz")) {
+            TarVirtualFileSystem(archivePath) { BZip2CompressorInputStream(Files.newInputStream(it)) }
+        } else {
+            CompressedSingleFileVirtualFileSystem(archivePath, ".bz2") { BZip2CompressorInputStream(it) }
+        }
+    }
+}
+
+class CompressedSingleFileVirtualFileSystem(
     override val archivePath: Path,
+    private val compressionSuffix: String,
+    private val decompressorFactory: (InputStream) -> InputStream,
 ) : VirtualFileSystem {
 
     private var tempDir: Path = extractFile()
@@ -40,12 +68,12 @@ class GzSingleFileVirtualFileSystem(
     override val root: Path get() = tempDir
 
     private fun extractFile(): Path {
-        val dir = Files.createTempDirectory("turtle-gz-")
+        val dir = Files.createTempDirectory("turtle-decompress-")
         val originalName = archivePath.fileName?.toString() ?: "file"
-        val innerName = originalName.removeSuffix(".gz").removeSuffix(".GZ")
+        val innerName = originalName.removeSuffix(compressionSuffix).removeSuffix(compressionSuffix.uppercase())
         val destPath = dir.resolve(innerName)
-        GzipCompressorInputStream(Files.newInputStream(archivePath)).use { gz ->
-            Files.copy(gz, destPath)
+        decompressorFactory(Files.newInputStream(archivePath)).use { stream ->
+            Files.copy(stream, destPath)
         }
         return dir
     }

@@ -1883,13 +1883,14 @@ class FileTab(
     private fun openFile(entry: FileEntry) {
         val vfs = currentVfs
         if (vfs != null) {
-            val useTempFileOpen = vfsStack.size > 1 || vfs is TarVirtualFileSystem || vfs is GzSingleFileVirtualFileSystem
+            val isTempDirVfs = vfs !is ZipVirtualFileSystem
+            val useTempFileOpen = vfsStack.size > 1 || isTempDirVfs
             if (useTempFileOpen) {
-                // Tar/gz VFS files are already on the real filesystem (temp dir),
+                // Temp-dir-based VFS files are already on the real filesystem,
                 // nested VFS files need extraction to temp
                 fileOps.launch {
                     try {
-                        val filePath = if (vfs is TarVirtualFileSystem || vfs is GzSingleFileVirtualFileSystem) {
+                        val filePath = if (isTempDirVfs) {
                             entry.path
                         } else {
                             val tempDir = withContext(Dispatchers.IO) {

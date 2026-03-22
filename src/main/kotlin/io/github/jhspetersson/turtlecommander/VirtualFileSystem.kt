@@ -24,7 +24,9 @@ object VirtualFileSystemRegistry {
     init {
         register(ZipFileSystemProvider())
         register(GzFileSystemProvider())
+        register(Bz2FileSystemProvider())
         register(TarFileSystemProvider())
+        register(SevenZipFileSystemProvider())
     }
 
     fun register(provider: VirtualFileSystemProvider) {
