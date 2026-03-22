@@ -14,6 +14,7 @@ interface VirtualFileSystem : Closeable {
 
 interface VirtualFileSystemProvider {
     fun supports(path: Path): Boolean
+    fun supportsExtension(ext: String): Boolean
     fun create(archivePath: Path): VirtualFileSystem
 }
 
@@ -29,6 +30,11 @@ object VirtualFileSystemRegistry {
     }
 
     fun supports(path: Path): Boolean = providers.any { it.supports(path) }
+
+    fun supportsByExtension(fileName: String): Boolean {
+        val ext = fileName.substringAfterLast('.', "").lowercase()
+        return providers.any { it.supportsExtension(ext) }
+    }
 
     fun create(archivePath: Path): VirtualFileSystem {
         val provider = providers.firstOrNull { it.supports(archivePath) }

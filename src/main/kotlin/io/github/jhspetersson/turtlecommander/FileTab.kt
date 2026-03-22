@@ -92,8 +92,17 @@ class FileTab(
     var currentPath: Path = initialPath
         private set
 
-    var currentVfs: VirtualFileSystem? = null
-        private set
+    private data class VfsStackEntry(
+        val vfs: VirtualFileSystem,
+        val parentPath: Path,
+        val tempFile: java.io.File? = null,
+    )
+
+    private val vfsStack = mutableListOf<VfsStackEntry>()
+
+    var currentVfs: VirtualFileSystem?
+        get() = vfsStack.lastOrNull()?.vfs
+        private set(_) {}  // managed via stack
 
     init {
         setupHeader()
@@ -151,9 +160,8 @@ class FileTab(
                     val selected = selectedItem as? String ?: return
                     val drivePath = Path.of(selected)
                     // Exit VFS if active
-                    if (currentVfs != null) {
-                        currentVfs?.close()
-                        currentVfs = null
+                    if (vfsStack.isNotEmpty()) {
+                        dispose()
                     }
                     if (drivePath != currentPath) {
                         fileOps.launch {
@@ -170,25 +178,8 @@ class FileTab(
 
         pathField.apply {
             onSegmentClick = { segmentPath ->
-                val vfs = currentVfs
-                if (vfs != null) {
-                    // Check if the segment is inside the archive or the archive path itself
-                    val archiveStr = vfs.archivePath.toString()
-                    if (segmentPath.length <= archiveStr.length) {
-                        // Clicked on a segment at or above the archive path — exit VFS and navigate
-                        exitVfs()
-                        val path = try { Path.of(segmentPath) } catch (_: Exception) { null }
-                        if (path != null && path.toFile().isDirectory) {
-                            fileOps.launch { navigateTo(path) }
-                        }
-                    } else {
-                        // Inside the archive — extract relative path and navigate within VFS
-                        val relativePath = segmentPath.removePrefix(archiveStr)
-                            .removePrefix("\\").removePrefix("/")
-                            .replace("\\", "/")
-                        val vfsPath = if (relativePath.isEmpty()) vfs.root else vfs.getPath(relativePath)
-                        fileOps.launch { navigateTo(vfsPath) }
-                    }
+                if (vfsStack.isNotEmpty()) {
+                    handleVfsBreadcrumbClick(segmentPath)
                 } else {
                     val path = try { Path.of(segmentPath) } catch (_: Exception) { null }
                     if (path != null && path.toFile().isDirectory) {
@@ -373,7 +364,7 @@ class FileTab(
                             goUp()
                         } else if (entry.isDirectory) {
                             // Handled by tree expansion
-                        } else if (currentVfs == null && VirtualFileSystemRegistry.supports(entry.path)) {
+                        } else if (isEntryBrowsableArchive(entry)) {
                             enterVfs(entry.path)
                         } else {
                             openFile(entry)
@@ -780,10 +771,23 @@ class FileTab(
 
             // Update path display
             if (vfs != null) {
+                val separator = if (vfsStack.first().parentPath.toString().contains("\\")) "\\" else "/"
+                val sb = StringBuilder()
+                // Build path showing entire VFS stack chain
+                for (stackEntry in vfsStack) {
+                    if (sb.isEmpty()) {
+                        sb.append(stackEntry.parentPath.toString())
+                    } else {
+                        // For nested archives, show the path within the parent VFS
+                        val nestedPath = stackEntry.parentPath.toString().removePrefix("/").replace("/", separator)
+                        sb.append(separator).append(nestedPath)
+                    }
+                }
                 val relativePath = path.toString()
-                val separator = if (vfs.archivePath.toString().contains("\\")) "\\" else "/"
-                pathField.text = vfs.archivePath.toString() +
-                    if (vfs.isRoot(path)) "" else (separator + relativePath.removePrefix("/").replace("/", separator))
+                if (!vfs.isRoot(path)) {
+                    sb.append(separator).append(relativePath.removePrefix("/").replace("/", separator))
+                }
+                pathField.text = sb.toString()
             } else {
                 pathField.text = path.toString()
             }
@@ -1046,10 +1050,19 @@ class FileTab(
         }
         if (entry.isDirectory) {
             fileOps.launch { navigateTo(entry.path) }
-        } else if (currentVfs == null && VirtualFileSystemRegistry.supports(entry.path)) {
+        } else if (isEntryBrowsableArchive(entry)) {
             enterVfs(entry.path)
         } else {
             openFile(entry)
+        }
+    }
+
+    private fun isEntryBrowsableArchive(entry: FileEntry): Boolean {
+        if (entry.isDirectory || entry.isParentLink) return false
+        return if (currentVfs != null) {
+            VirtualFileSystemRegistry.supportsByExtension(entry.name)
+        } else {
+            VirtualFileSystemRegistry.supports(entry.path)
         }
     }
 
@@ -1083,27 +1096,130 @@ class FileTab(
         }
     }
 
+    private fun handleVfsBreadcrumbClick(segmentPath: String) {
+        // Build the path prefix for each VFS level to determine which level was clicked
+        val separator = if (vfsStack.first().parentPath.toString().contains("\\")) "\\" else "/"
+        val outerArchiveStr = vfsStack.first().parentPath.toString()
+
+        // Check if the click is outside of all VFS levels (on the real filesystem)
+        if (segmentPath.length < outerArchiveStr.length) {
+            // Exit all VFS levels and navigate to real filesystem
+            dispose()
+            val path = try { Path.of(segmentPath) } catch (_: Exception) { null }
+            if (path != null && path.toFile().isDirectory) {
+                fileOps.launch { navigateTo(path) }
+            }
+            return
+        }
+
+        // Build cumulative path prefixes for each VFS level
+        val prefixes = mutableListOf<String>()
+        val sb = StringBuilder()
+        for (stackEntry in vfsStack) {
+            if (sb.isEmpty()) {
+                sb.append(stackEntry.parentPath.toString())
+            } else {
+                val nestedPath = stackEntry.parentPath.toString().removePrefix("/").replace("/", separator)
+                sb.append(separator).append(nestedPath)
+            }
+            prefixes.add(sb.toString())
+        }
+
+        // Find which VFS level the click falls into
+        var targetLevel = -1
+        for (i in prefixes.indices.reversed()) {
+            if (segmentPath.length >= prefixes[i].length) {
+                targetLevel = i
+                break
+            }
+        }
+
+        if (targetLevel < 0) return
+
+        // Pop VFS levels above the target
+        while (vfsStack.size > targetLevel + 1) {
+            val entry = vfsStack.removeLast()
+            entry.vfs.close()
+            if (entry.tempFile != null) {
+                try {
+                    entry.tempFile.delete()
+                    entry.tempFile.parentFile?.delete()
+                } catch (_: Exception) {}
+            }
+        }
+
+        val vfs = vfsStack.last().vfs
+        val archivePrefix = prefixes[targetLevel]
+        val relativePath = segmentPath.removePrefix(archivePrefix)
+            .removePrefix("\\").removePrefix("/")
+            .replace("\\", "/")
+        val vfsPath = if (relativePath.isEmpty()) vfs.root else vfs.getPath("/$relativePath")
+        fileOps.launch { navigateTo(vfsPath) }
+    }
+
     private fun enterVfs(archivePath: Path) {
         try {
-            val vfs = VirtualFileSystemRegistry.create(archivePath)
-            currentVfs = vfs
-            fileOps.launch { navigateTo(vfs.root) }
+            if (vfsStack.isEmpty()) {
+                // Entering archive from real filesystem
+                val vfs = VirtualFileSystemRegistry.create(archivePath)
+                vfsStack.add(VfsStackEntry(vfs, archivePath))
+                fileOps.launch { navigateTo(vfs.root) }
+            } else {
+                // Entering archive inside another archive — extract to temp
+                fileOps.launch {
+                    try {
+                        val tempFile = withContext(Dispatchers.IO) {
+                            val tempDir = java.nio.file.Files.createTempDirectory("turtle-vfs-")
+                            val fileName = archivePath.fileName.toString()
+                            val tempPath = tempDir.resolve(fileName)
+                            java.nio.file.Files.copy(archivePath, tempPath)
+                            tempPath.toFile()
+                        }
+                        val vfs = VirtualFileSystemRegistry.create(tempFile.toPath())
+                        vfsStack.add(VfsStackEntry(vfs, archivePath, tempFile))
+                        navigateTo(vfs.root)
+                    } catch (e: Exception) {
+                        fileErrorNotification("Cannot open nested archive: ${e.message}")
+                    }
+                }
+            }
         } catch (e: Exception) {
             fileErrorNotification("Cannot open archive: ${e.message}")
         }
     }
 
     private fun exitVfs() {
-        val vfs = currentVfs ?: return
-        val archive = vfs.archivePath
-        vfs.close()
-        currentVfs = null
-        fileOps.launch { navigateTo(archive.parent ?: archive, selectName = archive.fileName.toString()) }
+        if (vfsStack.isEmpty()) return
+        val entry = vfsStack.removeLast()
+        entry.vfs.close()
+        if (entry.tempFile != null) {
+            try {
+                entry.tempFile.delete()
+                entry.tempFile.parentFile?.delete()
+            } catch (_: Exception) {}
+        }
+        val parentPath = entry.parentPath
+        if (vfsStack.isNotEmpty()) {
+            // Return to parent VFS — navigate to directory containing the inner archive
+            val parentVfsPath = parentPath.parent ?: vfsStack.last().vfs.root
+            fileOps.launch { navigateTo(parentVfsPath, selectName = parentPath.fileName.toString()) }
+        } else {
+            // Return to real filesystem
+            fileOps.launch { navigateTo(parentPath.parent ?: parentPath, selectName = parentPath.fileName.toString()) }
+        }
     }
 
     fun dispose() {
-        currentVfs?.close()
-        currentVfs = null
+        for (entry in vfsStack.asReversed()) {
+            entry.vfs.close()
+            if (entry.tempFile != null) {
+                try {
+                    entry.tempFile.delete()
+                    entry.tempFile.parentFile?.delete()
+                } catch (_: Exception) {}
+            }
+        }
+        vfsStack.clear()
     }
 
     fun performCopy() {
@@ -1766,11 +1882,48 @@ class FileTab(
     private fun openFile(entry: FileEntry) {
         val vfs = currentVfs
         if (vfs != null) {
-            val relativePath = entry.path.toString().replace("\\", "/").removePrefix("/")
-            val jarUrl = vfs.archivePath.toString() + "!/" + relativePath
-            val jarVfs = com.intellij.openapi.vfs.JarFileSystem.getInstance()
-            val virtualFile = jarVfs.findFileByPath(jarUrl) ?: return
-            OpenFileDescriptor(project, virtualFile).navigate(true)
+            // For nested VFS, we need to extract to temp and open from there
+            // since IntelliJ's JarFileSystem doesn't support nested jar: URLs
+            if (vfsStack.size > 1) {
+                fileOps.launch {
+                    try {
+                        val tempDir = withContext(Dispatchers.IO) {
+                            java.nio.file.Files.createTempDirectory("turtle-vfs-view-")
+                        }
+                        val fileName = entry.path.fileName.toString()
+                        val tempPath = tempDir.resolve(fileName)
+                        withContext(Dispatchers.IO) {
+                            java.nio.file.Files.copy(entry.path, tempPath)
+                        }
+                        val virtualFile = withContext(Dispatchers.IO) {
+                            LocalFileSystem.getInstance().refreshAndFindFileByNioFile(tempPath)
+                        } ?: return@launch
+                        withContext(Dispatchers.EDT) {
+                            OpenFileDescriptor(project, virtualFile).navigate(true)
+                        }
+                    } catch (e: Exception) {
+                        fileErrorNotification("Failed to open file: ${e.message}")
+                    }
+                }
+                return
+            }
+            fileOps.launch {
+                try {
+                    val relativePath = entry.path.toString().replace("\\", "/").removePrefix("/")
+                    val jarUrl = vfs.archivePath.toString() + "!/" + relativePath
+                    val jarVfs = withContext(Dispatchers.IO) {
+                        com.intellij.openapi.vfs.JarFileSystem.getInstance()
+                    }
+                    val virtualFile = withContext(Dispatchers.IO) {
+                        jarVfs.findFileByPath(jarUrl)
+                    } ?: return@launch
+                    withContext(Dispatchers.EDT) {
+                        OpenFileDescriptor(project, virtualFile).navigate(true)
+                    }
+                } catch (e: Exception) {
+                    fileErrorNotification("Failed to open file: ${e.message}")
+                }
+            }
             return
         }
         val virtualFile = LocalFileSystem.getInstance().findFileByNioFile(entry.path) ?: return

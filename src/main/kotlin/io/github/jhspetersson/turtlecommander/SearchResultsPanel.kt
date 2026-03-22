@@ -206,11 +206,21 @@ class SearchResultsPanel(
             batch = pendingResults.toList()
             pendingResults.clear()
         }
+        val wasEmpty = resultEntries.isEmpty()
         resultEntries.addAll(batch)
         val snapshot = resultEntries.toList()
         if (!disposed) {
             SwingUtilities.invokeLater {
+                val selectedRow = table.selectedRow
                 tableModel.setEntries(snapshot)
+                if (wasEmpty && table.rowCount > 0) {
+                    table.setRowSelectionInterval(0, 0)
+                    if (isShowing) {
+                        table.requestFocusInWindow()
+                    }
+                } else if (selectedRow in 0 until table.rowCount) {
+                    table.setRowSelectionInterval(selectedRow, selectedRow)
+                }
             }
         }
     }
@@ -249,6 +259,10 @@ class SearchResultsPanel(
 
     fun requestTableFocus() {
         table.requestFocusInWindow()
+    }
+
+    fun hasTableFocus(): Boolean {
+        return table.hasFocus()
     }
 
     private inner class SearchFileNameRenderer : DefaultTableCellRenderer() {

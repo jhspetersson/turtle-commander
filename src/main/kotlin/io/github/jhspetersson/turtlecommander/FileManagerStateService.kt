@@ -151,8 +151,7 @@ class FileManagerStateService(
     fun switchToOtherPanel() {
         val left = leftPanel ?: return
         val right = rightPanel ?: return
-        val leftFocused = left.getActiveTab()?.table?.hasFocus() == true
-        if (leftFocused) {
+        if (left.hasFocusInPanel()) {
             right.focusActiveTab()
         } else {
             left.focusActiveTab()

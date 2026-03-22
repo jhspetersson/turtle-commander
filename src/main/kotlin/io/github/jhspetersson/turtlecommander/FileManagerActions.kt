@@ -95,9 +95,14 @@ class DeleteFilesAction : FileManagerAction() {
     }
 }
 
-class SwitchPanelAction : FileManagerAction() {
+class SwitchPanelAction : AnAction() {
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+
+    override fun update(e: AnActionEvent) {
+        e.presentation.isEnabled = isToolWindowActive(e)
+    }
+
     override fun actionPerformed(e: AnActionEvent) {
-        findActiveTab(e) // just to check availability
         val project = e.project ?: return
         val stateService = project.service<FileManagerStateService>()
         stateService.switchToOtherPanel()

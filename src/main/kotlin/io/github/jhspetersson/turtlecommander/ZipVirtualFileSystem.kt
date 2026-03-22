@@ -19,6 +19,10 @@ class ZipFileSystemProvider : VirtualFileSystemProvider {
         return ext in ARCHIVE_EXTENSIONS && Files.isRegularFile(path)
     }
 
+    override fun supportsExtension(ext: String): Boolean {
+        return ext in ARCHIVE_EXTENSIONS
+    }
+
     override fun create(archivePath: Path): VirtualFileSystem {
         return ZipVirtualFileSystem(archivePath)
     }
