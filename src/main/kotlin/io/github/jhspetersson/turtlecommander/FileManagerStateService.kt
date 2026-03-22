@@ -62,6 +62,7 @@ class FileManagerStateService(
 
         @XCollection(elementTypes = [String::class])
         var favoritePaths: MutableList<String> = mutableListOf()
+
     }
 
     @Tag("panel")
@@ -111,8 +112,7 @@ class FileManagerStateService(
     fun getActivePanel(): FileManagerPanel? {
         val left = leftPanel ?: return null
         val right = rightPanel ?: return null
-        val leftFocused = left.getActiveTab()?.table?.hasFocus() == true
-        return if (leftFocused) left else right
+        return if (left.hasFocusInPanel()) left else right
     }
 
     fun getActiveTab(): FileTab? {

@@ -333,6 +333,7 @@ class FileManagerPanel(
 
     fun openDirectoryInNewTab(path: Path, selectName: String? = null) {
         addNewTab(path, selectName)
+        focusActiveTab()
     }
 
     fun openSearchTab(criteria: FileSearchCriteria) {

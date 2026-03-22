@@ -252,6 +252,33 @@
                     text="Add to Favorites"
                     icon="AllIcons.Nodes.Favorite"
                     description="Add directory to favorites"/>
+            <action id="TurtleCommander.QuickAccess.1" class="io.github.jhspetersson.turtlecommander.QuickAccessFavoriteAction" text="Favorite 1">
+                <keyboard-shortcut first-keystroke="ctrl 1" keymap="$default"/>
+            </action>
+            <action id="TurtleCommander.QuickAccess.2" class="io.github.jhspetersson.turtlecommander.QuickAccessFavoriteAction" text="Favorite 2">
+                <keyboard-shortcut first-keystroke="ctrl 2" keymap="$default"/>
+            </action>
+            <action id="TurtleCommander.QuickAccess.3" class="io.github.jhspetersson.turtlecommander.QuickAccessFavoriteAction" text="Favorite 3">
+                <keyboard-shortcut first-keystroke="ctrl 3" keymap="$default"/>
+            </action>
+            <action id="TurtleCommander.QuickAccess.4" class="io.github.jhspetersson.turtlecommander.QuickAccessFavoriteAction" text="Favorite 4">
+                <keyboard-shortcut first-keystroke="ctrl 4" keymap="$default"/>
+            </action>
+            <action id="TurtleCommander.QuickAccess.5" class="io.github.jhspetersson.turtlecommander.QuickAccessFavoriteAction" text="Favorite 5">
+                <keyboard-shortcut first-keystroke="ctrl 5" keymap="$default"/>
+            </action>
+            <action id="TurtleCommander.QuickAccess.6" class="io.github.jhspetersson.turtlecommander.QuickAccessFavoriteAction" text="Favorite 6">
+                <keyboard-shortcut first-keystroke="ctrl 6" keymap="$default"/>
+            </action>
+            <action id="TurtleCommander.QuickAccess.7" class="io.github.jhspetersson.turtlecommander.QuickAccessFavoriteAction" text="Favorite 7">
+                <keyboard-shortcut first-keystroke="ctrl 7" keymap="$default"/>
+            </action>
+            <action id="TurtleCommander.QuickAccess.8" class="io.github.jhspetersson.turtlecommander.QuickAccessFavoriteAction" text="Favorite 8">
+                <keyboard-shortcut first-keystroke="ctrl 8" keymap="$default"/>
+            </action>
+            <action id="TurtleCommander.QuickAccess.9" class="io.github.jhspetersson.turtlecommander.QuickAccessFavoriteAction" text="Favorite 9">
+                <keyboard-shortcut first-keystroke="ctrl 9" keymap="$default"/>
+            </action>
         </group>
         <group id="TurtleCommander.FileContextMenu" text="File Context Menu" popup="true">
             <reference ref="TurtleCommander.OpenInNewTab"/>

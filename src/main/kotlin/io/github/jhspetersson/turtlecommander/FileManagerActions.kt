@@ -652,6 +652,39 @@ class ExtractHereAction : AnAction("Extract Here", "Extract archive into current
     }
 }
 
+class QuickAccessFavoriteAction : AnAction() {
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+
+    override fun update(e: AnActionEvent) {
+        e.presentation.isEnabled = isToolWindowActive(e)
+        val slot = extractSlot(e) ?: return
+        val project = e.project ?: return
+        val stateService = project.service<FileManagerStateService>()
+        val favorites = stateService.getFavorites()
+        val path = favorites.getOrNull(slot - 1)
+        e.presentation.text = if (path != null) {
+            val name = java.nio.file.Path.of(path).fileName?.toString() ?: path
+            "Go to $name"
+        } else {
+            "Favorite $slot (not set)"
+        }
+        e.presentation.isEnabled = e.presentation.isEnabled && path != null
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val slot = extractSlot(e) ?: return
+        val project = e.project ?: return
+        val stateService = project.service<FileManagerStateService>()
+        val path = stateService.getFavorites().getOrNull(slot - 1) ?: return
+        val panel = stateService.getActivePanel() ?: return
+        panel.openDirectoryInNewTab(java.nio.file.Path.of(path))
+    }
+
+    private fun extractSlot(e: AnActionEvent): Int? {
+        return e.actionManager.getId(this)?.substringAfterLast('.')?.toIntOrNull()
+    }
+}
+
 class AddToFavoritesAction : AnAction("Add to Favorites", "Add directory to favorites", AllIcons.Nodes.Favorite) {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
