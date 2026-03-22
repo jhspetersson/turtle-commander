@@ -712,7 +712,8 @@ class FileTab(
             val fileStore = Files.getFileStore(currentPath)
             val usableSpace = fileStore.usableSpace
             val totalSpace = fileStore.totalSpace
-            freeSpaceLabel.text = "${tableModel.formatSize(usableSpace)} of ${tableModel.formatSize(totalSpace)} free"
+            val pct = if (totalSpace > 0) (usableSpace * 100 / totalSpace) else 0
+            freeSpaceLabel.text = "${tableModel.formatSize(usableSpace)} of ${tableModel.formatSize(totalSpace)} free ($pct%)"
         } catch (_: Exception) {
             freeSpaceLabel.text = ""
         }
