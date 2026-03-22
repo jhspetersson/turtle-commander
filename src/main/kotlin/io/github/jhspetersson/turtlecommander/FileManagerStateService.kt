@@ -6,8 +6,13 @@ import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import com.intellij.openapi.project.Project
 import com.intellij.ui.OnePixelSplitter
+import com.intellij.util.messages.Topic
 import com.intellij.util.xmlb.annotations.Tag
 import com.intellij.util.xmlb.annotations.XCollection
+
+interface FavoritesChangeListener {
+    fun favoritesChanged()
+}
 
 @Service(Service.Level.PROJECT)
 @State(
@@ -54,6 +59,9 @@ class FileManagerStateService(
 
         @XCollection
         var pathColumns: MutableList<PathColumnEntry> = mutableListOf()
+
+        @XCollection(elementTypes = [String::class])
+        var favoritePaths: MutableList<String> = mutableListOf()
     }
 
     @Tag("panel")
@@ -107,6 +115,29 @@ class FileManagerStateService(
 
     fun getActiveTab(): FileTab? {
         return getActivePanel()?.getActiveTab()
+    }
+
+    fun addFavorite(path: String) {
+        if (!myState.favoritePaths.contains(path)) {
+            myState.favoritePaths.add(path)
+            fireFavoritesChanged()
+        }
+    }
+
+    fun removeFavorite(path: String) {
+        if (myState.favoritePaths.remove(path)) {
+            fireFavoritesChanged()
+        }
+    }
+
+    fun getFavorites(): List<String> = myState.favoritePaths.toList()
+
+    private fun fireFavoritesChanged() {
+        project.messageBus.syncPublisher(FAVORITES_TOPIC).favoritesChanged()
+    }
+
+    companion object {
+        val FAVORITES_TOPIC = Topic.create("TurtleCommanderFavorites", FavoritesChangeListener::class.java)
     }
 
     fun switchToOtherPanel() {

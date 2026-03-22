@@ -6,6 +6,7 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.intellij.openapi.actionSystem.Separator
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
@@ -55,15 +56,15 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
         val bottomBar = createBottomBar(leftPanel, rightPanel)
         bottomBar.isVisible = settings.state.showCommandBar
 
-        val mainPanel = JPanel(BorderLayout()).apply {
+        val contentPanel = JPanel(BorderLayout()).apply {
             add(splitter, BorderLayout.CENTER)
             add(bottomBar, BorderLayout.SOUTH)
         }
 
-        val content = ContentFactory.getInstance().createContent(mainPanel, null, false)
+        val content = ContentFactory.getInstance().createContent(contentPanel, null, false)
         toolWindow.contentManager.addContent(content)
 
-        registerShortcuts(mainPanel, toolWindow)
+        registerShortcuts(contentPanel, toolWindow)
 
         val am = ActionManager.getInstance()
         val gearActions = DefaultActionGroup()
@@ -90,7 +91,41 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
                 FileCopyBuffer.entries = emptyList()
             }
         }
-        toolWindow.setTitleActions(listOf(bufferAction))
+
+        fun rebuildTitleActions() {
+            val titleActions = mutableListOf<AnAction>()
+            val favorites = stateService.getFavorites()
+
+            val maxVisible = 5
+            val visibleFavorites = favorites.take(maxVisible)
+            val overflowFavorites = favorites.drop(maxVisible)
+
+            for (favPath in visibleFavorites) {
+                titleActions.add(FavoriteAction(favPath, project))
+                titleActions.add(RemoveFavoriteAction(favPath, project))
+            }
+
+            if (overflowFavorites.isNotEmpty()) {
+                titleActions.add(FavoriteOverflowAction(overflowFavorites, project))
+            }
+
+            if (titleActions.isNotEmpty()) {
+                titleActions.add(Separator.getInstance())
+            }
+
+            titleActions.add(bufferAction)
+            toolWindow.setTitleActions(titleActions)
+        }
+
+        rebuildTitleActions()
+
+        project.messageBus
+            .connect(toolWindow.disposable)
+            .subscribe(FileManagerStateService.FAVORITES_TOPIC, object : FavoritesChangeListener {
+                override fun favoritesChanged() {
+                    rebuildTitleActions()
+                }
+            })
 
         ApplicationManager.getApplication().messageBus
             .connect(toolWindow.disposable)
@@ -102,8 +137,8 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
                     rightPanel.applyFonts()
                     leftPanel.applyVisibilitySettings()
                     rightPanel.applyVisibilitySettings()
-                    mainPanel.revalidate()
-                    mainPanel.repaint()
+                    contentPanel.revalidate()
+                    contentPanel.repaint()
                 }
             })
     }
@@ -167,5 +202,74 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
             addActionListener { activePanel().getActiveTab()?.performDelete() }
         })
         return bar
+    }
+}
+
+private class FavoriteAction(
+    val favPath: String,
+    private val project: Project,
+) : AnAction() {
+    init {
+        val path = Path.of(favPath)
+        val name = path.fileName?.toString() ?: favPath
+        templatePresentation.setText(name, false)
+        templatePresentation.description = favPath
+        templatePresentation.icon = AllIcons.Nodes.Folder
+    }
+
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+
+    @Suppress("OVERRIDE_DEPRECATION")
+    override fun displayTextInToolbar(): Boolean = true
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val stateService = project.service<FileManagerStateService>()
+        val tab = stateService.getActiveTab() ?: return
+        val fileOps = project.service<FileOperationService>()
+        fileOps.launch { tab.navigateTo(Path.of(favPath)) }
+    }
+}
+
+private class RemoveFavoriteAction(
+    private val favPath: String,
+    private val project: Project,
+) : AnAction() {
+    init {
+        val name = Path.of(favPath).fileName?.toString() ?: favPath
+        templatePresentation.text = "Remove $name from favorites"
+        templatePresentation.icon = AllIcons.Actions.Close
+        templatePresentation.hoveredIcon = AllIcons.Actions.CloseHovered
+    }
+
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+
+    override fun actionPerformed(e: AnActionEvent) {
+        project.service<FileManagerStateService>().removeFavorite(favPath)
+    }
+}
+
+private class FavoriteOverflowAction(
+    private val overflowPaths: List<String>,
+    private val project: Project,
+) : AnAction("More Favorites...", "Show more favorites", AllIcons.General.ChevronDown) {
+
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val popupMenu = javax.swing.JPopupMenu()
+        for (favPath in overflowPaths) {
+            val name = Path.of(favPath).fileName?.toString() ?: favPath
+            val menuItem = javax.swing.JMenuItem(name, AllIcons.Nodes.Folder)
+            menuItem.toolTipText = favPath
+            menuItem.addActionListener {
+                val stateService = project.service<FileManagerStateService>()
+                val tab = stateService.getActiveTab() ?: return@addActionListener
+                val fileOps = project.service<FileOperationService>()
+                fileOps.launch { tab.navigateTo(Path.of(favPath)) }
+            }
+            popupMenu.add(menuItem)
+        }
+        val component = e.inputEvent?.component ?: return
+        popupMenu.show(component, 0, component.height)
     }
 }

@@ -188,6 +188,11 @@
                     text="Delete"
                     icon="AllIcons.Actions.GC"
                     description="Delete selected files"/>
+            <action id="TurtleCommander.AddToFavorites"
+                    class="io.github.jhspetersson.turtlecommander.AddToFavoritesAction"
+                    text="Add to Favorites"
+                    icon="AllIcons.Nodes.Favorite"
+                    description="Add directory to favorites"/>
         </group>
         <group id="TurtleCommander.FileContextMenu" text="File Context Menu" popup="true">
             <reference ref="TurtleCommander.OpenInNewTab"/>
@@ -202,6 +207,8 @@
             <reference ref="TurtleCommander.ContextRename"/>
             <separator/>
             <reference ref="TurtleCommander.ContextDelete"/>
+            <separator/>
+            <reference ref="TurtleCommander.AddToFavorites"/>
         </group>
         <group id="TurtleCommander.TabContextMenu" text="Tab Context Menu" popup="true">
             <reference ref="TurtleCommander.CloseTab"/>

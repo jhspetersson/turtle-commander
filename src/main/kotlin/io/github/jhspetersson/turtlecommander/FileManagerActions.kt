@@ -544,3 +544,19 @@ class ContextDeleteAction : AnAction("Delete", "Delete selected files", AllIcons
         FileContextMenuState.clickedTab?.performDelete()
     }
 }
+
+class AddToFavoritesAction : AnAction("Add to Favorites", "Add directory to favorites", AllIcons.Nodes.Favorite) {
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+
+    override fun update(e: AnActionEvent) {
+        val entry = FileContextMenuState.clickedEntry
+        e.presentation.isEnabledAndVisible = entry != null && entry.isDirectory && !entry.isParentLink
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val entry = FileContextMenuState.clickedEntry ?: return
+        val project = e.project ?: return
+        val stateService = project.service<FileManagerStateService>()
+        stateService.addFavorite(entry.path.toString())
+    }
+}
