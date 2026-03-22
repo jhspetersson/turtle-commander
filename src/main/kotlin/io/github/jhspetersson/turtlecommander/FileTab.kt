@@ -1883,21 +1883,26 @@ class FileTab(
     private fun openFile(entry: FileEntry) {
         val vfs = currentVfs
         if (vfs != null) {
-            // For nested VFS, we need to extract to temp and open from there
-            // since IntelliJ's JarFileSystem doesn't support nested jar: URLs
-            if (vfsStack.size > 1) {
+            val useTempFileOpen = vfsStack.size > 1 || vfs is TarVirtualFileSystem || vfs is GzSingleFileVirtualFileSystem
+            if (useTempFileOpen) {
+                // Tar/gz VFS files are already on the real filesystem (temp dir),
+                // nested VFS files need extraction to temp
                 fileOps.launch {
                     try {
-                        val tempDir = withContext(Dispatchers.IO) {
-                            java.nio.file.Files.createTempDirectory("turtle-vfs-view-")
-                        }
-                        val fileName = entry.path.fileName.toString()
-                        val tempPath = tempDir.resolve(fileName)
-                        withContext(Dispatchers.IO) {
-                            java.nio.file.Files.copy(entry.path, tempPath)
+                        val filePath = if (vfs is TarVirtualFileSystem || vfs is GzSingleFileVirtualFileSystem) {
+                            entry.path
+                        } else {
+                            val tempDir = withContext(Dispatchers.IO) {
+                                java.nio.file.Files.createTempDirectory("turtle-vfs-view-")
+                            }
+                            val tempPath = tempDir.resolve(entry.path.fileName.toString())
+                            withContext(Dispatchers.IO) {
+                                java.nio.file.Files.copy(entry.path, tempPath)
+                            }
+                            tempPath
                         }
                         val virtualFile = withContext(Dispatchers.IO) {
-                            LocalFileSystem.getInstance().refreshAndFindFileByNioFile(tempPath)
+                            LocalFileSystem.getInstance().refreshAndFindFileByNioFile(filePath)
                         } ?: return@launch
                         withContext(Dispatchers.EDT) {
                             OpenFileDescriptor(project, virtualFile).navigate(true)
