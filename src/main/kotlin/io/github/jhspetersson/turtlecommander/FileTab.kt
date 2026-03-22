@@ -1934,8 +1934,14 @@ class FileTab(
             }
             return
         }
-        val virtualFile = LocalFileSystem.getInstance().findFileByNioFile(entry.path) ?: return
-        OpenFileDescriptor(project, virtualFile).navigate(true)
+        fileOps.launch {
+            val virtualFile = withContext(Dispatchers.IO) {
+                LocalFileSystem.getInstance().refreshAndFindFileByNioFile(entry.path)
+            } ?: return@launch
+            withContext(Dispatchers.EDT) {
+                OpenFileDescriptor(project, virtualFile).navigate(true)
+            }
+        }
     }
 
     private fun performRename(entry: FileEntry, newName: String) {
