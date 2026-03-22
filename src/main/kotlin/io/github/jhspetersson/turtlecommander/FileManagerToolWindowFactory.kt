@@ -185,30 +185,55 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
             return if (leftFocused) leftPanel else rightPanel
         }
 
-        bar.add(JButton("F3 View").apply {
-            isFocusable = false
-            addActionListener { activePanel().getActiveTab()?.viewSelectedFile() }
-        })
-        bar.add(JButton("F4 Open").apply {
-            isFocusable = false
-            addActionListener { activePanel().getActiveTab()?.openSelectedInAssociatedApp() }
-        })
-        bar.add(JButton("F5 Copy").apply {
-            isFocusable = false
-            addActionListener { activePanel().getActiveTab()?.performCopy() }
-        })
-        bar.add(JButton("F6 Move").apply {
-            isFocusable = false
-            addActionListener { activePanel().getActiveTab()?.performMove() }
-        })
-        bar.add(JButton("F7 Mkdir").apply {
-            isFocusable = false
-            addActionListener { activePanel().getActiveTab()?.performCreateDirectory() }
-        })
-        bar.add(JButton("F8 Delete").apply {
-            isFocusable = false
-            addActionListener { activePanel().getActiveTab()?.performDelete() }
-        })
+        fun shortcutText(actionId: String): String {
+            val am = ActionManager.getInstance()
+            val action = am.getAction(actionId) ?: return ""
+            val shortcut = action.shortcutSet.shortcuts.firstOrNull() as? com.intellij.openapi.actionSystem.KeyboardShortcut
+                ?: return ""
+            return com.intellij.openapi.keymap.KeymapUtil.getKeystrokeText(shortcut.firstKeyStroke)
+        }
+
+        data class BarButton(val actionId: String, val label: String, val button: JButton)
+
+        val buttonDefs = listOf(
+            Triple("TurtleCommander.ViewFile", "View") { activePanel().getActiveTab()?.viewSelectedFile() },
+            Triple("TurtleCommander.OpenInApp", "Open") { activePanel().getActiveTab()?.openSelectedInAssociatedApp() },
+            Triple("TurtleCommander.CopyFiles", "Copy") { activePanel().getActiveTab()?.performCopy() },
+            Triple("TurtleCommander.MoveFiles", "Move") { activePanel().getActiveTab()?.performMove() },
+            Triple("TurtleCommander.CreateDirectory", "Mkdir") { activePanel().getActiveTab()?.performCreateDirectory() },
+            Triple("TurtleCommander.DeleteFiles", "Delete") { activePanel().getActiveTab()?.performDelete() },
+        )
+
+        val barButtons = buttonDefs.map { (actionId, label, action) ->
+            val button = JButton().apply {
+                isFocusable = false
+                addActionListener { action() }
+            }
+            bar.add(button)
+            BarButton(actionId, label, button)
+        }
+
+        fun updateButtonLabels() {
+            for (btn in barButtons) {
+                val key = shortcutText(btn.actionId)
+                btn.button.text = if (key.isNotEmpty()) "$key ${btn.label}" else btn.label
+            }
+        }
+
+        updateButtonLabels()
+
+        ApplicationManager.getApplication().messageBus
+            .connect()
+            .subscribe(com.intellij.openapi.keymap.KeymapManagerListener.TOPIC, object : com.intellij.openapi.keymap.KeymapManagerListener {
+                override fun activeKeymapChanged(keymap: com.intellij.openapi.keymap.Keymap?) {
+                    updateButtonLabels()
+                }
+
+                override fun shortcutsChanged(keymap: com.intellij.openapi.keymap.Keymap, actionIds: Collection<String>, fromSettings: Boolean) {
+                    updateButtonLabels()
+                }
+            })
+
         return bar
     }
 }
