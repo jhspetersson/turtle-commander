@@ -56,7 +56,7 @@ class FileTab(
     private val defaultTableFont by lazy { table.font }
 
     private val driveCombo = ComboBox<String>()
-    private val pathField = JTextField()
+    private val pathField = BreadcrumbPathField()
     private val statusLabel = JLabel(" ")
     private var updatingDriveCombo = false
     private val cursorPositions = mutableMapOf<Path, Int>()
@@ -135,6 +135,33 @@ class FileTab(
         }
 
         pathField.apply {
+            onSegmentClick = { segmentPath ->
+                val vfs = currentVfs
+                if (vfs != null) {
+                    // Check if the segment is inside the archive or the archive path itself
+                    val archiveStr = vfs.archivePath.toString()
+                    if (segmentPath.length <= archiveStr.length) {
+                        // Clicked on a segment at or above the archive path — exit VFS and navigate
+                        exitVfs()
+                        val path = try { Path.of(segmentPath) } catch (_: Exception) { null }
+                        if (path != null && path.toFile().isDirectory) {
+                            fileOps.launch { navigateTo(path) }
+                        }
+                    } else {
+                        // Inside the archive — extract relative path and navigate within VFS
+                        val relativePath = segmentPath.removePrefix(archiveStr)
+                            .removePrefix("\\").removePrefix("/")
+                            .replace("\\", "/")
+                        val vfsPath = if (relativePath.isEmpty()) vfs.root else vfs.getPath(relativePath)
+                        fileOps.launch { navigateTo(vfsPath) }
+                    }
+                } else {
+                    val path = try { Path.of(segmentPath) } catch (_: Exception) { null }
+                    if (path != null && path.toFile().isDirectory) {
+                        fileOps.launch { navigateTo(path) }
+                    }
+                }
+            }
             addActionListener {
                 if (currentVfs != null) {
                     // In VFS mode, ignore path field edits

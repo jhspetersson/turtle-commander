@@ -26,19 +26,14 @@ abstract class FileManagerAction : AnAction() {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
-        e.presentation.isEnabled = findActiveTab(e) != null
+        val tab = findActiveTab(e)
+        e.presentation.isEnabled = tab != null && tab.table.hasFocus()
     }
 }
 
 class OpenEntryAction : FileManagerAction() {
-    override fun update(e: AnActionEvent) {
-        val tab = findActiveTab(e)
-        e.presentation.isEnabled = tab != null && tab.table.hasFocus()
-    }
-
     override fun actionPerformed(e: AnActionEvent) {
         val tab = findActiveTab(e) ?: return
-        if (!tab.table.hasFocus()) return
         tab.openSelectedEntry()
     }
 }
