@@ -354,6 +354,7 @@ class FileTab(
             isRootVisible = false
             showsRootHandles = true
             background = table.background
+
             selectionModel.selectionMode = TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION
             cellRenderer = FileTreeCellRenderer()
 
@@ -383,7 +384,10 @@ class FileTab(
                 }
             })
 
-            addTreeSelectionListener { updateStatusBar() }
+            addTreeSelectionListener {
+                if (!insideToggle) toggledTreeRows.clear()
+                updateStatusBar()
+            }
 
             addTreeWillExpandListener(object : javax.swing.event.TreeWillExpandListener {
                 override fun treeWillExpand(event: javax.swing.event.TreeExpansionEvent) {
@@ -422,12 +426,27 @@ class FileTab(
                 override fun treeWillCollapse(event: javax.swing.event.TreeExpansionEvent) {}
             })
         }
+
+        // Register SPACE and INSERT as component-local IntelliJ actions on the tree.
+        // This takes priority over both global IntelliJ actions and JTree's default Swing bindings.
+        val toggleTreeAction = object : com.intellij.openapi.project.DumbAwareAction() {
+            override fun actionPerformed(e: com.intellij.openapi.actionSystem.AnActionEvent) {
+                toggleSelectionAndMoveDown()
+            }
+        }
+        toggleTreeAction.registerCustomShortcutSet(
+            com.intellij.openapi.actionSystem.CustomShortcutSet(
+                com.intellij.openapi.actionSystem.KeyboardShortcut(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_SPACE, 0), null),
+                com.intellij.openapi.actionSystem.KeyboardShortcut(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_INSERT, 0), null),
+            ),
+            tree,
+        )
     }
 
     private fun handleTreeContextMenu(e: MouseEvent) {
         if (!e.isPopupTrigger) return
         val treePath = tree.getPathForLocation(e.x, e.y)
-        if (treePath != null) {
+        if (treePath != null && !tree.isPathSelected(treePath)) {
             tree.selectionPath = treePath
         }
         val node = tree.lastSelectedPathComponent as? DefaultMutableTreeNode
@@ -909,6 +928,7 @@ class FileTab(
     }
 
     private val toggledRows = mutableSetOf<Int>()
+    private val toggledTreeRows = mutableSetOf<Int>()
     private var insideToggle = false
 
     private fun applyToggledSelection(cursorRow: Int) {
@@ -918,6 +938,17 @@ class FileTab(
         for (row in rowsToSelect) {
             if (row in 0 until table.rowCount) {
                 table.addRowSelectionInterval(row, row)
+            }
+        }
+    }
+
+    private fun applyToggledTreeSelection(cursorRow: Int) {
+        val rowsToSelect = toggledTreeRows.toMutableSet()
+        rowsToSelect.add(cursorRow)
+        tree.clearSelection()
+        for (row in rowsToSelect) {
+            if (row in 0 until tree.rowCount) {
+                tree.addSelectionRow(row)
             }
         }
     }
@@ -966,22 +997,18 @@ class FileTab(
             ViewMode.TREE -> {
                 val leadRow = tree.leadSelectionRow
                 if (leadRow < 0) return
-                val path = tree.getPathForRow(leadRow) ?: return
-                val node = path.lastPathComponent as? DefaultMutableTreeNode
+                val node = (tree.getPathForRow(leadRow)?.lastPathComponent) as? DefaultMutableTreeNode
                 val entry = node?.userObject as? FileEntry
-                val selectedPaths = (tree.selectionPaths ?: emptyArray()).toMutableSet()
                 if (entry != null && !entry.isParentLink) {
-                    if (path in selectedPaths) {
-                        selectedPaths.remove(path)
+                    if (leadRow in toggledTreeRows) {
+                        toggledTreeRows.remove(leadRow)
                     } else {
-                        selectedPaths.add(path)
+                        toggledTreeRows.add(leadRow)
                     }
                 }
                 val nextRow = if (leadRow + 1 < tree.rowCount) leadRow + 1 else leadRow
-                val nextPath = tree.getPathForRow(nextRow)
-                if (nextPath != null) selectedPaths.add(nextPath)
-                tree.selectionPaths = selectedPaths.toTypedArray()
-                tree.scrollPathToVisible(nextPath)
+                applyToggledTreeSelection(nextRow)
+                tree.scrollRowToVisible(nextRow)
             }
         }
         } finally {
@@ -991,6 +1018,7 @@ class FileTab(
 
     fun clearToggledRows() {
         toggledRows.clear()
+        toggledTreeRows.clear()
     }
 
     fun getSelectedEntries(): List<FileEntry> {
