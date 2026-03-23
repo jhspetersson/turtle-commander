@@ -1514,7 +1514,9 @@ class FileTab(
                 }
                 navigateTo(currentPath, selectName = name)
                 val virtualFile = withContext(Dispatchers.IO) {
-                    LocalFileSystem.getInstance().refreshAndFindFileByNioFile(filePath)
+                    val vf = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(filePath)
+                    vf?.fileType
+                    vf
                 }
                 if (virtualFile != null) {
                     withContext(Dispatchers.EDT) {
@@ -1938,7 +1940,9 @@ class FileTab(
                             tempPath
                         }
                         val virtualFile = withContext(Dispatchers.IO) {
-                            LocalFileSystem.getInstance().refreshAndFindFileByNioFile(filePath)
+                            val vf = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(filePath)
+                            vf?.fileType
+                            vf
                         } ?: return@launch
                         withContext(Dispatchers.EDT) {
                             OpenFileDescriptor(project, virtualFile).navigate(true)
@@ -1957,7 +1961,9 @@ class FileTab(
                         com.intellij.openapi.vfs.JarFileSystem.getInstance()
                     }
                     val virtualFile = withContext(Dispatchers.IO) {
-                        jarVfs.findFileByPath(jarUrl)
+                        val vf = jarVfs.findFileByPath(jarUrl)
+                        vf?.fileType
+                        vf
                     } ?: return@launch
                     withContext(Dispatchers.EDT) {
                         OpenFileDescriptor(project, virtualFile).navigate(true)
@@ -1970,7 +1976,9 @@ class FileTab(
         }
         fileOps.launch {
             val virtualFile = withContext(Dispatchers.IO) {
-                LocalFileSystem.getInstance().refreshAndFindFileByNioFile(entry.path)
+                val vf = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(entry.path)
+                vf?.fileType // pre-cache file type detection off EDT
+                vf
             } ?: return@launch
             withContext(Dispatchers.EDT) {
                 OpenFileDescriptor(project, virtualFile).navigate(true)

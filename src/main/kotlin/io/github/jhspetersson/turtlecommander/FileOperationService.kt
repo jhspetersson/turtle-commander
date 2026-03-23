@@ -343,33 +343,29 @@ class FileOperationService(
             if (isCancelled()) break
             try {
                 if (path.isDirectory()) {
+                    // Collect the file tree first to avoid runBlocking inside walkFileTree callbacks
+                    val entries = mutableListOf<Path>()
                     Files.walkFileTree(path, object : java.nio.file.SimpleFileVisitor<Path>() {
                         override fun visitFile(file: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {
-                            if (isCancelled()) return java.nio.file.FileVisitResult.TERMINATE
-                            try {
-                                Files.delete(file)
-                            } catch (e: Exception) {
-                                thisLogger().warn("Failed to delete file $file: ${e.message}")
-                                kotlinx.coroutines.runBlocking { onError(file, e) }
-                            }
-                            deletedCount++
-                            kotlinx.coroutines.runBlocking { onProgress(deletedCount, file.name) }
+                            entries.add(file)
                             return java.nio.file.FileVisitResult.CONTINUE
                         }
-
                         override fun postVisitDirectory(dir: Path, exc: java.io.IOException?): java.nio.file.FileVisitResult {
-                            if (isCancelled()) return java.nio.file.FileVisitResult.TERMINATE
-                            try {
-                                Files.delete(dir)
-                            } catch (e: Exception) {
-                                thisLogger().warn("Failed to delete directory $dir: ${e.message}")
-                                kotlinx.coroutines.runBlocking { onError(dir, e) }
-                            }
-                            deletedCount++
-                            kotlinx.coroutines.runBlocking { onProgress(deletedCount, dir.name) }
+                            entries.add(dir)
                             return java.nio.file.FileVisitResult.CONTINUE
                         }
                     })
+                    for (entry in entries) {
+                        if (isCancelled()) break
+                        try {
+                            Files.delete(entry)
+                        } catch (e: Exception) {
+                            thisLogger().warn("Failed to delete $entry: ${e.message}")
+                            onError(entry, e)
+                        }
+                        deletedCount++
+                        onProgress(deletedCount, entry.name)
+                    }
                 } else {
                     try {
                         Files.deleteIfExists(path)
@@ -578,39 +574,45 @@ class FileOperationService(
         try {
             VirtualFileSystemRegistry.create(archivePath).use { vfs ->
                 val root = vfs.root
+                // Collect entries first to avoid runBlocking inside walkFileTree callbacks
+                data class VfsEntry(val sourcePath: Path, val relativePath: String, val isDirectory: Boolean)
+                val entries = mutableListOf<VfsEntry>()
                 Files.walkFileTree(root, object : java.nio.file.SimpleFileVisitor<Path>() {
                     override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {
-                        if (isCancelled()) return java.nio.file.FileVisitResult.TERMINATE
-                        if (dir == root) return java.nio.file.FileVisitResult.CONTINUE
-                        val relativePath = root.relativize(dir).toString()
-                        val targetDir = destination.resolve(relativePath)
+                        if (dir != root) {
+                            entries.add(VfsEntry(dir, root.relativize(dir).toString(), true))
+                        }
+                        return java.nio.file.FileVisitResult.CONTINUE
+                    }
+                    override fun visitFile(file: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {
+                        entries.add(VfsEntry(file, root.relativize(file).toString(), false))
+                        return java.nio.file.FileVisitResult.CONTINUE
+                    }
+                })
+                for (entry in entries) {
+                    if (isCancelled()) break
+                    if (entry.isDirectory) {
+                        val targetDir = destination.resolve(entry.relativePath)
                         try {
                             Files.createDirectories(targetDir)
                         } catch (e: Exception) {
-                            kotlinx.coroutines.runBlocking { onError(targetDir, e) }
+                            onError(targetDir, e)
                         }
-                        extractedCount++
-                        kotlinx.coroutines.runBlocking { onProgress(extractedCount, relativePath) }
-                        return java.nio.file.FileVisitResult.CONTINUE
-                    }
-
-                    override fun visitFile(file: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {
-                        if (isCancelled()) return java.nio.file.FileVisitResult.TERMINATE
-                        val relativePath = root.relativize(file).toString()
-                        val targetFile = destination.resolve(relativePath)
+                    } else {
+                        val targetFile = destination.resolve(entry.relativePath)
                         try {
                             Files.createDirectories(targetFile.parent)
                             if (Files.exists(targetFile)) {
                                 if (autoOverwrite) {
-                                    Files.copy(file, targetFile, StandardCopyOption.REPLACE_EXISTING)
+                                    Files.copy(entry.sourcePath, targetFile, StandardCopyOption.REPLACE_EXISTING)
                                 } else if (!autoSkip) {
-                                    val response = kotlinx.coroutines.runBlocking { onOverwriteConfirm(targetFile) }
+                                    val response = onOverwriteConfirm(targetFile)
                                     when (response) {
-                                        OverwriteResponse.YES -> Files.copy(file, targetFile, StandardCopyOption.REPLACE_EXISTING)
+                                        OverwriteResponse.YES -> Files.copy(entry.sourcePath, targetFile, StandardCopyOption.REPLACE_EXISTING)
                                         OverwriteResponse.NO -> {}
                                         OverwriteResponse.YES_TO_ALL -> {
                                             autoOverwrite = true
-                                            Files.copy(file, targetFile, StandardCopyOption.REPLACE_EXISTING)
+                                            Files.copy(entry.sourcePath, targetFile, StandardCopyOption.REPLACE_EXISTING)
                                         }
                                         OverwriteResponse.NO_TO_ALL -> {
                                             autoSkip = true
@@ -618,16 +620,15 @@ class FileOperationService(
                                     }
                                 }
                             } else {
-                                Files.copy(file, targetFile)
+                                Files.copy(entry.sourcePath, targetFile)
                             }
                         } catch (e: Exception) {
-                            kotlinx.coroutines.runBlocking { onError(targetFile, e) }
+                            onError(targetFile, e)
                         }
-                        extractedCount++
-                        kotlinx.coroutines.runBlocking { onProgress(extractedCount, relativePath) }
-                        return java.nio.file.FileVisitResult.CONTINUE
                     }
-                })
+                    extractedCount++
+                    onProgress(extractedCount, entry.relativePath)
+                }
             }
         } catch (e: Exception) {
             thisLogger().warn("Failed to extract archive $archivePath: ${e.message}")
