@@ -146,25 +146,7 @@ class FileSearchService(
         }
     }
 
-    private fun readPermissions(path: Path): String {
-        return try {
-            if (isWindows) {
-                val attrs = java.nio.file.Files.readAttributes(path, java.nio.file.attribute.DosFileAttributes::class.java)
-                buildString {
-                    if (attrs.isReadOnly) append('R')
-                    if (attrs.isHidden) append('H')
-                    if (attrs.isSystem) append('S')
-                    if (attrs.isArchive) append('A')
-                }
-            } else {
-                java.nio.file.attribute.PosixFilePermissions.toString(
-                    java.nio.file.Files.getPosixFilePermissions(path)
-                )
-            }
-        } catch (_: Exception) {
-            ""
-        }
-    }
+    private fun readPermissions(path: Path): String = readFilePermissions(path, isWindows)
 
     private fun waitWhilePaused(isCancelled: () -> Boolean) {
         while (paused && !isCancelled()) {

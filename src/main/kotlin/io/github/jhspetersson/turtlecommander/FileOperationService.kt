@@ -444,24 +444,7 @@ class FileOperationService(
         }
     }
 
-    private fun readPermissions(path: Path): String {
-        return try {
-            if (isWindows) {
-                val attrs = Files.readAttributes(path, DosFileAttributes::class.java)
-                buildString {
-                    if (attrs.isReadOnly) append('R')
-                    if (attrs.isHidden) append('H')
-                    if (attrs.isSystem) append('S')
-                    if (attrs.isArchive) append('A')
-                }
-            } else {
-                val perms = Files.getPosixFilePermissions(path)
-                PosixFilePermissions.toString(perms)
-            }
-        } catch (_: Exception) {
-            ""
-        }
-    }
+    private fun readPermissions(path: Path): String = readFilePermissions(path, isWindows)
 
     private fun copyDirectoryRecursive(source: Path, target: Path) {
         Files.walkFileTree(source, object : java.nio.file.SimpleFileVisitor<Path>() {
@@ -648,5 +631,24 @@ class FileOperationService(
                 return java.nio.file.FileVisitResult.CONTINUE
             }
         })
+    }
+}
+
+internal fun readFilePermissions(path: Path, isWindows: Boolean): String {
+    return try {
+        if (isWindows) {
+            val attrs = Files.readAttributes(path, DosFileAttributes::class.java)
+            buildString {
+                if (attrs.isReadOnly) append('R')
+                if (attrs.isHidden) append('H')
+                if (attrs.isSystem) append('S')
+                if (attrs.isArchive) append('A')
+            }
+        } else {
+            val perms = Files.getPosixFilePermissions(path)
+            PosixFilePermissions.toString(perms)
+        }
+    } catch (_: Exception) {
+        ""
     }
 }
