@@ -100,13 +100,13 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
             val visibleFavorites = favorites.take(maxVisible)
             val overflowFavorites = favorites.drop(maxVisible)
 
-            for (favPath in visibleFavorites) {
-                titleActions.add(FavoriteAction(favPath, project))
+            for ((index, favPath) in visibleFavorites.withIndex()) {
+                titleActions.add(FavoriteAction(favPath, index + 1, project))
                 titleActions.add(RemoveFavoriteAction(favPath, project))
             }
 
             if (overflowFavorites.isNotEmpty()) {
-                titleActions.add(FavoriteOverflowAction(overflowFavorites, project))
+                titleActions.add(FavoriteOverflowAction(overflowFavorites, maxVisible, project))
             }
 
             if (titleActions.isNotEmpty()) {
@@ -242,13 +242,15 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
 
 private class FavoriteAction(
     val favPath: String,
+    private val index: Int,
     private val project: Project,
 ) : AnAction() {
     init {
         val path = Path.of(favPath)
         val name = path.fileName?.toString() ?: favPath
         templatePresentation.setText(name, false)
-        templatePresentation.description = favPath
+        val shortcut = if (index in 1..9) "<br>Ctrl+$index" else ""
+        templatePresentation.description = "<html>$favPath$shortcut</html>"
         templatePresentation.icon = AllIcons.Nodes.Folder
         templatePresentation.putClientProperty(com.intellij.openapi.actionSystem.ex.ActionUtil.SHOW_TEXT_IN_TOOLBAR, true)
     }
@@ -282,6 +284,7 @@ private class RemoveFavoriteAction(
 
 private class FavoriteOverflowAction(
     private val overflowPaths: List<String>,
+    private val startIndex: Int,
     private val project: Project,
 ) : AnAction("More Favorites...", "Show more favorites", AllIcons.General.ChevronDown) {
 
@@ -289,10 +292,12 @@ private class FavoriteOverflowAction(
 
     override fun actionPerformed(e: AnActionEvent) {
         val popupMenu = javax.swing.JPopupMenu()
-        for (favPath in overflowPaths) {
+        for ((i, favPath) in overflowPaths.withIndex()) {
             val name = Path.of(favPath).fileName?.toString() ?: favPath
             val menuItem = javax.swing.JMenuItem(name, AllIcons.Nodes.Folder)
-            menuItem.toolTipText = favPath
+            val favIndex = startIndex + i + 1
+            val shortcut = if (favIndex in 1..9) "<br>Ctrl+$favIndex" else ""
+            menuItem.toolTipText = "<html>$favPath$shortcut</html>"
             menuItem.addActionListener {
                 val stateService = project.service<FileManagerStateService>()
                 val panel = stateService.getActivePanel() ?: return@addActionListener
