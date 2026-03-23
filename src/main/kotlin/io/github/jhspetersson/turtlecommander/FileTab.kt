@@ -392,25 +392,29 @@ class FileTab(
                     if (entry.isDirectory && !entry.isParentLink && node.childCount == 1) {
                         val firstChild = node.getChildAt(0) as? DefaultMutableTreeNode
                         if (firstChild?.userObject is String) {
-                            // Loading placeholder — load real children
-                            node.removeAllChildren()
-                            try {
-                                val children = kotlinx.coroutines.runBlocking {
-                                    val vfs = currentVfs
-                                    if (vfs != null) vfs.listFiles(entry.path) else fileOps.listFiles(entry.path)
-                                }
-                                for (child in children) {
-                                    if (child.isParentLink) continue
-                                    val childNode = DefaultMutableTreeNode(child)
-                                    if (child.isDirectory) {
-                                        childNode.add(DefaultMutableTreeNode("Loading..."))
+                            // Loading placeholder — load real children asynchronously
+                            fileOps.launch {
+                                try {
+                                    val children = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                        val vfs = currentVfs
+                                        if (vfs != null) vfs.listFiles(entry.path) else fileOps.listFiles(entry.path)
                                     }
-                                    node.add(childNode)
+                                    withContext(kotlinx.coroutines.Dispatchers.EDT) {
+                                        node.removeAllChildren()
+                                        for (child in children) {
+                                            if (child.isParentLink) continue
+                                            val childNode = DefaultMutableTreeNode(child)
+                                            if (child.isDirectory) {
+                                                childNode.add(DefaultMutableTreeNode("Loading..."))
+                                            }
+                                            node.add(childNode)
+                                        }
+                                        treeModel.nodeStructureChanged(node)
+                                    }
+                                } catch (_: Exception) {
+                                    // ignore
                                 }
-                            } catch (_: Exception) {
-                                // ignore
                             }
-                            treeModel.nodeStructureChanged(node)
                         }
                     }
                 }
