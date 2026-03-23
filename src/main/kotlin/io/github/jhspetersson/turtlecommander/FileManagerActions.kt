@@ -219,6 +219,30 @@ class NewTabAction : FileManagerAction() {
     }
 }
 
+class NextTabAction : FileManagerAction() {
+    override fun update(e: AnActionEvent) {
+        e.presentation.isEnabled = isToolWindowActive(e)
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project ?: return
+        val stateService = project.service<FileManagerStateService>()
+        stateService.getActivePanel()?.selectNextTab()
+    }
+}
+
+class PreviousTabAction : FileManagerAction() {
+    override fun update(e: AnActionEvent) {
+        e.presentation.isEnabled = isToolWindowActive(e)
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project ?: return
+        val stateService = project.service<FileManagerStateService>()
+        stateService.getActivePanel()?.selectPreviousTab()
+    }
+}
+
 class OpenKeymapSettingsAction : AnAction() {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 

@@ -155,6 +155,18 @@
                     description="Open a new tab in the active panel">
                 <keyboard-shortcut first-keystroke="ctrl T" keymap="$default"/>
             </action>
+            <action id="TurtleCommander.NextTab"
+                    class="io.github.jhspetersson.turtlecommander.NextTabAction"
+                    text="Next Tab"
+                    description="Switch to the next tab in the active panel">
+                <keyboard-shortcut first-keystroke="alt RIGHT" keymap="$default"/>
+            </action>
+            <action id="TurtleCommander.PreviousTab"
+                    class="io.github.jhspetersson.turtlecommander.PreviousTabAction"
+                    text="Previous Tab"
+                    description="Switch to the previous tab in the active panel">
+                <keyboard-shortcut first-keystroke="alt LEFT" keymap="$default"/>
+            </action>
             <action id="TurtleCommander.CloseTab"
                     class="io.github.jhspetersson.turtlecommander.CloseTabAction"
                     text="Close"

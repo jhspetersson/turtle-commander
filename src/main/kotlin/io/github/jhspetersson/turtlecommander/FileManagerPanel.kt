@@ -527,6 +527,26 @@ class FileManagerPanel(
         return tabbedPane.tabCount - 1 // exclude "+" tab
     }
 
+    fun selectNextTab() {
+        val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
+        val realCount = tabbedPane.tabCount - 1
+        if (realCount <= 1) return
+        var next = tabbedPane.selectedIndex + 1
+        if (next >= plusIndex) next = 0
+        tabbedPane.selectedIndex = next
+        focusActiveTab()
+    }
+
+    fun selectPreviousTab() {
+        val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
+        val realCount = tabbedPane.tabCount - 1
+        if (realCount <= 1) return
+        var prev = tabbedPane.selectedIndex - 1
+        if (prev < 0) prev = plusIndex - 1
+        tabbedPane.selectedIndex = prev
+        focusActiveTab()
+    }
+
     fun applyFonts() {
         val settings = TurtleCommanderSettings.getInstance()
 
