@@ -250,12 +250,10 @@ private class FavoriteAction(
         templatePresentation.setText(name, false)
         templatePresentation.description = favPath
         templatePresentation.icon = AllIcons.Nodes.Folder
+        templatePresentation.putClientProperty(com.intellij.openapi.actionSystem.ex.ActionUtil.SHOW_TEXT_IN_TOOLBAR, true)
     }
 
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
-    @Suppress("OVERRIDE_DEPRECATION")
-    override fun displayTextInToolbar(): Boolean = true
 
     override fun actionPerformed(e: AnActionEvent) {
         val stateService = project.service<FileManagerStateService>()
