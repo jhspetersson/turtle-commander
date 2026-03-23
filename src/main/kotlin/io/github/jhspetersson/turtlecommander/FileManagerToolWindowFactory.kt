@@ -259,9 +259,8 @@ private class FavoriteAction(
 
     override fun actionPerformed(e: AnActionEvent) {
         val stateService = project.service<FileManagerStateService>()
-        val tab = stateService.getActiveTab() ?: return
-        val fileOps = project.service<FileOperationService>()
-        fileOps.launch { tab.navigateTo(Path.of(favPath)) }
+        val panel = stateService.getActivePanel() ?: return
+        panel.openDirectoryInNewTab(Path.of(favPath))
     }
 }
 
@@ -298,9 +297,8 @@ private class FavoriteOverflowAction(
             menuItem.toolTipText = favPath
             menuItem.addActionListener {
                 val stateService = project.service<FileManagerStateService>()
-                val tab = stateService.getActiveTab() ?: return@addActionListener
-                val fileOps = project.service<FileOperationService>()
-                fileOps.launch { tab.navigateTo(Path.of(favPath)) }
+                val panel = stateService.getActivePanel() ?: return@addActionListener
+                panel.openDirectoryInNewTab(Path.of(favPath))
             }
             popupMenu.add(menuItem)
         }

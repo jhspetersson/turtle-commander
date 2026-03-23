@@ -329,6 +329,7 @@ class FileManagerPanel(
     fun openNewTab() {
         val currentTab = getActiveTab()
         addNewTab(currentTab?.currentPath ?: initialPath)
+        focusActiveTab()
     }
 
     fun openDirectoryInNewTab(path: Path, selectName: String? = null) {
