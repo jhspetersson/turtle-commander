@@ -84,6 +84,9 @@ class FileTab(
     private val statusLabel = JLabel(" ")
     private val freeSpaceLabel = JLabel(" ")
     private val statusPanel = JPanel(BorderLayout())
+    private var allEntries: List<FileEntry> = emptyList()
+    private val filterField = JTextField()
+    private val filterPanel = JPanel(BorderLayout(4, 0))
     private var updatingDriveCombo = false
     private val cursorPositions = mutableMapOf<Path, Int>()
     private var stateService: FileManagerStateService? = null
@@ -110,6 +113,7 @@ class FileTab(
         setupTable()
         setupList()
         setupTree()
+        setupFilterPanel()
         setupViewPanel()
         loadDrives()
         applyPanelFont()
@@ -460,6 +464,163 @@ class FileTab(
         popupMenu.component.show(tree, e.x, e.y)
     }
 
+    private fun setupFilterPanel() {
+        filterPanel.border = javax.swing.BorderFactory.createEmptyBorder(2, 4, 2, 4)
+        filterPanel.isVisible = false
+
+        val iconLabel = JLabel(AllIcons.Actions.Find)
+        filterPanel.add(iconLabel, BorderLayout.WEST)
+
+        filterPanel.add(filterField, BorderLayout.CENTER)
+
+        val cancelButton = javax.swing.JButton(AllIcons.Actions.Close)
+        cancelButton.isFocusable = false
+        cancelButton.toolTipText = "Close filter"
+        cancelButton.preferredSize = java.awt.Dimension(24, 24)
+        cancelButton.isContentAreaFilled = false
+        cancelButton.addActionListener { hideQuickFilter() }
+        filterPanel.add(cancelButton, BorderLayout.EAST)
+
+        filterField.addKeyListener(object : java.awt.event.KeyAdapter() {
+            override fun keyPressed(e: java.awt.event.KeyEvent) {
+                when (e.keyCode) {
+                    java.awt.event.KeyEvent.VK_ESCAPE -> {
+                        hideQuickFilter()
+                        e.consume()
+                    }
+                    java.awt.event.KeyEvent.VK_UP, java.awt.event.KeyEvent.VK_DOWN -> {
+                        // Delegate UP/DOWN to the active view
+                        val offset = if (e.keyCode == java.awt.event.KeyEvent.VK_DOWN) 1 else -1
+                        moveSelection(offset)
+                        e.consume()
+                    }
+                    java.awt.event.KeyEvent.VK_ENTER -> {
+                        // Focus the active view component
+                        when (viewMode) {
+                            ViewMode.TABLE -> table.requestFocusInWindow()
+                            ViewMode.LIST -> list.requestFocusInWindow()
+                            ViewMode.TREE -> tree.requestFocusInWindow()
+                        }
+                        e.consume()
+                    }
+                }
+            }
+        })
+
+        filterField.document.addDocumentListener(object : javax.swing.event.DocumentListener {
+            override fun insertUpdate(e: javax.swing.event.DocumentEvent) = applyFilter()
+            override fun removeUpdate(e: javax.swing.event.DocumentEvent) = applyFilter()
+            override fun changedUpdate(e: javax.swing.event.DocumentEvent) = applyFilter()
+        })
+
+        // Register Ctrl-S as component-local action on all view components
+        // to override IntelliJ's global "Save All" binding
+        val filterShortcut = com.intellij.openapi.actionSystem.CustomShortcutSet(
+            com.intellij.openapi.actionSystem.KeyboardShortcut(
+                javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_S, java.awt.event.InputEvent.CTRL_DOWN_MASK), null
+            ),
+        )
+        val filterAction = object : com.intellij.openapi.project.DumbAwareAction() {
+            override fun actionPerformed(e: com.intellij.openapi.actionSystem.AnActionEvent) {
+                showQuickFilter()
+            }
+        }
+        filterAction.registerCustomShortcutSet(filterShortcut, table)
+        filterAction.registerCustomShortcutSet(filterShortcut, list)
+        filterAction.registerCustomShortcutSet(filterShortcut, tree)
+    }
+
+    fun showQuickFilter() {
+        if (filterPanel.isVisible) {
+            filterField.requestFocusInWindow()
+            return
+        }
+        filterPanel.isVisible = true
+        filterField.text = ""
+        filterField.requestFocusInWindow()
+        revalidate()
+    }
+
+    private fun hideQuickFilter() {
+        filterField.text = ""
+        filterPanel.isVisible = false
+        applyFilter()
+        revalidate()
+        when (viewMode) {
+            ViewMode.TABLE -> table.requestFocusInWindow()
+            ViewMode.LIST -> list.requestFocusInWindow()
+            ViewMode.TREE -> tree.requestFocusInWindow()
+        }
+    }
+
+    private fun applyFilter() {
+        val pattern = filterField.text.trim()
+        val filtered = if (pattern.isEmpty()) {
+            allEntries
+        } else {
+            val glob = if (pattern.contains('*') || pattern.contains('?') || pattern.contains('[')) pattern else "*$pattern*"
+            val matcher = try {
+                java.nio.file.FileSystems.getDefault().getPathMatcher("glob:$glob")
+            } catch (_: Exception) {
+                return
+            }
+            allEntries.filter { entry ->
+                entry.isParentLink || matcher.matches(Path.of(entry.name))
+            }
+        }
+
+        tableModel.setEntries(filtered)
+
+        listModel.clear()
+        filtered.forEach { listModel.addElement(it) }
+
+        if (viewMode != ViewMode.TREE) {
+            treeRootNode.removeAllChildren()
+            for (entry in filtered) {
+                val node = DefaultMutableTreeNode(entry)
+                if (entry.isDirectory && !entry.isParentLink) {
+                    node.add(DefaultMutableTreeNode("Loading..."))
+                }
+                treeRootNode.add(node)
+            }
+            treeModel.nodeStructureChanged(treeRootNode)
+        }
+
+        if (table.rowCount > 0) table.setRowSelectionInterval(0, 0)
+        if (listModel.size() > 0) list.selectedIndex = 0
+
+        updateStatusBar()
+    }
+
+    private fun moveSelection(offset: Int) {
+        when (viewMode) {
+            ViewMode.TABLE -> {
+                val current = table.selectedRow
+                val next = (current + offset).coerceIn(0, table.rowCount - 1)
+                if (next >= 0) {
+                    table.setRowSelectionInterval(next, next)
+                    table.scrollRectToVisible(table.getCellRect(next, 0, true))
+                }
+            }
+            ViewMode.LIST -> {
+                val current = list.selectedIndex
+                val next = (current + offset).coerceIn(0, listModel.size() - 1)
+                if (next >= 0) {
+                    list.selectedIndex = next
+                    list.ensureIndexIsVisible(next)
+                }
+            }
+            ViewMode.TREE -> {
+                val current = tree.leadSelectionRow
+                val next = (current + offset).coerceIn(0, tree.rowCount - 1)
+                if (next >= 0) {
+                    tree.setSelectionRow(next)
+                    tree.scrollRowToVisible(next)
+                }
+            }
+        }
+    }
+
     private fun setupViewPanel() {
         viewPanel.add(JBScrollPane(table), VIEW_TABLE)
         viewPanel.add(JBScrollPane(list), VIEW_LIST)
@@ -477,7 +638,11 @@ class FileTab(
         freeSpaceLabel.border = javax.swing.BorderFactory.createEmptyBorder(2, 4, 2, 4)
         statusPanel.add(statusLabel, BorderLayout.WEST)
         statusPanel.add(freeSpaceLabel, BorderLayout.EAST)
-        add(statusPanel, BorderLayout.SOUTH)
+
+        val bottomPanel = JPanel(BorderLayout())
+        bottomPanel.add(filterPanel, BorderLayout.NORTH)
+        bottomPanel.add(statusPanel, BorderLayout.SOUTH)
+        add(bottomPanel, BorderLayout.SOUTH)
     }
 
     fun setViewMode(mode: ViewMode) {
@@ -816,6 +981,13 @@ class FileTab(
                 pathField.text = sb.toString()
             } else {
                 pathField.text = path.toString()
+            }
+
+            allEntries = entries
+            // Hide filter on navigation
+            if (filterPanel.isVisible) {
+                filterField.text = ""
+                filterPanel.isVisible = false
             }
 
             tableModel.setEntries(entries)

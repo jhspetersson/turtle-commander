@@ -131,6 +131,12 @@
                     text="Search in Directory..."
                     icon="AllIcons.Actions.Find"
                     description="Search for files in the selected directory"/>
+            <action id="TurtleCommander.QuickFilter"
+                    class="io.github.jhspetersson.turtlecommander.QuickFilterAction"
+                    text="Quick Filter"
+                    description="Filter files in the current directory">
+                <keyboard-shortcut first-keystroke="ctrl S" keymap="$default"/>
+            </action>
             <action id="TurtleCommander.Refresh"
                     class="io.github.jhspetersson.turtlecommander.RefreshAction"
                     text="Refresh"

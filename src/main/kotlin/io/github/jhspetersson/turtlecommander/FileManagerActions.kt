@@ -136,6 +136,16 @@ class ToggleSelectionAction : FileManagerAction() {
     }
 }
 
+class QuickFilterAction : FileManagerAction() {
+    override fun update(e: AnActionEvent) {
+        e.presentation.isEnabled = isToolWindowActive(e)
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        findActiveTab(e)?.showQuickFilter()
+    }
+}
+
 class ShowContextMenuAction : FileManagerAction() {
     override fun actionPerformed(e: AnActionEvent) {
         findActiveTab(e)?.showContextMenu()
