@@ -1481,9 +1481,11 @@ class FileTab(
                     java.nio.file.Files.createFile(currentPath.resolve(name))
                 }
                 navigateTo(currentPath, selectName = name)
-                withContext(Dispatchers.EDT) {
-                    val virtualFile = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(filePath)
-                    if (virtualFile != null) {
+                val virtualFile = withContext(Dispatchers.IO) {
+                    LocalFileSystem.getInstance().refreshAndFindFileByNioFile(filePath)
+                }
+                if (virtualFile != null) {
+                    withContext(Dispatchers.EDT) {
                         OpenFileDescriptor(project, virtualFile).navigate(true)
                     }
                 }
