@@ -5,6 +5,7 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.wm.ToolWindowManager
 import org.jetbrains.plugins.terminal.TerminalOptionsProvider
 import org.jetbrains.plugins.terminal.TerminalTabState
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager
@@ -30,8 +31,8 @@ class OpenInTerminalAction : AnAction() {
         if (entry.isDirectory) {
             openTerminal(project, entry.path.toString(), entry.name)
         } else {
-            val dir = entry.path.parent.fileName.toString()
-            openTerminal(project, dir, dir, entry.name)
+            val dir = entry.path.parent
+            openTerminal(project, dir.toString(), dir.fileName?.toString() ?: "Terminal")
         }
     }
 }
@@ -61,18 +62,15 @@ class OpenTabInTerminalAction : AnAction() {
     }
 }
 
-private fun openTerminal(project: Project, workingDir: String, tabName: String, fileNameToType: String? = null) {
-    val tabState = TerminalTabState().apply {
-        myTabName = tabName
-        myWorkingDirectory = workingDir
-    }
-    val engine = service<TerminalOptionsProvider>().terminalEngine
-    val manager = TerminalToolWindowManager.getInstance(project)
-    val widget = manager.createNewTab(engine, null, tabState)
-    if (fileNameToType != null) {
-        val escaped = if (' ' in fileNameToType) "\"$fileNameToType\"" else fileNameToType
-        widget.ttyConnectorAccessor.executeWithTtyConnector { connector ->
-            connector.write(escaped)
+private fun openTerminal(project: Project, workingDir: String, tabName: String) {
+    val toolWindow = ToolWindowManager.getInstance(project).getToolWindow("Terminal") ?: return
+    toolWindow.activate {
+        val tabState = TerminalTabState().apply {
+            myTabName = tabName
+            myWorkingDirectory = workingDir
         }
+        val engine = service<TerminalOptionsProvider>().terminalEngine
+        val manager = TerminalToolWindowManager.getInstance(project)
+        manager.createNewTab(engine, tabState, toolWindow.contentManager)
     }
 }
