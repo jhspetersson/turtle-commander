@@ -462,6 +462,8 @@ class FileManagerPanel(
         if (index >= 0) closeTab(index)
     }
 
+    fun getTabAt(index: Int): FileTab? = tabbedPane.getComponentAt(index) as? FileTab
+
     fun getActiveTabIndex(): Int = tabbedPane.selectedIndex
 
     fun closeOtherTabs(tabIndex: Int) {

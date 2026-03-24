@@ -1,0 +1,23 @@
+<idea-plugin>
+    <actions>
+        <action id="TurtleCommander.OpenInTerminal"
+                class="io.github.jhspetersson.turtlecommander.OpenInTerminalAction"
+                text="Open in Terminal"
+                icon="org.jetbrains.plugins.terminal.TerminalIcons.Command"/>
+        <group>
+            <reference ref="TurtleCommander.OpenInTerminal"/>
+            <add-to-group group-id="TurtleCommander.FileContextMenu" anchor="after"
+                          relative-to-action="TurtleCommander.OpenInExplorer"/>
+        </group>
+
+        <action id="TurtleCommander.OpenTabInTerminal"
+                class="io.github.jhspetersson.turtlecommander.OpenTabInTerminalAction"
+                text="Open in Terminal"
+                icon="org.jetbrains.plugins.terminal.TerminalIcons.Command"/>
+        <group>
+            <separator/>
+            <reference ref="TurtleCommander.OpenTabInTerminal"/>
+            <add-to-group group-id="TurtleCommander.TabContextMenu" anchor="last"/>
+        </group>
+    </actions>
+</idea-plugin>
