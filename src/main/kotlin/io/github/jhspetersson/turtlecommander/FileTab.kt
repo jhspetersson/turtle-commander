@@ -886,18 +886,24 @@ class FileTab(
     private fun selectEntriesByName(names: Set<String>) {
         if (viewMode == ViewMode.TABLE) {
             table.clearSelection()
+            var firstSelectedRow = -1
             for (viewRow in 0 until table.rowCount) {
                 val modelRow = table.convertRowIndexToModel(viewRow)
                 val entry = tableModel.getEntryAt(modelRow) ?: continue
                 if (entry.name in names) {
                     table.addRowSelectionInterval(viewRow, viewRow)
+                    if (firstSelectedRow == -1) firstSelectedRow = viewRow
                 }
+            }
+            if (firstSelectedRow >= 0) {
+                table.scrollRectToVisible(table.getCellRect(firstSelectedRow, 0, true))
             }
         } else if (viewMode == ViewMode.LIST) {
             list.clearSelection()
             val indices = (0 until listModel.size()).filter { listModel.getElementAt(it).name in names }.toIntArray()
             if (indices.isNotEmpty()) {
                 list.selectedIndices = indices
+                list.ensureIndexIsVisible(indices.first())
             }
         }
     }
