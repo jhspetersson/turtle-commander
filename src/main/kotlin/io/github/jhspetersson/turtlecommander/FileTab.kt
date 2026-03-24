@@ -686,7 +686,7 @@ class FileTab(
         val selectedNames = selectedEntries.map { it.name }.toSet()
 
         // For tree -> flat: navigate to the parent directory of the selected entries and select them
-        val treeNavigation = if (previousMode == ViewMode.TREE && mode != ViewMode.TREE && selectedEntries.isNotEmpty()) {
+        val treeNavigation = if (previousMode == ViewMode.TREE && selectedEntries.isNotEmpty()) {
             val lastEntry = selectedEntries.last()
             val targetDir = lastEntry.path.parent ?: currentPath
             val namesInDir = selectedEntries
@@ -880,13 +880,6 @@ class FileTab(
                 }
             }
         }
-    }
-
-    private fun getTreeSelectedEntries(): List<FileEntry> {
-        return (tree.selectionPaths ?: emptyArray()).mapNotNull { path ->
-            val node = path.lastPathComponent as? DefaultMutableTreeNode
-            node?.userObject as? FileEntry
-        }.filter { !it.isParentLink }
     }
 
     private fun selectEntriesByName(names: Set<String>) {
@@ -1218,11 +1211,6 @@ class FileTab(
         } finally {
             insideToggle = false
         }
-    }
-
-    fun clearToggledRows() {
-        toggledRows.clear()
-        toggledTreeRows.clear()
     }
 
     fun getSelectedEntries(): List<FileEntry> {
