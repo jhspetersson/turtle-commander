@@ -22,6 +22,7 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.JarFileSystem
 import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
@@ -1973,10 +1974,10 @@ class FileTab(
     private fun inactiveSelectionBackground(): java.awt.Color {
         val active = table.selectionBackground
         val bg = table.background
-        return java.awt.Color(
-            (active.red + bg.red) / 2,
-            (active.green + bg.green) / 2,
-            (active.blue + bg.blue) / 2,
+        fun blend(a: Int, b: Int) = (a + b) / 2
+        return JBColor(
+            java.awt.Color(blend(active.red, bg.red), blend(active.green, bg.green), blend(active.blue, bg.blue)),
+            java.awt.Color(blend(active.red, bg.red), blend(active.green, bg.green), blend(active.blue, bg.blue)),
         )
     }
 
