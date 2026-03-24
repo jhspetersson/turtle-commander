@@ -588,6 +588,15 @@ class FileManagerPanel(
         }
     }
 
+    fun reSort() {
+        val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
+        for (i in 0 until tabbedPane.tabCount) {
+            if (i == plusIndex) continue
+            val tab = tabbedPane.getComponentAt(i) as? FileTab ?: continue
+            tab.reSort()
+        }
+    }
+
     fun showDriveSelector() {
         getActiveTab()?.showDriveSelector()
     }

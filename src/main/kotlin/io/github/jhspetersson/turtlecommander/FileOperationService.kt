@@ -9,8 +9,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.nio.file.CopyOption
+import java.nio.file.FileVisitResult
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.SimpleFileVisitor
 import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.DosFileAttributes
@@ -73,10 +76,16 @@ class FileOperationService(
                     }
                 }
 
-                dirs.sortBy { it.name.lowercase() }
-                files.sortBy { it.name.lowercase() }
-                result.addAll(dirs)
-                result.addAll(files)
+                val sortWithDirs = TurtleCommanderSettings.getInstance().state.sortWithDirectories
+                if (sortWithDirs) {
+                    val all = (dirs + files).sortedBy { it.name.lowercase() }
+                    result.addAll(all)
+                } else {
+                    dirs.sortBy { it.name.lowercase() }
+                    files.sortBy { it.name.lowercase() }
+                    result.addAll(dirs)
+                    result.addAll(files)
+                }
             }
         } catch (e: Exception) {
             thisLogger().warn("Cannot list directory $directory: ${e.message}")
@@ -91,14 +100,14 @@ class FileOperationService(
         var count = 0
         for (source in sources) {
             if (source.isDirectory()) {
-                Files.walkFileTree(source, object : java.nio.file.SimpleFileVisitor<Path>() {
-                    override fun visitFile(file: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {
+                Files.walkFileTree(source, object : SimpleFileVisitor<Path>() {
+                    override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                         count++
-                        return java.nio.file.FileVisitResult.CONTINUE
+                        return FileVisitResult.CONTINUE
                     }
-                    override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {
+                    override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
                         count++
-                        return java.nio.file.FileVisitResult.CONTINUE
+                        return FileVisitResult.CONTINUE
                     }
                 })
             } else {
@@ -345,14 +354,14 @@ class FileOperationService(
                 if (path.isDirectory()) {
                     // Collect the file tree first to avoid runBlocking inside walkFileTree callbacks
                     val entries = mutableListOf<Path>()
-                    Files.walkFileTree(path, object : java.nio.file.SimpleFileVisitor<Path>() {
-                        override fun visitFile(file: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {
+                    Files.walkFileTree(path, object : SimpleFileVisitor<Path>() {
+                        override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                             entries.add(file)
-                            return java.nio.file.FileVisitResult.CONTINUE
+                            return FileVisitResult.CONTINUE
                         }
-                        override fun postVisitDirectory(dir: Path, exc: java.io.IOException?): java.nio.file.FileVisitResult {
+                        override fun postVisitDirectory(dir: Path, exc: java.io.IOException?): FileVisitResult {
                             entries.add(dir)
-                            return java.nio.file.FileVisitResult.CONTINUE
+                            return FileVisitResult.CONTINUE
                         }
                     })
                     for (entry in entries) {
@@ -447,23 +456,23 @@ class FileOperationService(
     private fun readPermissions(path: Path): String = readFilePermissions(path, isWindows)
 
     private fun copyDirectoryRecursive(source: Path, target: Path) {
-        Files.walkFileTree(source, object : java.nio.file.SimpleFileVisitor<Path>() {
-            override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {
+        Files.walkFileTree(source, object : SimpleFileVisitor<Path>() {
+            override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
                 val relativePath = source.relativize(dir).toString()
                 val targetDir = if (relativePath.isEmpty()) target else target.resolve(relativePath)
                 Files.createDirectories(targetDir)
-                return java.nio.file.FileVisitResult.CONTINUE
+                return FileVisitResult.CONTINUE
             }
 
-            override fun visitFile(file: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {
+            override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                 val relativePath = source.relativize(file).toString()
                 Files.copy(file, target.resolve(relativePath), StandardCopyOption.REPLACE_EXISTING)
-                return java.nio.file.FileVisitResult.CONTINUE
+                return FileVisitResult.CONTINUE
             }
         })
     }
 
-    private fun crossFileSystemMove(source: Path, target: Path, vararg options: java.nio.file.CopyOption) {
+    private fun crossFileSystemMove(source: Path, target: Path, vararg options: CopyOption) {
         if (source.fileSystem == target.fileSystem) {
             Files.move(source, target, *options)
         } else {
@@ -524,15 +533,15 @@ class FileOperationService(
         try {
             VirtualFileSystemRegistry.create(archivePath).use { vfs ->
                 val root = vfs.root
-                Files.walkFileTree(root, object : java.nio.file.SimpleFileVisitor<Path>() {
-                    override fun visitFile(file: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {
+                Files.walkFileTree(root, object : SimpleFileVisitor<Path>() {
+                    override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                         count++
-                        return java.nio.file.FileVisitResult.CONTINUE
+                        return FileVisitResult.CONTINUE
                     }
 
-                    override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {
+                    override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
                         if (dir != root) count++
-                        return java.nio.file.FileVisitResult.CONTINUE
+                        return FileVisitResult.CONTINUE
                     }
                 })
             }
@@ -560,16 +569,16 @@ class FileOperationService(
                 // Collect entries first to avoid runBlocking inside walkFileTree callbacks
                 data class VfsEntry(val sourcePath: Path, val relativePath: String, val isDirectory: Boolean)
                 val entries = mutableListOf<VfsEntry>()
-                Files.walkFileTree(root, object : java.nio.file.SimpleFileVisitor<Path>() {
-                    override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {
+                Files.walkFileTree(root, object : SimpleFileVisitor<Path>() {
+                    override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
                         if (dir != root) {
                             entries.add(VfsEntry(dir, root.relativize(dir).toString(), true))
                         }
-                        return java.nio.file.FileVisitResult.CONTINUE
+                        return FileVisitResult.CONTINUE
                     }
-                    override fun visitFile(file: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {
+                    override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                         entries.add(VfsEntry(file, root.relativize(file).toString(), false))
-                        return java.nio.file.FileVisitResult.CONTINUE
+                        return FileVisitResult.CONTINUE
                     }
                 })
                 for (entry in entries) {
@@ -620,15 +629,15 @@ class FileOperationService(
     }
 
     private fun deleteDirectoryRecursive(path: Path) {
-        Files.walkFileTree(path, object : java.nio.file.SimpleFileVisitor<Path>() {
-            override fun visitFile(file: Path, attrs: BasicFileAttributes): java.nio.file.FileVisitResult {
+        Files.walkFileTree(path, object : SimpleFileVisitor<Path>() {
+            override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                 Files.delete(file)
-                return java.nio.file.FileVisitResult.CONTINUE
+                return FileVisitResult.CONTINUE
             }
 
-            override fun postVisitDirectory(dir: Path, exc: java.io.IOException?): java.nio.file.FileVisitResult {
+            override fun postVisitDirectory(dir: Path, exc: java.io.IOException?): FileVisitResult {
                 Files.delete(dir)
-                return java.nio.file.FileVisitResult.CONTINUE
+                return FileVisitResult.CONTINUE
             }
         })
     }

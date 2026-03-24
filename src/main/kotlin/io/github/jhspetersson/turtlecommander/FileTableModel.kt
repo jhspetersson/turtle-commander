@@ -14,6 +14,7 @@ class FileTableModel : AbstractTableModel() {
         const val COL_PERMS = 4
         const val PARENT_MARKER = ".."
         const val PARENT_NUMERIC = Long.MIN_VALUE
+        const val DIR_NUMERIC = -1L
     }
 
     private val columns = arrayOf("Name", "Ext", "Size", "Date Modified", "Permissions")
@@ -55,7 +56,7 @@ class FileTableModel : AbstractTableModel() {
                 !entry.name.contains('.') || entry.name.startsWith('.') -> ""
                 else -> entry.name.substringAfterLast('.')
             }
-            COL_SIZE -> if (entry.isParentLink) PARENT_NUMERIC else if (entry.isDirectory) -1L else entry.size
+            COL_SIZE -> if (entry.isParentLink) PARENT_NUMERIC else if (entry.isDirectory) DIR_NUMERIC else entry.size
             COL_DATE -> if (entry.isParentLink) PARENT_NUMERIC else entry.lastModified?.toMillis() ?: 0L
             COL_PERMS -> if (entry.isParentLink) PARENT_MARKER else entry.permissions
             else -> ""

@@ -137,6 +137,8 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
                     rightPanel.applyFonts()
                     leftPanel.applyVisibilitySettings()
                     rightPanel.applyVisibilitySettings()
+                    leftPanel.reSort()
+                    rightPanel.reSort()
                     contentPanel.revalidate()
                     contentPanel.repaint()
                 }

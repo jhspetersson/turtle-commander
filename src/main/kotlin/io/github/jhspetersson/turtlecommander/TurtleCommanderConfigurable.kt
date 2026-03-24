@@ -6,7 +6,6 @@ import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
-import com.intellij.ui.components.JBTextField
 import java.awt.GraphicsEnvironment
 import java.awt.BorderLayout
 import java.awt.Dimension
@@ -30,6 +29,7 @@ class TurtleCommanderConfigurable : Configurable {
     private var hideDriveSelectorCheckBox: JCheckBox? = null
     private var hideStatusBarCheckBox: JCheckBox? = null
     private var overwriteCheckBox: JCheckBox? = null
+    private var sortWithDirectoriesCheckBox: JCheckBox? = null
     private var panelFontCombo: ComboBox<String>? = null
     private var panelFontSizeSpinner: JSpinner? = null
     private var tabFontCombo: ComboBox<String>? = null
@@ -49,6 +49,7 @@ class TurtleCommanderConfigurable : Configurable {
         hideDriveSelectorCheckBox = JCheckBox("Hide drive selector", settings.hideDriveSelector)
         hideStatusBarCheckBox = JCheckBox("Hide status bar", settings.hideStatusBar)
         overwriteCheckBox = JCheckBox("Always overwrite existing files during copy/move", settings.alwaysOverwriteFiles)
+        sortWithDirectoriesCheckBox = JCheckBox("Sort directories together with files", settings.sortWithDirectories)
 
         val defaultLabel = "(Default)"
         val fontItems = arrayOf(defaultLabel) + fontFamilies
@@ -118,6 +119,7 @@ class TurtleCommanderConfigurable : Configurable {
         hideDriveSelectorCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         hideStatusBarCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         overwriteCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
+        sortWithDirectoriesCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
 
         // Favorites editor
         val favListModel = DefaultListModel<String>()
@@ -194,6 +196,7 @@ class TurtleCommanderConfigurable : Configurable {
             add(hideDriveSelectorCheckBox)
             add(hideStatusBarCheckBox)
             add(overwriteCheckBox)
+            add(sortWithDirectoriesCheckBox)
             add(javax.swing.Box.createVerticalStrut(8))
             add(fontGrid)
             add(javax.swing.Box.createVerticalStrut(8))
@@ -213,6 +216,7 @@ class TurtleCommanderConfigurable : Configurable {
             || hideDriveSelectorCheckBox?.isSelected != settings.hideDriveSelector
             || hideStatusBarCheckBox?.isSelected != settings.hideStatusBar
             || overwriteCheckBox?.isSelected != settings.alwaysOverwriteFiles
+            || sortWithDirectoriesCheckBox?.isSelected != settings.sortWithDirectories
             || getSelectedFontFamily(panelFontCombo, defaultLabel) != settings.panelFontFamily
             || ((panelFontSizeSpinner?.value as? Number)?.toInt() ?: 0) != (if (settings.panelFontSize > 0) settings.panelFontSize else 13)
             || getSelectedFontFamily(tabFontCombo, defaultLabel) != settings.tabFontFamily
@@ -242,6 +246,7 @@ class TurtleCommanderConfigurable : Configurable {
         settings.hideDriveSelector = hideDriveSelectorCheckBox?.isSelected ?: settings.hideDriveSelector
         settings.hideStatusBar = hideStatusBarCheckBox?.isSelected ?: settings.hideStatusBar
         settings.alwaysOverwriteFiles = overwriteCheckBox?.isSelected ?: settings.alwaysOverwriteFiles
+        settings.sortWithDirectories = sortWithDirectoriesCheckBox?.isSelected ?: settings.sortWithDirectories
         settings.panelFontFamily = getSelectedFontFamily(panelFontCombo, defaultLabel)
         settings.panelFontSize = (panelFontSizeSpinner?.value as? Number)?.toInt() ?: 0
         settings.tabFontFamily = getSelectedFontFamily(tabFontCombo, defaultLabel)
@@ -268,6 +273,7 @@ class TurtleCommanderConfigurable : Configurable {
         hideDriveSelectorCheckBox?.isSelected = settings.hideDriveSelector
         hideStatusBarCheckBox?.isSelected = settings.hideStatusBar
         overwriteCheckBox?.isSelected = settings.alwaysOverwriteFiles
+        sortWithDirectoriesCheckBox?.isSelected = settings.sortWithDirectories
         panelFontCombo?.selectedItem = settings.panelFontFamily.ifEmpty { defaultLabel }
         panelFontSizeSpinner?.value = if (settings.panelFontSize > 0) settings.panelFontSize else 13
         tabFontCombo?.selectedItem = settings.tabFontFamily.ifEmpty { defaultLabel }
@@ -295,6 +301,7 @@ class TurtleCommanderConfigurable : Configurable {
         hideDriveSelectorCheckBox = null
         hideStatusBarCheckBox = null
         overwriteCheckBox = null
+        sortWithDirectoriesCheckBox = null
         panelFontCombo = null
         panelFontSizeSpinner = null
         tabFontCombo = null

@@ -553,6 +553,12 @@ class FileTab(
         }
     }
 
+    fun reSort() {
+        val sorter = table.rowSorter ?: return
+        val keys = sorter.sortKeys
+        sorter.sortKeys = keys
+    }
+
     private fun applyFilter() {
         val pattern = filterField.text.trim()
         val filtered = if (pattern.isEmpty()) {
@@ -2020,57 +2026,104 @@ class FileTab(
         }
     }
 
+    /**
+     * Wraps a cell value with directory/parent metadata so comparators can group
+     * directories before files without needing extra sort keys.
+     */
+    private data class DirAwareValue(val value: Any, val isDirectory: Boolean, val isParent: Boolean)
+
     private class ParentPinningRowSorter(
         private val fileModel: FileTableModel,
     ) : javax.swing.table.TableRowSorter<FileTableModel>(fileModel) {
+        /**
+         * Model wrapper that enriches cell values with directory metadata.
+         * The row sorter uses this wrapper internally; the table renderer still
+         * reads from the real model, so display is unaffected.
+         */
+        private inner class DirAwareModelWrapper(
+            private val tableModel: FileTableModel,
+        ) : ModelWrapper<FileTableModel, Int>() {
+            override fun getModel(): FileTableModel = tableModel
+            override fun getColumnCount(): Int = tableModel.columnCount
+            override fun getRowCount(): Int = tableModel.rowCount
+            override fun getIdentifier(row: Int): Int = row
+            override fun getValueAt(row: Int, column: Int): Any {
+                val value = tableModel.getValueAt(row, column)
+                val entry = tableModel.getEntryAt(row)
+                return DirAwareValue(value, entry?.isDirectory == true, entry?.isParentLink == true)
+            }
+            override fun getStringValueAt(row: Int, column: Int): String {
+                return tableModel.getValueAt(row, column)?.toString() ?: ""
+            }
+        }
+
         init {
+            setModelWrapper(DirAwareModelWrapper(fileModel))
             for (col in 0 until fileModel.columnCount) {
                 setComparator(col, ParentFirstComparator(this, col))
             }
         }
 
         override fun setSortKeys(keys: MutableList<out javax.swing.RowSorter.SortKey>?) {
-            if (keys.isNullOrEmpty() || keys[0].column == FileTableModel.COL_NAME) {
+            if (keys.isNullOrEmpty()) {
                 super.setSortKeys(keys)
                 return
             }
-            // Add name as secondary sort key in the same order
             val primary = keys[0]
-            val combined = mutableListOf(primary, javax.swing.RowSorter.SortKey(FileTableModel.COL_NAME, primary.sortOrder))
+            if (primary.column == FileTableModel.COL_NAME) {
+                super.setSortKeys(mutableListOf(primary))
+                return
+            }
+            // Always use name ascending as secondary for stable ordering
+            val combined = mutableListOf(primary,
+                javax.swing.RowSorter.SortKey(FileTableModel.COL_NAME, javax.swing.SortOrder.ASCENDING))
             super.setSortKeys(combined)
         }
     }
 
     private class ParentFirstComparator(
-        private val sorter: javax.swing.table.TableRowSorter<*>,
+        private val sorter: ParentPinningRowSorter,
         private val column: Int,
     ) : Comparator<Any> {
         override fun compare(o1: Any?, o2: Any?): Int {
-            val isParent1 = isParentMarker(o1)
-            val isParent2 = isParentMarker(o2)
+            val dav1 = o1 as? DirAwareValue ?: return 0
+            val dav2 = o2 as? DirAwareValue ?: return 0
 
-            if (isParent1 || isParent2) {
-                if (isParent1 && isParent2) return 0
-                val descending = sorter.sortKeys.firstOrNull()?.sortOrder == javax.swing.SortOrder.DESCENDING
-                val parentFirst = if (isParent1) -1 else 1
-                return if (descending) -parentFirst else parentFirst
+            // Parent ".." always sorts first.
+            // TableRowSorter negates the result for DESC, so we counter that.
+            if (dav1.isParent || dav2.isParent) {
+                if (dav1.isParent && dav2.isParent) return 0
+                val parentFirst = if (dav1.isParent) -1 else 1
+                return if (isDescending()) -parentFirst else parentFirst
             }
 
+            // Group directories before files when the setting is off.
+            // Same DESC counter-reversal to keep dirs on top.
+            if (!TurtleCommanderSettings.getInstance().state.sortWithDirectories) {
+                if (dav1.isDirectory != dav2.isDirectory) {
+                    val dirFirst = if (dav1.isDirectory) -1 else 1
+                    return if (isDescending()) -dirFirst else dirFirst
+                }
+            }
+
+            val v1 = dav1.value
+            val v2 = dav2.value
+
             if (column == FileTableModel.COL_SIZE || column == FileTableModel.COL_DATE) {
-                val l1 = (o1 as? Long) ?: 0L
-                val l2 = (o2 as? Long) ?: 0L
+                val l1 = (v1 as? Long) ?: 0L
+                val l2 = (v2 as? Long) ?: 0L
                 return l1.compareTo(l2)
             }
 
-            val s1 = o1?.toString() ?: ""
-            val s2 = o2?.toString() ?: ""
+            val s1 = v1.toString()
+            val s2 = v2.toString()
             return s1.compareTo(s2, ignoreCase = true)
         }
 
-        private fun isParentMarker(value: Any?): Boolean {
-            if (value is String && value == FileTableModel.PARENT_MARKER) return true
-            if (value is Long && value == FileTableModel.PARENT_NUMERIC) return true
-            return false
+        private fun isDescending(): Boolean {
+            val keys = sorter.sortKeys
+            val key = keys.firstOrNull { it.column == column } ?: return false
+            return key.sortOrder == javax.swing.SortOrder.DESCENDING
         }
     }
 
