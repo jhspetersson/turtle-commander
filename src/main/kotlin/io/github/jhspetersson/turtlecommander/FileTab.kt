@@ -3,6 +3,11 @@ package io.github.jhspetersson.turtlecommander
 import com.intellij.icons.AllIcons
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.actionSystem.ActionGroup
+import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.CustomShortcutSet
+import com.intellij.openapi.actionSystem.KeyboardShortcut
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.thisLogger
@@ -11,9 +16,11 @@ import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
+import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.vfs.JarFileSystem
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
@@ -27,23 +34,43 @@ import java.awt.Component
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.Transferable
 import java.awt.datatransfer.UnsupportedFlavorException
+import java.awt.event.FocusEvent
+import java.awt.event.FocusListener
+import java.awt.event.InputEvent
+import java.awt.event.KeyAdapter
+import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import java.nio.file.FileAlreadyExistsException
+import java.nio.file.FileSystems
+import java.nio.file.FileVisitResult
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.SimpleFileVisitor
+import java.nio.file.StandardCopyOption
+import java.nio.file.attribute.BasicFileAttributes
+import javax.swing.BorderFactory
 import javax.swing.DefaultCellEditor
 import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
+import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.JTable
 import javax.swing.JTextField
 import javax.swing.JTree
+import javax.swing.KeyStroke
 import javax.swing.ListSelectionModel
 import javax.swing.TransferHandler
 import javax.swing.event.CellEditorListener
 import javax.swing.event.ChangeEvent
+import javax.swing.event.DocumentEvent
+import javax.swing.event.DocumentListener
+import javax.swing.event.PopupMenuEvent
+import javax.swing.event.PopupMenuListener
+import javax.swing.event.TreeExpansionEvent
+import javax.swing.event.TreeWillExpandListener
 import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeCellRenderer
@@ -159,9 +186,9 @@ class FileTab(
         val headerPanel = JPanel(BorderLayout())
 
         driveCombo.apply {
-            addPopupMenuListener(object : javax.swing.event.PopupMenuListener {
-                override fun popupMenuWillBecomeVisible(e: javax.swing.event.PopupMenuEvent) {}
-                override fun popupMenuWillBecomeInvisible(e: javax.swing.event.PopupMenuEvent) {
+            addPopupMenuListener(object : PopupMenuListener {
+                override fun popupMenuWillBecomeVisible(e: PopupMenuEvent) {}
+                override fun popupMenuWillBecomeInvisible(e: PopupMenuEvent) {
                     if (updatingDriveCombo) return
                     val selected = selectedItem as? String ?: return
                     val drivePath = Path.of(selected)
@@ -176,7 +203,7 @@ class FileTab(
                     }
                     table.requestFocusInWindow()
                 }
-                override fun popupMenuCanceled(e: javax.swing.event.PopupMenuEvent) {
+                override fun popupMenuCanceled(e: PopupMenuEvent) {
                     table.requestFocusInWindow()
                 }
             })
@@ -284,18 +311,18 @@ class FileTab(
                     FileContextMenuState.clickedEntry = entry
                     FileContextMenuState.clickedTab = this@FileTab
 
-                    val am = com.intellij.openapi.actionSystem.ActionManager.getInstance()
-                    val group = am.getAction("TurtleCommander.FileContextMenu") as? com.intellij.openapi.actionSystem.ActionGroup ?: return
+                    val am = ActionManager.getInstance()
+                    val group = am.getAction("TurtleCommander.FileContextMenu") as? ActionGroup ?: return
                     val popupMenu = am.createActionPopupMenu("TurtleCommander.FileContextMenu", group)
                     popupMenu.component.show(table, e.x, e.y)
                 }
             })
 
-            addFocusListener(object : java.awt.event.FocusListener {
-                override fun focusGained(e: java.awt.event.FocusEvent) {
+            addFocusListener(object : FocusListener {
+                override fun focusGained(e: FocusEvent) {
                     repaint()
                 }
-                override fun focusLost(e: java.awt.event.FocusEvent) {
+                override fun focusLost(e: FocusEvent) {
                     repaint()
                 }
             })
@@ -347,8 +374,8 @@ class FileTab(
         FileContextMenuState.clickedEntry = entry
         FileContextMenuState.clickedTab = this
 
-        val am = com.intellij.openapi.actionSystem.ActionManager.getInstance()
-        val group = am.getAction("TurtleCommander.FileContextMenu") as? com.intellij.openapi.actionSystem.ActionGroup ?: return
+        val am = ActionManager.getInstance()
+        val group = am.getAction("TurtleCommander.FileContextMenu") as? ActionGroup ?: return
         val popupMenu = am.createActionPopupMenu("TurtleCommander.FileContextMenu", group)
         popupMenu.component.show(list, e.x, e.y)
     }
@@ -393,8 +420,8 @@ class FileTab(
                 updateStatusBar()
             }
 
-            addTreeWillExpandListener(object : javax.swing.event.TreeWillExpandListener {
-                override fun treeWillExpand(event: javax.swing.event.TreeExpansionEvent) {
+            addTreeWillExpandListener(object : TreeWillExpandListener {
+                override fun treeWillExpand(event: TreeExpansionEvent) {
                     val node = event.path.lastPathComponent as? DefaultMutableTreeNode ?: return
                     val entry = node.userObject as? FileEntry ?: return
                     if (entry.isDirectory && !entry.isParentLink && node.childCount == 1) {
@@ -403,11 +430,11 @@ class FileTab(
                             // Loading placeholder — load real children asynchronously
                             fileOps.launch {
                                 try {
-                                    val children = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    val children = withContext(Dispatchers.IO) {
                                         val vfs = currentVfs
                                         if (vfs != null) vfs.listFiles(entry.path) else fileOps.listFiles(entry.path)
                                     }
-                                    withContext(kotlinx.coroutines.Dispatchers.EDT) {
+                                    withContext(Dispatchers.EDT) {
                                         node.removeAllChildren()
                                         for (child in children) {
                                             if (child.isParentLink) continue
@@ -427,21 +454,21 @@ class FileTab(
                     }
                 }
 
-                override fun treeWillCollapse(event: javax.swing.event.TreeExpansionEvent) {}
+                override fun treeWillCollapse(event: TreeExpansionEvent) {}
             })
         }
 
         // Register SPACE and INSERT as component-local IntelliJ actions on the tree.
         // This takes priority over both global IntelliJ actions and JTree's default Swing bindings.
-        val toggleTreeAction = object : com.intellij.openapi.project.DumbAwareAction() {
-            override fun actionPerformed(e: com.intellij.openapi.actionSystem.AnActionEvent) {
+        val toggleTreeAction = object : DumbAwareAction() {
+            override fun actionPerformed(e: AnActionEvent) {
                 toggleSelectionAndMoveDown()
             }
         }
         toggleTreeAction.registerCustomShortcutSet(
-            com.intellij.openapi.actionSystem.CustomShortcutSet(
-                com.intellij.openapi.actionSystem.KeyboardShortcut(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_SPACE, 0), null),
-                com.intellij.openapi.actionSystem.KeyboardShortcut(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_INSERT, 0), null),
+            CustomShortcutSet(
+                KeyboardShortcut(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0), null),
+                KeyboardShortcut(KeyStroke.getKeyStroke(KeyEvent.VK_INSERT, 0), null),
             ),
             tree,
         )
@@ -458,14 +485,14 @@ class FileTab(
         FileContextMenuState.clickedEntry = entry
         FileContextMenuState.clickedTab = this
 
-        val am = com.intellij.openapi.actionSystem.ActionManager.getInstance()
-        val group = am.getAction("TurtleCommander.FileContextMenu") as? com.intellij.openapi.actionSystem.ActionGroup ?: return
+        val am = ActionManager.getInstance()
+        val group = am.getAction("TurtleCommander.FileContextMenu") as? ActionGroup ?: return
         val popupMenu = am.createActionPopupMenu("TurtleCommander.FileContextMenu", group)
         popupMenu.component.show(tree, e.x, e.y)
     }
 
     private fun setupFilterPanel() {
-        filterPanel.border = javax.swing.BorderFactory.createEmptyBorder(2, 4, 2, 4)
+        filterPanel.border = BorderFactory.createEmptyBorder(2, 4, 2, 4)
         filterPanel.isVisible = false
 
         val iconLabel = JLabel(AllIcons.Actions.Find)
@@ -473,7 +500,7 @@ class FileTab(
 
         filterPanel.add(filterField, BorderLayout.CENTER)
 
-        val cancelButton = javax.swing.JButton(AllIcons.Actions.Close)
+        val cancelButton = JButton(AllIcons.Actions.Close)
         cancelButton.isFocusable = false
         cancelButton.toolTipText = "Close filter"
         cancelButton.preferredSize = java.awt.Dimension(24, 24)
@@ -481,20 +508,20 @@ class FileTab(
         cancelButton.addActionListener { hideQuickFilter() }
         filterPanel.add(cancelButton, BorderLayout.EAST)
 
-        filterField.addKeyListener(object : java.awt.event.KeyAdapter() {
-            override fun keyPressed(e: java.awt.event.KeyEvent) {
+        filterField.addKeyListener(object : KeyAdapter() {
+            override fun keyPressed(e: KeyEvent) {
                 when (e.keyCode) {
-                    java.awt.event.KeyEvent.VK_ESCAPE -> {
+                    KeyEvent.VK_ESCAPE -> {
                         hideQuickFilter()
                         e.consume()
                     }
-                    java.awt.event.KeyEvent.VK_UP, java.awt.event.KeyEvent.VK_DOWN -> {
+                    KeyEvent.VK_UP, KeyEvent.VK_DOWN -> {
                         // Delegate UP/DOWN to the active view
-                        val offset = if (e.keyCode == java.awt.event.KeyEvent.VK_DOWN) 1 else -1
+                        val offset = if (e.keyCode == KeyEvent.VK_DOWN) 1 else -1
                         moveSelection(offset)
                         e.consume()
                     }
-                    java.awt.event.KeyEvent.VK_ENTER -> {
+                    KeyEvent.VK_ENTER -> {
                         // Focus the active view component
                         when (viewMode) {
                             ViewMode.TABLE -> table.requestFocusInWindow()
@@ -507,21 +534,21 @@ class FileTab(
             }
         })
 
-        filterField.document.addDocumentListener(object : javax.swing.event.DocumentListener {
-            override fun insertUpdate(e: javax.swing.event.DocumentEvent) = applyFilter()
-            override fun removeUpdate(e: javax.swing.event.DocumentEvent) = applyFilter()
-            override fun changedUpdate(e: javax.swing.event.DocumentEvent) = applyFilter()
+        filterField.document.addDocumentListener(object : DocumentListener {
+            override fun insertUpdate(e: DocumentEvent) = applyFilter()
+            override fun removeUpdate(e: DocumentEvent) = applyFilter()
+            override fun changedUpdate(e: DocumentEvent) = applyFilter()
         })
 
         // Register Ctrl-S as component-local action on all view components
         // to override IntelliJ's global "Save All" binding
-        val filterShortcut = com.intellij.openapi.actionSystem.CustomShortcutSet(
-            com.intellij.openapi.actionSystem.KeyboardShortcut(
-                javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_S, java.awt.event.InputEvent.CTRL_DOWN_MASK), null
+        val filterShortcut = CustomShortcutSet(
+            KeyboardShortcut(
+                KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_DOWN_MASK), null
             ),
         )
-        val filterAction = object : com.intellij.openapi.project.DumbAwareAction() {
-            override fun actionPerformed(e: com.intellij.openapi.actionSystem.AnActionEvent) {
+        val filterAction = object : DumbAwareAction() {
+            override fun actionPerformed(e: AnActionEvent) {
                 showQuickFilter()
             }
         }
@@ -554,9 +581,7 @@ class FileTab(
     }
 
     fun reSort() {
-        val sorter = table.rowSorter ?: return
-        val keys = sorter.sortKeys
-        sorter.sortKeys = keys
+        (table.rowSorter as? ParentPinningRowSorter)?.sort()
     }
 
     private fun applyFilter() {
@@ -566,7 +591,7 @@ class FileTab(
         } else {
             val glob = if (pattern.contains('*') || pattern.contains('?') || pattern.contains('[')) pattern else "*$pattern*"
             val matcher = try {
-                java.nio.file.FileSystems.getDefault().getPathMatcher("glob:$glob")
+                FileSystems.getDefault().getPathMatcher("glob:$glob")
             } catch (_: Exception) {
                 return
             }
@@ -640,8 +665,8 @@ class FileTab(
 
         add(viewPanel, BorderLayout.CENTER)
 
-        statusLabel.border = javax.swing.BorderFactory.createEmptyBorder(2, 4, 2, 4)
-        freeSpaceLabel.border = javax.swing.BorderFactory.createEmptyBorder(2, 4, 2, 4)
+        statusLabel.border = BorderFactory.createEmptyBorder(2, 4, 2, 4)
+        freeSpaceLabel.border = BorderFactory.createEmptyBorder(2, 4, 2, 4)
         statusPanel.add(statusLabel, BorderLayout.WEST)
         statusPanel.add(freeSpaceLabel, BorderLayout.EAST)
 
@@ -1220,8 +1245,8 @@ class FileTab(
         FileContextMenuState.clickedEntry = entry
         FileContextMenuState.clickedTab = this
 
-        val am = com.intellij.openapi.actionSystem.ActionManager.getInstance()
-        val group = am.getAction("TurtleCommander.FileContextMenu") as? com.intellij.openapi.actionSystem.ActionGroup ?: return
+        val am = ActionManager.getInstance()
+        val group = am.getAction("TurtleCommander.FileContextMenu") as? ActionGroup ?: return
         val popupMenu = am.createActionPopupMenu("TurtleCommander.FileContextMenu", group)
 
         when (viewMode) {
@@ -1382,10 +1407,10 @@ class FileTab(
                 fileOps.launch {
                     try {
                         val tempFile = withContext(Dispatchers.IO) {
-                            val tempDir = java.nio.file.Files.createTempDirectory("turtle-vfs-")
+                            val tempDir = Files.createTempDirectory("turtle-vfs-")
                             val fileName = archivePath.fileName.toString()
                             val tempPath = tempDir.resolve(fileName)
-                            java.nio.file.Files.copy(archivePath, tempPath)
+                            Files.copy(archivePath, tempPath)
                             tempPath.toFile()
                         }
                         val vfs = VirtualFileSystemRegistry.create(tempFile.toPath())
@@ -1688,7 +1713,7 @@ class FileTab(
         fileOps.launch {
             try {
                 val filePath = withContext(Dispatchers.IO) {
-                    java.nio.file.Files.createFile(currentPath.resolve(name))
+                    Files.createFile(currentPath.resolve(name))
                 }
                 navigateTo(currentPath, selectName = name)
                 val virtualFile = withContext(Dispatchers.IO) {
@@ -1729,17 +1754,17 @@ class FileTab(
         val deleteAfterPacking = packDialog.deleteAfterPacking
         val sourcePaths = selected.map { it.path }
 
-        val archiveExists = java.nio.file.Files.exists(archivePath)
+        val archiveExists = Files.exists(archivePath)
         var appendToExisting = false
 
         if (archiveExists) {
-            val result = com.intellij.openapi.ui.Messages.showDialog(
+            val result = Messages.showDialog(
                 project,
                 "Archive already exists:\n${archivePath.fileName}\n\nWhat would you like to do?",
                 "Archive Exists",
                 arrayOf("Overwrite", "Add to Existing", "Cancel"),
                 0,
-                com.intellij.openapi.ui.Messages.getQuestionIcon(),
+                Messages.getQuestionIcon(),
             )
             when (result) {
                 0 -> {} // overwrite - will delete and recreate
@@ -1765,47 +1790,47 @@ class FileTab(
                         }
                         if (!appendToExisting && archiveExists) {
                             withContext(Dispatchers.IO) {
-                                java.nio.file.Files.delete(archivePath)
+                                Files.delete(archivePath)
                             }
                             env["create"] = "true"
                         }
 
                         val uri = java.net.URI.create("jar:" + archivePath.toUri())
                         withContext(Dispatchers.IO) {
-                            java.nio.file.FileSystems.newFileSystem(uri, env).use { zipFs ->
+                            FileSystems.newFileSystem(uri, env).use { zipFs ->
                                 for (source in sourcePaths) {
                                     if (indicator.isCanceled) break
                                     if (source.toFile().isDirectory) {
-                                        java.nio.file.Files.walkFileTree(source, object : java.nio.file.SimpleFileVisitor<Path>() {
-                                            override fun preVisitDirectory(dir: Path, attrs: java.nio.file.attribute.BasicFileAttributes): java.nio.file.FileVisitResult {
-                                                if (indicator.isCanceled) return java.nio.file.FileVisitResult.TERMINATE
+                                        Files.walkFileTree(source, object : SimpleFileVisitor<Path>() {
+                                            override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
+                                                if (indicator.isCanceled) return FileVisitResult.TERMINATE
                                                 val relativePath = source.parent.relativize(dir).toString().replace("\\", "/")
                                                 val zipDir = zipFs.getPath(relativePath)
                                                 try {
-                                                    java.nio.file.Files.createDirectories(zipDir)
-                                                } catch (_: java.nio.file.FileAlreadyExistsException) {}
+                                                    Files.createDirectories(zipDir)
+                                                } catch (_: FileAlreadyExistsException) {}
                                                 packedCount++
                                                 indicator.fraction = packedCount.toDouble() / totalFiles
                                                 indicator.text = "Packing $packedCount / $totalFiles"
                                                 indicator.text2 = dir.fileName.toString()
-                                                return java.nio.file.FileVisitResult.CONTINUE
+                                                return FileVisitResult.CONTINUE
                                             }
 
-                                            override fun visitFile(file: Path, attrs: java.nio.file.attribute.BasicFileAttributes): java.nio.file.FileVisitResult {
-                                                if (indicator.isCanceled) return java.nio.file.FileVisitResult.TERMINATE
+                                            override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                                                if (indicator.isCanceled) return FileVisitResult.TERMINATE
                                                 val relativePath = source.parent.relativize(file).toString().replace("\\", "/")
                                                 val zipEntry = zipFs.getPath(relativePath)
-                                                java.nio.file.Files.copy(file, zipEntry, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                                                Files.copy(file, zipEntry, StandardCopyOption.REPLACE_EXISTING)
                                                 packedCount++
                                                 indicator.fraction = packedCount.toDouble() / totalFiles
                                                 indicator.text = "Packing $packedCount / $totalFiles"
                                                 indicator.text2 = file.fileName.toString()
-                                                return java.nio.file.FileVisitResult.CONTINUE
+                                                return FileVisitResult.CONTINUE
                                             }
                                         })
                                     } else {
                                         val zipEntry = zipFs.getPath(source.fileName.toString())
-                                        java.nio.file.Files.copy(source, zipEntry, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                                        Files.copy(source, zipEntry, StandardCopyOption.REPLACE_EXISTING)
                                         packedCount++
                                         indicator.fraction = packedCount.toDouble() / totalFiles
                                         indicator.text = "Packing $packedCount / $totalFiles"
@@ -1819,12 +1844,10 @@ class FileTab(
                             indicator.isIndeterminate = false
                             indicator.fraction = 0.0
                             indicator.text = "Deleting source files..."
-                            var deletedCount = 0
 
                             fileOps.deleteFilesWithProgress(
                                 paths = sourcePaths,
                                 onProgress = { count, name ->
-                                    deletedCount = count
                                     indicator.fraction = count.toDouble() / totalFiles
                                     indicator.text = "Deleting $count / $totalFiles"
                                     indicator.text2 = name
@@ -2026,107 +2049,6 @@ class FileTab(
         }
     }
 
-    /**
-     * Wraps a cell value with directory/parent metadata so comparators can group
-     * directories before files without needing extra sort keys.
-     */
-    private data class DirAwareValue(val value: Any, val isDirectory: Boolean, val isParent: Boolean)
-
-    private class ParentPinningRowSorter(
-        private val fileModel: FileTableModel,
-    ) : javax.swing.table.TableRowSorter<FileTableModel>(fileModel) {
-        /**
-         * Model wrapper that enriches cell values with directory metadata.
-         * The row sorter uses this wrapper internally; the table renderer still
-         * reads from the real model, so display is unaffected.
-         */
-        private inner class DirAwareModelWrapper(
-            private val tableModel: FileTableModel,
-        ) : ModelWrapper<FileTableModel, Int>() {
-            override fun getModel(): FileTableModel = tableModel
-            override fun getColumnCount(): Int = tableModel.columnCount
-            override fun getRowCount(): Int = tableModel.rowCount
-            override fun getIdentifier(row: Int): Int = row
-            override fun getValueAt(row: Int, column: Int): Any {
-                val value = tableModel.getValueAt(row, column)
-                val entry = tableModel.getEntryAt(row)
-                return DirAwareValue(value, entry?.isDirectory == true, entry?.isParentLink == true)
-            }
-            override fun getStringValueAt(row: Int, column: Int): String {
-                return tableModel.getValueAt(row, column)?.toString() ?: ""
-            }
-        }
-
-        init {
-            setModelWrapper(DirAwareModelWrapper(fileModel))
-            for (col in 0 until fileModel.columnCount) {
-                setComparator(col, ParentFirstComparator(this, col))
-            }
-        }
-
-        override fun setSortKeys(keys: MutableList<out javax.swing.RowSorter.SortKey>?) {
-            if (keys.isNullOrEmpty()) {
-                super.setSortKeys(keys)
-                return
-            }
-            val primary = keys[0]
-            if (primary.column == FileTableModel.COL_NAME) {
-                super.setSortKeys(mutableListOf(primary))
-                return
-            }
-            // Always use name ascending as secondary for stable ordering
-            val combined = mutableListOf(primary,
-                javax.swing.RowSorter.SortKey(FileTableModel.COL_NAME, javax.swing.SortOrder.ASCENDING))
-            super.setSortKeys(combined)
-        }
-    }
-
-    private class ParentFirstComparator(
-        private val sorter: ParentPinningRowSorter,
-        private val column: Int,
-    ) : Comparator<Any> {
-        override fun compare(o1: Any?, o2: Any?): Int {
-            val dav1 = o1 as? DirAwareValue ?: return 0
-            val dav2 = o2 as? DirAwareValue ?: return 0
-
-            // Parent ".." always sorts first.
-            // TableRowSorter negates the result for DESC, so we counter that.
-            if (dav1.isParent || dav2.isParent) {
-                if (dav1.isParent && dav2.isParent) return 0
-                val parentFirst = if (dav1.isParent) -1 else 1
-                return if (isDescending()) -parentFirst else parentFirst
-            }
-
-            // Group directories before files when the setting is off.
-            // Same DESC counter-reversal to keep dirs on top.
-            if (!TurtleCommanderSettings.getInstance().state.sortWithDirectories) {
-                if (dav1.isDirectory != dav2.isDirectory) {
-                    val dirFirst = if (dav1.isDirectory) -1 else 1
-                    return if (isDescending()) -dirFirst else dirFirst
-                }
-            }
-
-            val v1 = dav1.value
-            val v2 = dav2.value
-
-            if (column == FileTableModel.COL_SIZE || column == FileTableModel.COL_DATE) {
-                val l1 = (v1 as? Long) ?: 0L
-                val l2 = (v2 as? Long) ?: 0L
-                return l1.compareTo(l2)
-            }
-
-            val s1 = v1.toString()
-            val s2 = v2.toString()
-            return s1.compareTo(s2, ignoreCase = true)
-        }
-
-        private fun isDescending(): Boolean {
-            val keys = sorter.sortKeys
-            val key = keys.firstOrNull { it.column == column } ?: return false
-            return key.sortOrder == javax.swing.SortOrder.DESCENDING
-        }
-    }
-
     fun openInSystemExplorer(entry: FileEntry) {
         val path = if (entry.isDirectory) entry.path else entry.path.parent ?: return
         val os = System.getProperty("os.name").lowercase()
@@ -2156,11 +2078,11 @@ class FileTab(
                             entry.path
                         } else {
                             val tempDir = withContext(Dispatchers.IO) {
-                                java.nio.file.Files.createTempDirectory("turtle-vfs-view-")
+                                Files.createTempDirectory("turtle-vfs-view-")
                             }
                             val tempPath = tempDir.resolve(entry.path.fileName.toString())
                             withContext(Dispatchers.IO) {
-                                java.nio.file.Files.copy(entry.path, tempPath)
+                                Files.copy(entry.path, tempPath)
                             }
                             tempPath
                         }
@@ -2183,7 +2105,7 @@ class FileTab(
                     val relativePath = entry.path.toString().replace("\\", "/").removePrefix("/")
                     val jarUrl = vfs.archivePath.toString() + "!/" + relativePath
                     val jarVfs = withContext(Dispatchers.IO) {
-                        com.intellij.openapi.vfs.JarFileSystem.getInstance()
+                        JarFileSystem.getInstance()
                     }
                     val virtualFile = withContext(Dispatchers.IO) {
                         val vf = jarVfs.findFileByPath(jarUrl)
