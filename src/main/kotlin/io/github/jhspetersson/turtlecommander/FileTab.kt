@@ -26,6 +26,7 @@ import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
+import com.intellij.ui.treeStructure.Tree
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -97,7 +98,7 @@ class FileTab(
     val list = JBList(listModel)
     private val treeRootNode = DefaultMutableTreeNode()
     private val treeModel = DefaultTreeModel(treeRootNode)
-    val tree = JTree(treeModel)
+    val tree = Tree(treeModel)
     private val viewCardLayout = CardLayout()
     private val viewPanel = JPanel(viewCardLayout)
     var viewMode: ViewMode = try {
