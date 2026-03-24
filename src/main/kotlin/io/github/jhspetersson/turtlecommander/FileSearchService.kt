@@ -68,7 +68,7 @@ class FileSearchService(
                 return FileVisitResult.CONTINUE
             }
 
-            override fun visitFileFailed(file: Path, exc: IOException?): FileVisitResult {
+            override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
                 if (isCancelled()) return FileVisitResult.TERMINATE
                 return FileVisitResult.CONTINUE
             }
