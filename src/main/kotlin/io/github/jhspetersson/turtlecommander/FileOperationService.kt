@@ -9,15 +9,15 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 import java.nio.file.CopyOption
 import java.nio.file.FileVisitResult
 import java.nio.file.Files
+import java.nio.file.Files.walkFileTree
 import java.nio.file.Path
 import java.nio.file.SimpleFileVisitor
 import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.BasicFileAttributes
-import java.nio.file.attribute.DosFileAttributes
-import java.nio.file.attribute.PosixFilePermissions
 import kotlin.io.path.exists
 import kotlin.io.path.isDirectory
 import kotlin.io.path.name
@@ -92,29 +92,6 @@ class FileOperationService(
         }
 
         result
-    }
-
-    enum class OverwriteResponse { YES, NO, YES_TO_ALL, NO_TO_ALL }
-
-    suspend fun countFiles(sources: List<Path>): Int = withContext(Dispatchers.IO) {
-        var count = 0
-        for (source in sources) {
-            if (source.isDirectory()) {
-                Files.walkFileTree(source, object : SimpleFileVisitor<Path>() {
-                    override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
-                        count++
-                        return FileVisitResult.CONTINUE
-                    }
-                    override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
-                        count++
-                        return FileVisitResult.CONTINUE
-                    }
-                })
-            } else {
-                count++
-            }
-        }
-        count
     }
 
     suspend fun copyFilesWithProgress(
@@ -257,23 +234,6 @@ class FileOperationService(
         return copiedCount
     }
 
-    @Suppress("unused")
-    suspend fun copyFiles(sources: List<Path>, destination: Path): Unit = withContext(Dispatchers.IO) {
-        for (source in sources) {
-            try {
-                val target = destination.resolve(source.name)
-                if (source.isDirectory()) {
-                    copyDirectoryRecursive(source, target)
-                } else {
-                    Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING)
-                }
-            } catch (e: Exception) {
-                thisLogger().warn("Failed to copy $source to $destination: ${e.message}")
-                throw e
-            }
-        }
-    }
-
     suspend fun moveFilesWithProgress(
         sources: List<Path>,
         destination: Path,
@@ -327,19 +287,6 @@ class FileOperationService(
         }
     }
 
-    @Suppress("unused")
-    suspend fun moveFiles(sources: List<Path>, destination: Path): Unit = withContext(Dispatchers.IO) {
-        for (source in sources) {
-            try {
-                val target = destination.resolve(source.name)
-                Files.move(source, target, StandardCopyOption.REPLACE_EXISTING)
-            } catch (e: Exception) {
-                thisLogger().warn("Failed to move $source to $destination: ${e.message}")
-                throw e
-            }
-        }
-    }
-
     suspend fun deleteFilesWithProgress(
         paths: List<Path>,
         onProgress: suspend (deletedCount: Int, currentFile: String) -> Unit,
@@ -354,12 +301,12 @@ class FileOperationService(
                 if (path.isDirectory()) {
                     // Collect the file tree first to avoid runBlocking inside walkFileTree callbacks
                     val entries = mutableListOf<Path>()
-                    Files.walkFileTree(path, object : SimpleFileVisitor<Path>() {
+                    walkFileTree(path, object : SimpleFileVisitor<Path>() {
                         override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                             entries.add(file)
                             return FileVisitResult.CONTINUE
                         }
-                        override fun postVisitDirectory(dir: Path, exc: java.io.IOException?): FileVisitResult {
+                        override fun postVisitDirectory(dir: Path, exc: IOException?): FileVisitResult {
                             entries.add(dir)
                             return FileVisitResult.CONTINUE
                         }
@@ -388,22 +335,6 @@ class FileOperationService(
             } catch (e: Exception) {
                 thisLogger().warn("Failed to process $path: ${e.message}")
                 onError(path, e)
-            }
-        }
-    }
-
-    @Suppress("unused")
-    suspend fun deleteFiles(paths: List<Path>): Unit = withContext(Dispatchers.IO) {
-        for (path in paths) {
-            try {
-                if (path.isDirectory()) {
-                    deleteDirectoryRecursive(path)
-                } else {
-                    Files.deleteIfExists(path)
-                }
-            } catch (e: Exception) {
-                thisLogger().warn("Failed to delete $path: ${e.message}")
-                throw e
             }
         }
     }
@@ -456,7 +387,7 @@ class FileOperationService(
     private fun readPermissions(path: Path): String = readFilePermissions(path, isWindows)
 
     private fun copyDirectoryRecursive(source: Path, target: Path) {
-        Files.walkFileTree(source, object : SimpleFileVisitor<Path>() {
+        walkFileTree(source, object : SimpleFileVisitor<Path>() {
             override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
                 val relativePath = source.relativize(dir).toString()
                 val targetDir = if (relativePath.isEmpty()) target else target.resolve(relativePath)
@@ -528,114 +459,14 @@ class FileOperationService(
         }
     }
 
-    suspend fun countArchiveEntries(archivePath: Path): Int = withContext(Dispatchers.IO) {
-        var count = 0
-        try {
-            VirtualFileSystemRegistry.create(archivePath).use { vfs ->
-                val root = vfs.root
-                Files.walkFileTree(root, object : SimpleFileVisitor<Path>() {
-                    override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
-                        count++
-                        return FileVisitResult.CONTINUE
-                    }
-
-                    override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
-                        if (dir != root) count++
-                        return FileVisitResult.CONTINUE
-                    }
-                })
-            }
-        } catch (_: Exception) {
-        }
-        count
-    }
-
-    suspend fun extractArchiveWithProgress(
-        archivePath: Path,
-        destination: Path,
-        overwriteAll: Boolean,
-        onProgress: suspend (extractedCount: Int, currentFile: String) -> Unit,
-        onOverwriteConfirm: suspend (path: Path) -> OverwriteResponse,
-        onError: suspend (path: Path, error: Exception) -> Unit,
-        isCancelled: () -> Boolean,
-    ): Unit = withContext(Dispatchers.IO) {
-        var extractedCount = 0
-        var autoOverwrite = overwriteAll
-        var autoSkip = false
-
-        try {
-            VirtualFileSystemRegistry.create(archivePath).use { vfs ->
-                val root = vfs.root
-                // Collect entries first to avoid runBlocking inside walkFileTree callbacks
-                data class VfsEntry(val sourcePath: Path, val relativePath: String, val isDirectory: Boolean)
-                val entries = mutableListOf<VfsEntry>()
-                Files.walkFileTree(root, object : SimpleFileVisitor<Path>() {
-                    override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
-                        if (dir != root) {
-                            entries.add(VfsEntry(dir, root.relativize(dir).toString(), true))
-                        }
-                        return FileVisitResult.CONTINUE
-                    }
-                    override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
-                        entries.add(VfsEntry(file, root.relativize(file).toString(), false))
-                        return FileVisitResult.CONTINUE
-                    }
-                })
-                for (entry in entries) {
-                    if (isCancelled()) break
-                    if (entry.isDirectory) {
-                        val targetDir = destination.resolve(entry.relativePath)
-                        try {
-                            Files.createDirectories(targetDir)
-                        } catch (e: Exception) {
-                            onError(targetDir, e)
-                        }
-                    } else {
-                        val targetFile = destination.resolve(entry.relativePath)
-                        try {
-                            Files.createDirectories(targetFile.parent)
-                            if (Files.exists(targetFile)) {
-                                if (autoOverwrite) {
-                                    Files.copy(entry.sourcePath, targetFile, StandardCopyOption.REPLACE_EXISTING)
-                                } else if (!autoSkip) {
-                                    val response = onOverwriteConfirm(targetFile)
-                                    when (response) {
-                                        OverwriteResponse.YES -> Files.copy(entry.sourcePath, targetFile, StandardCopyOption.REPLACE_EXISTING)
-                                        OverwriteResponse.NO -> {}
-                                        OverwriteResponse.YES_TO_ALL -> {
-                                            autoOverwrite = true
-                                            Files.copy(entry.sourcePath, targetFile, StandardCopyOption.REPLACE_EXISTING)
-                                        }
-                                        OverwriteResponse.NO_TO_ALL -> {
-                                            autoSkip = true
-                                        }
-                                    }
-                                }
-                            } else {
-                                Files.copy(entry.sourcePath, targetFile)
-                            }
-                        } catch (e: Exception) {
-                            onError(targetFile, e)
-                        }
-                    }
-                    extractedCount++
-                    onProgress(extractedCount, entry.relativePath)
-                }
-            }
-        } catch (e: Exception) {
-            thisLogger().warn("Failed to extract archive $archivePath: ${e.message}")
-            onError(archivePath, e)
-        }
-    }
-
     private fun deleteDirectoryRecursive(path: Path) {
-        Files.walkFileTree(path, object : SimpleFileVisitor<Path>() {
+        walkFileTree(path, object : SimpleFileVisitor<Path>() {
             override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                 Files.delete(file)
                 return FileVisitResult.CONTINUE
             }
 
-            override fun postVisitDirectory(dir: Path, exc: java.io.IOException?): FileVisitResult {
+            override fun postVisitDirectory(dir: Path, exc: IOException?): FileVisitResult {
                 Files.delete(dir)
                 return FileVisitResult.CONTINUE
             }
@@ -643,21 +474,3 @@ class FileOperationService(
     }
 }
 
-internal fun readFilePermissions(path: Path, isWindows: Boolean): String {
-    return try {
-        if (isWindows) {
-            val attrs = Files.readAttributes(path, DosFileAttributes::class.java)
-            buildString {
-                if (attrs.isReadOnly) append('R')
-                if (attrs.isHidden) append('H')
-                if (attrs.isSystem) append('S')
-                if (attrs.isArchive) append('A')
-            }
-        } else {
-            val perms = Files.getPosixFilePermissions(path)
-            PosixFilePermissions.toString(perms)
-        }
-    } catch (_: Exception) {
-        ""
-    }
-}

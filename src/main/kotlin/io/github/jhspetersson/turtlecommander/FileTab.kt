@@ -1107,7 +1107,7 @@ class FileTab(
     fun refresh() {
         val vfs = currentVfs
         if (vfs != null) {
-            val relativePath = currentPath.toString()
+            val relativePath = vfsRelativePath(vfs, currentPath)
             vfs.flush()
             fileOps.launch { navigateTo(vfs.getPath(relativePath)) }
         } else {
@@ -1118,11 +1118,21 @@ class FileTab(
     private suspend fun refreshAfterVfsChange(selectName: String? = null) {
         val vfs = currentVfs
         if (vfs != null) {
-            val relativePath = currentPath.toString()
+            val relativePath = vfsRelativePath(vfs, currentPath)
             vfs.flush()
             navigateTo(vfs.getPath(relativePath), selectName = selectName)
         } else {
             navigateTo(currentPath, selectName = selectName)
+        }
+    }
+
+    private fun vfsRelativePath(vfs: VirtualFileSystem, path: Path): String {
+        val rootStr = vfs.root.toString().trimEnd('/')
+        val pathStr = path.toString()
+        return if (pathStr.startsWith(rootStr)) {
+            pathStr.removePrefix(rootStr).removePrefix("/")
+        } else {
+            pathStr
         }
     }
 
@@ -1474,7 +1484,7 @@ class FileTab(
                 indicator.text = "Counting files..."
 
                 runBlocking {
-                    val totalFiles = fileOps.countFiles(sourcePaths)
+                    val totalFiles = countFiles(sourcePaths)
                     indicator.isIndeterminate = false
 
                     fileOps.copyFilesWithProgress(
@@ -1497,11 +1507,11 @@ class FileTab(
                                     Messages.getQuestionIcon(),
                                 )
                                 when (result) {
-                                    0 -> FileOperationService.OverwriteResponse.YES
-                                    1 -> FileOperationService.OverwriteResponse.NO
-                                    2 -> FileOperationService.OverwriteResponse.YES_TO_ALL
-                                    3 -> FileOperationService.OverwriteResponse.NO_TO_ALL
-                                    else -> FileOperationService.OverwriteResponse.NO
+                                    0 -> OverwriteResponse.YES
+                                    1 -> OverwriteResponse.NO
+                                    2 -> OverwriteResponse.YES_TO_ALL
+                                    3 -> OverwriteResponse.NO_TO_ALL
+                                    else -> OverwriteResponse.NO
                                 }
                             }
                         },
@@ -1536,7 +1546,7 @@ class FileTab(
                 indicator.text = "Counting files..."
 
                 runBlocking {
-                    val totalFiles = fileOps.countFiles(sourcePaths)
+                    val totalFiles = countFiles(sourcePaths)
                     indicator.isIndeterminate = false
 
                     fileOps.moveFilesWithProgress(
@@ -1559,11 +1569,11 @@ class FileTab(
                                     Messages.getQuestionIcon(),
                                 )
                                 when (result) {
-                                    0 -> FileOperationService.OverwriteResponse.YES
-                                    1 -> FileOperationService.OverwriteResponse.NO
-                                    2 -> FileOperationService.OverwriteResponse.YES_TO_ALL
-                                    3 -> FileOperationService.OverwriteResponse.NO_TO_ALL
-                                    else -> FileOperationService.OverwriteResponse.NO
+                                    0 -> OverwriteResponse.YES
+                                    1 -> OverwriteResponse.NO
+                                    2 -> OverwriteResponse.YES_TO_ALL
+                                    3 -> OverwriteResponse.NO_TO_ALL
+                                    else -> OverwriteResponse.NO
                                 }
                             }
                         },
@@ -1596,7 +1606,7 @@ class FileTab(
                 indicator.text = "Counting files..."
 
                 runBlocking {
-                    val totalFiles = fileOps.countFiles(sourcePaths)
+                    val totalFiles = countFiles(sourcePaths)
                     indicator.isIndeterminate = false
 
                     fileOps.moveFilesWithProgress(
@@ -1619,11 +1629,11 @@ class FileTab(
                                     Messages.getQuestionIcon(),
                                 )
                                 when (result) {
-                                    0 -> FileOperationService.OverwriteResponse.YES
-                                    1 -> FileOperationService.OverwriteResponse.NO
-                                    2 -> FileOperationService.OverwriteResponse.YES_TO_ALL
-                                    3 -> FileOperationService.OverwriteResponse.NO_TO_ALL
-                                    else -> FileOperationService.OverwriteResponse.NO
+                                    0 -> OverwriteResponse.YES
+                                    1 -> OverwriteResponse.NO
+                                    2 -> OverwriteResponse.YES_TO_ALL
+                                    3 -> OverwriteResponse.NO_TO_ALL
+                                    else -> OverwriteResponse.NO
                                 }
                             }
                         },
@@ -1656,7 +1666,7 @@ class FileTab(
                 indicator.text = "Counting files..."
 
                 runBlocking {
-                    val totalFiles = fileOps.countFiles(sourcePaths)
+                    val totalFiles = countFiles(sourcePaths)
                     indicator.isIndeterminate = false
 
                     fileOps.deleteFilesWithProgress(
@@ -1747,6 +1757,7 @@ class FileTab(
         if (archivePath.parent == null) {
             archivePath = currentPath.resolve(archivePath)
         }
+        val format = packDialog.archiveFormat
         val deleteAfterPacking = packDialog.deleteAfterPacking
         val sourcePaths = selected.map { it.path }
 
@@ -1754,20 +1765,34 @@ class FileTab(
         var appendToExisting = false
 
         if (archiveExists) {
+            val options = if (format == ArchiveFormat.ZIP) {
+                arrayOf("Overwrite", "Add to Existing", "Cancel")
+            } else {
+                arrayOf("Overwrite", "Cancel")
+            }
             val result = Messages.showDialog(
                 project,
                 "Archive already exists:\n${archivePath.fileName}\n\nWhat would you like to do?",
                 "Archive Exists",
-                arrayOf("Overwrite", "Add to Existing", "Cancel"),
+                options,
                 0,
                 Messages.getQuestionIcon(),
             )
-            when (result) {
-                0 -> {} // overwrite - will delete and recreate
-                1 -> appendToExisting = true
-                else -> return
+            if (format == ArchiveFormat.ZIP) {
+                when (result) {
+                    0 -> {} // overwrite
+                    1 -> appendToExisting = true
+                    else -> return
+                }
+            } else {
+                when (result) {
+                    0 -> {} // overwrite
+                    else -> return
+                }
             }
         }
+
+        val archiveService = project.service<ArchiveService>()
 
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Packing files", true) {
             override fun run(indicator: ProgressIndicator) {
@@ -1775,65 +1800,29 @@ class FileTab(
                 indicator.text = "Counting files..."
 
                 runBlocking {
-                    val totalFiles = fileOps.countFiles(sourcePaths)
+                    val totalFiles = countFiles(sourcePaths)
                     indicator.isIndeterminate = false
-                    var packedCount = 0
 
                     try {
-                        val env = mutableMapOf<String, String>()
-                        if (!appendToExisting && !archiveExists) {
-                            env["create"] = "true"
-                        }
-                        if (!appendToExisting && archiveExists) {
-                            withContext(Dispatchers.IO) {
-                                Files.delete(archivePath)
-                            }
-                            env["create"] = "true"
-                        }
-
-                        val uri = java.net.URI.create("jar:" + archivePath.toUri())
-                        withContext(Dispatchers.IO) {
-                            FileSystems.newFileSystem(uri, env).use { zipFs ->
-                                for (source in sourcePaths) {
-                                    if (indicator.isCanceled) break
-                                    if (source.toFile().isDirectory) {
-                                        Files.walkFileTree(source, object : SimpleFileVisitor<Path>() {
-                                            override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
-                                                if (indicator.isCanceled) return FileVisitResult.TERMINATE
-                                                val relativePath = source.parent.relativize(dir).toString().replace("\\", "/")
-                                                val zipDir = zipFs.getPath(relativePath)
-                                                try {
-                                                    Files.createDirectories(zipDir)
-                                                } catch (_: FileAlreadyExistsException) {}
-                                                packedCount++
-                                                indicator.fraction = packedCount.toDouble() / totalFiles
-                                                indicator.text = "Packing $packedCount / $totalFiles"
-                                                indicator.text2 = dir.fileName.toString()
-                                                return FileVisitResult.CONTINUE
-                                            }
-
-                                            override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
-                                                if (indicator.isCanceled) return FileVisitResult.TERMINATE
-                                                val relativePath = source.parent.relativize(file).toString().replace("\\", "/")
-                                                val zipEntry = zipFs.getPath(relativePath)
-                                                Files.copy(file, zipEntry, StandardCopyOption.REPLACE_EXISTING)
-                                                packedCount++
-                                                indicator.fraction = packedCount.toDouble() / totalFiles
-                                                indicator.text = "Packing $packedCount / $totalFiles"
-                                                indicator.text2 = file.fileName.toString()
-                                                return FileVisitResult.CONTINUE
-                                            }
-                                        })
-                                    } else {
-                                        val zipEntry = zipFs.getPath(source.fileName.toString())
-                                        Files.copy(source, zipEntry, StandardCopyOption.REPLACE_EXISTING)
-                                        packedCount++
-                                        indicator.fraction = packedCount.toDouble() / totalFiles
-                                        indicator.text = "Packing $packedCount / $totalFiles"
-                                        indicator.text2 = source.fileName.toString()
-                                    }
-                                }
-                            }
+                        when (format) {
+                            ArchiveFormat.ZIP -> archiveService.packZip(
+                                archivePath, sourcePaths, appendToExisting, archiveExists,
+                                onProgress = { count, name ->
+                                    indicator.fraction = count.toDouble() / totalFiles
+                                    indicator.text = "Packing $count / $totalFiles"
+                                    indicator.text2 = name
+                                },
+                                isCancelled = { indicator.isCanceled },
+                            )
+                            ArchiveFormat.TAR_GZ -> archiveService.packTarGz(
+                                archivePath, sourcePaths,
+                                onProgress = { count, name ->
+                                    indicator.fraction = count.toDouble() / totalFiles
+                                    indicator.text = "Packing $count / $totalFiles"
+                                    indicator.text2 = name
+                                },
+                                isCancelled = { indicator.isCanceled },
+                            )
                         }
 
                         if (!indicator.isCanceled && deleteAfterPacking) {
@@ -1910,6 +1899,8 @@ class FileTab(
     }
 
     private fun extractArchives(archivePaths: List<Path>, destination: Path, overwriteAll: Boolean) {
+        val archiveService = project.service<ArchiveService>()
+
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Extracting files", true) {
             override fun run(indicator: ProgressIndicator) {
                 runBlocking {
@@ -1919,10 +1910,10 @@ class FileTab(
                         indicator.isIndeterminate = true
                         indicator.text = "Counting entries in ${archivePath.fileName}..."
 
-                        val totalEntries = fileOps.countArchiveEntries(archivePath)
+                        val totalEntries = archiveService.countArchiveEntries(archivePath)
                         indicator.isIndeterminate = false
 
-                        fileOps.extractArchiveWithProgress(
+                        archiveService.extractArchiveWithProgress(
                             archivePath = archivePath,
                             destination = destination,
                             overwriteAll = overwriteAll,
@@ -1942,11 +1933,11 @@ class FileTab(
                                         Messages.getQuestionIcon(),
                                     )
                                     when (result) {
-                                        0 -> FileOperationService.OverwriteResponse.YES
-                                        1 -> FileOperationService.OverwriteResponse.NO
-                                        2 -> FileOperationService.OverwriteResponse.YES_TO_ALL
-                                        3 -> FileOperationService.OverwriteResponse.NO_TO_ALL
-                                        else -> FileOperationService.OverwriteResponse.NO
+                                        0 -> OverwriteResponse.YES
+                                        1 -> OverwriteResponse.NO
+                                        2 -> OverwriteResponse.YES_TO_ALL
+                                        3 -> OverwriteResponse.NO_TO_ALL
+                                        else -> OverwriteResponse.NO
                                     }
                                 }
                             },
@@ -1996,17 +1987,7 @@ class FileTab(
             }
             val modelRow = table.convertRowIndexToModel(row)
             val entry = tableModel.getEntryAt(modelRow)
-            icon = when {
-                entry == null -> null
-                entry.isParentLink -> AllIcons.Nodes.UpLevel
-                entry.isDirectory -> if (enableFileNameHighlighting) {
-                    DirectoryIcons.getIcon(entry.directoryType)
-                } else {
-                    AllIcons.Nodes.Folder
-                }
-                else -> FileTypeManager.getInstance().getFileTypeByFileName(entry.name).icon
-                    ?: AllIcons.FileTypes.Any_type
-            }
+            icon = if (entry != null) fileEntryIcon(entry, enableFileNameHighlighting) else null
             if (isSelected && !table.hasFocus()) {
                 foreground = inactiveSelectionForeground()
             } else if (!isSelected) {
@@ -2271,16 +2252,7 @@ class FileTab(
             super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
             val entry = value as? FileEntry ?: return this
             text = entry.name
-            icon = when {
-                entry.isParentLink -> AllIcons.Nodes.UpLevel
-                entry.isDirectory -> if (enableFileNameHighlighting) {
-                    DirectoryIcons.getIcon(entry.directoryType)
-                } else {
-                    AllIcons.Nodes.Folder
-                }
-                else -> FileTypeManager.getInstance().getFileTypeByFileName(entry.name).icon
-                    ?: AllIcons.FileTypes.Any_type
-            }
+            icon = fileEntryIcon(entry, enableFileNameHighlighting)
             if (!isSelected && enableFileNameHighlighting && entry.isDirectory && entry.directoryType != DirectoryType.NONE) {
                 foreground = DirectoryIcons.getColor(entry.directoryType)
             }
@@ -2307,16 +2279,7 @@ class FileTab(
             val entry = node.userObject as? FileEntry
             if (entry != null) {
                 text = entry.name
-                icon = when {
-                    entry.isParentLink -> AllIcons.Nodes.UpLevel
-                    entry.isDirectory -> if (enableFileNameHighlighting) {
-                        DirectoryIcons.getIcon(entry.directoryType)
-                    } else {
-                        AllIcons.Nodes.Folder
-                    }
-                    else -> FileTypeManager.getInstance().getFileTypeByFileName(entry.name).icon
-                        ?: AllIcons.FileTypes.Any_type
-                }
+                icon = fileEntryIcon(entry, enableFileNameHighlighting)
                 if (!sel && enableFileNameHighlighting && entry.isDirectory && entry.directoryType != DirectoryType.NONE) {
                     foreground = DirectoryIcons.getColor(entry.directoryType)
                 }
@@ -2339,6 +2302,20 @@ class FileTab(
 fun isArchiveFile(entry: FileEntry): Boolean {
     if (entry.isDirectory) return false
     return VirtualFileSystemRegistry.supportsByExtension(entry.name)
+}
+
+fun fileEntryIcon(entry: FileEntry, enableFileNameHighlighting: Boolean): javax.swing.Icon? {
+    return when {
+        entry.isParentLink -> AllIcons.Nodes.UpLevel
+        entry.isDirectory -> if (enableFileNameHighlighting) {
+            DirectoryIcons.getIcon(entry.directoryType)
+        } else {
+            AllIcons.Nodes.Folder
+        }
+        isArchiveFile(entry) -> AllIcons.FileTypes.Archive
+        else -> FileTypeManager.getInstance().getFileTypeByFileName(entry.name).icon
+            ?: AllIcons.FileTypes.Any_type
+    }
 }
 
 enum class ViewMode { TABLE, LIST, TREE }

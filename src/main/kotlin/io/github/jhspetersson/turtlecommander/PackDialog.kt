@@ -1,17 +1,25 @@
 package io.github.jhspetersson.turtlecommander
 
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
+import java.awt.BorderLayout
 import java.awt.Dimension
 import javax.swing.BorderFactory
 import javax.swing.BoxLayout
+import javax.swing.DefaultComboBoxModel
 import javax.swing.JCheckBox
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.JScrollPane
 import javax.swing.JTextArea
+
+enum class ArchiveFormat(val extension: String, val label: String) {
+    ZIP(".zip", ".zip"),
+    TAR_GZ(".tar.gz", ".tar.gz"),
+}
 
 class PackDialog(
     project: Project,
@@ -19,16 +27,46 @@ class PackDialog(
     defaultArchivePath: String,
 ) : DialogWrapper(project) {
 
-    val archivePath: String get() = archiveField.text.trim()
+    val archivePath: String get() {
+        val path = archiveField.text.trim()
+        val selectedFormat = formatCombo.selectedItem as? ArchiveFormat ?: ArchiveFormat.ZIP
+        // Replace extension if user hasn't manually changed it
+        for (fmt in ArchiveFormat.entries) {
+            if (path.endsWith(fmt.extension)) {
+                return path.removeSuffix(fmt.extension) + selectedFormat.extension
+            }
+        }
+        return path
+    }
+    val archiveFormat: ArchiveFormat get() = formatCombo.selectedItem as? ArchiveFormat ?: ArchiveFormat.ZIP
     val deleteAfterPacking: Boolean get() = deleteCheckBox.isSelected
 
     private val archiveField = JBTextField(defaultArchivePath)
+    private val formatCombo = ComboBox(DefaultComboBoxModel(ArchiveFormat.entries.toTypedArray())).apply {
+        selectedItem = ArchiveFormat.ZIP
+        renderer = javax.swing.DefaultListCellRenderer().let { renderer ->
+            javax.swing.ListCellRenderer { list, value, index, isSelected, cellHasFocus ->
+                renderer.getListCellRendererComponent(list, value?.label, index, isSelected, cellHasFocus)
+            }
+        }
+    }
     private val deleteCheckBox = JCheckBox("Delete files after packing", false)
 
     init {
         title = "Pack Files"
         setOKButtonText("Pack")
         init()
+
+        formatCombo.addActionListener {
+            val path = archiveField.text.trim()
+            val newFormat = formatCombo.selectedItem as? ArchiveFormat ?: return@addActionListener
+            for (fmt in ArchiveFormat.entries) {
+                if (path.endsWith(fmt.extension)) {
+                    archiveField.text = path.removeSuffix(fmt.extension) + newFormat.extension
+                    return@addActionListener
+                }
+            }
+        }
     }
 
     override fun createCenterPanel(): JComponent {
@@ -58,13 +96,14 @@ class PackDialog(
             })
         }
 
-        val fieldWrapper = JPanel(java.awt.BorderLayout()).apply {
+        val fieldPanel = JPanel(BorderLayout()).apply {
             alignmentX = JComponent.LEFT_ALIGNMENT
             border = BorderFactory.createEmptyBorder(8, 0, 8, 0)
-            add(archiveField, java.awt.BorderLayout.CENTER)
+            add(archiveField, BorderLayout.CENTER)
+            add(formatCombo, BorderLayout.EAST)
             maximumSize = Dimension(Int.MAX_VALUE, archiveField.preferredSize.height + 16)
         }
-        panel.add(fieldWrapper)
+        panel.add(fieldPanel)
 
         panel.add(deleteCheckBox.apply {
             alignmentX = JComponent.LEFT_ALIGNMENT
