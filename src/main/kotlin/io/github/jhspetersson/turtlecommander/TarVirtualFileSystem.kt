@@ -178,6 +178,7 @@ class TarVirtualFileSystem(
     }
 
     override fun flush() {
+        repackArchive()
         tempDir.toFile().deleteRecursively()
         tempDir = extractArchive()
     }

@@ -23,7 +23,17 @@
             id="io.github.jhspetersson.turtlecommander.settings"
             displayName="Turtle Commander"
         />
+        <projectService
+            serviceImplementation="io.github.jhspetersson.turtlecommander.VfsEditService"
+        />
     </extensions>
+
+    <projectListeners>
+        <listener
+            class="io.github.jhspetersson.turtlecommander.VfsEditFileListener"
+            topic="com.intellij.openapi.vfs.newvfs.BulkFileListener"
+        />
+    </projectListeners>
 
     <actions>
         <group id="TurtleCommander.Actions" text="Turtle Commander" popup="false">

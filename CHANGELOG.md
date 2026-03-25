@@ -13,6 +13,7 @@
 - Open in Terminal
 - Option to sort directories together with files
 - `.tar.gz` archives creation
+- edit files inside archives and even nested archives
 
 ### Changed
 

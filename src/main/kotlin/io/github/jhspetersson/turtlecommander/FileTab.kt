@@ -125,12 +125,6 @@ class FileTab(
     var currentPath: Path = initialPath
         private set
 
-    private data class VfsStackEntry(
-        val vfs: VirtualFileSystem,
-        val parentPath: Path,
-        val tempFile: java.io.File? = null,
-    )
-
     private val vfsStack = mutableListOf<VfsStackEntry>()
 
     var currentVfs: VirtualFileSystem?
@@ -1124,10 +1118,10 @@ class FileTab(
         val vfs = currentVfs
         if (vfs != null) {
             val relativePath = vfsRelativePath(vfs, currentPath)
-            vfs.flush()
-            val newPath = if (relativePath.isEmpty()) vfs.root else vfs.root.resolve(relativePath)
             fileOps.launch {
+                withContext(Dispatchers.IO) { vfs.flush() }
                 writeBackNestedArchives()
+                val newPath = if (relativePath.isEmpty()) vfs.root else vfs.root.resolve(relativePath)
                 navigateTo(newPath)
             }
         } else {
@@ -1160,15 +1154,15 @@ class FileTab(
             parentEntry.vfs.flush()
             // Reconstruct parentPath as a valid path in the reopened FileSystem
             val newParentPath = if (relPath.isEmpty()) parentEntry.vfs.root else parentEntry.vfs.root.resolve(relPath)
-            vfsStack[i] = entry.copy(parentPath = newParentPath)
+            entry.parentPath = newParentPath
         }
     }
 
     private fun vfsRelativePath(vfs: VirtualFileSystem, path: Path): String {
-        val rootStr = vfs.root.toString().trimEnd('/')
+        val rootStr = vfs.root.toString().trimEnd('/').trimEnd('\\')
         val pathStr = path.toString()
         return if (pathStr.startsWith(rootStr)) {
-            pathStr.removePrefix(rootStr).removePrefix("/")
+            pathStr.removePrefix(rootStr).removePrefix("/").removePrefix("\\")
         } else {
             pathStr
         }
@@ -1357,7 +1351,29 @@ class FileTab(
 
     fun openSelectedInAssociatedApp() {
         val entry = getSelectedEntry() ?: return
-        if (!entry.isParentLink && !entry.isDirectory) {
+        if (entry.isParentLink || entry.isDirectory) return
+        val vfs = currentVfs
+        if (vfs != null) {
+            // Inside VFS: extract to temp, then open with system app
+            val isZipVfs = vfs is ZipVirtualFileSystem
+            fileOps.launch {
+                try {
+                    val filePath = if (isZipVfs) {
+                        val tempDir = withContext(Dispatchers.IO) { Files.createTempDirectory("turtle-vfs-app-") }
+                        val tempPath = tempDir.resolve(entry.path.fileName.toString())
+                        withContext(Dispatchers.IO) { Files.copy(entry.path, tempPath) }
+                        tempPath
+                    } else {
+                        entry.path
+                    }
+                    withContext(Dispatchers.EDT) {
+                        java.awt.Desktop.getDesktop().open(filePath.toFile())
+                    }
+                } catch (e: Exception) {
+                    fileErrorNotification("Failed to open file: ${fileErrorMessage(e)}")
+                }
+            }
+        } else {
             try {
                 java.awt.Desktop.getDesktop().open(entry.path.toFile())
             } catch (e: Exception) {
@@ -1751,7 +1767,11 @@ class FileTab(
         fileOps.launch {
             try {
                 fileOps.createDirectory(currentPath, name)
-                navigateTo(currentPath, selectName = name)
+                if (currentVfs != null) {
+                    refreshAfterVfsChange(selectName = name)
+                } else {
+                    navigateTo(currentPath, selectName = name)
+                }
             } catch (e: Exception) {
                 fileErrorNotification("Create directory failed: ${fileErrorMessage(e)}")
             }
@@ -1772,16 +1792,21 @@ class FileTab(
                 val filePath = withContext(Dispatchers.IO) {
                     Files.createFile(currentPath.resolve(name))
                 }
-                navigateTo(currentPath, selectName = name)
-                val virtualFile = withContext(Dispatchers.IO) {
-                    val vf = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(filePath)
-                    vf?.fileType
-                    vf
+                if (currentVfs != null) {
+                    refreshAfterVfsChange(selectName = name)
+                } else {
+                    navigateTo(currentPath, selectName = name)
                 }
-                if (virtualFile != null) {
-                    withContext(Dispatchers.EDT) {
-                        OpenFileDescriptor(project, virtualFile).navigate(true)
-                    }
+                // Open the created file in editor
+                val entryPath = if (currentVfs != null) {
+                    // After refresh, resolve the file in the (potentially new) VFS path
+                    currentPath.resolve(name)
+                } else {
+                    filePath
+                }
+                val entry = FileEntry(name, entryPath, isDirectory = false, size = 0, lastModified = null, permissions = "")
+                withContext(Dispatchers.EDT) {
+                    openFile(entry)
                 }
             } catch (e: Exception) {
                 fileErrorNotification("Create file failed: ${fileErrorMessage(e)}")
@@ -2105,57 +2130,11 @@ class FileTab(
     private fun openFile(entry: FileEntry) {
         val vfs = currentVfs
         if (vfs != null) {
-            val isTempDirVfs = vfs !is ZipVirtualFileSystem
-            val useTempFileOpen = vfsStack.size > 1 || isTempDirVfs
-            if (useTempFileOpen) {
-                // Temp-dir-based VFS files are already on the real filesystem,
-                // nested VFS files need extraction to temp
-                fileOps.launch {
-                    try {
-                        val filePath = if (isTempDirVfs) {
-                            entry.path
-                        } else {
-                            val tempDir = withContext(Dispatchers.IO) {
-                                Files.createTempDirectory("turtle-vfs-view-")
-                            }
-                            val tempPath = tempDir.resolve(entry.path.fileName.toString())
-                            withContext(Dispatchers.IO) {
-                                Files.copy(entry.path, tempPath)
-                            }
-                            tempPath
-                        }
-                        val virtualFile = withContext(Dispatchers.IO) {
-                            val vf = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(filePath)
-                            vf?.fileType
-                            vf
-                        } ?: return@launch
-                        withContext(Dispatchers.EDT) {
-                            OpenFileDescriptor(project, virtualFile).navigate(true)
-                        }
-                    } catch (e: Exception) {
-                        fileErrorNotification("Failed to open file: ${fileErrorMessage(e)}")
-                    }
-                }
-                return
-            }
-            fileOps.launch {
-                try {
-                    val relativePath = entry.path.toString().replace("\\", "/").removePrefix("/")
-                    val jarUrl = vfs.archivePath.toString() + "!/" + relativePath
-                    val jarVfs = withContext(Dispatchers.IO) {
-                        JarFileSystem.getInstance()
-                    }
-                    val virtualFile = withContext(Dispatchers.IO) {
-                        val vf = jarVfs.findFileByPath(jarUrl)
-                        vf?.fileType
-                        vf
-                    } ?: return@launch
-                    withContext(Dispatchers.EDT) {
-                        OpenFileDescriptor(project, virtualFile).navigate(true)
-                    }
-                } catch (e: Exception) {
-                    fileErrorNotification("Failed to open file: ${fileErrorMessage(e)}")
-                }
+            if (vfs.isReadOnly) {
+                // Read-only VFS (gz/bz2 single-file): open via temp without write-back
+                openVfsFileReadOnly(entry)
+            } else {
+                openVfsFileEditable(entry)
             }
             return
         }
@@ -2167,6 +2146,84 @@ class FileTab(
             } ?: return@launch
             withContext(Dispatchers.EDT) {
                 OpenFileDescriptor(project, virtualFile).navigate(true)
+            }
+        }
+    }
+
+    private fun openVfsFileReadOnly(entry: FileEntry) {
+        val vfs = currentVfs ?: return
+        val isTempDirVfs = vfs !is ZipVirtualFileSystem
+        fileOps.launch {
+            try {
+                val filePath = if (isTempDirVfs) {
+                    entry.path
+                } else {
+                    val tempDir = withContext(Dispatchers.IO) {
+                        Files.createTempDirectory("turtle-vfs-view-")
+                    }
+                    val tempPath = tempDir.resolve(entry.path.fileName.toString())
+                    withContext(Dispatchers.IO) {
+                        Files.copy(entry.path, tempPath)
+                    }
+                    tempPath
+                }
+                val virtualFile = withContext(Dispatchers.IO) {
+                    val vf = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(filePath)
+                    vf?.fileType
+                    vf
+                } ?: return@launch
+                withContext(Dispatchers.EDT) {
+                    OpenFileDescriptor(project, virtualFile).navigate(true)
+                }
+            } catch (e: Exception) {
+                fileErrorNotification("Failed to open file: ${fileErrorMessage(e)}")
+            }
+        }
+    }
+
+    private fun openVfsFileEditable(entry: FileEntry) {
+        if (currentVfs == null) return
+        // Capture the VFS path where the file lives (for writing back after edit)
+        val vfsFilePath = entry.path
+        // Share the actual VfsStackEntry objects so writeBack updates are visible to FileTab
+        val stackRef = vfsStack.toMutableList()
+        fileOps.launch {
+            try {
+                // Extract to temp for editing
+                val tempDir = withContext(Dispatchers.IO) {
+                    Files.createTempDirectory("turtle-vfs-edit-")
+                }
+                val tempPath = tempDir.resolve(entry.path.fileName.toString())
+                withContext(Dispatchers.IO) {
+                    Files.copy(entry.path, tempPath)
+                }
+                val virtualFile = withContext(Dispatchers.IO) {
+                    val vf = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(tempPath)
+                    vf?.fileType
+                    vf
+                } ?: return@launch
+
+                // Track this temp file for write-back on save
+                val editService = project.service<VfsEditService>()
+                editService.trackEdit(VfsEditEntry(vfsFilePath, tempPath, stackRef,
+                    onBeforeFlush = {
+                        // Capture relative path of currentPath while VFS root is still valid
+                        val innerVfs = currentVfs ?: return@VfsEditEntry ""
+                        vfsRelativePath(innerVfs, currentPath)
+                    },
+                    onAfterFlush = { relPath ->
+                        // After flush, reconstruct currentPath from the new VFS root
+                        val innerVfs = currentVfs ?: return@VfsEditEntry
+                        val newPath = if (relPath.isEmpty()) innerVfs.root else innerVfs.root.resolve(relPath)
+                        fileOps.launch { navigateTo(newPath) }
+                    },
+                ))
+
+                withContext(Dispatchers.EDT) {
+                    OpenFileDescriptor(project, virtualFile).navigate(true)
+                }
+            } catch (e: Exception) {
+                fileErrorNotification("Failed to open file: ${fileErrorMessage(e)}")
             }
         }
     }
