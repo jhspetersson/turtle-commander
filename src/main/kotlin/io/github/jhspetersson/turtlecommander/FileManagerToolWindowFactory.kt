@@ -184,16 +184,23 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
 
         fun activePanel(): FileManagerPanel {
             val leftTab = leftPanel.getActiveTab()
-            val rightTab = rightPanel.getActiveTab()
             val leftFocused = leftTab?.table?.hasFocus() == true
             return if (leftFocused) leftPanel else rightPanel
         }
 
-        fun shortcutText(actionId: String): String {
+        fun getShortcut(actionId: String): com.intellij.openapi.actionSystem.KeyboardShortcut? {
             val am = ActionManager.getInstance()
-            val action = am.getAction(actionId) ?: return ""
-            val shortcut = action.shortcutSet.shortcuts.firstOrNull() as? com.intellij.openapi.actionSystem.KeyboardShortcut
-                ?: return ""
+            val action = am.getAction(actionId) ?: return null
+            return action.shortcutSet.shortcuts.firstOrNull() as? com.intellij.openapi.actionSystem.KeyboardShortcut
+        }
+
+        fun hasShiftModifier(actionId: String): Boolean {
+            val shortcut = getShortcut(actionId) ?: return false
+            return shortcut.firstKeyStroke.modifiers and java.awt.event.InputEvent.SHIFT_DOWN_MASK != 0
+        }
+
+        fun shortcutText(actionId: String): String {
+            val shortcut = getShortcut(actionId) ?: return ""
             return com.intellij.openapi.keymap.KeymapUtil.getKeystrokeText(shortcut.firstKeyStroke)
         }
 
@@ -206,6 +213,8 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
             Triple("TurtleCommander.MoveFiles", "Move") { activePanel().getActiveTab()?.performMove() },
             Triple("TurtleCommander.CreateDirectory", "Mkdir") { activePanel().getActiveTab()?.performCreateDirectory() },
             Triple("TurtleCommander.DeleteFiles", "Delete") { activePanel().getActiveTab()?.performDelete() },
+            Triple("TurtleCommander.CreateFile", "New File") { activePanel().getActiveTab()?.performCreateFile() },
+            Triple("TurtleCommander.Rename", "Rename") { activePanel().getActiveTab()?.startRename() },
         )
 
         val barButtons = buttonDefs.map { (actionId, label, action) ->
@@ -217,26 +226,40 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
             BarButton(actionId, label, button)
         }
 
-        fun updateButtonLabels() {
+        fun updateBar(shiftPressed: Boolean) {
             for (btn in barButtons) {
+                val isShift = hasShiftModifier(btn.actionId)
+                btn.button.isVisible = isShift == shiftPressed
                 val key = shortcutText(btn.actionId)
                 btn.button.text = if (key.isNotEmpty()) "$key ${btn.label}" else btn.label
             }
+            bar.revalidate()
+            bar.repaint()
         }
 
-        updateButtonLabels()
+        updateBar(false)
 
         ApplicationManager.getApplication().messageBus
             .connect()
             .subscribe(com.intellij.openapi.keymap.KeymapManagerListener.TOPIC, object : com.intellij.openapi.keymap.KeymapManagerListener {
                 override fun activeKeymapChanged(keymap: com.intellij.openapi.keymap.Keymap?) {
-                    updateButtonLabels()
+                    updateBar(false)
                 }
 
                 override fun shortcutsChanged(keymap: com.intellij.openapi.keymap.Keymap, actionIds: Collection<String>, fromSettings: Boolean) {
-                    updateButtonLabels()
+                    updateBar(false)
                 }
             })
+
+        java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher { e ->
+            if (bar.isShowing) {
+                when (e.id) {
+                    java.awt.event.KeyEvent.KEY_PRESSED -> if (e.keyCode == java.awt.event.KeyEvent.VK_SHIFT) updateBar(true)
+                    java.awt.event.KeyEvent.KEY_RELEASED -> if (e.keyCode == java.awt.event.KeyEvent.VK_SHIFT) updateBar(false)
+                }
+            }
+            false
+        }
 
         return bar
     }
