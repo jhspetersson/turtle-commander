@@ -1337,7 +1337,7 @@ class FileTab(
             try {
                 java.awt.Desktop.getDesktop().open(entry.path.toFile())
             } catch (e: Exception) {
-                fileErrorNotification("Failed to open file: ${e.message}")
+                fileErrorNotification("Failed to open file: ${fileErrorMessage(e)}")
             }
         }
     }
@@ -1437,12 +1437,12 @@ class FileTab(
                         vfsStack.add(VfsStackEntry(vfs, archivePath, tempFile))
                         navigateTo(vfs.root)
                     } catch (e: Exception) {
-                        fileErrorNotification("Cannot open nested archive: ${e.message}")
+                        fileErrorNotification("Cannot open nested archive: ${fileErrorMessage(e)}")
                     }
                 }
             }
         } catch (e: Exception) {
-            fileErrorNotification("Cannot open archive: ${e.message}")
+            fileErrorNotification("Cannot open archive: ${fileErrorMessage(e)}")
         }
     }
 
@@ -1530,7 +1530,7 @@ class FileTab(
                             }
                         },
                         onError = { path, error ->
-                            fileErrorNotification("Failed to copy ${path.fileName}: ${error.message}")
+                            fileErrorNotification("Failed to copy ${path.fileName}: ${fileErrorMessage(error)}")
                         },
                         isCancelled = { indicator.isCanceled },
                     )
@@ -1592,7 +1592,7 @@ class FileTab(
                             }
                         },
                         onError = { path, error ->
-                            fileErrorNotification("Failed to move ${path.fileName}: ${error.message}")
+                            fileErrorNotification("Failed to move ${path.fileName}: ${fileErrorMessage(error)}")
                         },
                         isCancelled = { indicator.isCanceled },
                     )
@@ -1652,7 +1652,7 @@ class FileTab(
                             }
                         },
                         onError = { path, error ->
-                            fileErrorNotification("Failed to move ${path.fileName}: ${error.message}")
+                            fileErrorNotification("Failed to move ${path.fileName}: ${fileErrorMessage(error)}")
                         },
                         isCancelled = { indicator.isCanceled },
                     )
@@ -1691,7 +1691,7 @@ class FileTab(
                             indicator.text2 = name
                         },
                         onError = { path, error ->
-                            fileErrorNotification("Failed to delete ${path.fileName}: ${error.message}")
+                            fileErrorNotification("Failed to delete ${path.fileName}: ${fileErrorMessage(error)}")
                         },
                         isCancelled = { indicator.isCanceled },
                     )
@@ -1716,7 +1716,7 @@ class FileTab(
                 fileOps.createDirectory(currentPath, name)
                 navigateTo(currentPath, selectName = name)
             } catch (e: Exception) {
-                fileErrorNotification("Create directory failed: ${e.message}")
+                fileErrorNotification("Create directory failed: ${fileErrorMessage(e)}")
             }
         }
     }
@@ -1747,7 +1747,7 @@ class FileTab(
                     }
                 }
             } catch (e: Exception) {
-                fileErrorNotification("Create file failed: ${e.message}")
+                fileErrorNotification("Create file failed: ${fileErrorMessage(e)}")
             }
         }
     }
@@ -1818,13 +1818,16 @@ class FileTab(
                     indicator.isIndeterminate = false
 
                     try {
-                        when (format) {
+                        val packedCount = when (format) {
                             ArchiveFormat.ZIP -> archiveService.packZip(
                                 archivePath, sourcePaths, appendToExisting, archiveExists,
                                 onProgress = { count, name ->
                                     indicator.fraction = count.toDouble() / totalFiles
                                     indicator.text = "Packing $count / $totalFiles"
                                     indicator.text2 = name
+                                },
+                                onError = { path, error ->
+                                    fileErrorNotification("Failed to pack ${path.fileName}: ${fileErrorMessage(error)}")
                                 },
                                 isCancelled = { indicator.isCanceled },
                             )
@@ -1835,11 +1838,18 @@ class FileTab(
                                     indicator.text = "Packing $count / $totalFiles"
                                     indicator.text2 = name
                                 },
+                                onError = { path, error ->
+                                    fileErrorNotification("Failed to pack ${path.fileName}: ${fileErrorMessage(error)}")
+                                },
                                 isCancelled = { indicator.isCanceled },
                             )
                         }
 
-                        if (!indicator.isCanceled && deleteAfterPacking) {
+                        if (packedCount == 0 && !appendToExisting) {
+                            withContext(Dispatchers.IO) { Files.deleteIfExists(archivePath) }
+                        }
+
+                        if (!indicator.isCanceled && packedCount > 0 && deleteAfterPacking) {
                             indicator.isIndeterminate = false
                             indicator.fraction = 0.0
                             indicator.text = "Deleting source files..."
@@ -1852,13 +1862,13 @@ class FileTab(
                                     indicator.text2 = name
                                 },
                                 onError = { path, error ->
-                                    fileErrorNotification("Failed to delete ${path.fileName}: ${error.message}")
+                                    fileErrorNotification("Failed to delete ${path.fileName}: ${fileErrorMessage(error)}")
                                 },
                                 isCancelled = { indicator.isCanceled },
                             )
                         }
                     } catch (e: Exception) {
-                        fileErrorNotification("Packing failed: ${e.message}")
+                        fileErrorNotification("Packing failed: ${fileErrorMessage(e)}")
                     }
 
                     val archiveFileName = archivePath.fileName.toString()
@@ -1956,7 +1966,7 @@ class FileTab(
                                 }
                             },
                             onError = { path, error ->
-                                fileErrorNotification("Failed to extract ${path.fileName}: ${error.message}")
+                                fileErrorNotification("Failed to extract ${path.fileName}: ${fileErrorMessage(error)}")
                             },
                             isCancelled = { indicator.isCanceled },
                         )
@@ -2051,7 +2061,7 @@ class FileTab(
         try {
             Runtime.getRuntime().exec(command)
         } catch (e: Exception) {
-            fileErrorNotification("Failed to open in explorer: ${e.message}")
+            fileErrorNotification("Failed to open in explorer: ${fileErrorMessage(e)}")
         }
     }
 
@@ -2086,7 +2096,7 @@ class FileTab(
                             OpenFileDescriptor(project, virtualFile).navigate(true)
                         }
                     } catch (e: Exception) {
-                        fileErrorNotification("Failed to open file: ${e.message}")
+                        fileErrorNotification("Failed to open file: ${fileErrorMessage(e)}")
                     }
                 }
                 return
@@ -2107,7 +2117,7 @@ class FileTab(
                         OpenFileDescriptor(project, virtualFile).navigate(true)
                     }
                 } catch (e: Exception) {
-                    fileErrorNotification("Failed to open file: ${e.message}")
+                    fileErrorNotification("Failed to open file: ${fileErrorMessage(e)}")
                 }
             }
             return
@@ -2158,7 +2168,7 @@ class FileTab(
                     navigateTo(currentPath, selectName = newName)
                 }
             } catch (e: Exception) {
-                fileErrorNotification("Rename failed: ${e.message}")
+                fileErrorNotification("Rename failed: ${fileErrorMessage(e)}")
             }
         }
     }
@@ -2277,7 +2287,7 @@ class FileTab(
                 performCopyEntries(entries, currentPath)
                 return true
             } catch (e: Exception) {
-                thisLogger().warn("Drop failed: ${e.message}")
+                thisLogger().warn("Drop failed: ${fileErrorMessage(e)}")
                 return false
             }
         }

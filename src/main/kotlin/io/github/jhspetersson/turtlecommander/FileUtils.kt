@@ -2,6 +2,7 @@ package io.github.jhspetersson.turtlecommander
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.nio.file.AccessDeniedException
 import java.nio.file.FileVisitResult
 import java.nio.file.Files
 import java.nio.file.Path
@@ -23,12 +24,22 @@ suspend fun countFiles(sources: List<Path>): Int = withContext(Dispatchers.IO) {
                     count++
                     return FileVisitResult.CONTINUE
                 }
+                override fun visitFileFailed(file: Path, exc: java.io.IOException): FileVisitResult {
+                    return FileVisitResult.CONTINUE
+                }
             })
         } else {
             count++
         }
     }
     count
+}
+
+fun fileErrorMessage(error: Exception): String {
+    return when (error) {
+        is AccessDeniedException -> "Access denied: ${error.file}"
+        else -> error.message ?: error.javaClass.simpleName
+    }
 }
 
 fun readFilePermissions(path: Path, isWindows: Boolean): String {

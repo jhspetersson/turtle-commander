@@ -301,9 +301,14 @@ class FileOperationService(
                 if (path.isDirectory()) {
                     // Collect the file tree first to avoid runBlocking inside walkFileTree callbacks
                     val entries = mutableListOf<Path>()
+                    val walkErrors = mutableListOf<Pair<Path, IOException>>()
                     walkFileTree(path, object : SimpleFileVisitor<Path>() {
                         override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                             entries.add(file)
+                            return FileVisitResult.CONTINUE
+                        }
+                        override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
+                            walkErrors.add(file to exc)
                             return FileVisitResult.CONTINUE
                         }
                         override fun postVisitDirectory(dir: Path, exc: IOException?): FileVisitResult {
@@ -311,6 +316,9 @@ class FileOperationService(
                             return FileVisitResult.CONTINUE
                         }
                     })
+                    for ((errorPath, errorExc) in walkErrors) {
+                        onError(errorPath, errorExc)
+                    }
                     for (entry in entries) {
                         if (isCancelled()) break
                         try {
@@ -400,6 +408,11 @@ class FileOperationService(
                 Files.copy(file, target.resolve(relativePath), StandardCopyOption.REPLACE_EXISTING)
                 return FileVisitResult.CONTINUE
             }
+
+            override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
+                thisLogger().warn("Failed to copy $file: ${exc.message}")
+                return FileVisitResult.CONTINUE
+            }
         })
     }
 
@@ -463,6 +476,11 @@ class FileOperationService(
         walkFileTree(path, object : SimpleFileVisitor<Path>() {
             override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                 Files.delete(file)
+                return FileVisitResult.CONTINUE
+            }
+
+            override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
+                thisLogger().warn("Failed to delete $file: ${exc.message}")
                 return FileVisitResult.CONTINUE
             }
 

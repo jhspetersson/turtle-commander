@@ -24,8 +24,9 @@ class ArchiveService {
         appendToExisting: Boolean,
         archiveExists: Boolean,
         onProgress: (packedCount: Int, fileName: String) -> Unit,
+        onError: (path: Path, error: Exception) -> Unit,
         isCancelled: () -> Boolean,
-    ) {
+    ): Int {
         val env = mutableMapOf<String, String>()
         if (!appendToExisting && !archiveExists) {
             env["create"] = "true"
@@ -36,7 +37,8 @@ class ArchiveService {
         }
 
         val uri = java.net.URI.create("jar:" + archivePath.toUri())
-        withContext(Dispatchers.IO) {
+        return withContext(Dispatchers.IO) {
+            var successCount = 0
             FileSystems.newFileSystem(uri, env).use { zipFs ->
                 var packedCount = 0
                 for (source in sourcePaths) {
@@ -55,22 +57,39 @@ class ArchiveService {
 
                             override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                                 if (isCancelled()) return FileVisitResult.TERMINATE
-                                val relativePath = source.parent.relativize(file).toString().replace("\\", "/")
-                                val zipEntry = zipFs.getPath(relativePath)
-                                Files.copy(file, zipEntry, StandardCopyOption.REPLACE_EXISTING)
+                                try {
+                                    val relativePath = source.parent.relativize(file).toString().replace("\\", "/")
+                                    val zipEntry = zipFs.getPath(relativePath)
+                                    Files.copy(file, zipEntry, StandardCopyOption.REPLACE_EXISTING)
+                                    successCount++
+                                } catch (e: Exception) {
+                                    onError(file, e)
+                                }
                                 packedCount++
                                 onProgress(packedCount, file.fileName.toString())
                                 return FileVisitResult.CONTINUE
                             }
+
+                            override fun visitFileFailed(file: Path, exc: java.io.IOException): FileVisitResult {
+                                if (isCancelled()) return FileVisitResult.TERMINATE
+                                onError(file, exc)
+                                return FileVisitResult.CONTINUE
+                            }
                         })
                     } else {
-                        val zipEntry = zipFs.getPath(source.fileName.toString())
-                        Files.copy(source, zipEntry, StandardCopyOption.REPLACE_EXISTING)
+                        try {
+                            val zipEntry = zipFs.getPath(source.fileName.toString())
+                            Files.copy(source, zipEntry, StandardCopyOption.REPLACE_EXISTING)
+                            successCount++
+                        } catch (e: Exception) {
+                            onError(source, e)
+                        }
                         packedCount++
                         onProgress(packedCount, source.fileName.toString())
                     }
                 }
             }
+            successCount
         }
     }
 
@@ -78,9 +97,11 @@ class ArchiveService {
         archivePath: Path,
         sourcePaths: List<Path>,
         onProgress: (packedCount: Int, fileName: String) -> Unit,
+        onError: (path: Path, error: Exception) -> Unit,
         isCancelled: () -> Boolean,
-    ) {
-        withContext(Dispatchers.IO) {
+    ): Int {
+        return withContext(Dispatchers.IO) {
+            var successCount = 0
             java.io.BufferedOutputStream(Files.newOutputStream(archivePath)).use { fos ->
                 java.util.zip.GZIPOutputStream(fos).use { gzos ->
                     TarOutputStream(gzos).use { tarOs ->
@@ -102,16 +123,32 @@ class ArchiveService {
 
                                     override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                                         if (isCancelled()) return FileVisitResult.TERMINATE
-                                        val relativePath = source.parent.relativize(file).toString().replace("\\", "/")
-                                        tarOs.putFileEntry(relativePath, file, attrs.size(), attrs.lastModifiedTime().toMillis())
+                                        try {
+                                            val relativePath = source.parent.relativize(file).toString().replace("\\", "/")
+                                            tarOs.putFileEntry(relativePath, file, attrs.size(), attrs.lastModifiedTime().toMillis())
+                                            successCount++
+                                        } catch (e: Exception) {
+                                            onError(file, e)
+                                        }
                                         packedCount++
                                         onProgress(packedCount, file.fileName.toString())
                                         return FileVisitResult.CONTINUE
                                     }
+
+                                    override fun visitFileFailed(file: Path, exc: java.io.IOException): FileVisitResult {
+                                        if (isCancelled()) return FileVisitResult.TERMINATE
+                                        onError(file, exc)
+                                        return FileVisitResult.CONTINUE
+                                    }
                                 })
                             } else {
-                                val attrs = Files.readAttributes(source, BasicFileAttributes::class.java)
-                                tarOs.putFileEntry(source.fileName.toString(), source, attrs.size(), attrs.lastModifiedTime().toMillis())
+                                try {
+                                    val attrs = Files.readAttributes(source, BasicFileAttributes::class.java)
+                                    tarOs.putFileEntry(source.fileName.toString(), source, attrs.size(), attrs.lastModifiedTime().toMillis())
+                                    successCount++
+                                } catch (e: Exception) {
+                                    onError(source, e)
+                                }
                                 packedCount++
                                 onProgress(packedCount, source.fileName.toString())
                             }
@@ -120,6 +157,7 @@ class ArchiveService {
                     }
                 }
             }
+            successCount
         }
     }
 
