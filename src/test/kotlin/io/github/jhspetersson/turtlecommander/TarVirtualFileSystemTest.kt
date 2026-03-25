@@ -37,7 +37,7 @@ class TarVirtualFileSystemTest {
             tar.write(rootContent)
             tar.closeArchiveEntry()
         }
-        vfs = TarVirtualFileSystem(tarPath) { Files.newInputStream(it) }
+        vfs = TarVirtualFileSystem(tarPath, inputStreamFactory = { Files.newInputStream(it) }, outputStreamFactory = { Files.newOutputStream(it) })
     }
 
     @After
