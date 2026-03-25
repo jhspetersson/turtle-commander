@@ -14,6 +14,10 @@
 - Option to sort directories together with files
 - `.tar.gz` archives creation
 
+### Changed
+
+- Rename now uses Shift-F6 hotkey by default
+
 ## [0.1.0] - 2026-03-23
 
 ### Added
