@@ -796,3 +796,24 @@ class AddToFavoritesAction : AnAction("Add to Favorites", "Add directory to favo
         stateService.addFavorite(entry.path.toString())
     }
 }
+
+class TabAddToFavoritesAction : TabContextAction() {
+    init {
+        templatePresentation.text = "Add to Favorites"
+        templatePresentation.icon = AllIcons.Nodes.Favorite
+    }
+
+    override fun update(e: AnActionEvent) {
+        val (panel, tabIndex) = resolveTabContext(e)
+        val tab = panel?.getTabAt(tabIndex)
+        e.presentation.isEnabledAndVisible = tab != null && tab.currentVfs == null
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val (panel, tabIndex) = resolveTabContext(e)
+        val tab = panel?.getTabAt(tabIndex) ?: return
+        val project = e.project ?: return
+        val stateService = project.service<FileManagerStateService>()
+        stateService.addFavorite(tab.currentPath.toString())
+    }
+}

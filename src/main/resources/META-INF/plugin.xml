@@ -338,6 +338,11 @@
             <separator/>
             <reference ref="TurtleCommander.AddToFavorites"/>
         </group>
+        <action id="TurtleCommander.TabAddToFavorites"
+                class="io.github.jhspetersson.turtlecommander.TabAddToFavoritesAction"
+                text="Add to Favorites"
+                icon="AllIcons.Nodes.Favorite"
+                description="Add tab directory to favorites"/>
         <group id="TurtleCommander.TabContextMenu" text="Tab Context Menu" popup="true">
             <reference ref="TurtleCommander.CloseTab"/>
             <reference ref="TurtleCommander.CloseOtherTabs"/>
@@ -345,6 +350,8 @@
             <separator/>
             <reference ref="TurtleCommander.CloseTabsToTheLeft"/>
             <reference ref="TurtleCommander.CloseTabsToTheRight"/>
+            <separator/>
+            <reference ref="TurtleCommander.TabAddToFavorites"/>
         </group>
         <action id="TurtleCommander.OpenKeymapSettings"
                 class="io.github.jhspetersson.turtlecommander.OpenKeymapSettingsAction"
