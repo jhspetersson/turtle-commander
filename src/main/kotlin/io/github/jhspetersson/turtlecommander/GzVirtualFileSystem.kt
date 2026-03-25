@@ -127,6 +127,11 @@ class CompressedSingleFileVirtualFileSystem(
         result
     }
 
+    override suspend fun renameFile(source: Path, newName: String): Path = withContext(Dispatchers.IO) {
+        val target = source.parent.resolve(newName)
+        Files.move(source, target)
+    }
+
     override fun flush() {
         tempDir.toFile().deleteRecursively()
         tempDir = extractFile()

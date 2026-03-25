@@ -109,6 +109,11 @@ class ZipVirtualFileSystem(override val archivePath: Path) : VirtualFileSystem {
         result
     }
 
+    override suspend fun renameFile(source: Path, newName: String): Path = withContext(Dispatchers.IO) {
+        val target = source.parent.resolve(newName)
+        Files.move(source, target)
+    }
+
     override fun flush() {
         fileSystem.close()
         fileSystem = openZipFs()

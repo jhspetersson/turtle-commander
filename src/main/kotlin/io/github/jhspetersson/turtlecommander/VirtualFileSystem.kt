@@ -10,6 +10,7 @@ interface VirtualFileSystem : Closeable {
     fun isRoot(path: Path): Boolean
     fun getPath(relativePath: String): Path
     fun flush()
+    suspend fun renameFile(source: Path, newName: String): Path
 }
 
 interface VirtualFileSystemProvider {

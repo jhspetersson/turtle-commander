@@ -59,9 +59,7 @@ class GoUpAction : FileManagerAction() {
 
 class RenameAction : FileManagerAction() {
     override fun actionPerformed(e: AnActionEvent) {
-        val tab = findActiveTab(e) ?: return
-        val row = tab.table.selectedRow
-        if (row >= 0) tab.table.editCellAt(row, 0)
+        findActiveTab(e)?.startRename()
     }
 }
 
@@ -632,9 +630,7 @@ class ContextRenameAction : AnAction("Rename", "Rename selected file or director
     }
 
     override fun actionPerformed(e: AnActionEvent) {
-        val tab = FileContextMenuState.clickedTab ?: return
-        val row = tab.table.selectedRow
-        if (row >= 0) tab.table.editCellAt(row, 0)
+        FileContextMenuState.clickedTab?.startRename()
     }
 }
 

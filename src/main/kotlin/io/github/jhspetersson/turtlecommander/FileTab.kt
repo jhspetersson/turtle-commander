@@ -267,21 +267,35 @@ class FileTab(
 
             rowSorter = ParentPinningRowSorter(tableModel)
 
-            val nameEditor = DefaultCellEditor(JTextField())
-            nameEditor.clickCountToStart = Int.MAX_VALUE // only start editing via F2
+            var editingEntry: FileEntry? = null
+            val nameEditor = object : DefaultCellEditor(JTextField()) {
+                init {
+                    clickCountToStart = Int.MAX_VALUE
+                }
+
+                override fun getTableCellEditorComponent(
+                    table: JTable, value: Any?, isSelected: Boolean, row: Int, column: Int
+                ): Component {
+                    val modelRow = table.convertRowIndexToModel(row)
+                    val entry = tableModel.getEntryAt(modelRow)
+                    editingEntry = entry
+                    val fullName = entry?.name ?: value?.toString() ?: ""
+                    return super.getTableCellEditorComponent(table, fullName, isSelected, row, column)
+                }
+            }
             nameEditor.addCellEditorListener(object : CellEditorListener {
                 override fun editingStopped(e: ChangeEvent) {
-                    val viewRow = table.editingRow
-                    if (viewRow < 0) return
-                    val modelRow = table.convertRowIndexToModel(viewRow)
-                    val entry = tableModel.getEntryAt(modelRow) ?: return
+                    val entry = editingEntry ?: return
+                    editingEntry = null
                     val newName = (nameEditor.cellEditorValue as? String)?.trim() ?: return
                     if (newName.isNotEmpty() && newName != entry.name) {
                         performRename(entry, newName)
                     }
                 }
 
-                override fun editingCanceled(e: ChangeEvent) {}
+                override fun editingCanceled(e: ChangeEvent) {
+                    editingEntry = null
+                }
             })
             columnModel.getColumn(0).cellEditor = nameEditor
 
@@ -2110,11 +2124,38 @@ class FileTab(
         }
     }
 
+    fun startRename() {
+        val entry = getSelectedEntry() ?: return
+        if (entry.isParentLink) return
+        if (viewMode == ViewMode.TABLE) {
+            val row = table.selectedRow
+            if (row >= 0) table.editCellAt(row, 0)
+        } else {
+            val newName = Messages.showInputDialog(
+                project,
+                "Enter new name:",
+                "Rename",
+                Messages.getQuestionIcon(),
+                entry.name,
+                null,
+            )
+            if (!newName.isNullOrBlank() && newName != entry.name) {
+                performRename(entry, newName)
+            }
+        }
+    }
+
     private fun performRename(entry: FileEntry, newName: String) {
         fileOps.launch {
             try {
-                fileOps.renameFile(entry.path, newName)
-                refreshAfterVfsChange(selectName = newName)
+                val vfs = currentVfs
+                if (vfs != null) {
+                    vfs.renameFile(entry.path, newName)
+                    navigateTo(currentPath, selectName = newName)
+                } else {
+                    fileOps.renameFile(entry.path, newName)
+                    navigateTo(currentPath, selectName = newName)
+                }
             } catch (e: Exception) {
                 fileErrorNotification("Rename failed: ${e.message}")
             }
