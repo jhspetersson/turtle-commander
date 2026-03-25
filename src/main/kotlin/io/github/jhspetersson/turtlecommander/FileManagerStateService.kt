@@ -20,7 +20,7 @@ interface FavoritesChangeListener {
     storages = [Storage("turtleCommander.xml")],
 )
 class FileManagerStateService(
-    @Suppress("unused") private val project: Project,
+    private val project: Project,
 ) : PersistentStateComponent<FileManagerStateService.FileManagerState> {
 
     private var myState = FileManagerState()

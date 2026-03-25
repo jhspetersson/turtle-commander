@@ -6,19 +6,27 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.intellij.openapi.actionSystem.KeyboardShortcut
 import com.intellij.openapi.actionSystem.Separator
+import com.intellij.openapi.actionSystem.ex.ActionUtil
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.service
+import com.intellij.openapi.keymap.Keymap
+import com.intellij.openapi.keymap.KeymapManagerListener
+import com.intellij.openapi.keymap.KeymapUtil
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.content.ContentFactory
 import java.awt.BorderLayout
+import java.awt.event.InputEvent
 import java.nio.file.Path
 import javax.swing.BoxLayout
 import javax.swing.JButton
+import javax.swing.JMenuItem
 import javax.swing.JPanel
+import javax.swing.JPopupMenu
 
 class FileManagerToolWindowFactory : ToolWindowFactory {
 
@@ -188,20 +196,20 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
             return if (leftFocused) leftPanel else rightPanel
         }
 
-        fun getShortcut(actionId: String): com.intellij.openapi.actionSystem.KeyboardShortcut? {
+        fun getShortcut(actionId: String): KeyboardShortcut? {
             val am = ActionManager.getInstance()
             val action = am.getAction(actionId) ?: return null
-            return action.shortcutSet.shortcuts.firstOrNull() as? com.intellij.openapi.actionSystem.KeyboardShortcut
+            return action.shortcutSet.shortcuts.firstOrNull() as? KeyboardShortcut
         }
 
         fun hasShiftModifier(actionId: String): Boolean {
             val shortcut = getShortcut(actionId) ?: return false
-            return shortcut.firstKeyStroke.modifiers and java.awt.event.InputEvent.SHIFT_DOWN_MASK != 0
+            return shortcut.firstKeyStroke.modifiers and InputEvent.SHIFT_DOWN_MASK != 0
         }
 
         fun shortcutText(actionId: String): String {
             val shortcut = getShortcut(actionId) ?: return ""
-            return com.intellij.openapi.keymap.KeymapUtil.getKeystrokeText(shortcut.firstKeyStroke)
+            return KeymapUtil.getKeystrokeText(shortcut.firstKeyStroke)
         }
 
         data class BarButton(val actionId: String, val label: String, val button: JButton)
@@ -241,12 +249,12 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
 
         ApplicationManager.getApplication().messageBus
             .connect()
-            .subscribe(com.intellij.openapi.keymap.KeymapManagerListener.TOPIC, object : com.intellij.openapi.keymap.KeymapManagerListener {
-                override fun activeKeymapChanged(keymap: com.intellij.openapi.keymap.Keymap?) {
+            .subscribe(KeymapManagerListener.TOPIC, object : KeymapManagerListener {
+                override fun activeKeymapChanged(keymap: Keymap?) {
                     updateBar(false)
                 }
 
-                override fun shortcutsChanged(keymap: com.intellij.openapi.keymap.Keymap, actionIds: Collection<String>, fromSettings: Boolean) {
+                override fun shortcutsChanged(keymap: Keymap, actionIds: Collection<String>, fromSettings: Boolean) {
                     updateBar(false)
                 }
             })
@@ -277,7 +285,7 @@ private class FavoriteAction(
         val shortcut = if (index in 1..9) "<br>Ctrl+$index" else ""
         templatePresentation.description = "<html>$favPath$shortcut</html>"
         templatePresentation.icon = AllIcons.Nodes.Folder
-        templatePresentation.putClientProperty(com.intellij.openapi.actionSystem.ex.ActionUtil.SHOW_TEXT_IN_TOOLBAR, true)
+        templatePresentation.putClientProperty(ActionUtil.SHOW_TEXT_IN_TOOLBAR, true)
     }
 
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
@@ -316,10 +324,10 @@ private class FavoriteOverflowAction(
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun actionPerformed(e: AnActionEvent) {
-        val popupMenu = javax.swing.JPopupMenu()
+        val popupMenu = JPopupMenu()
         for ((i, favPath) in overflowPaths.withIndex()) {
             val name = Path.of(favPath).fileName?.toString() ?: favPath
-            val menuItem = javax.swing.JMenuItem(name, AllIcons.Nodes.Folder)
+            val menuItem = JMenuItem(name, AllIcons.Nodes.Folder)
             val favIndex = startIndex + i + 1
             val shortcut = if (favIndex in 1..9) "<br>Ctrl+$favIndex" else ""
             menuItem.toolTipText = "<html>$favPath$shortcut</html>"

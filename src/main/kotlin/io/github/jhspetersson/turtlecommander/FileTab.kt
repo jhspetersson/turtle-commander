@@ -20,7 +20,6 @@ import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.Messages
-import com.intellij.openapi.vfs.JarFileSystem
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBList
@@ -33,6 +32,8 @@ import kotlinx.coroutines.withContext
 import java.awt.BorderLayout
 import java.awt.CardLayout
 import java.awt.Component
+import java.awt.Desktop
+import java.awt.Dimension
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.Transferable
 import java.awt.datatransfer.UnsupportedFlavorException
@@ -43,14 +44,11 @@ import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
-import java.nio.file.FileAlreadyExistsException
+import java.io.File
 import java.nio.file.FileSystems
-import java.nio.file.FileVisitResult
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.SimpleFileVisitor
 import java.nio.file.StandardCopyOption
-import java.nio.file.attribute.BasicFileAttributes
 import javax.swing.BorderFactory
 import javax.swing.DefaultCellEditor
 import javax.swing.DefaultListCellRenderer
@@ -58,6 +56,7 @@ import javax.swing.DefaultListModel
 import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JLabel
+import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.JTable
 import javax.swing.JTextField
@@ -352,7 +351,7 @@ class FileTab(
     private fun setupList() {
         list.apply {
             selectionMode = ListSelectionModel.MULTIPLE_INTERVAL_SELECTION
-            layoutOrientation = javax.swing.JList.VERTICAL_WRAP
+            layoutOrientation = JList.VERTICAL_WRAP
             visibleRowCount = 0
             cellRenderer = FileListCellRenderer()
 
@@ -444,7 +443,7 @@ class FileTab(
                                 try {
                                     val children = withContext(Dispatchers.IO) {
                                         val vfs = currentVfs
-                                        if (vfs != null) vfs.listFiles(entry.path) else fileOps.listFiles(entry.path)
+                                        vfs?.listFiles(entry.path) ?: fileOps.listFiles(entry.path)
                                     }
                                     withContext(Dispatchers.EDT) {
                                         node.removeAllChildren()
@@ -515,7 +514,7 @@ class FileTab(
         val cancelButton = JButton(AllIcons.Actions.Close)
         cancelButton.isFocusable = false
         cancelButton.toolTipText = "Close filter"
-        cancelButton.preferredSize = java.awt.Dimension(24, 24)
+        cancelButton.preferredSize = Dimension(24, 24)
         cancelButton.isContentAreaFilled = false
         cancelButton.addActionListener { hideQuickFilter() }
         filterPanel.add(cancelButton, BorderLayout.EAST)
@@ -793,7 +792,7 @@ class FileTab(
 
             // Level 0: children of the root
             val rootEntries = try {
-                if (vfs != null) vfs.listFiles(ancestors[0]) else fileOps.listFiles(ancestors[0])
+                vfs?.listFiles(ancestors[0]) ?: fileOps.listFiles(ancestors[0])
             } catch (_: Exception) {
                 emptyList()
             }.filter { !it.isParentLink }
@@ -806,7 +805,7 @@ class FileTab(
             // and we already have those entries. So we only need to load children of ancestors[i] for i >= 1.
             for (i in 1 until ancestors.size) {
                 val entries = try {
-                    if (vfs != null) vfs.listFiles(ancestors[i]) else fileOps.listFiles(ancestors[i])
+                    vfs?.listFiles(ancestors[i]) ?: fileOps.listFiles(ancestors[i])
                 } catch (_: Exception) {
                     emptyList()
                 }.filter { !it.isParentLink }
@@ -1367,7 +1366,7 @@ class FileTab(
                         entry.path
                     }
                     withContext(Dispatchers.EDT) {
-                        java.awt.Desktop.getDesktop().open(filePath.toFile())
+                        Desktop.getDesktop().open(filePath.toFile())
                     }
                 } catch (e: Exception) {
                     fileErrorNotification("Failed to open file: ${fileErrorMessage(e)}")
@@ -1375,7 +1374,7 @@ class FileTab(
             }
         } else {
             try {
-                java.awt.Desktop.getDesktop().open(entry.path.toFile())
+                Desktop.getDesktop().open(entry.path.toFile())
             } catch (e: Exception) {
                 fileErrorNotification("Failed to open file: ${fileErrorMessage(e)}")
             }
@@ -2398,7 +2397,7 @@ class FileTab(
                     }
                     support.isDataFlavorSupported(DataFlavor.javaFileListFlavor) -> {
                         @Suppress("UNCHECKED_CAST")
-                        val files = support.transferable.getTransferData(DataFlavor.javaFileListFlavor) as List<java.io.File>
+                        val files = support.transferable.getTransferData(DataFlavor.javaFileListFlavor) as List<File>
                         files.map { file ->
                             val path = file.toPath()
                             FileEntry(
@@ -2424,7 +2423,7 @@ class FileTab(
 
     private inner class FileListCellRenderer : DefaultListCellRenderer() {
         override fun getListCellRendererComponent(
-            list: javax.swing.JList<*>,
+            list: JList<*>,
             value: Any?,
             index: Int,
             isSelected: Boolean,

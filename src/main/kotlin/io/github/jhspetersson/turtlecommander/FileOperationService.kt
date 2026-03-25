@@ -2,7 +2,6 @@ package io.github.jhspetersson.turtlecommander
 
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
-import com.intellij.openapi.project.Project
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -24,7 +23,6 @@ import kotlin.io.path.name
 
 @Service(Service.Level.PROJECT)
 class FileOperationService(
-    @Suppress("unused") private val project: Project,
     private val cs: CoroutineScope,
 ) {
     private val osName = System.getProperty("os.name").lowercase()

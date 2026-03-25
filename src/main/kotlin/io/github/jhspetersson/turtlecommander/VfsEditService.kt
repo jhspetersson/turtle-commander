@@ -32,7 +32,6 @@ class VfsEditEntry(
 
 @Service(Service.Level.PROJECT)
 class VfsEditService(
-    @Suppress("unused") private val project: Project,
     private val cs: CoroutineScope,
 ) : Disposable {
 
