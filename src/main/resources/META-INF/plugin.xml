@@ -55,7 +55,7 @@
                     class="io.github.jhspetersson.turtlecommander.RenameAction"
                     text="Rename"
                     description="Rename selected file or directory">
-                <keyboard-shortcut first-keystroke="F2" keymap="$default"/>
+                <keyboard-shortcut first-keystroke="shift F6" keymap="$default"/>
             </action>
             <action id="TurtleCommander.CopyFiles"
                     class="io.github.jhspetersson.turtlecommander.CopyFilesAction"

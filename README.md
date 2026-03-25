@@ -8,7 +8,7 @@ A dual-panel file manager integrated into IntelliJ-based IDEs, inspired by class
 **Features:**
 - Two side-by-side file panels with tabbed browsing
 - Table, list, and tree view modes
-- File operations: view (F3), open (F4), copy (F5), move (F6), delete (F8), rename (F2), create directory (F7), create file (Shift+F4)
+- File operations: view (F3), open (F4), copy (F5), move (F6), delete (F8), rename (Shift-F6), create directory (F7), create file (Shift+F4)
 - File search
 - Quick filter (Ctrl-S) for the directory list
 - Create `.zip` and `.tar.gz` archives, browse and modify archive contents, and extract files from archives
