@@ -10,7 +10,8 @@ A dual-panel file manager integrated into IntelliJ-based IDEs, inspired by class
 - Table, list, and tree view modes
 - File operations: view (F3), open (F4), copy (F5), move (F6), delete (F8), rename (F2), create directory (F7), create file (Shift+F4)
 - File search
-- Create zip archives, browse and modify archive contents, and extract files from archives
+- Quick filter (Ctrl-S) for the directory list
+- Create `.zip` and `.tar.gz` archives, browse and modify archive contents, and extract files from archives
 - Select files with space and insert
 - Clipboard-style copy/cut/paste (Ctrl+C, Ctrl+X, Ctrl+V) with buffer indicator in the tool window header
 - Drag-and-drop between panels and to/from the Project tool window
@@ -18,7 +19,8 @@ A dual-panel file manager integrated into IntelliJ-based IDEs, inspired by class
 - Draggable and reorderable tabs with the context menu
 - Session state persistence: open tabs, panel sizes, and column layouts are saved per project
 - Middle-click to close tabs
-- Favorite tabs (with Ctrl-N shortcuts for quick access)
+- Favorite tabs (with Ctrl-1..9 shortcuts for quick access)
+- Open in Terminal
 - Colored directory icons for project types (IntelliJ, Git, Gradle, Maven, Cargo, npm, Python, CMake, .NET)
 - Customizable fonts for file panels and tabs
 - Configurable settings
