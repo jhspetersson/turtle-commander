@@ -3,7 +3,9 @@ package io.github.jhspetersson.turtlecommander
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
+import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream
 import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Path
@@ -26,7 +28,11 @@ class GzFileSystemProvider : VirtualFileSystemProvider {
     override fun create(archivePath: Path): VirtualFileSystem {
         val name = archivePath.fileName?.toString()?.lowercase() ?: ""
         return if (name.endsWith(".tar.gz") || name.endsWith(".tgz")) {
-            TarVirtualFileSystem(archivePath) { GzipCompressorInputStream(Files.newInputStream(it)) }
+            TarVirtualFileSystem(
+                archivePath,
+                inputStreamFactory = { GzipCompressorInputStream(Files.newInputStream(it)) },
+                outputStreamFactory = { GzipCompressorOutputStream(Files.newOutputStream(it)) },
+            )
         } else {
             CompressedSingleFileVirtualFileSystem(archivePath, ".gz") { GzipCompressorInputStream(it) }
         }
@@ -50,7 +56,11 @@ class Bz2FileSystemProvider : VirtualFileSystemProvider {
     override fun create(archivePath: Path): VirtualFileSystem {
         val name = archivePath.fileName?.toString()?.lowercase() ?: ""
         return if (name.endsWith(".tar.bz2") || name.endsWith(".tbz2") || name.endsWith(".tbz")) {
-            TarVirtualFileSystem(archivePath) { BZip2CompressorInputStream(Files.newInputStream(it)) }
+            TarVirtualFileSystem(
+                archivePath,
+                inputStreamFactory = { BZip2CompressorInputStream(Files.newInputStream(it)) },
+                outputStreamFactory = { BZip2CompressorOutputStream(Files.newOutputStream(it)) },
+            )
         } else {
             CompressedSingleFileVirtualFileSystem(archivePath, ".bz2") { BZip2CompressorInputStream(it) }
         }

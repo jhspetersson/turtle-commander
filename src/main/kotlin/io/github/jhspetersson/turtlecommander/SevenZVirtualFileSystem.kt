@@ -2,7 +2,9 @@ package io.github.jhspetersson.turtlecommander
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry
 import org.apache.commons.compress.archivers.sevenz.SevenZFile
+import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
@@ -142,6 +144,39 @@ class SevenZipVirtualFileSystem(
     override suspend fun renameFile(source: Path, newName: String): Path = withContext(Dispatchers.IO) {
         val target = source.parent.resolve(newName)
         Files.move(source, target)
+        repackArchive()
+        target
+    }
+
+    private fun repackArchive() {
+        SevenZOutputFile(archivePath.toFile()).use { out ->
+            Files.walk(tempDir).use { stream ->
+                stream.forEach { path ->
+                    if (path == tempDir) return@forEach
+                    val relativeName = tempDir.relativize(path).toString().replace('\\', '/')
+                    val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
+                    val entry = SevenZArchiveEntry().apply {
+                        name = relativeName + if (attrs.isDirectory) "/" else ""
+                        isDirectory = attrs.isDirectory
+                        if (!attrs.isDirectory) size = attrs.size()
+                        if (attrs.lastModifiedTime() != null) {
+                            setLastModifiedDate(java.util.Date(attrs.lastModifiedTime().toMillis()))
+                        }
+                    }
+                    out.putArchiveEntry(entry)
+                    if (!attrs.isDirectory) {
+                        Files.newInputStream(path).use { input ->
+                            val buf = ByteArray(8192)
+                            var len: Int
+                            while (input.read(buf).also { len = it } != -1) {
+                                out.write(buf, 0, len)
+                            }
+                        }
+                    }
+                    out.closeArchiveEntry()
+                }
+            }
+        }
     }
 
     override fun flush() {

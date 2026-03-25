@@ -2151,7 +2151,8 @@ class FileTab(
                 val vfs = currentVfs
                 if (vfs != null) {
                     vfs.renameFile(entry.path, newName)
-                    navigateTo(currentPath, selectName = newName)
+                    val relativePath = vfsRelativePath(vfs, currentPath)
+                    navigateTo(vfs.getPath(relativePath), selectName = newName)
                 } else {
                     fileOps.renameFile(entry.path, newName)
                     navigateTo(currentPath, selectName = newName)

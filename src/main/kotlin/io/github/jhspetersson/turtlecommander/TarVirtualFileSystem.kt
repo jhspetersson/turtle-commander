@@ -2,9 +2,12 @@ package io.github.jhspetersson.turtlecommander
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
 import java.io.IOException
 import java.io.InputStream
+import java.io.OutputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
@@ -25,13 +28,18 @@ class TarFileSystemProvider : VirtualFileSystemProvider {
     }
 
     override fun create(archivePath: Path): VirtualFileSystem {
-        return TarVirtualFileSystem(archivePath) { Files.newInputStream(it) }
+        return TarVirtualFileSystem(
+            archivePath,
+            inputStreamFactory = { Files.newInputStream(it) },
+            outputStreamFactory = { Files.newOutputStream(it) },
+        )
     }
 }
 
 class TarVirtualFileSystem(
     override val archivePath: Path,
     private val inputStreamFactory: (Path) -> InputStream,
+    private val outputStreamFactory: ((Path) -> OutputStream)? = null,
 ) : VirtualFileSystem {
 
     private var tempDir: Path = extractArchive()
@@ -140,6 +148,33 @@ class TarVirtualFileSystem(
     override suspend fun renameFile(source: Path, newName: String): Path = withContext(Dispatchers.IO) {
         val target = source.parent.resolve(newName)
         Files.move(source, target)
+        repackArchive()
+        target
+    }
+
+    private fun repackArchive() {
+        val outFactory = outputStreamFactory ?: { path -> Files.newOutputStream(path) }
+        outFactory(archivePath).use { raw ->
+            TarArchiveOutputStream(raw).use { tar ->
+                tar.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX)
+                tar.setBigNumberMode(TarArchiveOutputStream.BIGNUMBER_POSIX)
+                Files.walk(tempDir).use { stream ->
+                    stream.forEach { path ->
+                        if (path == tempDir) return@forEach
+                        val relativeName = tempDir.relativize(path).toString().replace('\\', '/')
+                        val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
+                        val entry = TarArchiveEntry(path, relativeName)
+                        entry.size = if (attrs.isDirectory) 0 else attrs.size()
+                        entry.modTime = java.util.Date(attrs.lastModifiedTime().toMillis())
+                        tar.putArchiveEntry(entry)
+                        if (!attrs.isDirectory) {
+                            Files.copy(path, tar)
+                        }
+                        tar.closeArchiveEntry()
+                    }
+                }
+            }
+        }
     }
 
     override fun flush() {

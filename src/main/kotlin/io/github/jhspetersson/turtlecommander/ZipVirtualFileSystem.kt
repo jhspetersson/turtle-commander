@@ -2,7 +2,6 @@ package io.github.jhspetersson.turtlecommander
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.net.URI
 import java.nio.file.FileSystem
 import java.nio.file.FileSystems
 import java.nio.file.Files
@@ -34,8 +33,7 @@ class ZipVirtualFileSystem(override val archivePath: Path) : VirtualFileSystem {
     override val root: Path get() = fileSystem.getPath("/")
 
     private fun openZipFs(): FileSystem {
-        val uri = URI.create("jar:" + archivePath.toUri())
-        return FileSystems.newFileSystem(uri, mapOf("create" to "false"))
+        return FileSystems.newFileSystem(archivePath, mapOf<String, Any>("create" to "false"))
     }
 
     override fun isRoot(path: Path): Boolean {
@@ -110,8 +108,13 @@ class ZipVirtualFileSystem(override val archivePath: Path) : VirtualFileSystem {
     }
 
     override suspend fun renameFile(source: Path, newName: String): Path = withContext(Dispatchers.IO) {
-        val target = source.parent.resolve(newName)
-        Files.move(source, target)
+        val oldParent = source.parent ?: fileSystem.getPath("/")
+        val relativePath = if (oldParent == fileSystem.getPath("/")) "" else fileSystem.getPath("/").relativize(oldParent).toString()
+        Files.move(source, oldParent.resolve(newName))
+        fileSystem.close()
+        fileSystem = openZipFs()
+        val newParent = if (relativePath.isEmpty()) fileSystem.getPath("/") else fileSystem.getPath(relativePath)
+        newParent.resolve(newName)
     }
 
     override fun flush() {
