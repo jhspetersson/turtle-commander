@@ -76,6 +76,7 @@ class CompressedSingleFileVirtualFileSystem(
     private var tempDir: Path = extractFile()
 
     override val root: Path get() = tempDir
+    override val isReadOnly: Boolean get() = true
 
     private fun extractFile(): Path {
         val dir = Files.createTempDirectory("turtle-decompress-")

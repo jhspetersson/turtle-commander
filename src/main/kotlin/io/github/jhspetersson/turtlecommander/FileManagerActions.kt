@@ -577,7 +577,7 @@ class ContextPasteAction : AnAction("Paste", "Paste files from buffer into curre
     override fun update(e: AnActionEvent) {
         val hasBuffer = FileCopyBuffer.entries.isNotEmpty()
         val tab = FileContextMenuState.clickedTab ?: findActiveTab(e)
-        e.presentation.isEnabled = hasBuffer && tab != null
+        e.presentation.isEnabled = hasBuffer && tab != null && tab.currentVfs?.isReadOnly != true
     }
 
     override fun actionPerformed(e: AnActionEvent) {
@@ -589,9 +589,9 @@ class ContextPasteAction : AnAction("Paste", "Paste files from buffer into curre
 
         FileCopyBuffer.entries = emptyList()
         if (cut) {
-            tab.performMoveEntries(entries, destination)
+            tab.performMoveEntries(entries, destination, tab.getDisplayPath())
         } else {
-            tab.performCopyEntries(entries, destination)
+            tab.performCopyEntries(entries, destination, tab.getDisplayPath())
         }
     }
 }
@@ -602,7 +602,8 @@ class ContextPasteIntoAction : AnAction("Paste Into", "Paste files from buffer i
     override fun update(e: AnActionEvent) {
         val hasBuffer = FileCopyBuffer.entries.isNotEmpty()
         val entry = FileContextMenuState.clickedEntry
-        e.presentation.isEnabledAndVisible = hasBuffer && entry != null && entry.isDirectory && !entry.isParentLink
+        val tab = FileContextMenuState.clickedTab ?: findActiveTab(e)
+        e.presentation.isEnabledAndVisible = hasBuffer && entry != null && entry.isDirectory && !entry.isParentLink && tab?.currentVfs?.isReadOnly != true
     }
 
     override fun actionPerformed(e: AnActionEvent) {
@@ -614,9 +615,9 @@ class ContextPasteIntoAction : AnAction("Paste Into", "Paste files from buffer i
 
         FileCopyBuffer.entries = emptyList()
         if (cut) {
-            tab.performMoveEntries(entries, entry.path)
+            tab.performMoveEntries(entries, entry.path, tab.getDisplayPath())
         } else {
-            tab.performCopyEntries(entries, entry.path)
+            tab.performCopyEntries(entries, entry.path, tab.getDisplayPath())
         }
     }
 }

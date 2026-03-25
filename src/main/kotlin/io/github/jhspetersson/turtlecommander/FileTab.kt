@@ -137,6 +137,8 @@ class FileTab(
         get() = vfsStack.lastOrNull()?.vfs
         private set(_) {}  // managed via stack
 
+
+
     init {
         setupHeader()
         setupTable()
@@ -1123,7 +1125,11 @@ class FileTab(
         if (vfs != null) {
             val relativePath = vfsRelativePath(vfs, currentPath)
             vfs.flush()
-            fileOps.launch { navigateTo(vfs.getPath(relativePath)) }
+            val newPath = if (relativePath.isEmpty()) vfs.root else vfs.root.resolve(relativePath)
+            fileOps.launch {
+                writeBackNestedArchives()
+                navigateTo(newPath)
+            }
         } else {
             fileOps.launch { navigateTo(currentPath) }
         }
@@ -1134,9 +1140,27 @@ class FileTab(
         if (vfs != null) {
             val relativePath = vfsRelativePath(vfs, currentPath)
             vfs.flush()
-            navigateTo(vfs.getPath(relativePath), selectName = selectName)
+            writeBackNestedArchives()
+            val newPath = if (relativePath.isEmpty()) vfs.root else vfs.root.resolve(relativePath)
+            navigateTo(newPath, selectName = selectName)
         } else {
             navigateTo(currentPath, selectName = selectName)
+        }
+    }
+
+    private suspend fun writeBackNestedArchives() = withContext(Dispatchers.IO) {
+        for (i in vfsStack.indices.reversed()) {
+            val entry = vfsStack[i]
+            if (entry.tempFile == null || i == 0) continue
+            // Copy the modified temp file back into the parent VFS
+            val parentEntry = vfsStack[i - 1]
+            Files.copy(entry.tempFile.toPath(), entry.parentPath, StandardCopyOption.REPLACE_EXISTING)
+            // Remember the relative path before flush invalidates the old FileSystem paths
+            val relPath = vfsRelativePath(parentEntry.vfs, entry.parentPath)
+            parentEntry.vfs.flush()
+            // Reconstruct parentPath as a valid path in the reopened FileSystem
+            val newParentPath = if (relPath.isEmpty()) parentEntry.vfs.root else parentEntry.vfs.root.resolve(relPath)
+            vfsStack[i] = entry.copy(parentPath = newParentPath)
         }
     }
 
@@ -1481,13 +1505,19 @@ class FileTab(
     }
 
     fun performCopy() {
+        val otherTab = getOtherPanelTab()
+        if (otherTab?.currentVfs?.isReadOnly == true) {
+            fileErrorNotification("Cannot copy into a read-only archive")
+            return
+        }
         performCopyEntries(getSelectedEntries(), otherPanelPathProvider() ?: return)
     }
 
-    fun performCopyEntries(selected: List<FileEntry>, destination: Path) {
+    fun performCopyEntries(selected: List<FileEntry>, destination: Path, destinationDisplayPath: String? = null) {
         if (selected.isEmpty()) return
 
-        val copyDialog = CopyDialog(project, selected, destination)
+        val displayPath = destinationDisplayPath ?: getOtherPanelDisplayPath() ?: destination.toString()
+        val copyDialog = CopyDialog(project, selected, destination, displayPath)
         if (!copyDialog.showAndGet()) return
         val overwriteAll = copyDialog.overwriteExisting
         val sourcePaths = selected.map { it.path }
@@ -1547,9 +1577,15 @@ class FileTab(
     fun performMove() {
         val selected = getSelectedEntries()
         if (selected.isEmpty()) return
+        val otherTab = getOtherPanelTab()
+        if (otherTab?.currentVfs?.isReadOnly == true) {
+            fileErrorNotification("Cannot move into a read-only archive")
+            return
+        }
         val destination = otherPanelPathProvider() ?: return
 
-        val moveDialog = MoveDialog(project, selected, destination)
+        val displayPath = getOtherPanelDisplayPath() ?: destination.toString()
+        val moveDialog = MoveDialog(project, selected, destination, displayPath)
         if (!moveDialog.showAndGet()) return
         val overwriteAll = moveDialog.overwriteExisting
         val sourcePaths = selected.map { it.path }
@@ -1606,10 +1642,11 @@ class FileTab(
         })
     }
 
-    fun performMoveEntries(selected: List<FileEntry>, destination: Path) {
+    fun performMoveEntries(selected: List<FileEntry>, destination: Path, destinationDisplayPath: String? = null) {
         if (selected.isEmpty()) return
 
-        val moveDialog = MoveDialog(project, selected, destination)
+        val displayPath = destinationDisplayPath ?: getOtherPanelDisplayPath() ?: destination.toString()
+        val moveDialog = MoveDialog(project, selected, destination, displayPath)
         if (!moveDialog.showAndGet()) return
         val overwriteAll = moveDialog.overwriteExisting
         val sourcePaths = selected.map { it.path }
@@ -2173,6 +2210,36 @@ class FileTab(
         }
     }
 
+    fun getDisplayPath(): String {
+        val vfs = currentVfs ?: return currentPath.toString()
+        val separator = if (vfsStack.first().parentPath.toString().contains("\\")) "\\" else "/"
+        val sb = StringBuilder()
+        for (stackEntry in vfsStack) {
+            if (sb.isEmpty()) {
+                sb.append(stackEntry.parentPath.toString())
+            } else {
+                val nestedPath = stackEntry.parentPath.toString().removePrefix("/").replace("/", separator)
+                sb.append(separator).append(nestedPath)
+            }
+        }
+        if (!vfs.isRoot(currentPath)) {
+            val relativePath = currentPath.toString()
+            sb.append(separator).append(relativePath.removePrefix("/").replace("/", separator))
+        }
+        return sb.toString()
+    }
+
+    private fun getOtherPanelDisplayPath(): String? {
+        return getOtherPanelTab()?.getDisplayPath()
+    }
+
+    private fun getOtherPanelTab(): FileTab? {
+        val svc = stateService ?: return null
+        val activePanel = svc.getActivePanel() ?: return null
+        val otherPanel = if (activePanel == svc.leftPanel) svc.rightPanel else svc.leftPanel
+        return otherPanel?.getActiveTab()
+    }
+
     fun setStateService(stateService: FileManagerStateService) {
         this.stateService = stateService
     }
@@ -2255,12 +2322,17 @@ class FileTab(
 
         override fun canImport(support: TransferSupport): Boolean {
             if (!support.isDrop) return false
+            if (currentVfs?.isReadOnly == true) return false
             return support.isDataFlavorSupported(FILE_ENTRY_FLAVOR)
                 || support.isDataFlavorSupported(DataFlavor.javaFileListFlavor)
         }
 
         override fun importData(support: TransferSupport): Boolean {
             if (!canImport(support)) return false
+            if (currentVfs?.isReadOnly == true) {
+                fileErrorNotification("Cannot copy into a read-only archive")
+                return false
+            }
             try {
                 val entries = when {
                     support.isDataFlavorSupported(FILE_ENTRY_FLAVOR) -> {
@@ -2284,7 +2356,7 @@ class FileTab(
                     }
                     else -> return false
                 }
-                performCopyEntries(entries, currentPath)
+                performCopyEntries(entries, currentPath, getDisplayPath())
                 return true
             } catch (e: Exception) {
                 thisLogger().warn("Drop failed: ${fileErrorMessage(e)}")

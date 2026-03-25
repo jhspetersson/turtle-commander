@@ -17,6 +17,7 @@ class CopyDialog(
     project: Project,
     private val sources: List<FileEntry>,
     private val destination: Path,
+    private val destinationDisplayPath: String = destination.toString(),
 ) : DialogWrapper(project) {
 
     val overwriteExisting: Boolean get() = overwriteCheckBox.isSelected
@@ -59,7 +60,7 @@ class CopyDialog(
             })
         }
 
-        panel.add(JBLabel(destination.toString()).apply {
+        panel.add(JBLabel(destinationDisplayPath).apply {
             alignmentX = JComponent.LEFT_ALIGNMENT
             border = BorderFactory.createEmptyBorder(8, 0, 8, 0)
         })

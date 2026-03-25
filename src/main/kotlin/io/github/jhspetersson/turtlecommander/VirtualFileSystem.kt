@@ -6,6 +6,7 @@ import java.nio.file.Path
 interface VirtualFileSystem : Closeable {
     val archivePath: Path
     val root: Path
+    val isReadOnly: Boolean get() = false
     suspend fun listFiles(directory: Path): List<FileEntry>
     fun isRoot(path: Path): Boolean
     fun getPath(relativePath: String): Path
