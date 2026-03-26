@@ -7,6 +7,7 @@ import com.intellij.openapi.components.Storage
 import com.intellij.openapi.project.Project
 import com.intellij.ui.OnePixelSplitter
 import com.intellij.util.messages.Topic
+import com.intellij.util.xmlb.annotations.Attribute
 import com.intellij.util.xmlb.annotations.Tag
 import com.intellij.util.xmlb.annotations.XCollection
 
@@ -63,6 +64,24 @@ class FileManagerStateService(
         @XCollection(elementTypes = [String::class])
         var favoritePaths: MutableList<String> = mutableListOf()
 
+        @XCollection
+        var favoriteEntries: MutableList<FavoriteEntry> = mutableListOf()
+
+    }
+
+    @Tag("favorite")
+    class FavoriteEntry {
+        @Attribute
+        var path: String = ""
+        @Attribute
+        var color: String = ""
+
+        // No-arg constructor required for serialization
+        constructor()
+        constructor(path: String, color: String = "") {
+            this.path = path
+            this.color = color
+        }
     }
 
     @Tag("panel")
@@ -119,25 +138,57 @@ class FileManagerStateService(
         return getActivePanel()?.getActiveTab()
     }
 
-    fun addFavorite(path: String) {
-        if (!myState.favoritePaths.contains(path)) {
-            myState.favoritePaths.add(path)
+    private fun migrateFavoritesIfNeeded() {
+        if (myState.favoritePaths.isNotEmpty() && myState.favoriteEntries.isEmpty()) {
+            myState.favoriteEntries.addAll(myState.favoritePaths.map { FavoriteEntry(it) })
+            myState.favoritePaths.clear()
+        }
+    }
+
+    fun addFavorite(path: String, color: String = "") {
+        migrateFavoritesIfNeeded()
+        if (myState.favoriteEntries.none { it.path == path }) {
+            myState.favoriteEntries.add(FavoriteEntry(path, color))
             fireFavoritesChanged()
         }
     }
 
     fun removeFavorite(path: String) {
-        if (myState.favoritePaths.remove(path)) {
+        migrateFavoritesIfNeeded()
+        if (myState.favoriteEntries.removeAll { it.path == path }) {
             fireFavoritesChanged()
         }
     }
 
-    fun getFavorites(): List<String> = myState.favoritePaths.toList()
+    fun getFavorites(): List<String> {
+        migrateFavoritesIfNeeded()
+        return myState.favoriteEntries.map { it.path }
+    }
+
+    fun getFavoriteEntries(): List<FavoriteEntry> {
+        migrateFavoritesIfNeeded()
+        return myState.favoriteEntries.toList()
+    }
+
+    fun setFavoriteEntries(entries: List<FavoriteEntry>) {
+        myState.favoriteEntries.clear()
+        myState.favoriteEntries.addAll(entries)
+        myState.favoritePaths.clear()
+        fireFavoritesChanged()
+    }
 
     fun setFavorites(paths: List<String>) {
+        migrateFavoritesIfNeeded()
+        val oldEntries = myState.favoriteEntries.associateBy { it.path }
+        myState.favoriteEntries.clear()
+        myState.favoriteEntries.addAll(paths.map { oldEntries[it] ?: FavoriteEntry(it) })
         myState.favoritePaths.clear()
-        myState.favoritePaths.addAll(paths)
         fireFavoritesChanged()
+    }
+
+    fun getFavoriteColor(path: String): String {
+        migrateFavoritesIfNeeded()
+        return myState.favoriteEntries.find { it.path == path }?.color ?: ""
     }
 
     private fun fireFavoritesChanged() {

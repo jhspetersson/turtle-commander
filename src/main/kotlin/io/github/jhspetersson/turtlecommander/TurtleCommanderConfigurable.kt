@@ -1,11 +1,15 @@
 package io.github.jhspetersson.turtlecommander
 
 import com.intellij.openapi.components.service
+import com.intellij.openapi.fileChooser.FileChooser
+import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.ui.ComboBox
+import com.intellij.ui.ColorChooserService
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
+import java.awt.Color
 import java.awt.GraphicsEnvironment
 import java.awt.BorderLayout
 import java.awt.Dimension
@@ -35,8 +39,8 @@ class TurtleCommanderConfigurable : Configurable {
     private var tabFontCombo: ComboBox<String>? = null
     private var tabFontSizeSpinner: JSpinner? = null
     private var defaultViewModeCombo: ComboBox<String>? = null
-    private var favoritesListModel: DefaultListModel<String>? = null
-    private var favoritesList: JBList<String>? = null
+    private var favoritesListModel: DefaultListModel<FileManagerStateService.FavoriteEntry>? = null
+    private var favoritesList: JBList<FileManagerStateService.FavoriteEntry>? = null
 
     override fun getDisplayName(): String = "Turtle Commander"
 
@@ -122,25 +126,28 @@ class TurtleCommanderConfigurable : Configurable {
         sortWithDirectoriesCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
 
         // Favorites editor
-        val favListModel = DefaultListModel<String>()
+        val favListModel = DefaultListModel<FileManagerStateService.FavoriteEntry>()
         favoritesListModel = favListModel
         val currentProject = ProjectManager.getInstance().openProjects.firstOrNull()
         if (currentProject != null) {
             val stateService = currentProject.service<FileManagerStateService>()
-            stateService.getFavorites().forEach { favListModel.addElement(it) }
+            stateService.getFavoriteEntries().forEach { favListModel.addElement(FileManagerStateService.FavoriteEntry(it.path, it.color)) }
         }
 
         val favList = JBList(favListModel)
         favoritesList = favList
         favList.visibleRowCount = 6
+        favList.cellRenderer = FavoriteListCellRenderer()
 
         val addButton = JButton("Add").apply {
             addActionListener {
-                val path = com.intellij.openapi.ui.Messages.showInputDialog(
-                    "Enter favorite path:", "Add Favorite", null
-                )
-                if (!path.isNullOrBlank()) {
-                    favListModel.addElement(path.trim())
+                val descriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor().apply {
+                    title = "Add Favorite"
+                    description = "Select a directory to add to favorites"
+                }
+                val chosen = FileChooser.chooseFile(descriptor, null, null)
+                if (chosen != null) {
+                    favListModel.addElement(FileManagerStateService.FavoriteEntry(chosen.path))
                 }
             }
         }
@@ -170,6 +177,14 @@ class TurtleCommanderConfigurable : Configurable {
                 }
             }
         }
+        val colorButton = JButton("Color...").apply {
+            addActionListener {
+                val idx = favList.selectedIndex
+                if (idx < 0) return@addActionListener
+                val entry = favListModel.getElementAt(idx)
+                showColorChooser(favList, entry, idx, favListModel)
+            }
+        }
 
         val favButtonPanel = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
@@ -178,6 +193,8 @@ class TurtleCommanderConfigurable : Configurable {
             add(javax.swing.Box.createVerticalStrut(8))
             add(moveUpButton)
             add(moveDownButton)
+            add(javax.swing.Box.createVerticalStrut(8))
+            add(colorButton)
         }
 
         val favoritesPanel = JPanel(BorderLayout(8, 0)).apply {
@@ -185,8 +202,8 @@ class TurtleCommanderConfigurable : Configurable {
             border = javax.swing.BorderFactory.createTitledBorder("Favorites")
             add(javax.swing.JScrollPane(favList), BorderLayout.CENTER)
             add(favButtonPanel, BorderLayout.EAST)
-            preferredSize = Dimension(Int.MAX_VALUE, 200)
-            maximumSize = Dimension(Int.MAX_VALUE, 200)
+            preferredSize = Dimension(Int.MAX_VALUE, 260)
+            maximumSize = Dimension(Int.MAX_VALUE, 260)
         }
 
         val inner = JPanel().apply {
@@ -229,10 +246,12 @@ class TurtleCommanderConfigurable : Configurable {
         val model = favoritesListModel ?: return false
         val currentProject = ProjectManager.getInstance().openProjects.firstOrNull() ?: return false
         val stateService = currentProject.service<FileManagerStateService>()
-        val saved = stateService.getFavorites()
+        val saved = stateService.getFavoriteEntries()
         if (model.size() != saved.size) return true
         for (i in 0 until model.size()) {
-            if (model.getElementAt(i) != saved[i]) return true
+            val m = model.getElementAt(i)
+            val s = saved[i]
+            if (m.path != s.path || m.color != s.color) return true
         }
         return false
     }
@@ -259,8 +278,8 @@ class TurtleCommanderConfigurable : Configurable {
             val currentProject = ProjectManager.getInstance().openProjects.firstOrNull()
             if (currentProject != null) {
                 val stateService = currentProject.service<FileManagerStateService>()
-                val newFavorites = (0 until model.size()).map { model.getElementAt(it) }
-                stateService.setFavorites(newFavorites)
+                val newEntries = (0 until model.size()).map { model.getElementAt(it) }
+                stateService.setFavoriteEntries(newEntries)
             }
         }
     }
@@ -290,7 +309,7 @@ class TurtleCommanderConfigurable : Configurable {
             val currentProject = ProjectManager.getInstance().openProjects.firstOrNull()
             if (currentProject != null) {
                 val stateService = currentProject.service<FileManagerStateService>()
-                stateService.getFavorites().forEach { model.addElement(it) }
+                stateService.getFavoriteEntries().forEach { model.addElement(FileManagerStateService.FavoriteEntry(it.path, it.color)) }
             }
         }
     }
@@ -323,4 +342,83 @@ class TurtleCommanderConfigurable : Configurable {
         val selected = combo?.selectedItem as? String ?: return ""
         return if (selected == defaultLabel) "" else selected
     }
+
+    private fun showColorChooser(
+        favList: JBList<FileManagerStateService.FavoriteEntry>,
+        entry: FileManagerStateService.FavoriteEntry,
+        idx: Int,
+        model: DefaultListModel<FileManagerStateService.FavoriteEntry>,
+    ) {
+        val presets = FAVORITE_PRESET_COLORS
+        val popup = javax.swing.JPopupMenu()
+        for ((name, hex) in presets) {
+            val item = javax.swing.JMenuItem(name)
+            if (hex.isNotEmpty()) {
+                item.icon = ColorSwatchIcon(Color.decode(hex))
+            }
+            item.addActionListener {
+                model.set(idx, FileManagerStateService.FavoriteEntry(entry.path, hex))
+                favList.repaint()
+            }
+            popup.add(item)
+        }
+        popup.addSeparator()
+        val customItem = javax.swing.JMenuItem("Custom...")
+        customItem.addActionListener {
+            val initial = if (entry.color.isNotBlank()) {
+                try { Color.decode(entry.color) } catch (_: Exception) { null }
+            } else null
+            val chosen = ColorChooserService.getInstance().showDialog(
+                favList, "Choose Favorite Color", initial ?: Color.GRAY, true, emptyList(), true
+            )
+            if (chosen != null) {
+                val hex = String.format("#%02X%02X%02X", chosen.red, chosen.green, chosen.blue)
+                model.set(idx, FileManagerStateService.FavoriteEntry(entry.path, hex))
+                favList.repaint()
+            }
+        }
+        popup.add(customItem)
+        popup.show(favList, favList.width / 2, favList.indexToLocation(idx)?.y ?: 0)
+    }
+}
+
+private class FavoriteListCellRenderer : javax.swing.ListCellRenderer<FileManagerStateService.FavoriteEntry> {
+    private val delegate = com.intellij.ui.SimpleColoredComponent()
+
+    override fun getListCellRendererComponent(
+        list: javax.swing.JList<out FileManagerStateService.FavoriteEntry>,
+        value: FileManagerStateService.FavoriteEntry?,
+        index: Int,
+        isSelected: Boolean,
+        cellHasFocus: Boolean,
+    ): java.awt.Component {
+        delegate.clear()
+        delegate.background = if (isSelected) list.selectionBackground else list.background
+        delegate.foreground = if (isSelected) list.selectionForeground else list.foreground
+        delegate.isOpaque = true
+        if (value != null) {
+            val icon = if (value.color.isNotBlank()) {
+                try { ColorSwatchIcon(Color.decode(value.color)) } catch (_: Exception) { com.intellij.icons.AllIcons.Nodes.Folder }
+            } else {
+                com.intellij.icons.AllIcons.Nodes.Folder
+            }
+            delegate.icon = icon
+            delegate.append(value.path)
+        }
+        return delegate
+    }
+}
+
+private class ColorSwatchIcon(private val color: Color) : javax.swing.Icon {
+    override fun paintIcon(c: java.awt.Component?, g: java.awt.Graphics, x: Int, y: Int) {
+        val g2 = g.create()
+        try {
+            g2.color = color
+            g2.fillRoundRect(x + 1, y + 1, iconWidth - 2, iconHeight - 2, 3, 3)
+        } finally {
+            g2.dispose()
+        }
+    }
+    override fun getIconWidth(): Int = 14
+    override fun getIconHeight(): Int = 14
 }

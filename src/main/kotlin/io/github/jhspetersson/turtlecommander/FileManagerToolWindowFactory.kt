@@ -20,9 +20,13 @@ import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.content.ContentFactory
 import java.awt.BorderLayout
+import java.awt.Color
+import java.awt.Component
+import java.awt.Graphics
 import java.awt.event.InputEvent
 import java.nio.file.Path
 import javax.swing.BoxLayout
+import javax.swing.Icon
 import javax.swing.JButton
 import javax.swing.JMenuItem
 import javax.swing.JPanel
@@ -102,19 +106,19 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
 
         fun rebuildTitleActions() {
             val titleActions = mutableListOf<AnAction>()
-            val favorites = stateService.getFavorites()
+            val entries = stateService.getFavoriteEntries()
 
             val maxVisible = 5
-            val visibleFavorites = favorites.take(maxVisible)
-            val overflowFavorites = favorites.drop(maxVisible)
+            val visibleEntries = entries.take(maxVisible)
+            val overflowEntries = entries.drop(maxVisible)
 
-            for ((index, favPath) in visibleFavorites.withIndex()) {
-                titleActions.add(FavoriteAction(favPath, index + 1, project))
-                titleActions.add(RemoveFavoriteAction(favPath, project))
+            for ((index, entry) in visibleEntries.withIndex()) {
+                titleActions.add(FavoriteAction(entry.path, index + 1, entry.color, project))
+                titleActions.add(RemoveFavoriteAction(entry.path, project))
             }
 
-            if (overflowFavorites.isNotEmpty()) {
-                titleActions.add(FavoriteOverflowAction(overflowFavorites, maxVisible, project))
+            if (overflowEntries.isNotEmpty()) {
+                titleActions.add(FavoriteOverflowAction(overflowEntries, maxVisible, project))
             }
 
             if (titleActions.isNotEmpty()) {
@@ -276,6 +280,7 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
 private class FavoriteAction(
     val favPath: String,
     private val index: Int,
+    private val colorHex: String,
     private val project: Project,
 ) : AnAction() {
     init {
@@ -284,7 +289,7 @@ private class FavoriteAction(
         templatePresentation.setText(name, false)
         val shortcut = if (index in 1..9) "<br>Ctrl+$index" else ""
         templatePresentation.description = "<html>$favPath$shortcut</html>"
-        templatePresentation.icon = AllIcons.Nodes.Folder
+        templatePresentation.icon = favoriteIcon(colorHex)
         templatePresentation.putClientProperty(ActionUtil.SHOW_TEXT_IN_TOOLBAR, true)
     }
 
@@ -316,7 +321,7 @@ private class RemoveFavoriteAction(
 }
 
 private class FavoriteOverflowAction(
-    private val overflowPaths: List<String>,
+    private val overflowEntries: List<FileManagerStateService.FavoriteEntry>,
     private val startIndex: Int,
     private val project: Project,
 ) : AnAction("More Favorites...", "Show more favorites", AllIcons.General.ChevronDown) {
@@ -325,20 +330,61 @@ private class FavoriteOverflowAction(
 
     override fun actionPerformed(e: AnActionEvent) {
         val popupMenu = JPopupMenu()
-        for ((i, favPath) in overflowPaths.withIndex()) {
-            val name = Path.of(favPath).fileName?.toString() ?: favPath
-            val menuItem = JMenuItem(name, AllIcons.Nodes.Folder)
+        for ((i, entry) in overflowEntries.withIndex()) {
+            val name = Path.of(entry.path).fileName?.toString() ?: entry.path
+            val menuItem = JMenuItem(name, favoriteIcon(entry.color))
             val favIndex = startIndex + i + 1
             val shortcut = if (favIndex in 1..9) "<br>Ctrl+$favIndex" else ""
-            menuItem.toolTipText = "<html>$favPath$shortcut</html>"
+            menuItem.toolTipText = "<html>${entry.path}$shortcut</html>"
             menuItem.addActionListener {
                 val stateService = project.service<FileManagerStateService>()
                 val panel = stateService.getActivePanel() ?: return@addActionListener
-                panel.openDirectoryInNewTab(Path.of(favPath))
+                panel.openDirectoryInNewTab(Path.of(entry.path))
             }
             popupMenu.add(menuItem)
         }
         val component = e.inputEvent?.component ?: return
         popupMenu.show(component, 0, component.height)
     }
+}
+
+val FAVORITE_PRESET_COLORS = linkedMapOf(
+    "None" to "",
+    "Blue" to "#5B9BD5",
+    "Green" to "#70AD47",
+    "Orange" to "#ED7D31",
+    "Red" to "#E06666",
+    "Purple" to "#A855F7",
+    "Teal" to "#4DB6AC",
+    "Brown" to "#A0522D",
+    "Pink" to "#F48FB1",
+    "Gray" to "#9E9E9E",
+)
+
+private fun favoriteIcon(colorHex: String): Icon {
+    if (colorHex.isBlank()) return AllIcons.Nodes.Folder
+    val color = try { Color.decode(colorHex) } catch (_: Exception) { return AllIcons.Nodes.Folder }
+    return ColorFolderIcon(color)
+}
+
+private class ColorFolderIcon(private val color: Color) : Icon {
+    override fun paintIcon(c: Component?, g: Graphics, x: Int, y: Int) {
+        val g2 = (g.create() as java.awt.Graphics2D).apply {
+            setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON)
+        }
+        try {
+            g2.color = color
+            // Folder tab
+            val tabWidth = 6
+            val tabHeight = 3
+            g2.fillRoundRect(x + 1, y + 2, tabWidth, tabHeight + 1, 2, 2)
+            // Folder body
+            g2.fillRoundRect(x + 1, y + 4, iconWidth - 2, iconHeight - 6, 3, 3)
+        } finally {
+            g2.dispose()
+        }
+    }
+
+    override fun getIconWidth(): Int = 16
+    override fun getIconHeight(): Int = 16
 }
