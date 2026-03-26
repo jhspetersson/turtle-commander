@@ -116,6 +116,8 @@ class FileTab(
     private val filterField = JTextField()
     private val filterPanel = JPanel(BorderLayout(4, 0))
     private var updatingDriveCombo = false
+    private var driveComboPopupOpen = false
+    private var driveRefreshTimer: javax.swing.Timer? = null
     private val cursorPositions = mutableMapOf<Path, Int>()
     private var stateService: FileManagerStateService? = null
     private var initialized = false
@@ -140,6 +142,9 @@ class FileTab(
         setupFilterPanel()
         setupViewPanel()
         loadDrives()
+        if (!TurtleCommanderSettings.getInstance().state.hideDriveSelector) {
+            startDriveRefreshTimer()
+        }
         applyPanelFont()
         applyVisibilitySettings()
     }
@@ -149,6 +154,11 @@ class FileTab(
         driveCombo.isVisible = !settings.hideDriveSelector
         statusPanel.isVisible = !settings.hideStatusBar
         enableFileNameHighlighting = settings.enableFileNameHighlighting
+        if (settings.hideDriveSelector) {
+            driveRefreshTimer?.stop()
+        } else {
+            if (driveRefreshTimer?.isRunning != true) startDriveRefreshTimer()
+        }
     }
 
     fun applyPanelFont() {
@@ -184,8 +194,11 @@ class FileTab(
 
         driveCombo.apply {
             addPopupMenuListener(object : PopupMenuListener {
-                override fun popupMenuWillBecomeVisible(e: PopupMenuEvent) {}
+                override fun popupMenuWillBecomeVisible(e: PopupMenuEvent) {
+                    driveComboPopupOpen = true
+                }
                 override fun popupMenuWillBecomeInvisible(e: PopupMenuEvent) {
+                    driveComboPopupOpen = false
                     if (updatingDriveCombo) return
                     val selected = selectedItem as? String ?: return
                     val drivePath = Path.of(selected)
@@ -201,6 +214,7 @@ class FileTab(
                     table.requestFocusInWindow()
                 }
                 override fun popupMenuCanceled(e: PopupMenuEvent) {
+                    driveComboPopupOpen = false
                     table.requestFocusInWindow()
                 }
             })
@@ -939,14 +953,20 @@ class FileTab(
 
         statusLabel.text = sb.toString()
 
-        try {
-            val fileStore = Files.getFileStore(currentPath)
-            val usableSpace = fileStore.usableSpace
-            val totalSpace = fileStore.totalSpace
-            val pct = if (totalSpace > 0) (usableSpace * 100 / totalSpace) else 0
-            freeSpaceLabel.text = "${tableModel.formatSize(usableSpace)} of ${tableModel.formatSize(totalSpace)} free ($pct%)"
-        } catch (_: Exception) {
-            freeSpaceLabel.text = ""
+        val path = currentPath
+        fileOps.launch {
+            try {
+                val text = withContext(Dispatchers.IO) {
+                    val fileStore = Files.getFileStore(path)
+                    val usableSpace = fileStore.usableSpace
+                    val totalSpace = fileStore.totalSpace
+                    val pct = if (totalSpace > 0) (usableSpace * 100 / totalSpace) else 0
+                    "${tableModel.formatSize(usableSpace)} of ${tableModel.formatSize(totalSpace)} free ($pct%)"
+                }
+                withContext(Dispatchers.EDT) { freeSpaceLabel.text = text }
+            } catch (_: Exception) {
+                withContext(Dispatchers.EDT) { freeSpaceLabel.text = "" }
+            }
         }
     }
 
@@ -966,20 +986,42 @@ class FileTab(
 
     private fun loadDrives() {
         val roots = fileOps.getRoots()
-        driveCombo.removeAllItems()
-        roots.forEach { driveCombo.addItem(it) }
+        applyDriveRoots(roots)
+    }
 
-        val bestMatch = roots
-            .filter { currentPath.startsWith(it) }
-            .maxByOrNull { it.length }
-            ?: roots.firstOrNull()
-        if (bestMatch != null) {
-            driveCombo.selectedItem = bestMatch
+    private fun applyDriveRoots(roots: List<String>) {
+        val current = (0 until driveCombo.itemCount).map { driveCombo.getItemAt(it) }
+        if (current == roots) return
+
+        updatingDriveCombo = true
+        try {
+            driveCombo.removeAllItems()
+            roots.forEach { driveCombo.addItem(it) }
+
+            val bestMatch = roots
+                .filter { currentPath.startsWith(it) }
+                .maxByOrNull { it.length }
+                ?: roots.firstOrNull()
+            if (bestMatch != null) {
+                driveCombo.selectedItem = bestMatch
+            }
+
+            val widest = roots.maxByOrNull { it.length } ?: ""
+            driveCombo.setPrototypeDisplayValue(widest)
+            driveCombo.revalidate()
+        } finally {
+            updatingDriveCombo = false
         }
+    }
 
-        val widest = roots.maxByOrNull { it.length } ?: ""
-        driveCombo.setPrototypeDisplayValue(widest)
-        driveCombo.revalidate()
+    private fun startDriveRefreshTimer() {
+        driveRefreshTimer = javax.swing.Timer(5000) {
+            if (driveComboPopupOpen || currentVfs != null) return@Timer
+            fileOps.launch {
+                val roots = withContext(Dispatchers.IO) { fileOps.getRoots() }
+                withContext(Dispatchers.EDT) { applyDriveRoots(roots) }
+            }
+        }.apply { start() }
     }
 
     suspend fun navigateTo(path: Path, selectName: String? = null) {
@@ -1507,6 +1549,8 @@ class FileTab(
     }
 
     fun dispose() {
+        driveRefreshTimer?.stop()
+        driveRefreshTimer = null
         for (entry in vfsStack.asReversed()) {
             entry.vfs.close()
             if (entry.tempFile != null) {
