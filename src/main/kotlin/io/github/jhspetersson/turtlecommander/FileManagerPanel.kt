@@ -10,6 +10,7 @@ import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBTabbedPane
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
+import java.awt.Color
 import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.FlowLayout
@@ -661,7 +662,7 @@ class FileManagerPanel(
 }
 
 private class DraggableTabbedPaneWrapper(
-    private val tabbedPane: JBTabbedPane,
+    tabbedPane: JBTabbedPane,
     private val panel: FileManagerPanel,
 ) : JPanel(BorderLayout()) {
     init {
@@ -673,7 +674,7 @@ private class DraggableTabbedPaneWrapper(
         super.paint(g)
         val rect = panel.getDropIndicatorRect() ?: return
         val g2 = g as Graphics2D
-        g2.color = java.awt.Color(0x3574F0) // IntelliJ blue
+        g2.color = Color(0x3574F0) // IntelliJ blue
         g2.fillRect(rect.x, rect.y, rect.width, rect.height)
     }
 }
@@ -731,8 +732,8 @@ private class ViewModeButton(
         if (isSelected) {
             val g2 = g as Graphics2D
             g2.color = JBColor(
-                java.awt.Color(0, 0, 0, 30),
-                java.awt.Color(255, 255, 255, 40),
+                Color(0, 0, 0, 30),
+                Color(255, 255, 255, 40),
             )
             g2.fillRoundRect(0, 0, width, height, 6, 6)
         }

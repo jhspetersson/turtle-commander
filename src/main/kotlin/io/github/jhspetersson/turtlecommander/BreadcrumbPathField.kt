@@ -4,8 +4,10 @@ import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
 import java.awt.CardLayout
+import java.awt.Color
 import java.awt.Cursor
 import java.awt.FlowLayout
+import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.event.ActionListener
 import java.awt.event.FocusAdapter
@@ -63,8 +65,8 @@ class BreadcrumbPathField : JPanel() {
                 JBUI.Borders.empty(2, 5),
             )
             cursor = Cursor.getPredefinedCursor(Cursor.TEXT_CURSOR)
-            val gbc = java.awt.GridBagConstraints().apply {
-                anchor = java.awt.GridBagConstraints.WEST
+            val gbc = GridBagConstraints().apply {
+                anchor = GridBagConstraints.WEST
                 weightx = 1.0
             }
             add(breadcrumbContent, gbc)
@@ -116,7 +118,7 @@ class BreadcrumbPathField : JPanel() {
     private fun rebuildBreadcrumbs() {
         breadcrumbContent.removeAll()
         val segments = splitPath(text)
-        val linkColor = JBColor(java.awt.Color(0x2470B3), java.awt.Color(0x589DF6))
+        val linkColor = JBColor(Color(0x2470B3), Color(0x589DF6))
 
         for ((i, segment) in segments.withIndex()) {
             if (i > 0) {

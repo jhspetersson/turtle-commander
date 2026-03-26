@@ -9,8 +9,10 @@ import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
+import java.awt.Insets
 import java.nio.file.Path
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import javax.swing.BorderFactory
 import javax.swing.BoxLayout
 import javax.swing.ButtonGroup
@@ -248,7 +250,7 @@ class FileSearchDialog(
             border = BorderFactory.createEmptyBorder(2, 20, 0, 0)
             val gbc = GridBagConstraints().apply {
                 anchor = GridBagConstraints.WEST
-                insets = java.awt.Insets(2, 4, 2, 4)
+                insets = Insets(2, 4, 2, 4)
             }
             gbc.gridx = 0; gbc.gridy = 0; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0
             gbc.gridwidth = 2
@@ -268,7 +270,7 @@ class FileSearchDialog(
             border = BorderFactory.createEmptyBorder(2, 20, 0, 0)
             val gbc = GridBagConstraints().apply {
                 anchor = GridBagConstraints.WEST
-                insets = java.awt.Insets(2, 4, 2, 4)
+                insets = Insets(2, 4, 2, 4)
             }
             gbc.gridx = 0; gbc.gridy = 0
             add(sizeModeCombo, gbc)
@@ -295,7 +297,7 @@ class FileSearchDialog(
             border = BorderFactory.createEmptyBorder(2, 20, 0, 0)
             val gbc = GridBagConstraints().apply {
                 anchor = GridBagConstraints.WEST
-                insets = java.awt.Insets(2, 4, 2, 4)
+                insets = Insets(2, 4, 2, 4)
             }
             gbc.gridx = 0; gbc.gridy = 0
             add(modeCombo, gbc)
@@ -360,7 +362,7 @@ class FileSearchDialog(
 
     private fun parseDateRange(text: String): Pair<Long, Long>? {
         if (text.isBlank()) return null
-        val cal = java.util.Calendar.getInstance()
+        val cal = Calendar.getInstance()
         // yyyy-MM-dd HH:mm
         try {
             val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm")
@@ -368,8 +370,8 @@ class FileSearchDialog(
             val d = sdf.parse(text)
             cal.time = d
             val start = cal.timeInMillis
-            cal.add(java.util.Calendar.MINUTE, 1)
-            cal.add(java.util.Calendar.MILLISECOND, -1)
+            cal.add(Calendar.MINUTE, 1)
+            cal.add(Calendar.MILLISECOND, -1)
             return Pair(start, cal.timeInMillis)
         } catch (_: Exception) {}
         // yyyy-MM-dd
@@ -379,8 +381,8 @@ class FileSearchDialog(
             val d = sdf.parse(text)
             cal.time = d
             val start = cal.timeInMillis
-            cal.add(java.util.Calendar.DAY_OF_MONTH, 1)
-            cal.add(java.util.Calendar.MILLISECOND, -1)
+            cal.add(Calendar.DAY_OF_MONTH, 1)
+            cal.add(Calendar.MILLISECOND, -1)
             return Pair(start, cal.timeInMillis)
         } catch (_: Exception) {}
         // yyyy-MM
@@ -390,8 +392,8 @@ class FileSearchDialog(
             val d = sdf.parse(text)
             cal.time = d
             val start = cal.timeInMillis
-            cal.add(java.util.Calendar.MONTH, 1)
-            cal.add(java.util.Calendar.MILLISECOND, -1)
+            cal.add(Calendar.MONTH, 1)
+            cal.add(Calendar.MILLISECOND, -1)
             return Pair(start, cal.timeInMillis)
         } catch (_: Exception) {}
         // yyyy
@@ -401,8 +403,8 @@ class FileSearchDialog(
             val d = sdf.parse(text)
             cal.time = d
             val start = cal.timeInMillis
-            cal.add(java.util.Calendar.YEAR, 1)
-            cal.add(java.util.Calendar.MILLISECOND, -1)
+            cal.add(Calendar.YEAR, 1)
+            cal.add(Calendar.MILLISECOND, -1)
             return Pair(start, cal.timeInMillis)
         } catch (_: Exception) {}
         return null

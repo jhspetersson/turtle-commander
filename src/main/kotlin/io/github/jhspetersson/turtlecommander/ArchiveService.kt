@@ -4,6 +4,9 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.BufferedOutputStream
+import java.io.IOException
+import java.net.URI
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.FileSystems
 import java.nio.file.FileVisitResult
@@ -12,6 +15,7 @@ import java.nio.file.Path
 import java.nio.file.SimpleFileVisitor
 import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.BasicFileAttributes
+import java.util.zip.GZIPOutputStream
 
 enum class OverwriteResponse { YES, NO, YES_TO_ALL, NO_TO_ALL }
 
@@ -36,7 +40,7 @@ class ArchiveService {
             env["create"] = "true"
         }
 
-        val uri = java.net.URI.create("jar:" + archivePath.toUri())
+        val uri = URI.create("jar:" + archivePath.toUri())
         return withContext(Dispatchers.IO) {
             var successCount = 0
             FileSystems.newFileSystem(uri, env).use { zipFs ->
@@ -70,7 +74,7 @@ class ArchiveService {
                                 return FileVisitResult.CONTINUE
                             }
 
-                            override fun visitFileFailed(file: Path, exc: java.io.IOException): FileVisitResult {
+                            override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
                                 if (isCancelled()) return FileVisitResult.TERMINATE
                                 onError(file, exc)
                                 return FileVisitResult.CONTINUE
@@ -102,8 +106,8 @@ class ArchiveService {
     ): Int {
         return withContext(Dispatchers.IO) {
             var successCount = 0
-            java.io.BufferedOutputStream(Files.newOutputStream(archivePath)).use { fos ->
-                java.util.zip.GZIPOutputStream(fos).use { gzos ->
+            BufferedOutputStream(Files.newOutputStream(archivePath)).use { fos ->
+                GZIPOutputStream(fos).use { gzos ->
                     TarOutputStream(gzos).use { tarOs ->
                         var packedCount = 0
                         for (source in sourcePaths) {
@@ -135,7 +139,7 @@ class ArchiveService {
                                         return FileVisitResult.CONTINUE
                                     }
 
-                                    override fun visitFileFailed(file: Path, exc: java.io.IOException): FileVisitResult {
+                                    override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
                                         if (isCancelled()) return FileVisitResult.TERMINATE
                                         onError(file, exc)
                                         return FileVisitResult.CONTINUE
