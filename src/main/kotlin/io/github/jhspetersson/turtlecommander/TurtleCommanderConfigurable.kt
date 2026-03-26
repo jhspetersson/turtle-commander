@@ -167,6 +167,7 @@ class TurtleCommanderConfigurable : Configurable {
             border = BorderFactory.createTitledBorder("Appearance")
             add(styleGrid, BorderLayout.CENTER)
             val bottomRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
+                border = JBUI.Borders.empty(4)
                 add(resetStylesButton)
             }
             add(bottomRow, BorderLayout.SOUTH)
@@ -241,6 +242,11 @@ class TurtleCommanderConfigurable : Configurable {
             }
         }
 
+        val favButtons = listOf(addButton, removeButton, moveUpButton, moveDownButton, colorButton)
+        for (btn in favButtons) {
+            btn.maximumSize = Dimension(Int.MAX_VALUE, btn.preferredSize.height)
+        }
+
         val favButtonPanel = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             add(addButton)
@@ -290,9 +296,9 @@ class TurtleCommanderConfigurable : Configurable {
             add(Box.createVerticalStrut(8))
             add(appearancePanel)
             add(Box.createVerticalStrut(8))
-            add(thumbnailCachePanel)
-            add(Box.createVerticalStrut(8))
             add(favoritesPanel)
+            add(Box.createVerticalStrut(8))
+            add(thumbnailCachePanel)
         }
 
         return JPanel(BorderLayout()).apply {
