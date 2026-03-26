@@ -6,9 +6,16 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.components.service
+import com.intellij.openapi.options.Configurable
+import com.intellij.openapi.options.SearchableConfigurable
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.wm.ToolWindowManager
 import java.nio.file.Path
+import javax.swing.JTree
+import javax.swing.Timer
+import javax.swing.tree.DefaultMutableTreeNode
+import javax.swing.tree.TreeModel
+import javax.swing.tree.TreePath
 
 private fun findActiveTab(e: AnActionEvent): FileTab? {
     val project = e.project ?: return null
@@ -260,17 +267,17 @@ class OpenKeymapSettingsAction : AnAction() {
         val project = e.project ?: return
         ShowSettingsUtil.getInstance().showSettingsDialog(
             project,
-            { it is com.intellij.openapi.options.SearchableConfigurable && it.id == "preferences.keymap" },
+            { it is SearchableConfigurable && it.id == "preferences.keymap" },
             { configurable ->
                 scheduleTreeNavigation(configurable, 0)
             },
         )
     }
 
-    private fun scheduleTreeNavigation(configurable: com.intellij.openapi.options.Configurable, attempt: Int) {
+    private fun scheduleTreeNavigation(configurable: Configurable, attempt: Int) {
         if (attempt > 50) return
         val delay = if (attempt == 0) 500 else 200
-        javax.swing.Timer(delay, null).apply {
+        Timer(delay, null).apply {
             isRepeats = false
             addActionListener {
                 val component = configurable.createComponent()
@@ -278,7 +285,7 @@ class OpenKeymapSettingsAction : AnAction() {
                 if (tree != null && canNavigate(tree, "Plugins", "Turtle Commander")) {
                     // Apply selection multiple times to survive post-initialization resets
                     for (d in listOf(0, 100, 300, 500, 750, 1000)) {
-                        javax.swing.Timer(d, null).apply {
+                        Timer(d, null).apply {
                             isRepeats = false
                             addActionListener {
                                 expandAndSelect(tree, "Plugins", "Turtle Commander")
@@ -294,7 +301,7 @@ class OpenKeymapSettingsAction : AnAction() {
         }
     }
 
-    private fun canNavigate(tree: javax.swing.JTree, vararg path: String): Boolean {
+    private fun canNavigate(tree: JTree, vararg path: String): Boolean {
         val model = tree.model
         var current: Any = model.root ?: return false
         for (name in path) {
@@ -304,7 +311,7 @@ class OpenKeymapSettingsAction : AnAction() {
         return true
     }
 
-    private fun findChild(model: javax.swing.tree.TreeModel, parent: Any, name: String): Any? {
+    private fun findChild(model: TreeModel, parent: Any, name: String): Any? {
         for (i in 0 until model.getChildCount(parent)) {
             val child = model.getChild(parent, i)
             if (getNodeName(child) == name) return child
@@ -313,7 +320,7 @@ class OpenKeymapSettingsAction : AnAction() {
     }
 
     private fun getNodeName(node: Any): String {
-        val obj = if (node is javax.swing.tree.DefaultMutableTreeNode) node.userObject else node
+        val obj = if (node is DefaultMutableTreeNode) node.userObject else node
         obj ?: return ""
         // Try getName() via reflection (Group, QuickList, etc.)
         try {
@@ -324,7 +331,7 @@ class OpenKeymapSettingsAction : AnAction() {
         return obj.toString()
     }
 
-    private fun findTree(component: java.awt.Component): javax.swing.JTree? {
+    private fun findTree(component: java.awt.Component): JTree? {
         if (component is com.intellij.ui.treeStructure.Tree) return component
         if (component is java.awt.Container) {
             for (child in component.components) {
@@ -335,7 +342,7 @@ class OpenKeymapSettingsAction : AnAction() {
         return null
     }
 
-    private fun expandAndSelect(tree: javax.swing.JTree, vararg path: String) {
+    private fun expandAndSelect(tree: JTree, vararg path: String) {
         val model = tree.model
         val root = model.root ?: return
 
@@ -349,9 +356,9 @@ class OpenKeymapSettingsAction : AnAction() {
 
         // Expand each parent level first
         for (i in 1 until nodes.size) {
-            tree.expandPath(javax.swing.tree.TreePath(nodes.subList(0, i).toTypedArray()))
+            tree.expandPath(TreePath(nodes.subList(0, i).toTypedArray()))
         }
-        val treePath = javax.swing.tree.TreePath(nodes.toTypedArray())
+        val treePath = TreePath(nodes.toTypedArray())
         tree.selectionPath = treePath
         tree.scrollPathToVisible(treePath)
     }
@@ -445,7 +452,7 @@ class CloseTabsToTheLeftAction : TabContextAction() {
 class CloseTabsToTheRightAction : TabContextAction() {
     override fun update(e: AnActionEvent) {
         val (panel, tabIndex) = resolveTabContext(e)
-        e.presentation.isEnabled = panel != null && tabIndex < (panel?.getRealTabCount() ?: 0) - 1
+        e.presentation.isEnabled = panel != null && tabIndex < (panel.getRealTabCount() ?: 0) - 1
     }
 
     override fun actionPerformed(e: AnActionEvent) {
@@ -700,7 +707,7 @@ class QuickAccessFavoriteAction : AnAction() {
         val favorites = stateService.getFavorites()
         val path = favorites.getOrNull(slot - 1)
         e.presentation.text = if (path != null) {
-            val name = java.nio.file.Path.of(path).fileName?.toString() ?: path
+            val name = Path.of(path).fileName?.toString() ?: path
             "Go to $name"
         } else {
             "Favorite $slot (not set)"
@@ -714,7 +721,7 @@ class QuickAccessFavoriteAction : AnAction() {
         val stateService = project.service<FileManagerStateService>()
         val path = stateService.getFavorites().getOrNull(slot - 1) ?: return
         val panel = stateService.getActivePanel() ?: return
-        panel.openDirectoryInNewTab(java.nio.file.Path.of(path))
+        panel.openDirectoryInNewTab(Path.of(path))
     }
 
     private fun extractSlot(e: AnActionEvent): Int? {

@@ -26,11 +26,13 @@ import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
 import com.intellij.ui.treeStructure.Tree
+import com.intellij.util.IconUtil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.awt.BorderLayout
 import java.awt.CardLayout
+import java.awt.Color
 import java.awt.Component
 import java.awt.Desktop
 import java.awt.Dimension
@@ -46,9 +48,12 @@ import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.io.File
 import java.nio.file.FileSystems
+import java.nio.file.FileVisitResult
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.SimpleFileVisitor
 import java.nio.file.StandardCopyOption
+import java.nio.file.attribute.BasicFileAttributes
 import javax.swing.BorderFactory
 import javax.swing.DefaultCellEditor
 import javax.swing.DefaultListCellRenderer
@@ -62,7 +67,9 @@ import javax.swing.JTable
 import javax.swing.JTextField
 import javax.swing.JTree
 import javax.swing.KeyStroke
+import javax.swing.ListCellRenderer
 import javax.swing.ListSelectionModel
+import javax.swing.SwingUtilities
 import javax.swing.TransferHandler
 import javax.swing.event.CellEditorListener
 import javax.swing.event.ChangeEvent
@@ -1458,13 +1465,13 @@ class FileTab(
             val size = withContext(Dispatchers.IO) {
                 var total = 0L
                 try {
-                    Files.walkFileTree(entry.path, object : java.nio.file.SimpleFileVisitor<Path>() {
-                        override fun visitFile(file: Path, attrs: java.nio.file.attribute.BasicFileAttributes): java.nio.file.FileVisitResult {
+                    Files.walkFileTree(entry.path, object : SimpleFileVisitor<Path>() {
+                        override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                             total += attrs.size()
-                            return java.nio.file.FileVisitResult.CONTINUE
+                            return FileVisitResult.CONTINUE
                         }
-                        override fun visitFileFailed(file: Path, exc: java.io.IOException?): java.nio.file.FileVisitResult {
-                            return java.nio.file.FileVisitResult.CONTINUE
+                        override fun visitFileFailed(file: Path, exc: java.io.IOException): FileVisitResult {
+                            return FileVisitResult.CONTINUE
                         }
                     })
                 } catch (_: Exception) {}
@@ -2278,17 +2285,17 @@ class FileTab(
         })
     }
 
-    private fun inactiveSelectionBackground(): java.awt.Color {
+    private fun inactiveSelectionBackground(): Color {
         val active = table.selectionBackground
         val bg = table.background
         fun blend(a: Int, b: Int) = (a + b) / 2
         return JBColor(
-            java.awt.Color(blend(active.red, bg.red), blend(active.green, bg.green), blend(active.blue, bg.blue)),
-            java.awt.Color(blend(active.red, bg.red), blend(active.green, bg.green), blend(active.blue, bg.blue)),
+            Color(blend(active.red, bg.red), blend(active.green, bg.green), blend(active.blue, bg.blue)),
+            Color(blend(active.red, bg.red), blend(active.green, bg.green), blend(active.blue, bg.blue)),
         )
     }
 
-    private fun inactiveSelectionForeground(): java.awt.Color {
+    private fun inactiveSelectionForeground(): Color {
         return table.foreground
     }
 
@@ -2676,7 +2683,7 @@ class FileTab(
         }
     }
 
-    private inner class FileThumbnailCellRenderer : javax.swing.ListCellRenderer<FileEntry> {
+    private inner class FileThumbnailCellRenderer : ListCellRenderer<FileEntry> {
         private val panel = JPanel(BorderLayout())
         private val iconLabel = JLabel()
         private val nameLabel = JLabel()
@@ -2703,14 +2710,13 @@ class FileTab(
                 && ThumbnailCache.isImageFile(entry.name)) {
                 val cached = ThumbnailCache.getCachedThumbnail(entry.path)
                 if (cached == null) {
-                    val capturedIndex = index
                     ThumbnailCache.requestThumbnail(
                         entry.path, entry.lastModified,
                         isStillVisible = {
-                            capturedIndex in thumbnailList.firstVisibleIndex..thumbnailList.lastVisibleIndex
+                            index in thumbnailList.firstVisibleIndex..thumbnailList.lastVisibleIndex
                         },
                     ) {
-                        javax.swing.SwingUtilities.invokeLater { thumbnailList.repaint() }
+                        SwingUtilities.invokeLater { thumbnailList.repaint() }
                     }
                 }
                 cached
@@ -2720,7 +2726,7 @@ class FileTab(
                 iconLabel.icon = thumbnail
             } else {
                 val entryIcon = fileEntryIcon(entry, enableFileNameHighlighting)
-                iconLabel.icon = if (entryIcon != null) com.intellij.util.IconUtil.scale(entryIcon, list, 2.0f) else null
+                iconLabel.icon = if (entryIcon != null) IconUtil.scale(entryIcon, list, 2.0f) else null
             }
             val name = entry.name
             nameLabel.text = if (name.length > 16) name.substring(0, 14) + "\u2026" else name

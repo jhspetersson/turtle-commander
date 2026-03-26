@@ -12,6 +12,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.FileTime
+import java.util.Date
 
 class TarFileSystemProvider : VirtualFileSystemProvider {
     companion object {
@@ -165,7 +166,7 @@ class TarVirtualFileSystem(
                         val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
                         val entry = TarArchiveEntry(path, relativeName)
                         entry.size = if (attrs.isDirectory) 0 else attrs.size()
-                        entry.modTime = java.util.Date(attrs.lastModifiedTime().toMillis())
+                        entry.modTime = Date(attrs.lastModifiedTime().toMillis())
                         tar.putArchiveEntry(entry)
                         if (!attrs.isDirectory) {
                             Files.copy(path, tar)

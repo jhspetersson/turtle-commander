@@ -6,6 +6,7 @@ import com.intellij.openapi.actionSystem.ActionPlaces
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
+import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBTabbedPane
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
@@ -20,11 +21,14 @@ import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.awt.event.MouseMotionAdapter
 import java.nio.file.Path
+import javax.swing.BorderFactory
 import javax.swing.ButtonGroup
+import javax.swing.Icon
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.JToggleButton
+import javax.swing.OverlayLayout
 import javax.swing.SwingUtilities
 
 class FileManagerPanel(
@@ -43,7 +47,7 @@ class FileManagerPanel(
     private val listViewButton = ViewModeButton(AllIcons.Actions.ListFiles, "List view", false)
     private val thumbnailViewButton = ViewModeButton(AllIcons.Actions.PreviewDetailsVertically, "Thumbnail view", false)
     private val treeViewButton = ViewModeButton(AllIcons.Actions.ShowAsTree, "Tree view", false)
-    private lateinit var viewTogglePanel: JPanel
+    private var viewTogglePanel: JPanel
 
     private var dragSourceIndex = -1
     private var dropTargetIndex = -1
@@ -179,7 +183,7 @@ class FileManagerPanel(
         val tabbedPaneWrapper = DraggableTabbedPaneWrapper(tabbedPane, this)
         val layeredWrapper = JPanel().apply {
             isOpaque = false
-            layout = javax.swing.OverlayLayout(this)
+            layout = OverlayLayout(this)
 
             val topRight = JPanel(BorderLayout()).apply {
                 isOpaque = false
@@ -463,11 +467,6 @@ class FileManagerPanel(
         focusActiveTab()
     }
 
-    fun closeActiveTab() {
-        val index = tabbedPane.selectedIndex
-        if (index >= 0) closeTab(index)
-    }
-
     fun getTabAt(index: Int): FileTab? = tabbedPane.getComponentAt(index) as? FileTab
 
     fun getActiveTabIndex(): Int = tabbedPane.selectedIndex
@@ -521,9 +520,7 @@ class FileManagerPanel(
         }
     }
 
-    fun getSelectedTabIndex(): Int = tabbedPane.selectedIndex
-
-    fun getTabIndexAt(point: java.awt.Point): Int {
+    fun getTabIndexAt(point: Point): Int {
         for (i in 0 until tabbedPane.tabCount) {
             val bounds = tabbedPane.getBoundsAt(i) ?: continue
             if (bounds.contains(point)) return i
@@ -714,7 +711,7 @@ private class NewTabButton(private val onClick: () -> Unit) : JComponent() {
 }
 
 private class ViewModeButton(
-    private val icon: javax.swing.Icon,
+    icon: Icon,
     tooltip: String,
     selected: Boolean,
 ) : JToggleButton(icon, selected) {
@@ -722,15 +719,15 @@ private class ViewModeButton(
         toolTipText = tooltip
         isFocusable = false
         preferredSize = Dimension(24, 24)
-        margin = com.intellij.util.ui.JBUI.emptyInsets()
+        margin = JBUI.emptyInsets()
         isContentAreaFilled = false
-        border = javax.swing.BorderFactory.createEmptyBorder(2, 2, 2, 2)
+        border = BorderFactory.createEmptyBorder(2, 2, 2, 2)
     }
 
     override fun paintComponent(g: Graphics) {
         if (isSelected) {
             val g2 = g as Graphics2D
-            g2.color = com.intellij.ui.JBColor(
+            g2.color = JBColor(
                 java.awt.Color(0, 0, 0, 30),
                 java.awt.Color(255, 255, 255, 40),
             )

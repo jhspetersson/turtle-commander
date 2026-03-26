@@ -10,6 +10,7 @@ import java.awt.Dimension
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.nio.file.Path
+import java.text.SimpleDateFormat
 import javax.swing.BorderFactory
 import javax.swing.BoxLayout
 import javax.swing.ButtonGroup
@@ -362,7 +363,7 @@ class FileSearchDialog(
         val cal = java.util.Calendar.getInstance()
         // yyyy-MM-dd HH:mm
         try {
-            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm")
+            val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm")
             sdf.isLenient = false
             val d = sdf.parse(text)
             cal.time = d
@@ -373,7 +374,7 @@ class FileSearchDialog(
         } catch (_: Exception) {}
         // yyyy-MM-dd
         try {
-            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd")
+            val sdf = SimpleDateFormat("yyyy-MM-dd")
             sdf.isLenient = false
             val d = sdf.parse(text)
             cal.time = d
@@ -384,7 +385,7 @@ class FileSearchDialog(
         } catch (_: Exception) {}
         // yyyy-MM
         try {
-            val sdf = java.text.SimpleDateFormat("yyyy-MM")
+            val sdf = SimpleDateFormat("yyyy-MM")
             sdf.isLenient = false
             val d = sdf.parse(text)
             cal.time = d
@@ -395,7 +396,7 @@ class FileSearchDialog(
         } catch (_: Exception) {}
         // yyyy
         try {
-            val sdf = java.text.SimpleDateFormat("yyyy")
+            val sdf = SimpleDateFormat("yyyy")
             sdf.isLenient = false
             val d = sdf.parse(text)
             cal.time = d

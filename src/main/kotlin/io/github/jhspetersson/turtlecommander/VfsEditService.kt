@@ -12,6 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
@@ -19,7 +20,7 @@ import java.nio.file.StandardCopyOption
 class VfsStackEntry(
     val vfs: VirtualFileSystem,
     var parentPath: Path,
-    val tempFile: java.io.File? = null,
+    val tempFile: File? = null,
 )
 
 class VfsEditEntry(

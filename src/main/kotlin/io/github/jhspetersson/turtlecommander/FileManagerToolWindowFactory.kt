@@ -23,7 +23,11 @@ import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component
 import java.awt.Graphics
+import java.awt.Graphics2D
+import java.awt.KeyboardFocusManager
+import java.awt.RenderingHints
 import java.awt.event.InputEvent
+import java.awt.event.KeyEvent
 import java.nio.file.Path
 import javax.swing.BoxLayout
 import javax.swing.Icon
@@ -263,11 +267,11 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
                 }
             })
 
-        java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher { e ->
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher { e ->
             if (bar.isShowing) {
                 when (e.id) {
-                    java.awt.event.KeyEvent.KEY_PRESSED -> if (e.keyCode == java.awt.event.KeyEvent.VK_SHIFT) updateBar(true)
-                    java.awt.event.KeyEvent.KEY_RELEASED -> if (e.keyCode == java.awt.event.KeyEvent.VK_SHIFT) updateBar(false)
+                    KeyEvent.KEY_PRESSED -> if (e.keyCode == KeyEvent.VK_SHIFT) updateBar(true)
+                    KeyEvent.KEY_RELEASED -> if (e.keyCode == KeyEvent.VK_SHIFT) updateBar(false)
                 }
             }
             false
@@ -279,8 +283,8 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
 
 private class FavoriteAction(
     val favPath: String,
-    private val index: Int,
-    private val colorHex: String,
+    index: Int,
+    colorHex: String,
     private val project: Project,
 ) : AnAction() {
     init {
@@ -369,8 +373,8 @@ private fun favoriteIcon(colorHex: String): Icon {
 
 private class ColorFolderIcon(private val color: Color) : Icon {
     override fun paintIcon(c: Component?, g: Graphics, x: Int, y: Int) {
-        val g2 = (g.create() as java.awt.Graphics2D).apply {
-            setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON)
+        val g2 = (g.create() as Graphics2D).apply {
+            setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
         }
         try {
             g2.color = color

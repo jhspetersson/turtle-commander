@@ -6,6 +6,7 @@ import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Test
+import java.io.ByteArrayOutputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
@@ -171,7 +172,7 @@ class NestedArchiveWriteBackTest {
     }
 
     private fun createZipBytes(vararg entries: Pair<String, String?>): ByteArray {
-        val baos = java.io.ByteArrayOutputStream()
+        val baos = ByteArrayOutputStream()
         ZipOutputStream(baos).use { zos ->
             for ((name, content) in entries) {
                 zos.putNextEntry(ZipEntry(name))
@@ -203,7 +204,7 @@ class NestedArchiveWriteBackTest {
         val outerPath = createOuterZipWithInnerZip(arrayOf("existing.txt" to "hello"))
         val outerVfs = ZipVirtualFileSystem(outerPath)
 
-        try {
+        outerVfs.use { outerVfs ->
             // Extract inner.zip to temp (simulating enterVfs for nested archive)
             val innerZipPathInOuter = outerVfs.getPath("/inner.zip")
             val tempDir = Files.createTempDirectory("turtle-vfs-test-")
@@ -213,7 +214,7 @@ class NestedArchiveWriteBackTest {
             tempFiles.add(tempDir)
 
             val innerVfs = ZipVirtualFileSystem(tempInnerZip)
-            try {
+            innerVfs.use { innerVfs ->
                 // Copy a new file into the inner zip's root
                 val newFilePath = innerVfs.getPath("/newfile.txt")
                 Files.write(newFilePath, "new content".toByteArray())
@@ -250,11 +251,7 @@ class NestedArchiveWriteBackTest {
                 // Outer archive's other files should be intact
                 val outerEntries = outerVfs.listFiles(outerVfs.root)
                 assertTrue("Outer zip should still contain outer-file.txt", outerEntries.any { it.name == "outer-file.txt" })
-            } finally {
-                innerVfs.close()
             }
-        } finally {
-            outerVfs.close()
         }
     }
 
@@ -263,7 +260,7 @@ class NestedArchiveWriteBackTest {
         val outerPath = createOuterZipWithInnerZip(arrayOf("file.txt" to "data"))
         val outerVfs = ZipVirtualFileSystem(outerPath)
 
-        try {
+        outerVfs.use { outerVfs ->
             // Get the initial path for inner.zip in outer VFS
             val innerPathBefore = outerVfs.getPath("/inner.zip")
 
@@ -294,8 +291,6 @@ class NestedArchiveWriteBackTest {
             // Should be able to navigate to parent (root)
             val rootEntries = outerVfs.listFiles(innerPathAfter.parent!!)
             assertTrue("Should find inner.zip at root", rootEntries.any { it.name == "inner.zip" })
-        } finally {
-            outerVfs.close()
         }
     }
 
@@ -304,7 +299,7 @@ class NestedArchiveWriteBackTest {
         val outerPath = createOuterZipWithInnerZip(arrayOf("data.txt" to "original"))
         val outerVfs = ZipVirtualFileSystem(outerPath)
 
-        try {
+        outerVfs.use { outerVfs ->
             val innerPathInOuter = outerVfs.getPath("/inner.zip")
             val tempDir = Files.createTempDirectory("turtle-vfs-test-")
             val tempInnerZip = tempDir.resolve("inner.zip")
@@ -313,7 +308,7 @@ class NestedArchiveWriteBackTest {
             tempFiles.add(tempDir)
 
             val innerVfs = ZipVirtualFileSystem(tempInnerZip)
-            try {
+            innerVfs.use { innerVfs ->
                 // Modify the existing file
                 val filePath = innerVfs.getPath("/data.txt")
                 Files.writeString(filePath, "modified")
@@ -331,19 +326,13 @@ class NestedArchiveWriteBackTest {
                 tempFiles.add(verifyDir)
 
                 val verifyVfs = ZipVirtualFileSystem(verifyInner)
-                try {
+                verifyVfs.use { verifyVfs ->
                     val entries = verifyVfs.listFiles(verifyVfs.root)
                     val dataFile = entries.find { it.name == "data.txt" }
                     assertNotNull("data.txt should exist", dataFile)
                     assertEquals("modified", Files.readString(dataFile!!.path))
-                } finally {
-                    verifyVfs.close()
                 }
-            } finally {
-                innerVfs.close()
             }
-        } finally {
-            outerVfs.close()
         }
     }
 
@@ -352,7 +341,7 @@ class NestedArchiveWriteBackTest {
         val outerPath = createOuterZipWithInnerZip(arrayOf("keep.txt" to "keep", "remove.txt" to "remove"))
         val outerVfs = ZipVirtualFileSystem(outerPath)
 
-        try {
+        outerVfs.use { outerVfs ->
             val innerPathInOuter = outerVfs.getPath("/inner.zip")
             val tempDir = Files.createTempDirectory("turtle-vfs-test-")
             val tempInnerZip = tempDir.resolve("inner.zip")
@@ -361,7 +350,7 @@ class NestedArchiveWriteBackTest {
             tempFiles.add(tempDir)
 
             val innerVfs = ZipVirtualFileSystem(tempInnerZip)
-            try {
+            innerVfs.use { innerVfs ->
                 Files.delete(innerVfs.getPath("/remove.txt"))
                 innerVfs.flush()
 
@@ -376,18 +365,12 @@ class NestedArchiveWriteBackTest {
                 tempFiles.add(verifyDir)
 
                 val verifyVfs = ZipVirtualFileSystem(verifyInner)
-                try {
+                verifyVfs.use { verifyVfs ->
                     val entries = verifyVfs.listFiles(verifyVfs.root).filter { !it.isParentLink }
                     assertTrue("keep.txt should remain", entries.any { it.name == "keep.txt" })
                     assertFalse("remove.txt should be gone", entries.any { it.name == "remove.txt" })
-                } finally {
-                    verifyVfs.close()
                 }
-            } finally {
-                innerVfs.close()
             }
-        } finally {
-            outerVfs.close()
         }
     }
 
@@ -396,7 +379,7 @@ class NestedArchiveWriteBackTest {
         val outerPath = createOuterZipWithInnerZip(arrayOf("old.txt" to "content"))
         val outerVfs = ZipVirtualFileSystem(outerPath)
 
-        try {
+        outerVfs.use { outerVfs ->
             val innerPathInOuter = outerVfs.getPath("/inner.zip")
             val tempDir = Files.createTempDirectory("turtle-vfs-test-")
             val tempInnerZip = tempDir.resolve("inner.zip")
@@ -405,7 +388,7 @@ class NestedArchiveWriteBackTest {
             tempFiles.add(tempDir)
 
             val innerVfs = ZipVirtualFileSystem(tempInnerZip)
-            try {
+            innerVfs.use { innerVfs ->
                 innerVfs.renameFile(innerVfs.getPath("/old.txt"), "new.txt")
                 innerVfs.flush()
 
@@ -420,18 +403,12 @@ class NestedArchiveWriteBackTest {
                 tempFiles.add(verifyDir)
 
                 val verifyVfs = ZipVirtualFileSystem(verifyInner)
-                try {
+                verifyVfs.use { verifyVfs ->
                     val entries = verifyVfs.listFiles(verifyVfs.root).filter { !it.isParentLink }
                     assertTrue("new.txt should exist", entries.any { it.name == "new.txt" })
                     assertFalse("old.txt should be gone", entries.any { it.name == "old.txt" })
-                } finally {
-                    verifyVfs.close()
                 }
-            } finally {
-                innerVfs.close()
             }
-        } finally {
-            outerVfs.close()
         }
     }
 }
@@ -757,7 +734,7 @@ class NestedArchiveFileCreationTest {
     }
 
     private fun createZipBytes(vararg entries: Pair<String, String?>): ByteArray {
-        val baos = java.io.ByteArrayOutputStream()
+        val baos = ByteArrayOutputStream()
         ZipOutputStream(baos).use { zos ->
             for ((name, content) in entries) {
                 zos.putNextEntry(ZipEntry(name))
@@ -1009,7 +986,7 @@ class EditWriteBackTest {
     @Test
     fun `edit file in nested zip with full write-back chain`() = runBlocking {
         // Create outer zip containing inner zip containing file.txt
-        val innerBytes = java.io.ByteArrayOutputStream().also { baos ->
+        val innerBytes = ByteArrayOutputStream().also { baos ->
             ZipOutputStream(baos).use { zos ->
                 zos.putNextEntry(ZipEntry("file.txt"))
                 zos.write("original".toByteArray())
@@ -1079,7 +1056,7 @@ class EditWriteBackTest {
 
     @Test
     fun `multiple edits to same file in nested zip all propagate`() = runBlocking {
-        val innerBytes = java.io.ByteArrayOutputStream().also { baos ->
+        val innerBytes = ByteArrayOutputStream().also { baos ->
             ZipOutputStream(baos).use { zos ->
                 zos.putNextEntry(ZipEntry("file.txt"))
                 zos.write("v1".toByteArray())
@@ -1255,7 +1232,7 @@ class SharedVfsStackEntryTest {
     }
 
     private fun createZipBytes(vararg entries: Pair<String, String?>): ByteArray {
-        val baos = java.io.ByteArrayOutputStream()
+        val baos = ByteArrayOutputStream()
         ZipOutputStream(baos).use { zos ->
             for ((name, content) in entries) {
                 zos.putNextEntry(ZipEntry(name))
@@ -1735,7 +1712,7 @@ class SharedVfsStackEntryTest {
         vfsList.add(vfs)
 
         // Simulate user browsing in subdir
-        var currentPath = vfs.root.resolve("subdir")
+        val currentPath = vfs.root.resolve("subdir")
 
         // Capture relative path BEFORE flush (simulates onBeforeFlush callback)
         val relPathBefore = vfsRelativePath(vfs, currentPath)

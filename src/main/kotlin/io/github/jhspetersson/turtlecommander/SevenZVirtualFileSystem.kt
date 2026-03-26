@@ -10,6 +10,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.FileTime
+import java.util.Date
 
 class SevenZipFileSystemProvider : VirtualFileSystemProvider {
     companion object {
@@ -160,7 +161,7 @@ class SevenZipVirtualFileSystem(
                         isDirectory = attrs.isDirectory
                         if (!attrs.isDirectory) size = attrs.size()
                         if (attrs.lastModifiedTime() != null) {
-                            setLastModifiedDate(java.util.Date(attrs.lastModifiedTime().toMillis()))
+                            lastModifiedDate = Date(attrs.lastModifiedTime().toMillis())
                         }
                     }
                     out.putArchiveEntry(entry)

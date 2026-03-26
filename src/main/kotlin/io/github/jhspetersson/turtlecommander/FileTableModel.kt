@@ -1,5 +1,6 @@
 package io.github.jhspetersson.turtlecommander
 
+import java.nio.file.Path
 import javax.swing.table.AbstractTableModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -19,7 +20,7 @@ class FileTableModel : AbstractTableModel() {
 
     private val columns = arrayOf("Name", "Ext", "Size", "Date Modified", "Permissions")
     private var entries: List<FileEntry> = emptyList()
-    var directorySizeProvider: ((java.nio.file.Path) -> Long?)? = null
+    var directorySizeProvider: ((Path) -> Long?)? = null
 
     fun setEntries(newEntries: List<FileEntry>) {
         entries = newEntries

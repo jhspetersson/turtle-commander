@@ -76,8 +76,6 @@ class FileManagerStateService(
         @Attribute
         var color: String = ""
 
-        // No-arg constructor required for serialization
-        constructor()
         constructor(path: String, color: String = "") {
             this.path = path
             this.color = color
@@ -175,20 +173,6 @@ class FileManagerStateService(
         myState.favoriteEntries.addAll(entries)
         myState.favoritePaths.clear()
         fireFavoritesChanged()
-    }
-
-    fun setFavorites(paths: List<String>) {
-        migrateFavoritesIfNeeded()
-        val oldEntries = myState.favoriteEntries.associateBy { it.path }
-        myState.favoriteEntries.clear()
-        myState.favoriteEntries.addAll(paths.map { oldEntries[it] ?: FavoriteEntry(it) })
-        myState.favoritePaths.clear()
-        fireFavoritesChanged()
-    }
-
-    fun getFavoriteColor(path: String): String {
-        migrateFavoritesIfNeeded()
-        return myState.favoriteEntries.find { it.path == path }?.color ?: ""
     }
 
     private fun fireFavoritesChanged() {

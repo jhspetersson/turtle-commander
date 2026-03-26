@@ -10,11 +10,13 @@ import java.awt.Dimension
 import javax.swing.BorderFactory
 import javax.swing.BoxLayout
 import javax.swing.DefaultComboBoxModel
+import javax.swing.DefaultListCellRenderer
 import javax.swing.JCheckBox
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.JScrollPane
 import javax.swing.JTextArea
+import javax.swing.ListCellRenderer
 
 enum class ArchiveFormat(val extension: String, val label: String) {
     ZIP(".zip", ".zip"),
@@ -44,8 +46,8 @@ class PackDialog(
     private val archiveField = JBTextField(defaultArchivePath)
     private val formatCombo = ComboBox(DefaultComboBoxModel(ArchiveFormat.entries.toTypedArray())).apply {
         selectedItem = ArchiveFormat.ZIP
-        renderer = javax.swing.DefaultListCellRenderer().let { renderer ->
-            javax.swing.ListCellRenderer { list, value, index, isSelected, cellHasFocus ->
+        renderer = DefaultListCellRenderer().let { renderer ->
+            ListCellRenderer { list, value, index, isSelected, cellHasFocus ->
                 renderer.getListCellRendererComponent(list, value?.label, index, isSelected, cellHasFocus)
             }
         }

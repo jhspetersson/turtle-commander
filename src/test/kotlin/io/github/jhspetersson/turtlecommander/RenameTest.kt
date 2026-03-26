@@ -23,15 +23,6 @@ class FileOperationServiceRenameTest {
         tempFiles.forEach { Files.deleteIfExists(it) }
     }
 
-    private fun createTempFile(name: String, content: String): Path {
-        val dir = Files.createTempDirectory("rename-test-")
-        val file = dir.resolve(name)
-        Files.writeString(file, content)
-        tempFiles.add(file)
-        tempFiles.add(dir)
-        return file
-    }
-
     @Test
     fun `rename regular file`() = runBlocking {
         val dir = Files.createTempDirectory("rename-test-")

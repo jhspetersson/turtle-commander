@@ -12,12 +12,17 @@ import com.intellij.openapi.fileTypes.FileTypeManager
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.FlowLayout
+import java.awt.event.ActionEvent
+import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import javax.swing.AbstractAction
+import javax.swing.BorderFactory
 import javax.swing.JButton
 import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.JTable
+import javax.swing.KeyStroke
 import javax.swing.SwingUtilities
 import javax.swing.table.DefaultTableCellRenderer
 
@@ -85,10 +90,10 @@ class SearchResultsPanel(
             })
 
             getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(
-                javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ENTER, 0), "openSelected"
+                KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "openSelected"
             )
-            actionMap.put("openSelected", object : javax.swing.AbstractAction() {
-                override fun actionPerformed(e: java.awt.event.ActionEvent?) {
+            actionMap.put("openSelected", object : AbstractAction() {
+                override fun actionPerformed(e: ActionEvent?) {
                     navigateToSelected()
                 }
             })
@@ -129,7 +134,7 @@ class SearchResultsPanel(
 
         val bottomPanel = JPanel(BorderLayout())
         bottomPanel.add(buttonPanel, BorderLayout.WEST)
-        statusLabel.border = javax.swing.BorderFactory.createEmptyBorder(2, 8, 2, 8)
+        statusLabel.border = BorderFactory.createEmptyBorder(2, 8, 2, 8)
         bottomPanel.add(statusLabel, BorderLayout.CENTER)
         return bottomPanel
     }
