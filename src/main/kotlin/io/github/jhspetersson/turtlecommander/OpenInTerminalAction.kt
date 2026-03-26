@@ -5,9 +5,7 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.wm.ToolWindowManager
-import org.jetbrains.plugins.terminal.TerminalOptionsProvider
-import org.jetbrains.plugins.terminal.TerminalTabState
+import com.intellij.openapi.vfs.LocalFileSystem
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager
 
 class OpenInTerminalAction : AnAction() {
@@ -28,12 +26,8 @@ class OpenInTerminalAction : AnAction() {
         val entry = FileContextMenuState.clickedEntry ?: return
         if (tab.currentVfs != null) return
 
-        if (entry.isDirectory) {
-            openTerminal(project, entry.path.toString(), entry.name)
-        } else {
-            val dir = entry.path.parent
-            openTerminal(project, dir.toString(), dir.fileName?.toString() ?: "Terminal")
-        }
+        val dir = if (entry.isDirectory) entry.path else entry.path.parent
+        openTerminal(project, dir.toString())
     }
 }
 
@@ -49,7 +43,7 @@ class OpenTabInTerminalAction : AnAction() {
         val project = e.project ?: return
         val tab = resolveTab(e) ?: return
         if (tab.currentVfs != null) return
-        openTerminal(project, tab.currentPath.toString(), tab.currentPath.fileName?.toString() ?: "Terminal")
+        openTerminal(project, tab.currentPath.toString())
     }
 
     private fun resolveTab(e: AnActionEvent): FileTab? {
@@ -62,15 +56,7 @@ class OpenTabInTerminalAction : AnAction() {
     }
 }
 
-private fun openTerminal(project: Project, workingDir: String, tabName: String) {
-    val toolWindow = ToolWindowManager.getInstance(project).getToolWindow("Terminal") ?: return
-    toolWindow.activate {
-        val tabState = TerminalTabState().apply {
-            myTabName = tabName
-            myWorkingDirectory = workingDir
-        }
-        val engine = service<TerminalOptionsProvider>().terminalEngine
-        val manager = TerminalToolWindowManager.getInstance(project)
-        manager.createNewTab(engine, tabState, toolWindow.contentManager)
-    }
+private fun openTerminal(project: Project, workingDir: String) {
+    val vf = LocalFileSystem.getInstance().findFileByPath(workingDir) ?: return
+    TerminalToolWindowManager.getInstance(project).openTerminalIn(vf)
 }
