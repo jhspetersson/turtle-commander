@@ -696,6 +696,43 @@ class ExtractHereAction : AnAction("Extract Here", "Extract archive into current
     }
 }
 
+class SplitFileAction : AnAction("Split File...", "Split file into smaller parts", AllIcons.Actions.SplitHorizontally) {
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+
+    override fun update(e: AnActionEvent) {
+        val tab = FileContextMenuState.clickedTab
+        val entry = FileContextMenuState.clickedEntry
+        e.presentation.isEnabledAndVisible = tab != null && entry != null
+            && !entry.isDirectory && !entry.isParentLink && !tab.isInsideArchive
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        FileContextMenuState.clickedTab?.performSplitFile()
+    }
+}
+
+class CombineFilesAction : AnAction("Combine Files...", "Combine split file parts back into original file", AllIcons.Actions.Collapseall) {
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+
+    override fun update(e: AnActionEvent) {
+        val tab = FileContextMenuState.clickedTab
+        val entry = FileContextMenuState.clickedEntry
+        e.presentation.isEnabledAndVisible = tab != null && entry != null
+            && !entry.isDirectory && !entry.isParentLink && !tab.isInsideArchive
+            && isSplitChunkOrCrc(entry.name)
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        FileContextMenuState.clickedTab?.performCombineFiles()
+    }
+
+    private fun isSplitChunkOrCrc(name: String): Boolean {
+        val ext = name.substringAfterLast('.', "")
+        if (ext == "crc") return true
+        return ext.length in 3..6 && ext.all { it.isDigit() }
+    }
+}
+
 class QuickAccessFavoriteAction : AnAction() {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 

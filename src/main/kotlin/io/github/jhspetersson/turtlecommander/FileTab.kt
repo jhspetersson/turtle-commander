@@ -2106,6 +2106,169 @@ class FileTab(
         }
     }
 
+    fun performSplitFile() {
+        if (isInsideArchive) return
+        val entry = getSelectedEntry() ?: return
+        if (entry.isDirectory || entry.isParentLink) return
+
+        val otherPath = otherPanelPathProvider()?.toString() ?: currentPath.toString()
+        val dialog = SplitFileDialog(project, entry.name, entry.size, otherPath)
+        if (!dialog.showAndGet()) return
+
+        val targetDir = Path.of(dialog.targetDirectory)
+        try {
+            Files.createDirectories(targetDir)
+        } catch (e: Exception) {
+            fileErrorNotification("Failed to create target directory: ${e.message}")
+            return
+        }
+        val chunkSize = if (dialog.isSplitBySize) {
+            dialog.chunkSize
+        } else {
+            (entry.size + dialog.numberOfParts - 1) / dialog.numberOfParts
+        }
+
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Splitting ${entry.name}", true) {
+            override fun run(indicator: ProgressIndicator) {
+                indicator.isIndeterminate = false
+                try {
+                    SplitFileOperation.split(
+                        sourceFile = entry.path,
+                        targetDirectory = targetDir,
+                        chunkSize = chunkSize,
+                        onProgress = { chunkIndex, totalChunks, bytesWritten, totalBytes ->
+                            indicator.fraction = bytesWritten.toDouble() / totalBytes
+                            indicator.text = "Writing chunk $chunkIndex of $totalChunks"
+                            indicator.text2 = "${formatSize(bytesWritten)} / ${formatSize(totalBytes)}"
+                        },
+                        isCancelled = { indicator.isCanceled },
+                    )
+
+                    if (!indicator.isCanceled) {
+                        val totalChunks = if (entry.size == 0L) 1 else ((entry.size + chunkSize - 1) / chunkSize).toInt()
+                        NotificationGroupManager.getInstance()
+                            .getNotificationGroup("Turtle Commander")
+                            .createNotification(
+                                "File split complete",
+                                "${entry.name} split into $totalChunks parts",
+                                NotificationType.INFORMATION,
+                            )
+                            .notify(project)
+                    }
+                } catch (e: Exception) {
+                    if (!indicator.isCanceled) {
+                        fileErrorNotification("Failed to split ${entry.name}: ${e.message}")
+                    }
+                }
+
+                runBlocking {
+                    refreshAfterVfsChange()
+                    withContext(Dispatchers.EDT) {
+                        onRefreshOtherPanel()
+                    }
+                }
+            }
+        })
+    }
+
+    fun performCombineFiles() {
+        if (isInsideArchive) return
+        val entry = getSelectedEntry() ?: return
+        if (entry.isDirectory || entry.isParentLink) return
+
+        val directory = entry.path.parent ?: return
+        val baseFileName = CombineFilesOperation.resolveBaseFileName(entry.path) ?: return
+
+        val crcFile = directory.resolve("$baseFileName.crc")
+        val hasCrc = Files.exists(crcFile)
+
+        val crcInfo = if (hasCrc) {
+            try {
+                CombineFilesOperation.parseCrcFile(crcFile)
+            } catch (e: Exception) {
+                fileErrorNotification("Failed to parse CRC file: ${e.message}")
+                return
+            }
+        } else null
+
+        val targetFileName = crcInfo?.filename ?: baseFileName
+        val chunkFiles = CombineFilesOperation.findChunkFiles(directory, crcInfo?.filename ?: baseFileName)
+        if (chunkFiles.isEmpty()) {
+            fileErrorNotification("No chunk files found for $baseFileName")
+            return
+        }
+
+        val totalSize = chunkFiles.sumOf { Files.size(it) }
+        val otherPath = otherPanelPathProvider()?.toString() ?: currentPath.toString()
+
+        val dialog = CombineFilesDialog(project, chunkFiles.size, totalSize, hasCrc, otherPath, targetFileName)
+        if (!dialog.showAndGet()) return
+
+        val targetDir = Path.of(dialog.targetDirectory)
+        try {
+            Files.createDirectories(targetDir)
+        } catch (e: Exception) {
+            fileErrorNotification("Failed to create target directory: ${e.message}")
+            return
+        }
+        val targetFile = targetDir.resolve(dialog.targetFile)
+
+        if (Files.exists(targetFile)) {
+            val result = Messages.showYesNoDialog(
+                project,
+                "File \"${dialog.targetFile}\" already exists. Overwrite?",
+                "Combine Files",
+                Messages.getQuestionIcon(),
+            )
+            if (result != Messages.YES) return
+        }
+
+        val finalTargetFileName = dialog.targetFile
+
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Combining $finalTargetFileName", true) {
+            override fun run(indicator: ProgressIndicator) {
+                indicator.isIndeterminate = false
+                try {
+                    CombineFilesOperation.combine(
+                        chunkFiles = chunkFiles,
+                        targetFile = targetFile,
+                        expectedSize = crcInfo?.size,
+                        expectedCrc32 = crcInfo?.crc32,
+                        onProgress = { chunkIndex, totalChunks, bytesWritten, totalBytes ->
+                            indicator.fraction = bytesWritten.toDouble() / totalBytes
+                            indicator.text = "Reading chunk $chunkIndex of $totalChunks"
+                            indicator.text2 = "${formatSize(bytesWritten)} / ${formatSize(totalBytes)}"
+                        },
+                        isCancelled = { indicator.isCanceled },
+                    )
+
+                    if (!indicator.isCanceled) {
+                        NotificationGroupManager.getInstance()
+                            .getNotificationGroup("Turtle Commander")
+                            .createNotification(
+                                "File combine complete",
+                                "$finalTargetFileName assembled from ${chunkFiles.size} parts" +
+                                    if (hasCrc) " (CRC verified)" else "",
+                                NotificationType.INFORMATION,
+                            )
+                            .notify(project)
+                    }
+                } catch (e: Exception) {
+                    if (!indicator.isCanceled) {
+                        fileErrorNotification("Failed to combine files: ${e.message}")
+                    }
+                }
+
+                runBlocking {
+                    refreshAfterVfsChange()
+                    withContext(Dispatchers.EDT) {
+                        onRefreshOtherPanel()
+                    }
+                }
+            }
+        })
+    }
+
     fun performPack() {
         val selected = getSelectedEntries()
         if (selected.isEmpty()) return

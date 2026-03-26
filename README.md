@@ -16,6 +16,7 @@ A dual-panel file manager integrated into IntelliJ-based IDEs, inspired by class
 - Clipboard-style copy/cut/paste (Ctrl+C, Ctrl+X, Ctrl+V) with buffer indicator in the tool window header
 - Drag-and-drop between panels and to/from the Project tool window
 - Compare files (with the standard diff tool)
+- Split and combine large files
 - Draggable and reorderable tabs with the context menu
 - Session state persistence: open tabs, panel sizes, and column layouts are saved per project
 - Middle-click to close tabs
