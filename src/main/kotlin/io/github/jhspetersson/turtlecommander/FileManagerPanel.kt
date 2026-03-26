@@ -41,6 +41,7 @@ class FileManagerPanel(
 
     private val tableViewButton = ViewModeButton(AllIcons.Actions.PreviewDetails, "Table view", true)
     private val listViewButton = ViewModeButton(AllIcons.Actions.ListFiles, "List view", false)
+    private val thumbnailViewButton = ViewModeButton(AllIcons.Actions.PreviewDetailsVertically, "Thumbnail view", false)
     private val treeViewButton = ViewModeButton(AllIcons.Actions.ShowAsTree, "Tree view", false)
     private lateinit var viewTogglePanel: JPanel
 
@@ -154,9 +155,11 @@ class FileManagerPanel(
             val group = ButtonGroup()
             group.add(tableViewButton)
             group.add(listViewButton)
+            group.add(thumbnailViewButton)
             group.add(treeViewButton)
             add(tableViewButton)
             add(listViewButton)
+            add(thumbnailViewButton)
             add(treeViewButton)
         }
 
@@ -165,6 +168,9 @@ class FileManagerPanel(
         }
         listViewButton.addActionListener {
             getActiveTab()?.setViewMode(ViewMode.LIST)
+        }
+        thumbnailViewButton.addActionListener {
+            getActiveTab()?.setViewMode(ViewMode.THUMBNAIL)
         }
         treeViewButton.addActionListener {
             getActiveTab()?.setViewMode(ViewMode.TREE)
@@ -270,7 +276,7 @@ class FileManagerPanel(
         // Update the tab's callbacks to point to the new panel context
         fileTab.updatePanelCallbacks(
             otherPanelPathProvider = { target.otherPanel?.getActiveTab()?.currentPath },
-            onDirectoryChanged = { tab -> target.updateTabTitle(tab) },
+            onDirectoryChanged = { tab -> target.updateTabTitle(tab); target.syncViewToggle() },
             onSwitchToOtherPanel = { target.otherPanel?.focusActiveTab() },
             onRefreshOtherPanel = { target.otherPanel?.refreshActiveTab() },
         )
@@ -370,7 +376,7 @@ class FileManagerPanel(
             project = project,
             initialPath = path,
             otherPanelPathProvider = { otherPanel?.getActiveTab()?.currentPath ?: otherPanelPathProvider() },
-            onDirectoryChanged = { tab -> updateTabTitle(tab) },
+            onDirectoryChanged = { tab -> updateTabTitle(tab); syncViewToggle() },
             onSwitchToOtherPanel = { otherPanel?.focusActiveTab() },
             onRefreshOtherPanel = { otherPanel?.refreshActiveTab() },
         )
@@ -613,6 +619,7 @@ class FileManagerPanel(
         val tab = getActiveTab()
         when (tab?.viewMode) {
             ViewMode.LIST -> listViewButton.isSelected = true
+            ViewMode.THUMBNAIL -> thumbnailViewButton.isSelected = true
             ViewMode.TREE -> treeViewButton.isSelected = true
             else -> tableViewButton.isSelected = true
         }
@@ -628,6 +635,7 @@ class FileManagerPanel(
         when (tab.viewMode) {
             ViewMode.TABLE -> tab.table.requestFocusInWindow()
             ViewMode.LIST -> tab.list.requestFocusInWindow()
+            ViewMode.THUMBNAIL -> tab.thumbnailList.requestFocusInWindow()
             ViewMode.TREE -> tab.tree.requestFocusInWindow()
         }
     }
@@ -638,7 +646,7 @@ class FileManagerPanel(
             return selected.hasTableFocus()
         }
         val tab = getActiveTab() ?: return false
-        return tab.table.hasFocus() || tab.list.hasFocus() || tab.tree.hasFocus()
+        return tab.table.hasFocus() || tab.list.hasFocus() || tab.thumbnailList.hasFocus() || tab.tree.hasFocus()
     }
 
     fun refreshActiveTab() {

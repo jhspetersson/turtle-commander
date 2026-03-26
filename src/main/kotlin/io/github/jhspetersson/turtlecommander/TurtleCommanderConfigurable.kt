@@ -1,5 +1,6 @@
 package io.github.jhspetersson.turtlecommander
 
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
@@ -7,6 +8,8 @@ import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.ui.ColorChooserService
+import com.intellij.ui.JBColor
+import com.intellij.ui.SimpleColoredComponent
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
 import java.awt.Color
@@ -16,14 +19,25 @@ import java.awt.Dimension
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import com.intellij.util.ui.JBUI
+import java.awt.Component
+import java.awt.FlowLayout
+import java.awt.Graphics
+import javax.swing.BorderFactory
+import javax.swing.Box
 import javax.swing.BoxLayout
 import javax.swing.DefaultComboBoxModel
 import javax.swing.DefaultListModel
+import javax.swing.Icon
 import javax.swing.JButton
 import javax.swing.JCheckBox
 import javax.swing.JComponent
+import javax.swing.JList
+import javax.swing.JMenuItem
 import javax.swing.JPanel
+import javax.swing.JPopupMenu
+import javax.swing.JScrollPane
 import javax.swing.JSpinner
+import javax.swing.ListCellRenderer
 import javax.swing.SpinnerNumberModel
 
 class TurtleCommanderConfigurable : Configurable {
@@ -72,10 +86,11 @@ class TurtleCommanderConfigurable : Configurable {
             if (settings.tabFontSize > 0) settings.tabFontSize else 12, 8, 48, 1
         ))
 
-        val viewModeItems = arrayOf("Table", "List", "Tree")
+        val viewModeItems = arrayOf("Table", "List", "Thumbnail", "Tree")
         defaultViewModeCombo = ComboBox(DefaultComboBoxModel(viewModeItems)).apply {
             selectedItem = when (settings.defaultViewMode) {
                 "LIST" -> "List"
+                "THUMBNAIL" -> "Thumbnail"
                 "TREE" -> "Tree"
                 else -> "Table"
             }
@@ -190,20 +205,35 @@ class TurtleCommanderConfigurable : Configurable {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             add(addButton)
             add(removeButton)
-            add(javax.swing.Box.createVerticalStrut(8))
+            add(Box.createVerticalStrut(8))
             add(moveUpButton)
             add(moveDownButton)
-            add(javax.swing.Box.createVerticalStrut(8))
+            add(Box.createVerticalStrut(8))
             add(colorButton)
         }
 
         val favoritesPanel = JPanel(BorderLayout(8, 0)).apply {
             alignmentX = JComponent.LEFT_ALIGNMENT
-            border = javax.swing.BorderFactory.createTitledBorder("Favorites")
-            add(javax.swing.JScrollPane(favList), BorderLayout.CENTER)
+            border = BorderFactory.createTitledBorder("Favorites")
+            add(JScrollPane(favList), BorderLayout.CENTER)
             add(favButtonPanel, BorderLayout.EAST)
             preferredSize = Dimension(Int.MAX_VALUE, 260)
             maximumSize = Dimension(Int.MAX_VALUE, 260)
+        }
+
+        val thumbnailCacheSizeLabel = JBLabel(formatSize(ThumbnailCache.getCacheSize()))
+        val clearCacheButton = JButton("Clear").apply {
+            addActionListener {
+                ThumbnailCache.clearCache()
+                thumbnailCacheSizeLabel.text = formatSize(ThumbnailCache.getCacheSize())
+            }
+        }
+        val thumbnailCachePanel = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
+            alignmentX = JComponent.LEFT_ALIGNMENT
+            add(JBLabel("Thumbnail cache: "))
+            add(thumbnailCacheSizeLabel)
+            add(Box.createHorizontalStrut(8))
+            add(clearCacheButton)
         }
 
         val inner = JPanel().apply {
@@ -214,9 +244,11 @@ class TurtleCommanderConfigurable : Configurable {
             add(hideStatusBarCheckBox)
             add(overwriteCheckBox)
             add(sortWithDirectoriesCheckBox)
-            add(javax.swing.Box.createVerticalStrut(8))
+            add(Box.createVerticalStrut(8))
             add(fontGrid)
-            add(javax.swing.Box.createVerticalStrut(8))
+            add(Box.createVerticalStrut(8))
+            add(thumbnailCachePanel)
+            add(Box.createVerticalStrut(8))
             add(favoritesPanel)
         }
 
@@ -299,6 +331,7 @@ class TurtleCommanderConfigurable : Configurable {
         tabFontSizeSpinner?.value = if (settings.tabFontSize > 0) settings.tabFontSize else 12
         defaultViewModeCombo?.selectedItem = when (settings.defaultViewMode) {
             "LIST" -> "List"
+            "THUMBNAIL" -> "Thumbnail"
             "TREE" -> "Tree"
             else -> "Table"
         }
@@ -333,6 +366,7 @@ class TurtleCommanderConfigurable : Configurable {
     private fun getSelectedViewMode(): String {
         return when (defaultViewModeCombo?.selectedItem as? String) {
             "List" -> "LIST"
+            "Thumbnail" -> "THUMBNAIL"
             "Tree" -> "TREE"
             else -> "TABLE"
         }
@@ -350,9 +384,9 @@ class TurtleCommanderConfigurable : Configurable {
         model: DefaultListModel<FileManagerStateService.FavoriteEntry>,
     ) {
         val presets = FAVORITE_PRESET_COLORS
-        val popup = javax.swing.JPopupMenu()
+        val popup = JPopupMenu()
         for ((name, hex) in presets) {
-            val item = javax.swing.JMenuItem(name)
+            val item = JMenuItem(name)
             if (hex.isNotEmpty()) {
                 item.icon = ColorSwatchIcon(Color.decode(hex))
             }
@@ -363,13 +397,13 @@ class TurtleCommanderConfigurable : Configurable {
             popup.add(item)
         }
         popup.addSeparator()
-        val customItem = javax.swing.JMenuItem("Custom...")
+        val customItem = JMenuItem("Custom...")
         customItem.addActionListener {
             val initial = if (entry.color.isNotBlank()) {
                 try { Color.decode(entry.color) } catch (_: Exception) { null }
             } else null
             val chosen = ColorChooserService.getInstance().showDialog(
-                favList, "Choose Favorite Color", initial ?: Color.GRAY, true, emptyList(), true
+                favList, "Choose Favorite Color", initial ?: JBColor.GRAY, true, emptyList(), true
             )
             if (chosen != null) {
                 val hex = String.format("#%02X%02X%02X", chosen.red, chosen.green, chosen.blue)
@@ -382,25 +416,25 @@ class TurtleCommanderConfigurable : Configurable {
     }
 }
 
-private class FavoriteListCellRenderer : javax.swing.ListCellRenderer<FileManagerStateService.FavoriteEntry> {
-    private val delegate = com.intellij.ui.SimpleColoredComponent()
+private class FavoriteListCellRenderer : ListCellRenderer<FileManagerStateService.FavoriteEntry> {
+    private val delegate = SimpleColoredComponent()
 
     override fun getListCellRendererComponent(
-        list: javax.swing.JList<out FileManagerStateService.FavoriteEntry>,
+        list: JList<out FileManagerStateService.FavoriteEntry>,
         value: FileManagerStateService.FavoriteEntry?,
         index: Int,
         isSelected: Boolean,
         cellHasFocus: Boolean,
-    ): java.awt.Component {
+    ): Component {
         delegate.clear()
         delegate.background = if (isSelected) list.selectionBackground else list.background
         delegate.foreground = if (isSelected) list.selectionForeground else list.foreground
         delegate.isOpaque = true
         if (value != null) {
             val icon = if (value.color.isNotBlank()) {
-                try { ColorSwatchIcon(Color.decode(value.color)) } catch (_: Exception) { com.intellij.icons.AllIcons.Nodes.Folder }
+                try { ColorSwatchIcon(Color.decode(value.color)) } catch (_: Exception) { AllIcons.Nodes.Folder }
             } else {
-                com.intellij.icons.AllIcons.Nodes.Folder
+                AllIcons.Nodes.Folder
             }
             delegate.icon = icon
             delegate.append(value.path)
@@ -409,8 +443,8 @@ private class FavoriteListCellRenderer : javax.swing.ListCellRenderer<FileManage
     }
 }
 
-private class ColorSwatchIcon(private val color: Color) : javax.swing.Icon {
-    override fun paintIcon(c: java.awt.Component?, g: java.awt.Graphics, x: Int, y: Int) {
+private class ColorSwatchIcon(private val color: Color) : Icon {
+    override fun paintIcon(c: Component?, g: Graphics, x: Int, y: Int) {
         val g2 = g.create()
         try {
             g2.color = color

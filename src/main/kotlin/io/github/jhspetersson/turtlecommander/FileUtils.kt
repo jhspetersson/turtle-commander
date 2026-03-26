@@ -2,6 +2,7 @@ package io.github.jhspetersson.turtlecommander
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.IOException
 import java.nio.file.AccessDeniedException
 import java.nio.file.FileVisitResult
 import java.nio.file.Files
@@ -24,7 +25,7 @@ suspend fun countFiles(sources: List<Path>): Int = withContext(Dispatchers.IO) {
                     count++
                     return FileVisitResult.CONTINUE
                 }
-                override fun visitFileFailed(file: Path, exc: java.io.IOException): FileVisitResult {
+                override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
                     return FileVisitResult.CONTINUE
                 }
             })
@@ -40,6 +41,18 @@ fun fileErrorMessage(error: Exception): String {
         is AccessDeniedException -> "Access denied: ${error.file}"
         else -> error.message ?: error.javaClass.simpleName
     }
+}
+
+fun formatSize(bytes: Long): String {
+    if (bytes < 1024) return "$bytes B"
+    val kb = bytes / 1024.0
+    if (kb < 1024) return "%.1f KB".format(kb)
+    val mb = kb / 1024.0
+    if (mb < 1024) return "%.1f MB".format(mb)
+    val gb = mb / 1024.0
+    if (gb < 1024) return "%.1f GB".format(gb)
+    val tb = gb / 1024.0
+    return "%.1f TB".format(tb)
 }
 
 fun readFilePermissions(path: Path, isWindows: Boolean): String {

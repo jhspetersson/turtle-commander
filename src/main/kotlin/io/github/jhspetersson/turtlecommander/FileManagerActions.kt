@@ -29,7 +29,7 @@ abstract class FileManagerAction : AnAction() {
 
     override fun update(e: AnActionEvent) {
         val tab = findActiveTab(e)
-        e.presentation.isEnabled = tab != null && (tab.table.hasFocus() || tab.list.hasFocus() || tab.tree.hasFocus())
+        e.presentation.isEnabled = tab != null && (tab.table.hasFocus() || tab.list.hasFocus() || tab.thumbnailList.hasFocus() || tab.tree.hasFocus())
     }
 }
 

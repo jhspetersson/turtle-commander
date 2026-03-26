@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- Thumbnail view mode
+- periodically update drive selector
+- add a user's home to the drive selector on Windows
+- add Open in -> Turtle Commander action for Project files
+
 ## [0.2.1] - 2026-03-26
 
 ### Added

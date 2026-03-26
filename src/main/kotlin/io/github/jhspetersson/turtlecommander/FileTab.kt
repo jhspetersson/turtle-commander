@@ -95,6 +95,8 @@ class FileTab(
 
     private val listModel = DefaultListModel<FileEntry>()
     val list = JBList(listModel)
+    private val thumbnailListModel = DefaultListModel<FileEntry>()
+    val thumbnailList = JBList(thumbnailListModel)
     private val treeRootNode = DefaultMutableTreeNode()
     private val treeModel = DefaultTreeModel(treeRootNode)
     val tree = Tree(treeModel)
@@ -132,12 +134,16 @@ class FileTab(
         get() = vfsStack.lastOrNull()?.vfs
         private set(_) {}  // managed via stack
 
+    val isInsideArchive: Boolean
+        get() = vfsStack.isNotEmpty()
+
 
 
     init {
         setupHeader()
         setupTable()
         setupList()
+        setupThumbnailList()
         setupTree()
         setupFilterPanel()
         setupViewPanel()
@@ -170,6 +176,7 @@ class FileTab(
             table.rowHeight = font.size + 6
             list.font = font
             list.fixedCellHeight = font.size + 6
+            thumbnailList.font = font
             tree.font = font
             tree.rowHeight = font.size + 6
         } else if (size > 0) {
@@ -177,6 +184,7 @@ class FileTab(
             table.rowHeight = size + 6
             list.font = defaultTableFont.deriveFont(size.toFloat())
             list.fixedCellHeight = size + 6
+            thumbnailList.font = defaultTableFont.deriveFont(size.toFloat())
             tree.font = defaultTableFont.deriveFont(size.toFloat())
             tree.rowHeight = size + 6
         } else {
@@ -184,6 +192,7 @@ class FileTab(
             table.rowHeight = 20
             list.font = defaultTableFont
             list.fixedCellHeight = 20
+            thumbnailList.font = defaultTableFont
             tree.font = defaultTableFont
             tree.rowHeight = 20
         }
@@ -405,6 +414,51 @@ class FileTab(
         popupMenu.component.show(list, e.x, e.y)
     }
 
+    private fun setupThumbnailList() {
+        thumbnailList.apply {
+            selectionMode = ListSelectionModel.MULTIPLE_INTERVAL_SELECTION
+            layoutOrientation = JList.HORIZONTAL_WRAP
+            visibleRowCount = 0
+            fixedCellWidth = 120
+            fixedCellHeight = 90
+            cellRenderer = FileThumbnailCellRenderer()
+
+            addMouseListener(object : MouseAdapter() {
+                override fun mouseClicked(e: MouseEvent) {
+                    if (e.clickCount == 2) {
+                        openSelectedEntry()
+                    }
+                }
+
+                override fun mousePressed(e: MouseEvent) {
+                    handleThumbnailContextMenu(e)
+                }
+
+                override fun mouseReleased(e: MouseEvent) {
+                    handleThumbnailContextMenu(e)
+                }
+            })
+
+            addListSelectionListener { updateStatusBar() }
+        }
+    }
+
+    private fun handleThumbnailContextMenu(e: MouseEvent) {
+        if (!e.isPopupTrigger) return
+        val index = thumbnailList.locationToIndex(e.point)
+        if (index >= 0 && !thumbnailList.isSelectedIndex(index)) {
+            thumbnailList.selectedIndex = index
+        }
+        val entry = if (index >= 0) thumbnailListModel.getElementAt(index) else null
+        FileContextMenuState.clickedEntry = entry
+        FileContextMenuState.clickedTab = this
+
+        val am = ActionManager.getInstance()
+        val group = am.getAction("TurtleCommander.FileContextMenu") as? ActionGroup ?: return
+        val popupMenu = am.createActionPopupMenu("TurtleCommander.FileContextMenu", group)
+        popupMenu.component.show(thumbnailList, e.x, e.y)
+    }
+
     private fun setupTree() {
         tree.apply {
             isRootVisible = false
@@ -551,6 +605,7 @@ class FileTab(
                         when (viewMode) {
                             ViewMode.TABLE -> table.requestFocusInWindow()
                             ViewMode.LIST -> list.requestFocusInWindow()
+                            ViewMode.THUMBNAIL -> thumbnailList.requestFocusInWindow()
                             ViewMode.TREE -> tree.requestFocusInWindow()
                         }
                         e.consume()
@@ -579,6 +634,7 @@ class FileTab(
         }
         filterAction.registerCustomShortcutSet(filterShortcut, table)
         filterAction.registerCustomShortcutSet(filterShortcut, list)
+        filterAction.registerCustomShortcutSet(filterShortcut, thumbnailList)
         filterAction.registerCustomShortcutSet(filterShortcut, tree)
     }
 
@@ -601,6 +657,7 @@ class FileTab(
         when (viewMode) {
             ViewMode.TABLE -> table.requestFocusInWindow()
             ViewMode.LIST -> list.requestFocusInWindow()
+            ViewMode.THUMBNAIL -> thumbnailList.requestFocusInWindow()
             ViewMode.TREE -> tree.requestFocusInWindow()
         }
     }
@@ -630,6 +687,9 @@ class FileTab(
         listModel.clear()
         filtered.forEach { listModel.addElement(it) }
 
+        thumbnailListModel.clear()
+        filtered.forEach { thumbnailListModel.addElement(it) }
+
         if (viewMode != ViewMode.TREE) {
             treeRootNode.removeAllChildren()
             for (entry in filtered) {
@@ -644,6 +704,7 @@ class FileTab(
 
         if (table.rowCount > 0) table.setRowSelectionInterval(0, 0)
         if (listModel.size() > 0) list.selectedIndex = 0
+        if (thumbnailListModel.size() > 0) thumbnailList.selectedIndex = 0
 
         updateStatusBar()
     }
@@ -666,6 +727,14 @@ class FileTab(
                     list.ensureIndexIsVisible(next)
                 }
             }
+            ViewMode.THUMBNAIL -> {
+                val current = thumbnailList.selectedIndex
+                val next = (current + offset).coerceIn(0, thumbnailListModel.size() - 1)
+                if (next >= 0) {
+                    thumbnailList.selectedIndex = next
+                    thumbnailList.ensureIndexIsVisible(next)
+                }
+            }
             ViewMode.TREE -> {
                 val current = tree.leadSelectionRow
                 val next = (current + offset).coerceIn(0, tree.rowCount - 1)
@@ -680,10 +749,12 @@ class FileTab(
     private fun setupViewPanel() {
         viewPanel.add(JBScrollPane(table), VIEW_TABLE)
         viewPanel.add(JBScrollPane(list), VIEW_LIST)
+        viewPanel.add(JBScrollPane(thumbnailList), VIEW_THUMBNAIL)
         viewPanel.add(JBScrollPane(tree), VIEW_TREE)
         val initialCard = when (viewMode) {
             ViewMode.TABLE -> VIEW_TABLE
             ViewMode.LIST -> VIEW_LIST
+            ViewMode.THUMBNAIL -> VIEW_THUMBNAIL
             ViewMode.TREE -> VIEW_TREE
         }
         viewCardLayout.show(viewPanel, initialCard)
@@ -724,6 +795,7 @@ class FileTab(
         val card = when (mode) {
             ViewMode.TABLE -> VIEW_TABLE
             ViewMode.LIST -> VIEW_LIST
+            ViewMode.THUMBNAIL -> VIEW_THUMBNAIL
             ViewMode.TREE -> VIEW_TREE
         }
         viewCardLayout.show(viewPanel, card)
@@ -747,7 +819,7 @@ class FileTab(
                 }
                 table.requestFocusInWindow()
             }
-            ViewMode.LIST -> {
+            ViewMode.LIST, ViewMode.THUMBNAIL -> {
                 if (treeNavigation != null) {
                     val (targetDir, namesInDir) = treeNavigation
                     if (targetDir != currentPath) {
@@ -763,7 +835,8 @@ class FileTab(
                 } else {
                     selectEntriesByName(selectedNames)
                 }
-                list.requestFocusInWindow()
+                if (mode == ViewMode.THUMBNAIL) thumbnailList.requestFocusInWindow()
+                else list.requestFocusInWindow()
             }
             ViewMode.TREE -> {
                 rebuildFullTree(selectedNames)
@@ -928,6 +1001,13 @@ class FileTab(
                 list.selectedIndices = indices
                 list.ensureIndexIsVisible(indices.first())
             }
+        } else if (viewMode == ViewMode.THUMBNAIL) {
+            thumbnailList.clearSelection()
+            val indices = (0 until thumbnailListModel.size()).filter { thumbnailListModel.getElementAt(it).name in names }.toIntArray()
+            if (indices.isNotEmpty()) {
+                thumbnailList.selectedIndices = indices
+                thumbnailList.ensureIndexIsVisible(indices.first())
+            }
         }
     }
 
@@ -942,13 +1022,13 @@ class FileTab(
         val totalSize = entries.filter { !it.isDirectory }.sumOf { it.size }
 
         val sb = StringBuilder()
-        sb.append("$dirs dir(s), $files file(s), ${tableModel.formatSize(totalSize)}")
+        sb.append("$dirs dir(s), $files file(s), ${formatSize(totalSize)}")
 
         val selectedEntries = getSelectedEntries()
         if (selectedEntries.isNotEmpty()) {
             val selectedFiles = selectedEntries.filter { !it.isDirectory }
             val selectedSize = selectedFiles.sumOf { it.size }
-            sb.append("  |  ${selectedEntries.size} selected, ${tableModel.formatSize(selectedSize)}")
+            sb.append("  |  ${selectedEntries.size} selected, ${formatSize(selectedSize)}")
         }
 
         statusLabel.text = sb.toString()
@@ -961,7 +1041,7 @@ class FileTab(
                     val usableSpace = fileStore.usableSpace
                     val totalSpace = fileStore.totalSpace
                     val pct = if (totalSpace > 0) (usableSpace * 100 / totalSpace) else 0
-                    "${tableModel.formatSize(usableSpace)} of ${tableModel.formatSize(totalSpace)} free ($pct%)"
+                    "${formatSize(usableSpace)} of ${formatSize(totalSpace)} free ($pct%)"
                 }
                 withContext(Dispatchers.EDT) { freeSpaceLabel.text = text }
             } catch (_: Exception) {
@@ -973,6 +1053,9 @@ class FileTab(
     private fun getSelectedEntry(): FileEntry? {
         if (viewMode == ViewMode.LIST) {
             return list.selectedValue
+        }
+        if (viewMode == ViewMode.THUMBNAIL) {
+            return thumbnailList.selectedValue
         }
         if (viewMode == ViewMode.TREE) {
             val node = tree.lastSelectedPathComponent as? DefaultMutableTreeNode ?: return null
@@ -1079,6 +1162,10 @@ class FileTab(
             listModel.clear()
             entries.forEach { listModel.addElement(it) }
 
+            // Update thumbnail model
+            thumbnailListModel.clear()
+            entries.forEach { thumbnailListModel.addElement(it) }
+
             // Update tree model (only when not in full tree mode, which manages its own structure)
             if (viewMode != ViewMode.TREE) {
                 treeRootNode.removeAllChildren()
@@ -1151,11 +1238,25 @@ class FileTab(
                 list.selectedIndex = 0
             }
 
+            // Select in thumbnail view too
+            val thumbTarget = if (selectName != null) {
+                (0 until thumbnailListModel.size()).firstOrNull { thumbnailListModel.getElementAt(it).name == selectName }
+            } else {
+                null
+            }
+            if (thumbTarget != null) {
+                thumbnailList.selectedIndex = thumbTarget
+                thumbnailList.ensureIndexIsVisible(thumbTarget)
+            } else if (thumbnailListModel.size() > 0) {
+                thumbnailList.selectedIndex = 0
+            }
+
             initialized = true
         }
     }
 
     fun refresh() {
+        ThumbnailCache.evictDirectory(currentPath)
         val vfs = currentVfs
         if (vfs != null) {
             val relativePath = vfsRelativePath(vfs, currentPath)
@@ -1281,6 +1382,26 @@ class FileTab(
                 }
                 list.ensureIndexIsVisible(nextIndex)
             }
+            ViewMode.THUMBNAIL -> {
+                val index = thumbnailList.selectionModel.leadSelectionIndex
+                if (index < 0) return
+                val entry = thumbnailListModel.getElementAt(index)
+                val selectedSet = thumbnailList.selectedIndices.toMutableSet()
+                if (entry != null && !entry.isParentLink) {
+                    if (index in selectedSet) {
+                        selectedSet.remove(index)
+                    } else {
+                        selectedSet.add(index)
+                    }
+                }
+                val nextIndex = if (index + 1 < thumbnailListModel.size()) index + 1 else index
+                selectedSet.add(nextIndex)
+                thumbnailList.clearSelection()
+                for (i in selectedSet) {
+                    thumbnailList.addSelectionInterval(i, i)
+                }
+                thumbnailList.ensureIndexIsVisible(nextIndex)
+            }
             ViewMode.TREE -> {
                 val leadRow = tree.leadSelectionRow
                 if (leadRow < 0) return
@@ -1306,6 +1427,9 @@ class FileTab(
     fun getSelectedEntries(): List<FileEntry> {
         if (viewMode == ViewMode.LIST) {
             return list.selectedValuesList.filter { !it.isParentLink }
+        }
+        if (viewMode == ViewMode.THUMBNAIL) {
+            return thumbnailList.selectedValuesList.filter { !it.isParentLink }
         }
         if (viewMode == ViewMode.TREE) {
             return (tree.selectionPaths ?: emptyArray()).mapNotNull { path ->
@@ -1345,6 +1469,15 @@ class FileTab(
                     popupMenu.component.show(list, rect.x, rect.y + rect.height)
                 } else {
                     popupMenu.component.show(list, 0, 0)
+                }
+            }
+            ViewMode.THUMBNAIL -> {
+                val index = thumbnailList.selectedIndex
+                if (index >= 0) {
+                    val rect = thumbnailList.getCellBounds(index, index)
+                    popupMenu.component.show(thumbnailList, rect.x, rect.y + rect.height)
+                } else {
+                    popupMenu.component.show(thumbnailList, 0, 0)
                 }
             }
             ViewMode.TREE -> {
@@ -2484,6 +2617,71 @@ class FileTab(
         }
     }
 
+    private inner class FileThumbnailCellRenderer : javax.swing.ListCellRenderer<FileEntry> {
+        private val panel = JPanel(BorderLayout())
+        private val iconLabel = JLabel()
+        private val nameLabel = JLabel()
+
+        init {
+            panel.isOpaque = true
+            panel.border = BorderFactory.createEmptyBorder(6, 4, 4, 4)
+            iconLabel.horizontalAlignment = JLabel.CENTER
+            iconLabel.verticalAlignment = JLabel.CENTER
+            nameLabel.horizontalAlignment = JLabel.CENTER
+            panel.add(iconLabel, BorderLayout.CENTER)
+            panel.add(nameLabel, BorderLayout.SOUTH)
+        }
+
+        override fun getListCellRendererComponent(
+            list: JList<out FileEntry>,
+            value: FileEntry?,
+            index: Int,
+            isSelected: Boolean,
+            cellHasFocus: Boolean,
+        ): Component {
+            val entry = value ?: return panel
+            val thumbnail = if (!entry.isDirectory && !entry.isParentLink && !isInsideArchive
+                && ThumbnailCache.isImageFile(entry.name)) {
+                val cached = ThumbnailCache.getCachedThumbnail(entry.path)
+                if (cached == null) {
+                    val capturedIndex = index
+                    ThumbnailCache.requestThumbnail(
+                        entry.path, entry.lastModified,
+                        isStillVisible = {
+                            capturedIndex in thumbnailList.firstVisibleIndex..thumbnailList.lastVisibleIndex
+                        },
+                    ) {
+                        javax.swing.SwingUtilities.invokeLater { thumbnailList.repaint() }
+                    }
+                }
+                cached
+            } else null
+
+            if (thumbnail != null) {
+                iconLabel.icon = thumbnail
+            } else {
+                val entryIcon = fileEntryIcon(entry, enableFileNameHighlighting)
+                iconLabel.icon = if (entryIcon != null) com.intellij.util.IconUtil.scale(entryIcon, list, 2.0f) else null
+            }
+            val name = entry.name
+            nameLabel.text = if (name.length > 16) name.substring(0, 14) + "\u2026" else name
+            nameLabel.toolTipText = name
+            nameLabel.font = list.font
+            if (isSelected) {
+                panel.background = list.selectionBackground
+                nameLabel.foreground = list.selectionForeground
+            } else {
+                panel.background = list.background
+                if (enableFileNameHighlighting && entry.isDirectory && entry.directoryType != DirectoryType.NONE) {
+                    nameLabel.foreground = DirectoryIcons.getColor(entry.directoryType)
+                } else {
+                    nameLabel.foreground = list.foreground
+                }
+            }
+            return panel
+        }
+    }
+
     private inner class FileTreeCellRenderer : DefaultTreeCellRenderer() {
         init {
             backgroundNonSelectionColor = table.background
@@ -2519,6 +2717,7 @@ class FileTab(
         )
         private const val VIEW_TABLE = "table"
         private const val VIEW_LIST = "list"
+        private const val VIEW_THUMBNAIL = "thumbnail"
         private const val VIEW_TREE = "tree"
     }
 }
@@ -2542,7 +2741,7 @@ fun fileEntryIcon(entry: FileEntry, enableFileNameHighlighting: Boolean): javax.
     }
 }
 
-enum class ViewMode { TABLE, LIST, TREE }
+enum class ViewMode { TABLE, LIST, THUMBNAIL, TREE }
 
 private class FileEntryTransferable(private val entries: List<FileEntry>) : Transferable {
     private val supportedFlavors = arrayOf(FileTab.FILE_ENTRY_FLAVOR, DataFlavor.javaFileListFlavor)
