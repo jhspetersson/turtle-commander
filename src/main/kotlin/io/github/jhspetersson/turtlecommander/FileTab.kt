@@ -140,6 +140,7 @@ class FileTab(
 
 
     init {
+        tableModel.directorySizeProvider = { path -> directorySizes[path] }
         setupHeader()
         setupTable()
         setupList()
@@ -1026,8 +1027,9 @@ class FileTab(
 
         val selectedEntries = getSelectedEntries()
         if (selectedEntries.isNotEmpty()) {
-            val selectedFiles = selectedEntries.filter { !it.isDirectory }
-            val selectedSize = selectedFiles.sumOf { it.size }
+            val selectedSize = selectedEntries.sumOf { entry ->
+                if (entry.isDirectory) directorySizes[entry.path] ?: 0L else entry.size
+            }
             sb.append("  |  ${selectedEntries.size} selected, ${formatSize(selectedSize)}")
         }
 
@@ -1150,6 +1152,7 @@ class FileTab(
             }
 
             allEntries = entries
+            directorySizes.clear()
             // Hide filter on navigation
             if (filterPanel.isVisible) {
                 filterField.text = ""
@@ -1318,6 +1321,7 @@ class FileTab(
     private val toggledRows = mutableSetOf<Int>()
     private val toggledTreeRows = mutableSetOf<Int>()
     private var insideToggle = false
+    private val directorySizes = mutableMapOf<Path, Long>()
 
     private fun applyToggledSelection(cursorRow: Int) {
         val rowsToSelect = toggledRows.toMutableSet()
@@ -1355,9 +1359,15 @@ class FileTab(
                         toggledRows.remove(row)
                     } else {
                         toggledRows.add(row)
+                        if (entry.isDirectory) calculateDirectorySize(entry)
                     }
                 }
                 val nextRow = if (row + 1 < table.rowCount) row + 1 else row
+                val nextModelRow = table.convertRowIndexToModel(nextRow)
+                val nextEntry = tableModel.getEntryAt(nextModelRow)
+                if (nextEntry != null && nextEntry.isDirectory && !nextEntry.isParentLink) {
+                    calculateDirectorySize(nextEntry)
+                }
                 applyToggledSelection(nextRow)
                 table.selectionModel.leadSelectionIndex = nextRow
                 table.scrollRectToVisible(table.getCellRect(nextRow, 0, true))
@@ -1372,9 +1382,14 @@ class FileTab(
                         selectedSet.remove(index)
                     } else {
                         selectedSet.add(index)
+                        if (entry.isDirectory) calculateDirectorySize(entry)
                     }
                 }
                 val nextIndex = if (index + 1 < listModel.size()) index + 1 else index
+                val nextEntry = listModel.getElementAt(nextIndex)
+                if (nextEntry != null && nextEntry.isDirectory && !nextEntry.isParentLink) {
+                    calculateDirectorySize(nextEntry)
+                }
                 selectedSet.add(nextIndex)
                 list.clearSelection()
                 for (i in selectedSet) {
@@ -1392,9 +1407,14 @@ class FileTab(
                         selectedSet.remove(index)
                     } else {
                         selectedSet.add(index)
+                        if (entry.isDirectory) calculateDirectorySize(entry)
                     }
                 }
                 val nextIndex = if (index + 1 < thumbnailListModel.size()) index + 1 else index
+                val nextEntry = thumbnailListModel.getElementAt(nextIndex)
+                if (nextEntry != null && nextEntry.isDirectory && !nextEntry.isParentLink) {
+                    calculateDirectorySize(nextEntry)
+                }
                 selectedSet.add(nextIndex)
                 thumbnailList.clearSelection()
                 for (i in selectedSet) {
@@ -1412,15 +1432,54 @@ class FileTab(
                         toggledTreeRows.remove(leadRow)
                     } else {
                         toggledTreeRows.add(leadRow)
+                        if (entry.isDirectory) calculateDirectorySize(entry)
                     }
                 }
                 val nextRow = if (leadRow + 1 < tree.rowCount) leadRow + 1 else leadRow
+                val nextNode = (tree.getPathForRow(nextRow)?.lastPathComponent) as? DefaultMutableTreeNode
+                val nextEntry = nextNode?.userObject as? FileEntry
+                if (nextEntry != null && nextEntry.isDirectory && !nextEntry.isParentLink) {
+                    calculateDirectorySize(nextEntry)
+                }
                 applyToggledTreeSelection(nextRow)
                 tree.scrollRowToVisible(nextRow)
             }
         }
         } finally {
             insideToggle = false
+        }
+    }
+
+    private fun calculateDirectorySize(entry: FileEntry) {
+        if (!entry.isDirectory || entry.isParentLink) return
+        if (!TurtleCommanderSettings.getInstance().state.calculateDirectorySize) return
+        if (directorySizes.containsKey(entry.path)) return
+        fileOps.launch {
+            val size = withContext(Dispatchers.IO) {
+                var total = 0L
+                try {
+                    Files.walkFileTree(entry.path, object : java.nio.file.SimpleFileVisitor<Path>() {
+                        override fun visitFile(file: Path, attrs: java.nio.file.attribute.BasicFileAttributes): java.nio.file.FileVisitResult {
+                            total += attrs.size()
+                            return java.nio.file.FileVisitResult.CONTINUE
+                        }
+                        override fun visitFileFailed(file: Path, exc: java.io.IOException?): java.nio.file.FileVisitResult {
+                            return java.nio.file.FileVisitResult.CONTINUE
+                        }
+                    })
+                } catch (_: Exception) {}
+                total
+            }
+            directorySizes[entry.path] = size
+            withContext(Dispatchers.EDT) {
+                val modelRow = (0 until tableModel.rowCount).firstOrNull {
+                    tableModel.getEntryAt(it)?.path == entry.path
+                }
+                if (modelRow != null) {
+                    tableModel.fireTableCellUpdated(modelRow, FileTableModel.COL_SIZE)
+                }
+                updateStatusBar()
+            }
         }
     }
 

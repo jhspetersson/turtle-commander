@@ -19,6 +19,7 @@ class FileTableModel : AbstractTableModel() {
 
     private val columns = arrayOf("Name", "Ext", "Size", "Date Modified", "Permissions")
     private var entries: List<FileEntry> = emptyList()
+    var directorySizeProvider: ((java.nio.file.Path) -> Long?)? = null
 
     fun setEntries(newEntries: List<FileEntry>) {
         entries = newEntries
@@ -56,7 +57,9 @@ class FileTableModel : AbstractTableModel() {
                 !entry.name.contains('.') || entry.name.startsWith('.') -> ""
                 else -> entry.name.substringAfterLast('.')
             }
-            COL_SIZE -> if (entry.isParentLink) PARENT_NUMERIC else if (entry.isDirectory) DIR_NUMERIC else entry.size
+            COL_SIZE -> if (entry.isParentLink) PARENT_NUMERIC else if (entry.isDirectory) {
+                directorySizeProvider?.invoke(entry.path) ?: DIR_NUMERIC
+            } else entry.size
             COL_DATE -> if (entry.isParentLink) PARENT_NUMERIC else entry.lastModified?.toMillis() ?: 0L
             COL_PERMS -> if (entry.isParentLink) PARENT_MARKER else entry.permissions
             else -> ""
@@ -68,7 +71,10 @@ class FileTableModel : AbstractTableModel() {
         return when {
             entry.isParentLink && columnIndex == COL_NAME -> ".."
             entry.isParentLink -> ""
-            columnIndex == COL_SIZE -> if (entry.isDirectory) "<DIR>" else formatSize(entry.size)
+            columnIndex == COL_SIZE -> if (entry.isDirectory) {
+                val calcSize = directorySizeProvider?.invoke(entry.path)
+                if (calcSize != null) formatSize(calcSize) else "<DIR>"
+            } else formatSize(entry.size)
             columnIndex == COL_DATE -> entry.lastModified?.let {
                 SimpleDateFormat("yyyy-MM-dd HH:mm").format(Date(it.toMillis()))
             } ?: ""

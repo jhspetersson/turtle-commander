@@ -48,6 +48,7 @@ class TurtleCommanderConfigurable : Configurable {
     private var hideStatusBarCheckBox: JCheckBox? = null
     private var overwriteCheckBox: JCheckBox? = null
     private var sortWithDirectoriesCheckBox: JCheckBox? = null
+    private var calculateDirectorySizeCheckBox: JCheckBox? = null
     private var panelFontCombo: ComboBox<String>? = null
     private var panelFontSizeSpinner: JSpinner? = null
     private var tabFontCombo: ComboBox<String>? = null
@@ -68,6 +69,7 @@ class TurtleCommanderConfigurable : Configurable {
         hideStatusBarCheckBox = JCheckBox("Hide status bar", settings.hideStatusBar)
         overwriteCheckBox = JCheckBox("Always overwrite existing files during copy/move", settings.alwaysOverwriteFiles)
         sortWithDirectoriesCheckBox = JCheckBox("Sort directories together with files", settings.sortWithDirectories)
+        calculateDirectorySizeCheckBox = JCheckBox("Calculate directory size on selection", settings.calculateDirectorySize)
 
         val defaultLabel = "(Default)"
         val fontItems = arrayOf(defaultLabel) + fontFamilies
@@ -139,6 +141,7 @@ class TurtleCommanderConfigurable : Configurable {
         hideStatusBarCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         overwriteCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         sortWithDirectoriesCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
+        calculateDirectorySizeCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
 
         // Favorites editor
         val favListModel = DefaultListModel<FileManagerStateService.FavoriteEntry>()
@@ -244,6 +247,7 @@ class TurtleCommanderConfigurable : Configurable {
             add(hideStatusBarCheckBox)
             add(overwriteCheckBox)
             add(sortWithDirectoriesCheckBox)
+            add(calculateDirectorySizeCheckBox)
             add(Box.createVerticalStrut(8))
             add(fontGrid)
             add(Box.createVerticalStrut(8))
@@ -266,6 +270,7 @@ class TurtleCommanderConfigurable : Configurable {
             || hideStatusBarCheckBox?.isSelected != settings.hideStatusBar
             || overwriteCheckBox?.isSelected != settings.alwaysOverwriteFiles
             || sortWithDirectoriesCheckBox?.isSelected != settings.sortWithDirectories
+            || calculateDirectorySizeCheckBox?.isSelected != settings.calculateDirectorySize
             || getSelectedFontFamily(panelFontCombo, defaultLabel) != settings.panelFontFamily
             || ((panelFontSizeSpinner?.value as? Number)?.toInt() ?: 0) != (if (settings.panelFontSize > 0) settings.panelFontSize else 13)
             || getSelectedFontFamily(tabFontCombo, defaultLabel) != settings.tabFontFamily
@@ -298,6 +303,7 @@ class TurtleCommanderConfigurable : Configurable {
         settings.hideStatusBar = hideStatusBarCheckBox?.isSelected ?: settings.hideStatusBar
         settings.alwaysOverwriteFiles = overwriteCheckBox?.isSelected ?: settings.alwaysOverwriteFiles
         settings.sortWithDirectories = sortWithDirectoriesCheckBox?.isSelected ?: settings.sortWithDirectories
+        settings.calculateDirectorySize = calculateDirectorySizeCheckBox?.isSelected ?: settings.calculateDirectorySize
         settings.panelFontFamily = getSelectedFontFamily(panelFontCombo, defaultLabel)
         settings.panelFontSize = (panelFontSizeSpinner?.value as? Number)?.toInt() ?: 0
         settings.tabFontFamily = getSelectedFontFamily(tabFontCombo, defaultLabel)
@@ -325,6 +331,7 @@ class TurtleCommanderConfigurable : Configurable {
         hideStatusBarCheckBox?.isSelected = settings.hideStatusBar
         overwriteCheckBox?.isSelected = settings.alwaysOverwriteFiles
         sortWithDirectoriesCheckBox?.isSelected = settings.sortWithDirectories
+        calculateDirectorySizeCheckBox?.isSelected = settings.calculateDirectorySize
         panelFontCombo?.selectedItem = settings.panelFontFamily.ifEmpty { defaultLabel }
         panelFontSizeSpinner?.value = if (settings.panelFontSize > 0) settings.panelFontSize else 13
         tabFontCombo?.selectedItem = settings.tabFontFamily.ifEmpty { defaultLabel }
@@ -354,6 +361,7 @@ class TurtleCommanderConfigurable : Configurable {
         hideStatusBarCheckBox = null
         overwriteCheckBox = null
         sortWithDirectoriesCheckBox = null
+        calculateDirectorySizeCheckBox = null
         panelFontCombo = null
         panelFontSizeSpinner = null
         tabFontCombo = null

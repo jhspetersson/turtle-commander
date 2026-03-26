@@ -31,6 +31,7 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
         var tabFontSize: Int = 0
         var defaultViewMode: String = "TABLE"
         var sortWithDirectories: Boolean = false
+        var calculateDirectorySize: Boolean = true
     }
 
     fun getPanelFont(): Font? {
