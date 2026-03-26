@@ -1,7 +1,7 @@
 <idea-plugin>
     <actions>
         <action id="TurtleCommander.OpenInTerminal"
-                class="io.github.jhspetersson.turtlecommander.OpenInTerminalAction"
+                class="io.github.jhspetersson.turtlecommander.action.OpenInTerminalAction"
                 text="Open in Terminal"
                 icon="org.jetbrains.plugins.terminal.TerminalIcons.Command"/>
         <group>
@@ -11,7 +11,7 @@
         </group>
 
         <action id="TurtleCommander.OpenTabInTerminal"
-                class="io.github.jhspetersson.turtlecommander.OpenTabInTerminalAction"
+                class="io.github.jhspetersson.turtlecommander.action.OpenTabInTerminalAction"
                 text="Open in Terminal"
                 icon="org.jetbrains.plugins.terminal.TerminalIcons.Command"/>
         <group>

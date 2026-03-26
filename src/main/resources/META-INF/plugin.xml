@@ -8,7 +8,7 @@
 
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow
-            factoryClass="io.github.jhspetersson.turtlecommander.FileManagerToolWindowFactory"
+            factoryClass="io.github.jhspetersson.turtlecommander.ui.FileManagerToolWindowFactory"
             id="Turtle Commander"
             anchor="bottom"
             icon="/icons/turtleCommander.svg"
@@ -19,18 +19,18 @@
         />
         <applicationConfigurable
             parentId="tools"
-            instance="io.github.jhspetersson.turtlecommander.TurtleCommanderConfigurable"
+            instance="io.github.jhspetersson.turtlecommander.settings.TurtleCommanderConfigurable"
             id="io.github.jhspetersson.turtlecommander.settings"
             displayName="Turtle Commander"
         />
         <projectService
-            serviceImplementation="io.github.jhspetersson.turtlecommander.VfsEditService"
+            serviceImplementation="io.github.jhspetersson.turtlecommander.vfs.VfsEditService"
         />
     </extensions>
 
     <projectListeners>
         <listener
-            class="io.github.jhspetersson.turtlecommander.VfsEditFileListener"
+            class="io.github.jhspetersson.turtlecommander.vfs.VfsEditFileListener"
             topic="com.intellij.openapi.vfs.newvfs.BulkFileListener"
         />
     </projectListeners>
@@ -38,288 +38,288 @@
     <actions>
         <group id="TurtleCommander.Actions" text="Turtle Commander" popup="false">
             <action id="TurtleCommander.OpenEntry"
-                    class="io.github.jhspetersson.turtlecommander.OpenEntryAction"
+                    class="io.github.jhspetersson.turtlecommander.action.OpenEntryAction"
                     text="Open Entry"
                     description="Open selected file or directory">
                 <keyboard-shortcut first-keystroke="ENTER" keymap="$default"/>
             </action>
             <action id="TurtleCommander.ViewFile"
-                    class="io.github.jhspetersson.turtlecommander.ViewFileAction"
+                    class="io.github.jhspetersson.turtlecommander.action.ViewFileAction"
                     text="View File"
                     description="Open selected file in editor">
                 <keyboard-shortcut first-keystroke="F3" keymap="$default"/>
             </action>
             <action id="TurtleCommander.OpenInApp"
-                    class="io.github.jhspetersson.turtlecommander.OpenInAppAction"
+                    class="io.github.jhspetersson.turtlecommander.action.OpenInAppAction"
                     text="Open in Associated Application"
                     description="Open file with system default application">
                 <keyboard-shortcut first-keystroke="F4" keymap="$default"/>
             </action>
             <action id="TurtleCommander.GoUp"
-                    class="io.github.jhspetersson.turtlecommander.GoUpAction"
+                    class="io.github.jhspetersson.turtlecommander.action.GoUpAction"
                     text="Go Up"
                     description="Navigate to parent directory">
                 <keyboard-shortcut first-keystroke="BACK_SPACE" keymap="$default"/>
             </action>
             <action id="TurtleCommander.Rename"
-                    class="io.github.jhspetersson.turtlecommander.RenameAction"
+                    class="io.github.jhspetersson.turtlecommander.action.RenameAction"
                     text="Rename"
                     description="Rename selected file or directory">
                 <keyboard-shortcut first-keystroke="shift F6" keymap="$default"/>
             </action>
             <action id="TurtleCommander.CopyFiles"
-                    class="io.github.jhspetersson.turtlecommander.CopyFilesAction"
+                    class="io.github.jhspetersson.turtlecommander.action.CopyFilesAction"
                     text="Copy Files"
                     description="Copy selected files to the other panel">
                 <keyboard-shortcut first-keystroke="F5" keymap="$default"/>
             </action>
             <action id="TurtleCommander.MoveFiles"
-                    class="io.github.jhspetersson.turtlecommander.MoveFilesAction"
+                    class="io.github.jhspetersson.turtlecommander.action.MoveFilesAction"
                     text="Move Files"
                     description="Move selected files to the other panel">
                 <keyboard-shortcut first-keystroke="F6" keymap="$default"/>
             </action>
             <action id="TurtleCommander.CreateDirectory"
-                    class="io.github.jhspetersson.turtlecommander.CreateDirectoryAction"
+                    class="io.github.jhspetersson.turtlecommander.action.CreateDirectoryAction"
                     text="Create Directory"
                     description="Create a new directory">
                 <keyboard-shortcut first-keystroke="F7" keymap="$default"/>
             </action>
             <action id="TurtleCommander.CreateFile"
-                    class="io.github.jhspetersson.turtlecommander.CreateFileAction"
+                    class="io.github.jhspetersson.turtlecommander.action.CreateFileAction"
                     text="Create File"
                     description="Create a new file and open it in editor">
                 <keyboard-shortcut first-keystroke="shift F4" keymap="$default"/>
             </action>
             <action id="TurtleCommander.DeleteFiles"
-                    class="io.github.jhspetersson.turtlecommander.DeleteFilesAction"
+                    class="io.github.jhspetersson.turtlecommander.action.DeleteFilesAction"
                     text="Delete Files"
                     description="Delete selected files">
                 <keyboard-shortcut first-keystroke="F8" keymap="$default"/>
                 <keyboard-shortcut first-keystroke="DELETE" keymap="$default"/>
             </action>
             <action id="TurtleCommander.SwitchPanel"
-                    class="io.github.jhspetersson.turtlecommander.SwitchPanelAction"
+                    class="io.github.jhspetersson.turtlecommander.action.SwitchPanelAction"
                     text="Switch Panel"
                     description="Switch focus between left and right panels">
                 <keyboard-shortcut first-keystroke="TAB" keymap="$default"/>
             </action>
             <action id="TurtleCommander.GoToFirst"
-                    class="io.github.jhspetersson.turtlecommander.GoToFirstAction"
+                    class="io.github.jhspetersson.turtlecommander.action.GoToFirstAction"
                     text="Go to First"
                     description="Select the first entry in the file list">
                 <keyboard-shortcut first-keystroke="HOME" keymap="$default"/>
             </action>
             <action id="TurtleCommander.GoToLast"
-                    class="io.github.jhspetersson.turtlecommander.GoToLastAction"
+                    class="io.github.jhspetersson.turtlecommander.action.GoToLastAction"
                     text="Go to Last"
                     description="Select the last entry in the file list">
                 <keyboard-shortcut first-keystroke="END" keymap="$default"/>
             </action>
             <action id="TurtleCommander.ToggleSelection"
-                    class="io.github.jhspetersson.turtlecommander.ToggleSelectionAction"
+                    class="io.github.jhspetersson.turtlecommander.action.ToggleSelectionAction"
                     text="Toggle Selection"
                     description="Toggle selection of the current entry and move to the next one">
                 <keyboard-shortcut first-keystroke="SPACE" keymap="$default"/>
                 <keyboard-shortcut first-keystroke="INSERT" keymap="$default"/>
             </action>
             <action id="TurtleCommander.ShowContextMenu"
-                    class="io.github.jhspetersson.turtlecommander.ShowContextMenuAction"
+                    class="io.github.jhspetersson.turtlecommander.action.ShowContextMenuAction"
                     text="Show Context Menu"
                     description="Show context menu for the selected entry">
                 <keyboard-shortcut first-keystroke="CONTEXT_MENU" keymap="$default"/>
                 <keyboard-shortcut first-keystroke="shift F10" keymap="$default"/>
             </action>
             <action id="TurtleCommander.SearchFiles"
-                    class="io.github.jhspetersson.turtlecommander.SearchFilesAction"
+                    class="io.github.jhspetersson.turtlecommander.action.SearchFilesAction"
                     text="Search Files"
                     description="Search for files in the current directory">
                 <keyboard-shortcut first-keystroke="alt F7" keymap="$default"/>
             </action>
             <action id="TurtleCommander.SearchInDirectory"
-                    class="io.github.jhspetersson.turtlecommander.ContextSearchInDirectoryAction"
+                    class="io.github.jhspetersson.turtlecommander.action.ContextSearchInDirectoryAction"
                     text="Search in Directory..."
                     icon="AllIcons.Actions.Find"
                     description="Search for files in the selected directory"/>
             <action id="TurtleCommander.QuickFilter"
-                    class="io.github.jhspetersson.turtlecommander.QuickFilterAction"
+                    class="io.github.jhspetersson.turtlecommander.action.QuickFilterAction"
                     text="Quick Filter"
                     description="Filter files in the current directory">
                 <keyboard-shortcut first-keystroke="ctrl S" keymap="$default"/>
             </action>
             <action id="TurtleCommander.Refresh"
-                    class="io.github.jhspetersson.turtlecommander.RefreshAction"
+                    class="io.github.jhspetersson.turtlecommander.action.RefreshAction"
                     text="Refresh"
                     description="Refresh the current directory listing">
                 <keyboard-shortcut first-keystroke="ctrl R" keymap="$default"/>
             </action>
             <action id="TurtleCommander.LeftDriveSelector"
-                    class="io.github.jhspetersson.turtlecommander.LeftDriveSelectorAction"
+                    class="io.github.jhspetersson.turtlecommander.action.LeftDriveSelectorAction"
                     text="Left Panel Drive Selector"
                     description="Show drive selector for the left panel">
                 <keyboard-shortcut first-keystroke="alt F1" keymap="$default"/>
             </action>
             <action id="TurtleCommander.RightDriveSelector"
-                    class="io.github.jhspetersson.turtlecommander.RightDriveSelectorAction"
+                    class="io.github.jhspetersson.turtlecommander.action.RightDriveSelectorAction"
                     text="Right Panel Drive Selector"
                     description="Show drive selector for the right panel">
                 <keyboard-shortcut first-keystroke="alt F2" keymap="$default"/>
             </action>
             <action id="TurtleCommander.NewTab"
-                    class="io.github.jhspetersson.turtlecommander.NewTabAction"
+                    class="io.github.jhspetersson.turtlecommander.action.NewTabAction"
                     text="New Tab"
                     description="Open a new tab in the active panel">
                 <keyboard-shortcut first-keystroke="ctrl T" keymap="$default"/>
             </action>
             <action id="TurtleCommander.NextTab"
-                    class="io.github.jhspetersson.turtlecommander.NextTabAction"
+                    class="io.github.jhspetersson.turtlecommander.action.NextTabAction"
                     text="Next Tab"
                     description="Switch to the next tab in the active panel">
                 <keyboard-shortcut first-keystroke="alt RIGHT" keymap="$default"/>
             </action>
             <action id="TurtleCommander.PreviousTab"
-                    class="io.github.jhspetersson.turtlecommander.PreviousTabAction"
+                    class="io.github.jhspetersson.turtlecommander.action.PreviousTabAction"
                     text="Previous Tab"
                     description="Switch to the previous tab in the active panel">
                 <keyboard-shortcut first-keystroke="alt LEFT" keymap="$default"/>
             </action>
             <action id="TurtleCommander.CloseTab"
-                    class="io.github.jhspetersson.turtlecommander.CloseTabAction"
+                    class="io.github.jhspetersson.turtlecommander.action.CloseTabAction"
                     text="Close"
                     description="Close the selected tab">
                 <keyboard-shortcut first-keystroke="ctrl W" keymap="$default"/>
             </action>
             <action id="TurtleCommander.CloseOtherTabs"
-                    class="io.github.jhspetersson.turtlecommander.CloseOtherTabsAction"
+                    class="io.github.jhspetersson.turtlecommander.action.CloseOtherTabsAction"
                     text="Close Other Tabs"
                     description="Close all tabs except the selected one"/>
             <action id="TurtleCommander.CloseAllTabs"
-                    class="io.github.jhspetersson.turtlecommander.CloseAllTabsAction"
+                    class="io.github.jhspetersson.turtlecommander.action.CloseAllTabsAction"
                     text="Close All Tabs"
                     description="Close all tabs except one"/>
             <action id="TurtleCommander.CloseTabsToTheLeft"
-                    class="io.github.jhspetersson.turtlecommander.CloseTabsToTheLeftAction"
+                    class="io.github.jhspetersson.turtlecommander.action.CloseTabsToTheLeftAction"
                     text="Close Tabs to the Left"
                     description="Close all tabs to the left of the selected tab"/>
             <action id="TurtleCommander.CloseTabsToTheRight"
-                    class="io.github.jhspetersson.turtlecommander.CloseTabsToTheRightAction"
+                    class="io.github.jhspetersson.turtlecommander.action.CloseTabsToTheRightAction"
                     text="Close Tabs to the Right"
                     description="Close all tabs to the right of the selected tab"/>
             <action id="TurtleCommander.OpenInNewTab"
-                    class="io.github.jhspetersson.turtlecommander.OpenInNewTabAction"
+                    class="io.github.jhspetersson.turtlecommander.action.OpenInNewTabAction"
                     text="Open in New Tab"
                     icon="AllIcons.Actions.OpenNewTab"
                     description="Open directory in a new tab"/>
             <action id="TurtleCommander.OpenFile"
-                    class="io.github.jhspetersson.turtlecommander.OpenFileAction"
+                    class="io.github.jhspetersson.turtlecommander.action.OpenFileAction"
                     text="Open"
                     icon="AllIcons.Actions.MenuOpen"
                     description="Open file in editor"/>
             <action id="TurtleCommander.OpenInAssociatedApp"
-                    class="io.github.jhspetersson.turtlecommander.OpenInAssociatedAppAction"
+                    class="io.github.jhspetersson.turtlecommander.action.OpenInAssociatedAppAction"
                     text="Open in Associated Application"
                     icon="AllIcons.Actions.Execute"
                     description="Open file with system default application"/>
             <action id="TurtleCommander.OpenInExplorer"
-                    class="io.github.jhspetersson.turtlecommander.OpenInExplorerAction"
+                    class="io.github.jhspetersson.turtlecommander.action.OpenInExplorerAction"
                     text="Open in Explorer"
                     description="Open in system file manager"/>
             <action id="TurtleCommander.ContextCopy"
-                    class="io.github.jhspetersson.turtlecommander.ContextCopyAction"
+                    class="io.github.jhspetersson.turtlecommander.action.ContextCopyAction"
                     text="Copy"
                     icon="AllIcons.Actions.Copy"
                     description="Copy selected files to buffer">
                 <keyboard-shortcut first-keystroke="ctrl C" keymap="$default"/>
             </action>
             <action id="TurtleCommander.ContextCut"
-                    class="io.github.jhspetersson.turtlecommander.ContextCutAction"
+                    class="io.github.jhspetersson.turtlecommander.action.ContextCutAction"
                     text="Cut"
                     icon="AllIcons.Actions.MenuCut"
                     description="Cut selected files to buffer">
                 <keyboard-shortcut first-keystroke="ctrl X" keymap="$default"/>
             </action>
             <action id="TurtleCommander.ContextPaste"
-                    class="io.github.jhspetersson.turtlecommander.ContextPasteAction"
+                    class="io.github.jhspetersson.turtlecommander.action.ContextPasteAction"
                     text="Paste"
                     icon="AllIcons.Actions.MenuPaste"
                     description="Paste files from buffer into current directory">
                 <keyboard-shortcut first-keystroke="ctrl V" keymap="$default"/>
             </action>
             <action id="TurtleCommander.ContextPasteInto"
-                    class="io.github.jhspetersson.turtlecommander.ContextPasteIntoAction"
+                    class="io.github.jhspetersson.turtlecommander.action.ContextPasteIntoAction"
                     text="Paste Into"
                     icon="AllIcons.Actions.MenuPaste"
                     description="Paste files from buffer into selected directory"/>
             <action id="TurtleCommander.ContextRename"
-                    class="io.github.jhspetersson.turtlecommander.ContextRenameAction"
+                    class="io.github.jhspetersson.turtlecommander.action.ContextRenameAction"
                     text="Rename"
                     icon="AllIcons.Actions.Edit"
                     description="Rename selected file or directory"/>
             <action id="TurtleCommander.ContextDelete"
-                    class="io.github.jhspetersson.turtlecommander.ContextDeleteAction"
+                    class="io.github.jhspetersson.turtlecommander.action.ContextDeleteAction"
                     text="Delete"
                     icon="AllIcons.Actions.GC"
                     description="Delete selected files"/>
             <action id="TurtleCommander.PackFiles"
-                    class="io.github.jhspetersson.turtlecommander.PackFilesAction"
+                    class="io.github.jhspetersson.turtlecommander.action.PackFilesAction"
                     text="Pack Files"
                     icon="AllIcons.FileTypes.Archive"
                     description="Pack selected files into a zip archive"/>
             <action id="TurtleCommander.ExtractFiles"
-                    class="io.github.jhspetersson.turtlecommander.ExtractFilesAction"
+                    class="io.github.jhspetersson.turtlecommander.action.ExtractFilesAction"
                     text="Extract Files..."
                     icon="AllIcons.Actions.Uninstall"
                     description="Extract archive to a directory"/>
             <action id="TurtleCommander.ExtractHere"
-                    class="io.github.jhspetersson.turtlecommander.ExtractHereAction"
+                    class="io.github.jhspetersson.turtlecommander.action.ExtractHereAction"
                     text="Extract Here"
                     icon="AllIcons.Actions.Uninstall"
                     description="Extract archive into current directory"/>
             <action id="TurtleCommander.SplitFile"
-                    class="io.github.jhspetersson.turtlecommander.SplitFileAction"
+                    class="io.github.jhspetersson.turtlecommander.action.SplitFileAction"
                     text="Split File..."
                     icon="AllIcons.Actions.SplitHorizontally"
                     description="Split file into smaller parts"/>
             <action id="TurtleCommander.CombineFiles"
-                    class="io.github.jhspetersson.turtlecommander.CombineFilesAction"
+                    class="io.github.jhspetersson.turtlecommander.action.CombineFilesAction"
                     text="Combine Files..."
                     icon="AllIcons.Actions.Collapseall"
                     description="Combine split file parts back into original file"/>
             <action id="TurtleCommander.AddToFavorites"
-                    class="io.github.jhspetersson.turtlecommander.AddToFavoritesAction"
+                    class="io.github.jhspetersson.turtlecommander.action.AddToFavoritesAction"
                     text="Add to Favorites"
                     icon="AllIcons.Nodes.Favorite"
                     description="Add directory to favorites"/>
             <action id="TurtleCommander.CompareFiles"
-                    class="io.github.jhspetersson.turtlecommander.CompareFilesAction"
+                    class="io.github.jhspetersson.turtlecommander.action.CompareFilesAction"
                     text="Compare Files"
                     icon="AllIcons.Actions.Diff"
                     description="Compare two files"/>
-            <action id="TurtleCommander.QuickAccess.1" class="io.github.jhspetersson.turtlecommander.QuickAccessFavoriteAction" text="Favorite 1">
+            <action id="TurtleCommander.QuickAccess.1" class="io.github.jhspetersson.turtlecommander.action.QuickAccessFavoriteAction" text="Favorite 1">
                 <keyboard-shortcut first-keystroke="ctrl 1" keymap="$default"/>
             </action>
-            <action id="TurtleCommander.QuickAccess.2" class="io.github.jhspetersson.turtlecommander.QuickAccessFavoriteAction" text="Favorite 2">
+            <action id="TurtleCommander.QuickAccess.2" class="io.github.jhspetersson.turtlecommander.action.QuickAccessFavoriteAction" text="Favorite 2">
                 <keyboard-shortcut first-keystroke="ctrl 2" keymap="$default"/>
             </action>
-            <action id="TurtleCommander.QuickAccess.3" class="io.github.jhspetersson.turtlecommander.QuickAccessFavoriteAction" text="Favorite 3">
+            <action id="TurtleCommander.QuickAccess.3" class="io.github.jhspetersson.turtlecommander.action.QuickAccessFavoriteAction" text="Favorite 3">
                 <keyboard-shortcut first-keystroke="ctrl 3" keymap="$default"/>
             </action>
-            <action id="TurtleCommander.QuickAccess.4" class="io.github.jhspetersson.turtlecommander.QuickAccessFavoriteAction" text="Favorite 4">
+            <action id="TurtleCommander.QuickAccess.4" class="io.github.jhspetersson.turtlecommander.action.QuickAccessFavoriteAction" text="Favorite 4">
                 <keyboard-shortcut first-keystroke="ctrl 4" keymap="$default"/>
             </action>
-            <action id="TurtleCommander.QuickAccess.5" class="io.github.jhspetersson.turtlecommander.QuickAccessFavoriteAction" text="Favorite 5">
+            <action id="TurtleCommander.QuickAccess.5" class="io.github.jhspetersson.turtlecommander.action.QuickAccessFavoriteAction" text="Favorite 5">
                 <keyboard-shortcut first-keystroke="ctrl 5" keymap="$default"/>
             </action>
-            <action id="TurtleCommander.QuickAccess.6" class="io.github.jhspetersson.turtlecommander.QuickAccessFavoriteAction" text="Favorite 6">
+            <action id="TurtleCommander.QuickAccess.6" class="io.github.jhspetersson.turtlecommander.action.QuickAccessFavoriteAction" text="Favorite 6">
                 <keyboard-shortcut first-keystroke="ctrl 6" keymap="$default"/>
             </action>
-            <action id="TurtleCommander.QuickAccess.7" class="io.github.jhspetersson.turtlecommander.QuickAccessFavoriteAction" text="Favorite 7">
+            <action id="TurtleCommander.QuickAccess.7" class="io.github.jhspetersson.turtlecommander.action.QuickAccessFavoriteAction" text="Favorite 7">
                 <keyboard-shortcut first-keystroke="ctrl 7" keymap="$default"/>
             </action>
-            <action id="TurtleCommander.QuickAccess.8" class="io.github.jhspetersson.turtlecommander.QuickAccessFavoriteAction" text="Favorite 8">
+            <action id="TurtleCommander.QuickAccess.8" class="io.github.jhspetersson.turtlecommander.action.QuickAccessFavoriteAction" text="Favorite 8">
                 <keyboard-shortcut first-keystroke="ctrl 8" keymap="$default"/>
             </action>
-            <action id="TurtleCommander.QuickAccess.9" class="io.github.jhspetersson.turtlecommander.QuickAccessFavoriteAction" text="Favorite 9">
+            <action id="TurtleCommander.QuickAccess.9" class="io.github.jhspetersson.turtlecommander.action.QuickAccessFavoriteAction" text="Favorite 9">
                 <keyboard-shortcut first-keystroke="ctrl 9" keymap="$default"/>
             </action>
         </group>
@@ -351,7 +351,7 @@
             <reference ref="TurtleCommander.AddToFavorites"/>
         </group>
         <action id="TurtleCommander.TabAddToFavorites"
-                class="io.github.jhspetersson.turtlecommander.TabAddToFavoritesAction"
+                class="io.github.jhspetersson.turtlecommander.action.TabAddToFavoritesAction"
                 text="Add to Favorites"
                 icon="AllIcons.Nodes.Favorite"
                 description="Add tab directory to favorites"/>
@@ -366,18 +366,18 @@
             <reference ref="TurtleCommander.TabAddToFavorites"/>
         </group>
         <action id="TurtleCommander.OpenInTurtleCommander"
-                class="io.github.jhspetersson.turtlecommander.OpenInTurtleCommanderAction"
+                class="io.github.jhspetersson.turtlecommander.action.OpenInTurtleCommanderAction"
                 text="Turtle Commander"
                 icon="/icons/turtleCommander.svg"
                 description="Open file or directory in Turtle Commander">
             <add-to-group group-id="RevealGroup" anchor="last"/>
         </action>
         <action id="TurtleCommander.OpenKeymapSettings"
-                class="io.github.jhspetersson.turtlecommander.OpenKeymapSettingsAction"
+                class="io.github.jhspetersson.turtlecommander.action.OpenKeymapSettingsAction"
                 text="Keyboard Shortcuts..."
                 description="Open keymap settings to customize shortcuts"/>
         <action id="TurtleCommander.OpenPluginSettings"
-                class="io.github.jhspetersson.turtlecommander.OpenPluginSettingsAction"
+                class="io.github.jhspetersson.turtlecommander.action.OpenPluginSettingsAction"
                 icon="AllIcons.General.GearPlain"
                 text="Settings..."
                 description="Open Turtle Commander settings"/>
