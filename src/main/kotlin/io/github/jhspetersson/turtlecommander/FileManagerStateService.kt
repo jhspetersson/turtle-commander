@@ -76,6 +76,10 @@ class FileManagerStateService(
         @Attribute
         var color: String = ""
 
+        /** Required by XML deserializer */
+        @Suppress("unused")
+        constructor()
+
         constructor(path: String, color: String = "") {
             this.path = path
             this.color = color
