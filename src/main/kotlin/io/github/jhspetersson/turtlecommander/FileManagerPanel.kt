@@ -558,6 +558,7 @@ class FileManagerPanel(
         // Apply tab font
         val tabFont = settings.getTabFont()
         val tabFontSize = settings.getTabFontSize()
+        val tabStyle = settings.state.tabStyle
         val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
         val effectiveTabFont = when {
             tabFont != null -> tabFont
@@ -565,6 +566,7 @@ class FileManagerPanel(
             else -> defaultTabFont
         }
         tabbedPane.font = effectiveTabFont
+        val tabFg = tabStyle.getFontColor()
         for (i in 0 until tabbedPane.tabCount) {
             val tabComponent = tabbedPane.getTabComponentAt(i)
             if (i == plusIndex) continue
@@ -572,6 +574,7 @@ class FileManagerPanel(
                 val label = tabComponent.getComponent(0)
                 if (label is JLabel) {
                     label.font = effectiveTabFont
+                    if (tabFg != null) label.foreground = tabFg
                 }
             }
         }

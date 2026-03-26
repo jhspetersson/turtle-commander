@@ -12,16 +12,19 @@ import com.intellij.ui.JBColor
 import com.intellij.ui.SimpleColoredComponent
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
-import java.awt.Color
-import java.awt.GraphicsEnvironment
+import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
+import java.awt.Color
+import java.awt.Component
 import java.awt.Dimension
+import java.awt.FlowLayout
+import java.awt.Font
+import java.awt.Graphics
+import java.awt.Graphics2D
+import java.awt.GraphicsEnvironment
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
-import com.intellij.util.ui.JBUI
-import java.awt.Component
-import java.awt.FlowLayout
-import java.awt.Graphics
+import java.awt.RenderingHints
 import javax.swing.BorderFactory
 import javax.swing.Box
 import javax.swing.BoxLayout
@@ -49,13 +52,17 @@ class TurtleCommanderConfigurable : Configurable {
     private var overwriteCheckBox: JCheckBox? = null
     private var sortWithDirectoriesCheckBox: JCheckBox? = null
     private var calculateDirectorySizeCheckBox: JCheckBox? = null
+    private var defaultViewModeCombo: ComboBox<String>? = null
+    private var favoritesListModel: DefaultListModel<FileManagerStateService.FavoriteEntry>? = null
+    private var favoritesList: JBList<FileManagerStateService.FavoriteEntry>? = null
+
+    // Legacy font combos kept for backward compat during migration
     private var panelFontCombo: ComboBox<String>? = null
     private var panelFontSizeSpinner: JSpinner? = null
     private var tabFontCombo: ComboBox<String>? = null
     private var tabFontSizeSpinner: JSpinner? = null
-    private var defaultViewModeCombo: ComboBox<String>? = null
-    private var favoritesListModel: DefaultListModel<FileManagerStateService.FavoriteEntry>? = null
-    private var favoritesList: JBList<FileManagerStateService.FavoriteEntry>? = null
+
+    private val styleEditors = mutableMapOf<String, ComponentStyleEditor>()
 
     override fun getDisplayName(): String = "Turtle Commander"
 
@@ -71,23 +78,6 @@ class TurtleCommanderConfigurable : Configurable {
         sortWithDirectoriesCheckBox = JCheckBox("Sort directories together with files", settings.sortWithDirectories)
         calculateDirectorySizeCheckBox = JCheckBox("Calculate directory size on selection", settings.calculateDirectorySize)
 
-        val defaultLabel = "(Default)"
-        val fontItems = arrayOf(defaultLabel) + fontFamilies
-
-        panelFontCombo = ComboBox(DefaultComboBoxModel(fontItems)).apply {
-            selectedItem = settings.panelFontFamily.ifEmpty { defaultLabel }
-        }
-        panelFontSizeSpinner = JSpinner(SpinnerNumberModel(
-            if (settings.panelFontSize > 0) settings.panelFontSize else 13, 8, 48, 1
-        ))
-
-        tabFontCombo = ComboBox(DefaultComboBoxModel(fontItems)).apply {
-            selectedItem = settings.tabFontFamily.ifEmpty { defaultLabel }
-        }
-        tabFontSizeSpinner = JSpinner(SpinnerNumberModel(
-            if (settings.tabFontSize > 0) settings.tabFontSize else 12, 8, 48, 1
-        ))
-
         val viewModeItems = arrayOf("Table", "List", "Thumbnail", "Tree")
         defaultViewModeCombo = ComboBox(DefaultComboBoxModel(viewModeItems)).apply {
             selectedItem = when (settings.defaultViewMode) {
@@ -98,41 +88,88 @@ class TurtleCommanderConfigurable : Configurable {
             }
         }
 
-        val fontGrid = JPanel(GridBagLayout()).apply {
+        val defaultLabel = "(Default)"
+        val fontItems = arrayOf(defaultLabel) + fontFamilies
+
+        // Keep legacy combos wired to panelStyle/tabStyle
+        panelFontCombo = ComboBox(DefaultComboBoxModel(fontItems)).apply {
+            selectedItem = effectivePanelFamily(settings).ifEmpty { defaultLabel }
+        }
+        panelFontSizeSpinner = JSpinner(SpinnerNumberModel(effectivePanelSize(settings), 8, 48, 1))
+        tabFontCombo = ComboBox(DefaultComboBoxModel(fontItems)).apply {
+            selectedItem = effectiveTabFamily(settings).ifEmpty { defaultLabel }
+        }
+        tabFontSizeSpinner = JSpinner(SpinnerNumberModel(effectiveTabSize(settings), 8, 48, 1))
+
+        // Style editors for each component
+        val panelEditor = ComponentStyleEditor("File panel", fontItems, settings.panelStyle, effectivePanelFamily(settings), effectivePanelSize(settings))
+        val tabEditor = ComponentStyleEditor("Tab bar", fontItems, settings.tabStyle, effectiveTabFamily(settings), effectiveTabSize(settings))
+        val pathBarEditor = ComponentStyleEditor("Path bar", fontItems, settings.pathBarStyle)
+        val statusBarEditor = ComponentStyleEditor("Status bar", fontItems, settings.statusBarStyle)
+        val commandBarEditor = ComponentStyleEditor("Command bar", fontItems, settings.commandBarStyle)
+        val driveSelectorEditor = ComponentStyleEditor("Drive selector", fontItems, settings.driveSelectorStyle)
+        val columnHeaderEditor = ComponentStyleEditor("Column headers", fontItems, settings.columnHeaderStyle)
+        styleEditors["panel"] = panelEditor
+        styleEditors["tab"] = tabEditor
+        styleEditors["pathBar"] = pathBarEditor
+        styleEditors["statusBar"] = statusBarEditor
+        styleEditors["commandBar"] = commandBarEditor
+        styleEditors["driveSelector"] = driveSelectorEditor
+        styleEditors["columnHeader"] = columnHeaderEditor
+
+        val viewModeRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
             alignmentX = JComponent.LEFT_ALIGNMENT
+            add(JBLabel("Default tab view:  "))
+            add(defaultViewModeCombo!!)
+        }
+
+        val styleGrid = JPanel(GridBagLayout()).apply {
             val gbc = GridBagConstraints().apply {
                 anchor = GridBagConstraints.WEST
+                fill = GridBagConstraints.NONE
                 insets = JBUI.insets(2, 4, 2, 4)
             }
 
-            gbc.gridx = 0; gbc.gridy = 0
-            gbc.insets = JBUI.insets(2, 0, 2, 4)
-            add(JBLabel("Default tab view:"), gbc)
+            // Header row
+            gbc.gridy = 0
+            gbc.gridx = 0; gbc.insets = JBUI.insets(2, 0, 2, 4)
+            add(JBLabel("").apply { minimumSize = Dimension(90, 0); preferredSize = Dimension(90, preferredSize.height) }, gbc)
             gbc.insets = JBUI.insets(2, 4, 2, 4)
-            gbc.gridx = 1
-            add(defaultViewModeCombo!!, gbc)
+            gbc.gridx = 1; add(JBLabel("Font"), gbc)
+            gbc.gridx = 2; add(JBLabel("Size"), gbc)
+            gbc.gridx = 3; add(JBLabel("Style"), gbc)
+            gbc.gridx = 4; add(JBLabel("Color"), gbc)
 
-            gbc.gridx = 0; gbc.gridy = 1
-            gbc.insets = JBUI.insets(2, 0, 2, 4)
-            add(JBLabel("File panel font:"), gbc)
-            gbc.insets = JBUI.insets(2, 4, 2, 4)
-            gbc.gridx = 1
-            add(panelFontCombo!!, gbc)
-            gbc.gridx = 2
-            add(JBLabel("Size:"), gbc)
-            gbc.gridx = 3
-            add(panelFontSizeSpinner!!, gbc)
+            val editors = listOf(tabEditor, driveSelectorEditor, pathBarEditor, columnHeaderEditor, panelEditor, statusBarEditor, commandBarEditor)
+            for ((i, editor) in editors.withIndex()) {
+                gbc.gridy = i + 1
+                gbc.gridx = 0; gbc.insets = JBUI.insets(2, 0, 2, 4)
+                val lbl = JBLabel("${editor.label}:").apply { minimumSize = Dimension(90, 0) }
+                add(lbl, gbc)
+                gbc.insets = JBUI.insets(2, 4, 2, 4)
+                gbc.gridx = 1; add(editor.fontCombo, gbc)
+                gbc.gridx = 2; add(editor.sizeSpinner, gbc)
+                gbc.gridx = 3; add(editor.styleCombo, gbc)
+                gbc.gridx = 4; add(editor.colorButton, gbc)
+            }
+        }
 
-            gbc.gridx = 0; gbc.gridy = 2
-            gbc.insets = JBUI.insets(2, 0, 2, 4)
-            add(JBLabel("Tab font:"), gbc)
-            gbc.insets = JBUI.insets(2, 4, 2, 4)
-            gbc.gridx = 1
-            add(tabFontCombo!!, gbc)
-            gbc.gridx = 2
-            add(JBLabel("Size:"), gbc)
-            gbc.gridx = 3
-            add(tabFontSizeSpinner!!, gbc)
+        val resetStylesButton = JButton("Reset to Defaults").apply {
+            addActionListener {
+                for (editor in styleEditors.values) {
+                    editor.resetFrom(ComponentStyle())
+                }
+            }
+        }
+
+        val appearancePanel = JPanel(BorderLayout(8, 4)).apply {
+            alignmentX = JComponent.LEFT_ALIGNMENT
+            border = BorderFactory.createTitledBorder("Appearance")
+            add(styleGrid, BorderLayout.CENTER)
+            val bottomRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
+                add(resetStylesButton)
+            }
+            add(bottomRow, BorderLayout.SOUTH)
         }
 
         highlightingCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
@@ -249,7 +286,9 @@ class TurtleCommanderConfigurable : Configurable {
             add(sortWithDirectoriesCheckBox)
             add(calculateDirectorySizeCheckBox)
             add(Box.createVerticalStrut(8))
-            add(fontGrid)
+            add(viewModeRow)
+            add(Box.createVerticalStrut(8))
+            add(appearancePanel)
             add(Box.createVerticalStrut(8))
             add(thumbnailCachePanel)
             add(Box.createVerticalStrut(8))
@@ -263,7 +302,6 @@ class TurtleCommanderConfigurable : Configurable {
 
     override fun isModified(): Boolean {
         val settings = TurtleCommanderSettings.getInstance().state
-        val defaultLabel = "(Default)"
         return highlightingCheckBox?.isSelected != settings.enableFileNameHighlighting
             || commandBarCheckBox?.isSelected != settings.showCommandBar
             || hideDriveSelectorCheckBox?.isSelected != settings.hideDriveSelector
@@ -271,11 +309,14 @@ class TurtleCommanderConfigurable : Configurable {
             || overwriteCheckBox?.isSelected != settings.alwaysOverwriteFiles
             || sortWithDirectoriesCheckBox?.isSelected != settings.sortWithDirectories
             || calculateDirectorySizeCheckBox?.isSelected != settings.calculateDirectorySize
-            || getSelectedFontFamily(panelFontCombo, defaultLabel) != settings.panelFontFamily
-            || ((panelFontSizeSpinner?.value as? Number)?.toInt() ?: 0) != (if (settings.panelFontSize > 0) settings.panelFontSize else 13)
-            || getSelectedFontFamily(tabFontCombo, defaultLabel) != settings.tabFontFamily
-            || ((tabFontSizeSpinner?.value as? Number)?.toInt() ?: 0) != (if (settings.tabFontSize > 0) settings.tabFontSize else 12)
             || getSelectedViewMode() != settings.defaultViewMode
+            || styleEditors["panel"]?.isModified(settings.panelStyle, effectivePanelFamily(settings), effectivePanelSize(settings)) == true
+            || styleEditors["tab"]?.isModified(settings.tabStyle, effectiveTabFamily(settings), effectiveTabSize(settings)) == true
+            || styleEditors["pathBar"]?.isModified(settings.pathBarStyle) == true
+            || styleEditors["statusBar"]?.isModified(settings.statusBarStyle) == true
+            || styleEditors["commandBar"]?.isModified(settings.commandBarStyle) == true
+            || styleEditors["driveSelector"]?.isModified(settings.driveSelectorStyle) == true
+            || styleEditors["columnHeader"]?.isModified(settings.columnHeaderStyle) == true
             || isFavoritesModified()
     }
 
@@ -296,7 +337,6 @@ class TurtleCommanderConfigurable : Configurable {
     override fun apply() {
         val service = TurtleCommanderSettings.getInstance()
         val settings = service.state
-        val defaultLabel = "(Default)"
         settings.enableFileNameHighlighting = highlightingCheckBox?.isSelected ?: settings.enableFileNameHighlighting
         settings.showCommandBar = commandBarCheckBox?.isSelected ?: settings.showCommandBar
         settings.hideDriveSelector = hideDriveSelectorCheckBox?.isSelected ?: settings.hideDriveSelector
@@ -304,11 +344,22 @@ class TurtleCommanderConfigurable : Configurable {
         settings.alwaysOverwriteFiles = overwriteCheckBox?.isSelected ?: settings.alwaysOverwriteFiles
         settings.sortWithDirectories = sortWithDirectoriesCheckBox?.isSelected ?: settings.sortWithDirectories
         settings.calculateDirectorySize = calculateDirectorySizeCheckBox?.isSelected ?: settings.calculateDirectorySize
-        settings.panelFontFamily = getSelectedFontFamily(panelFontCombo, defaultLabel)
-        settings.panelFontSize = (panelFontSizeSpinner?.value as? Number)?.toInt() ?: 0
-        settings.tabFontFamily = getSelectedFontFamily(tabFontCombo, defaultLabel)
-        settings.tabFontSize = (tabFontSizeSpinner?.value as? Number)?.toInt() ?: 0
         settings.defaultViewMode = getSelectedViewMode()
+
+        styleEditors["panel"]?.applyTo(settings.panelStyle)
+        styleEditors["tab"]?.applyTo(settings.tabStyle)
+        styleEditors["pathBar"]?.applyTo(settings.pathBarStyle)
+        styleEditors["statusBar"]?.applyTo(settings.statusBarStyle)
+        styleEditors["commandBar"]?.applyTo(settings.commandBarStyle)
+        styleEditors["driveSelector"]?.applyTo(settings.driveSelectorStyle)
+        styleEditors["columnHeader"]?.applyTo(settings.columnHeaderStyle)
+
+        // Sync legacy fields from panelStyle/tabStyle
+        settings.panelFontFamily = settings.panelStyle.fontFamily
+        settings.panelFontSize = settings.panelStyle.fontSize
+        settings.tabFontFamily = settings.tabStyle.fontFamily
+        settings.tabFontSize = settings.tabStyle.fontSize
+
         service.fireSettingsChanged()
 
         val model = favoritesListModel
@@ -324,7 +375,6 @@ class TurtleCommanderConfigurable : Configurable {
 
     override fun reset() {
         val settings = TurtleCommanderSettings.getInstance().state
-        val defaultLabel = "(Default)"
         highlightingCheckBox?.isSelected = settings.enableFileNameHighlighting
         commandBarCheckBox?.isSelected = settings.showCommandBar
         hideDriveSelectorCheckBox?.isSelected = settings.hideDriveSelector
@@ -332,16 +382,20 @@ class TurtleCommanderConfigurable : Configurable {
         overwriteCheckBox?.isSelected = settings.alwaysOverwriteFiles
         sortWithDirectoriesCheckBox?.isSelected = settings.sortWithDirectories
         calculateDirectorySizeCheckBox?.isSelected = settings.calculateDirectorySize
-        panelFontCombo?.selectedItem = settings.panelFontFamily.ifEmpty { defaultLabel }
-        panelFontSizeSpinner?.value = if (settings.panelFontSize > 0) settings.panelFontSize else 13
-        tabFontCombo?.selectedItem = settings.tabFontFamily.ifEmpty { defaultLabel }
-        tabFontSizeSpinner?.value = if (settings.tabFontSize > 0) settings.tabFontSize else 12
         defaultViewModeCombo?.selectedItem = when (settings.defaultViewMode) {
             "LIST" -> "List"
             "THUMBNAIL" -> "Thumbnail"
             "TREE" -> "Tree"
             else -> "Table"
         }
+
+        styleEditors["panel"]?.resetFrom(settings.panelStyle, effectivePanelFamily(settings), effectivePanelSize(settings))
+        styleEditors["tab"]?.resetFrom(settings.tabStyle, effectiveTabFamily(settings), effectiveTabSize(settings))
+        styleEditors["pathBar"]?.resetFrom(settings.pathBarStyle)
+        styleEditors["statusBar"]?.resetFrom(settings.statusBarStyle)
+        styleEditors["commandBar"]?.resetFrom(settings.commandBarStyle)
+        styleEditors["driveSelector"]?.resetFrom(settings.driveSelectorStyle)
+        styleEditors["columnHeader"]?.resetFrom(settings.columnHeaderStyle)
 
         val model = favoritesListModel
         if (model != null) {
@@ -369,6 +423,23 @@ class TurtleCommanderConfigurable : Configurable {
         defaultViewModeCombo = null
         favoritesListModel = null
         favoritesList = null
+        styleEditors.clear()
+    }
+
+    private fun effectivePanelFamily(settings: TurtleCommanderSettings.State): String =
+        settings.panelStyle.fontFamily.ifEmpty { settings.panelFontFamily }
+
+    private fun effectivePanelSize(settings: TurtleCommanderSettings.State): Int {
+        val s = settings.panelStyle.fontSize
+        return if (s > 0) s else if (settings.panelFontSize > 0) settings.panelFontSize else 13
+    }
+
+    private fun effectiveTabFamily(settings: TurtleCommanderSettings.State): String =
+        settings.tabStyle.fontFamily.ifEmpty { settings.tabFontFamily }
+
+    private fun effectiveTabSize(settings: TurtleCommanderSettings.State): Int {
+        val s = settings.tabStyle.fontSize
+        return if (s > 0) s else if (settings.tabFontSize > 0) settings.tabFontSize else 12
     }
 
     private fun getSelectedViewMode(): String {
@@ -378,11 +449,6 @@ class TurtleCommanderConfigurable : Configurable {
             "Tree" -> "TREE"
             else -> "TABLE"
         }
-    }
-
-    private fun getSelectedFontFamily(combo: ComboBox<String>?, defaultLabel: String): String {
-        val selected = combo?.selectedItem as? String ?: return ""
-        return if (selected == defaultLabel) "" else selected
     }
 
     private fun showColorChooser(
@@ -424,6 +490,119 @@ class TurtleCommanderConfigurable : Configurable {
     }
 }
 
+private class ComponentStyleEditor(
+    val label: String,
+    fontItems: Array<String>,
+    style: ComponentStyle,
+    legacyFamily: String = "",
+    legacySize: Int = 0,
+) {
+    private val defaultLabel = "(Default)"
+    val fontCombo = ComboBox(DefaultComboBoxModel(fontItems)).apply {
+        preferredSize = Dimension(160, preferredSize.height)
+        maximumSize = Dimension(160, maximumSize.height)
+    }
+    val sizeSpinner = JSpinner(SpinnerNumberModel(13, 8, 48, 1)).apply {
+        preferredSize = Dimension(60, preferredSize.height)
+    }
+    val styleCombo = ComboBox(DefaultComboBoxModel(arrayOf("Plain", "Bold", "Italic", "Bold Italic")))
+    val colorButton = ColorPickerButton("...")
+
+    init {
+        resetFrom(style, legacyFamily, legacySize)
+    }
+
+    fun resetFrom(style: ComponentStyle, legacyFamily: String = "", legacySize: Int = 0) {
+        val family = style.fontFamily.ifEmpty { legacyFamily }
+        fontCombo.selectedItem = family.ifEmpty { defaultLabel }
+        val size = if (style.fontSize > 0) style.fontSize else if (legacySize > 0) legacySize else 13
+        sizeSpinner.value = size
+        styleCombo.selectedIndex = when (style.fontStyle) {
+            Font.BOLD -> 1
+            Font.ITALIC -> 2
+            Font.BOLD or Font.ITALIC -> 3
+            else -> 0
+        }
+        colorButton.setColor(style.getFontColor())
+    }
+
+    fun applyTo(style: ComponentStyle) {
+        val sel = fontCombo.selectedItem as? String ?: ""
+        style.fontFamily = if (sel == defaultLabel) "" else sel
+        style.fontSize = (sizeSpinner.value as? Number)?.toInt() ?: 0
+        style.fontStyle = when (styleCombo.selectedIndex) {
+            1 -> Font.BOLD
+            2 -> Font.ITALIC
+            3 -> Font.BOLD or Font.ITALIC
+            else -> Font.PLAIN
+        }
+        style.fontColor = colorButton.getColorHex()
+    }
+
+    fun isModified(style: ComponentStyle, legacyFamily: String = "", legacySize: Int = 0): Boolean {
+        val tmp = ComponentStyle()
+        applyTo(tmp)
+        val expected = ComponentStyle().apply {
+            fontFamily = style.fontFamily.ifEmpty { legacyFamily }
+            fontSize = if (style.fontSize > 0) style.fontSize else if (legacySize > 0) legacySize else 13
+            fontStyle = style.fontStyle
+            fontColor = style.fontColor
+        }
+        // Compare what the UI shows vs. what would be stored
+        return tmp.fontFamily != expected.fontFamily
+            || tmp.fontSize != expected.fontSize
+            || tmp.fontStyle != expected.fontStyle
+            || tmp.fontColor != expected.fontColor
+    }
+}
+
+private class ColorPickerButton(text: String) : JButton(text) {
+    private var selectedColor: Color? = null
+
+    init {
+        preferredSize = Dimension(28, 28)
+        isFocusable = false
+        addActionListener {
+            val popup = JPopupMenu()
+            val presets = FAVORITE_PRESET_COLORS
+            for ((name, hex) in presets) {
+                val item = JMenuItem(name)
+                if (hex.isNotEmpty()) {
+                    item.icon = ColorSwatchIcon(Color.decode(hex))
+                }
+                item.addActionListener {
+                    setColor(if (hex.isEmpty()) null else Color.decode(hex))
+                }
+                popup.add(item)
+            }
+            popup.addSeparator()
+            val customItem = JMenuItem("Custom...")
+            customItem.addActionListener {
+                val chosen = ColorChooserService.getInstance().showDialog(
+                    this, "Choose Color", selectedColor ?: JBColor.GRAY, true, emptyList(), true
+                )
+                if (chosen != null) {
+                    setColor(chosen)
+                }
+            }
+            popup.add(customItem)
+            popup.show(this, 0, height)
+        }
+    }
+
+    fun setColor(color: Color?) {
+        selectedColor = color
+        icon = if (color != null) ColorSwatchIcon(color) else null
+        text = if (color != null) "" else "..."
+        toolTipText = if (color != null) String.format("#%02X%02X%02X", color.red, color.green, color.blue) else "Default"
+    }
+
+    fun getColorHex(): String {
+        val c = selectedColor ?: return ""
+        return String.format("#%02X%02X%02X", c.red, c.green, c.blue)
+    }
+}
+
 private class FavoriteListCellRenderer : ListCellRenderer<FileManagerStateService.FavoriteEntry> {
     private val delegate = SimpleColoredComponent()
 
@@ -453,10 +632,12 @@ private class FavoriteListCellRenderer : ListCellRenderer<FileManagerStateServic
 
 private class ColorSwatchIcon(private val color: Color) : Icon {
     override fun paintIcon(c: Component?, g: Graphics, x: Int, y: Int) {
-        val g2 = g.create()
+        val g2 = (g.create() as Graphics2D).apply {
+            setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        }
         try {
             g2.color = color
-            g2.fillRoundRect(x + 1, y + 1, iconWidth - 2, iconHeight - 2, 3, 3)
+            g2.fillRoundRect(x + 1, y + 1, iconWidth - 2, iconHeight - 2, 4, 4)
         } finally {
             g2.dispose()
         }

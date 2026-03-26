@@ -149,6 +149,7 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
                 override fun settingsChanged() {
                     val s = TurtleCommanderSettings.getInstance().state
                     bottomBar.isVisible = s.showCommandBar
+                    applyCommandBarStyle(bottomBar, s.commandBarStyle)
                     leftPanel.applyFonts()
                     rightPanel.applyFonts()
                     leftPanel.applyVisibilitySettings()
@@ -192,6 +193,17 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
     }
 
     override fun shouldBeAvailable(project: Project) = true
+
+    private fun applyCommandBarStyle(bar: JPanel, style: ComponentStyle) {
+        val font = style.getFont(null)
+        val fg = style.getFontColor()
+        for (comp in bar.components) {
+            if (comp is javax.swing.JButton) {
+                if (font != null) comp.font = font
+                if (fg != null) comp.foreground = fg
+            }
+        }
+    }
 
     private fun createBottomBar(leftPanel: FileManagerPanel, rightPanel: FileManagerPanel): JPanel {
         val bar = JPanel().apply {
@@ -254,6 +266,7 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
         }
 
         updateBar(false)
+        applyCommandBarStyle(bar, TurtleCommanderSettings.getInstance().state.commandBarStyle)
 
         ApplicationManager.getApplication().messageBus
             .connect()

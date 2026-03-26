@@ -26,6 +26,8 @@ class BreadcrumbPathField : JPanel() {
     private val breadcrumbPanel = JPanel(GridBagLayout())
     private val editField = JBTextField()
     private var isEditMode = false
+    private var customFont: java.awt.Font? = null
+    private var customFg: java.awt.Color? = null
 
     var text: String = ""
         get() = if (isEditMode) editField.text else field
@@ -119,6 +121,7 @@ class BreadcrumbPathField : JPanel() {
         for ((i, segment) in segments.withIndex()) {
             if (i > 0) {
                 val sep = JLabel(" \u203A ").apply {
+                    if (customFont != null) font = customFont
                     foreground = JBColor.GRAY
                     addMouseListener(object : MouseAdapter() {
                         override fun mousePressed(e: MouseEvent) {
@@ -131,6 +134,8 @@ class BreadcrumbPathField : JPanel() {
             }
 
             val label = JLabel(segment.name).apply {
+                if (customFont != null) font = customFont
+                if (customFg != null) foreground = customFg
                 cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
                 val defaultFg = foreground
                 addMouseListener(object : MouseAdapter() {
@@ -186,6 +191,14 @@ class BreadcrumbPathField : JPanel() {
         }
 
         return segments
+    }
+
+    fun applyStyle(style: ComponentStyle) {
+        customFont = style.getFont(editField.font)
+        customFg = style.getFontColor()
+        if (customFont != null) editField.font = customFont
+        if (customFg != null) editField.foreground = customFg
+        rebuildBreadcrumbs()
     }
 
     companion object {
