@@ -4,9 +4,11 @@ import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.components.service
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.wm.ToolWindowManager
+import java.nio.file.Path
 
 private fun findActiveTab(e: AnActionEvent): FileTab? {
     val project = e.project ?: return null
@@ -815,5 +817,31 @@ class TabAddToFavoritesAction : TabContextAction() {
         val project = e.project ?: return
         val stateService = project.service<FileManagerStateService>()
         stateService.addFavorite(tab.currentPath.toString())
+    }
+}
+
+class OpenInTurtleCommanderAction : AnAction() {
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
+
+    override fun update(e: AnActionEvent) {
+        e.presentation.isEnabledAndVisible = e.getData(CommonDataKeys.VIRTUAL_FILE) != null
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project ?: return
+        val vf = e.getData(CommonDataKeys.VIRTUAL_FILE) ?: return
+        val path = Path.of(vf.path)
+
+        val toolWindow = ToolWindowManager.getInstance(project).getToolWindow("Turtle Commander") ?: return
+        toolWindow.activate {
+            val stateService = project.service<FileManagerStateService>()
+            val panel = stateService.getActivePanel() ?: return@activate
+            if (vf.isDirectory) {
+                panel.openDirectoryInNewTab(path)
+            } else {
+                val dir = path.parent ?: return@activate
+                panel.openDirectoryInNewTab(dir, path.fileName.toString())
+            }
+        }
     }
 }

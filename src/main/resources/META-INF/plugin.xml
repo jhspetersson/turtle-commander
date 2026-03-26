@@ -353,6 +353,13 @@
             <separator/>
             <reference ref="TurtleCommander.TabAddToFavorites"/>
         </group>
+        <action id="TurtleCommander.OpenInTurtleCommander"
+                class="io.github.jhspetersson.turtlecommander.OpenInTurtleCommanderAction"
+                text="Turtle Commander"
+                icon="/icons/turtleCommander.svg"
+                description="Open file or directory in Turtle Commander">
+            <add-to-group group-id="RevealGroup" anchor="last"/>
+        </action>
         <action id="TurtleCommander.OpenKeymapSettings"
                 class="io.github.jhspetersson.turtlecommander.OpenKeymapSettingsAction"
                 text="Keyboard Shortcuts..."
