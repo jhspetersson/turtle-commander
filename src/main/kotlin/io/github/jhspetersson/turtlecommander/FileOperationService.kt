@@ -356,7 +356,15 @@ class FileOperationService(
 
     fun getRoots(): List<String> {
         return if (isWindows) {
-            File.listRoots().map { it.absolutePath }
+            val roots = File.listRoots().map { it.absolutePath }.toMutableList()
+            val home = System.getProperty("user.home")
+            if (home != null) {
+                val homePath = Path.of(home)
+                if (homePath.exists() && homePath.isDirectory()) {
+                    roots.add(homePath.toString())
+                }
+            }
+            roots
         } else {
             val roots = mutableListOf("/")
 
