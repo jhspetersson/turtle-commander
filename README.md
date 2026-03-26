@@ -19,12 +19,10 @@ A dual-panel file manager integrated into IntelliJ-based IDEs, inspired by class
 - Draggable and reorderable tabs with the context menu
 - Session state persistence: open tabs, panel sizes, and column layouts are saved per project
 - Middle-click to close tabs
-- Favorite tabs (with Ctrl-1..9 shortcuts for quick access)
+- Favorite tabs (with Ctrl-1..9 shortcuts for quick access) with customizable colors
 - Open in Terminal
 - Colored directory icons for project types (IntelliJ, Git, Gradle, Maven, Cargo, npm, Python, CMake, .NET)
-- Customizable fonts for file panels and tabs
-- Configurable settings
-- All keyboard shortcuts are fully customizable
+- Customizable fonts, hotkeys, other settings
 <!-- Plugin description end -->
 
 ## Installation
