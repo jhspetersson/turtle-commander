@@ -12,6 +12,7 @@
 - add Open in -> Turtle Commander action for Project files
 - calculate the directory size on its selection
 - make all UI elements configurable
+- split and combine files
 
 ## [0.2.1] - 2026-03-26
 
