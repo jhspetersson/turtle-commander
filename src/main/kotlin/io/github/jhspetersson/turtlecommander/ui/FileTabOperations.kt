@@ -1,13 +1,17 @@
 package io.github.jhspetersson.turtlecommander.ui
 
-import io.github.jhspetersson.turtlecommander.dialog.ArchiveFormat
-import io.github.jhspetersson.turtlecommander.dialog.CombineFilesDialog
-import io.github.jhspetersson.turtlecommander.dialog.CopyDialog
-import io.github.jhspetersson.turtlecommander.dialog.DeleteDialog
-import io.github.jhspetersson.turtlecommander.dialog.ExtractDialog
-import io.github.jhspetersson.turtlecommander.dialog.MoveDialog
-import io.github.jhspetersson.turtlecommander.dialog.PackDialog
-import io.github.jhspetersson.turtlecommander.dialog.SplitFileDialog
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
+import com.intellij.openapi.application.EDT
+import com.intellij.openapi.application.WriteAction
+import com.intellij.openapi.components.service
+import com.intellij.openapi.fileEditor.OpenFileDescriptor
+import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.progress.Task
+import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.vfs.LocalFileSystem
+import io.github.jhspetersson.turtlecommander.dialog.*
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.operation.CombineFilesOperation
 import io.github.jhspetersson.turtlecommander.operation.SplitFileOperation
@@ -19,17 +23,6 @@ import io.github.jhspetersson.turtlecommander.util.formatSize
 import io.github.jhspetersson.turtlecommander.vfs.VfsEditEntry
 import io.github.jhspetersson.turtlecommander.vfs.VfsEditService
 import io.github.jhspetersson.turtlecommander.vfs.ZipVirtualFileSystem
-
-import com.intellij.notification.NotificationGroupManager
-import com.intellij.notification.NotificationType
-import com.intellij.openapi.application.EDT
-import com.intellij.openapi.components.service
-import com.intellij.openapi.fileEditor.OpenFileDescriptor
-import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.progress.Task
-import com.intellij.openapi.ui.Messages
-import com.intellij.openapi.vfs.LocalFileSystem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -836,7 +829,17 @@ internal fun FileTab.performRename(entry: FileEntry, newName: String) {
                 val relativePath = vfsRelativePath(vfs, currentPath)
                 navigateTo(vfs.getPath(relativePath), selectName = newName)
             } else {
-                fileOps.renameFile(entry.path, newName)
+                // Rename via IntelliJ VFS if possible, so open editors track the rename
+                val vFile = LocalFileSystem.getInstance().findFileByNioFile(entry.path)
+                if (vFile != null) {
+                    withContext(Dispatchers.EDT) {
+                        WriteAction.run<Exception> {
+                            vFile.rename(this, newName)
+                        }
+                    }
+                } else {
+                    fileOps.renameFile(entry.path, newName)
+                }
                 navigateTo(currentPath, selectName = newName)
             }
         } catch (e: Exception) {
