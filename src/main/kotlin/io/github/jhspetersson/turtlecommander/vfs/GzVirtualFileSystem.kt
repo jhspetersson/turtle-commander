@@ -125,6 +125,7 @@ class CompressedSingleFileVirtualFileSystem(
                                 path = entry,
                                 isDirectory = attrs.isDirectory,
                                 size = if (attrs.isDirectory) 0 else attrs.size(),
+                                creationTime = attrs.creationTime(),
                                 lastModified = attrs.lastModifiedTime(),
                                 permissions = "",
                             )

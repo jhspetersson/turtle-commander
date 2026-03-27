@@ -8,6 +8,7 @@ data class FileEntry(
     val path: Path,
     val isDirectory: Boolean,
     val size: Long,
+    val creationTime: FileTime? = null,
     val lastModified: FileTime?,
     val permissions: String,
     val isParentLink: Boolean = false,

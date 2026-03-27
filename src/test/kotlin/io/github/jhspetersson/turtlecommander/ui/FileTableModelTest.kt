@@ -37,7 +37,7 @@ class FileTableModelTest {
     @Test
     fun testEmptyModel() {
         assertEquals(0, model.rowCount)
-        assertEquals(5, model.columnCount)
+        assertEquals(6, model.columnCount)
     }
 
     @Test
@@ -45,13 +45,15 @@ class FileTableModelTest {
         assertEquals("Name", model.getColumnName(0))
         assertEquals("Ext", model.getColumnName(1))
         assertEquals("Size", model.getColumnName(2))
-        assertEquals("Date Modified", model.getColumnName(3))
-        assertEquals("Permissions", model.getColumnName(4))
+        assertEquals("Date Created", model.getColumnName(3))
+        assertEquals("Date Modified", model.getColumnName(4))
+        assertEquals("Permissions", model.getColumnName(5))
     }
 
     @Test
     fun testColumnClasses() {
         assertEquals(Long::class.javaObjectType, model.getColumnClass(FileTableModel.COL_SIZE))
+        assertEquals(Long::class.javaObjectType, model.getColumnClass(FileTableModel.COL_CREATED))
         assertEquals(Long::class.javaObjectType, model.getColumnClass(FileTableModel.COL_DATE))
         assertEquals(String::class.java, model.getColumnClass(FileTableModel.COL_NAME))
         assertEquals(String::class.java, model.getColumnClass(FileTableModel.COL_EXT))

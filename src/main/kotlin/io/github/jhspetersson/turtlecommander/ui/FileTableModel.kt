@@ -13,14 +13,15 @@ class FileTableModel : AbstractTableModel() {
         const val COL_NAME = 0
         const val COL_EXT = 1
         const val COL_SIZE = 2
-        const val COL_DATE = 3
-        const val COL_PERMS = 4
+        const val COL_CREATED = 3
+        const val COL_DATE = 4
+        const val COL_PERMS = 5
         const val PARENT_MARKER = ".."
         const val PARENT_NUMERIC = Long.MIN_VALUE
         const val DIR_NUMERIC = -1L
     }
 
-    private val columns = arrayOf("Name", "Ext", "Size", "Date Modified", "Permissions")
+    private val columns = arrayOf("Name", "Ext", "Size", "Date Created", "Date Modified", "Permissions")
     private var entries: List<FileEntry> = emptyList()
     var directorySizeProvider: ((Path) -> Long?)? = null
 
@@ -40,6 +41,7 @@ class FileTableModel : AbstractTableModel() {
     override fun getColumnClass(columnIndex: Int): Class<*> {
         return when (columnIndex) {
             COL_SIZE -> Long::class.javaObjectType
+            COL_CREATED -> Long::class.javaObjectType
             COL_DATE -> Long::class.javaObjectType
             else -> String::class.java
         }
@@ -63,6 +65,7 @@ class FileTableModel : AbstractTableModel() {
             COL_SIZE -> if (entry.isParentLink) PARENT_NUMERIC else if (entry.isDirectory) {
                 directorySizeProvider?.invoke(entry.path) ?: DIR_NUMERIC
             } else entry.size
+            COL_CREATED -> if (entry.isParentLink) PARENT_NUMERIC else entry.creationTime?.toMillis() ?: 0L
             COL_DATE -> if (entry.isParentLink) PARENT_NUMERIC else entry.lastModified?.toMillis() ?: 0L
             COL_PERMS -> if (entry.isParentLink) PARENT_MARKER else entry.permissions
             else -> ""
@@ -78,6 +81,9 @@ class FileTableModel : AbstractTableModel() {
                 val calcSize = directorySizeProvider?.invoke(entry.path)
                 if (calcSize != null) formatSize(calcSize) else "<DIR>"
             } else formatSize(entry.size)
+            columnIndex == COL_CREATED -> entry.creationTime?.let {
+                SimpleDateFormat("yyyy-MM-dd HH:mm").format(Date(it.toMillis()))
+            } ?: ""
             columnIndex == COL_DATE -> entry.lastModified?.let {
                 SimpleDateFormat("yyyy-MM-dd HH:mm").format(Date(it.toMillis()))
             } ?: ""

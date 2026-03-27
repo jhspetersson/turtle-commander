@@ -609,7 +609,7 @@ class FileTableModelRenameTest {
     fun `name column is editable for regular file`() {
         val model = FileTableModel()
         model.setEntries(listOf(
-            FileEntry("file.txt", Path.of("/file.txt"), false, 100, null, ""),
+            FileEntry("file.txt", Path.of("/file.txt"), false, 100, lastModified = null, permissions = ""),
         ))
         assertTrue(model.isCellEditable(0, FileTableModel.COL_NAME))
     }
@@ -618,7 +618,7 @@ class FileTableModelRenameTest {
     fun `name column is editable for directory`() {
         val model = FileTableModel()
         model.setEntries(listOf(
-            FileEntry("mydir", Path.of("/mydir"), true, 0, null, ""),
+            FileEntry("mydir", Path.of("/mydir"), true, 0, lastModified = null, permissions = ""),
         ))
         assertTrue(model.isCellEditable(0, FileTableModel.COL_NAME))
     }
@@ -627,7 +627,7 @@ class FileTableModelRenameTest {
     fun `name column is not editable for parent link`() {
         val model = FileTableModel()
         model.setEntries(listOf(
-            FileEntry("..", Path.of("/"), true, 0, null, "", isParentLink = true),
+            FileEntry("..", Path.of("/"), true, 0, lastModified = null, permissions = "", isParentLink = true),
         ))
         assertFalse(model.isCellEditable(0, FileTableModel.COL_NAME))
     }
@@ -636,7 +636,7 @@ class FileTableModelRenameTest {
     fun `non-name columns are not editable`() {
         val model = FileTableModel()
         model.setEntries(listOf(
-            FileEntry("file.txt", Path.of("/file.txt"), false, 100, null, ""),
+            FileEntry("file.txt", Path.of("/file.txt"), false, 100, lastModified = null, permissions = ""),
         ))
         assertFalse(model.isCellEditable(0, FileTableModel.COL_EXT))
         assertFalse(model.isCellEditable(0, FileTableModel.COL_SIZE))
@@ -648,7 +648,7 @@ class FileTableModelRenameTest {
     fun `getValueAt returns name without extension for files`() {
         val model = FileTableModel()
         model.setEntries(listOf(
-            FileEntry("report.pdf", Path.of("/report.pdf"), false, 100, null, ""),
+            FileEntry("report.pdf", Path.of("/report.pdf"), false, 100, lastModified = null, permissions = ""),
         ))
         assertEquals("report", model.getValueAt(0, FileTableModel.COL_NAME))
     }
@@ -657,7 +657,7 @@ class FileTableModelRenameTest {
     fun `getValueAt returns full name for directories`() {
         val model = FileTableModel()
         model.setEntries(listOf(
-            FileEntry("my.dir", Path.of("/my.dir"), true, 0, null, ""),
+            FileEntry("my.dir", Path.of("/my.dir"), true, 0, lastModified = null, permissions = ""),
         ))
         assertEquals("my.dir", model.getValueAt(0, FileTableModel.COL_NAME))
     }
@@ -666,7 +666,7 @@ class FileTableModelRenameTest {
     fun `getValueAt returns full name for dotfiles`() {
         val model = FileTableModel()
         model.setEntries(listOf(
-            FileEntry(".gitignore", Path.of("/.gitignore"), false, 100, null, ""),
+            FileEntry(".gitignore", Path.of("/.gitignore"), false, 100, lastModified = null, permissions = ""),
         ))
         assertEquals(".gitignore", model.getValueAt(0, FileTableModel.COL_NAME))
     }
@@ -675,7 +675,7 @@ class FileTableModelRenameTest {
     fun `getValueAt returns full name for extensionless files`() {
         val model = FileTableModel()
         model.setEntries(listOf(
-            FileEntry("Makefile", Path.of("/Makefile"), false, 100, null, ""),
+            FileEntry("Makefile", Path.of("/Makefile"), false, 100, lastModified = null, permissions = ""),
         ))
         assertEquals("Makefile", model.getValueAt(0, FileTableModel.COL_NAME))
     }

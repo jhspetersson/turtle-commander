@@ -72,6 +72,7 @@ class FileOperationService(
                             path = entry,
                             isDirectory = attrs.isDirectory,
                             size = attrs.size(),
+                            creationTime = attrs.creationTime(),
                             lastModified = attrs.lastModifiedTime(),
                             permissions = permissions,
                             directoryType = dirType,

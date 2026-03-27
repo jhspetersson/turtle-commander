@@ -72,6 +72,9 @@ class SearchResultsPanel(
                 setComparator(FileTableModel.COL_SIZE) { o1: Any?, o2: Any? ->
                     ((o1 as? Long) ?: 0L).compareTo((o2 as? Long) ?: 0L)
                 }
+                setComparator(FileTableModel.COL_CREATED) { o1: Any?, o2: Any? ->
+                    ((o1 as? Long) ?: 0L).compareTo((o2 as? Long) ?: 0L)
+                }
                 setComparator(FileTableModel.COL_DATE) { o1: Any?, o2: Any? ->
                     ((o1 as? Long) ?: 0L).compareTo((o2 as? Long) ?: 0L)
                 }
@@ -85,8 +88,10 @@ class SearchResultsPanel(
             columnModel.getColumn(2).cellRenderer = SearchDisplayValueRenderer()
             columnModel.getColumn(3).preferredWidth = 130
             columnModel.getColumn(3).cellRenderer = SearchDisplayValueRenderer()
-            columnModel.getColumn(4).preferredWidth = 80
+            columnModel.getColumn(4).preferredWidth = 130
             columnModel.getColumn(4).cellRenderer = SearchDisplayValueRenderer()
+            columnModel.getColumn(5).preferredWidth = 80
+            columnModel.getColumn(5).cellRenderer = SearchDisplayValueRenderer()
 
             addMouseListener(object : MouseAdapter() {
                 override fun mouseClicked(e: MouseEvent) {

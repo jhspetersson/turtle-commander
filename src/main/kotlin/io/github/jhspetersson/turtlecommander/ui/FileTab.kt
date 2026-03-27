@@ -335,8 +335,10 @@ class FileTab(
             columnModel.getColumn(2).cellRenderer = DisplayValueRenderer(this@FileTab)
             columnModel.getColumn(3).preferredWidth = 130
             columnModel.getColumn(3).cellRenderer = DisplayValueRenderer(this@FileTab)
-            columnModel.getColumn(4).preferredWidth = 80
+            columnModel.getColumn(4).preferredWidth = 130
             columnModel.getColumn(4).cellRenderer = DisplayValueRenderer(this@FileTab)
+            columnModel.getColumn(5).preferredWidth = 80
+            columnModel.getColumn(5).cellRenderer = DisplayValueRenderer(this@FileTab)
 
             rowSorter = ParentPinningRowSorter(tableModel)
 

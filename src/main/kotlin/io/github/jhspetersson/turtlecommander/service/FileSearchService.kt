@@ -125,6 +125,7 @@ class FileSearchService(
             path = path,
             isDirectory = attrs.isDirectory,
             size = attrs.size(),
+            creationTime = attrs.creationTime(),
             lastModified = attrs.lastModifiedTime(),
             permissions = permissions,
         )
