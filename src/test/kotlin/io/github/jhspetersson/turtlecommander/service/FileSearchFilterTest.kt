@@ -187,6 +187,149 @@ class FileSearchFilterTest {
     }
 
     @Test
+    fun `glob pattern is case-insensitive by default`() {
+        val dir = createTempDir()
+        Files.write(dir.resolve("Report.TXT"), ByteArray(0))
+        Files.write(dir.resolve("image.png"), ByteArray(0))
+
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = "*.txt",
+            namePatternMode = NamePatternMode.GLOB,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+        )
+
+        val results = search(criteria)
+        assertEquals(1, results.size)
+        assertEquals("Report.TXT", results[0].name)
+    }
+
+    @Test
+    fun `glob pattern case-sensitive when enabled`() {
+        val dir = createTempDir()
+        Files.write(dir.resolve("report.txt"), ByteArray(0))
+        Files.write(dir.resolve("image.PNG"), ByteArray(0))
+
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = "*.txt",
+            namePatternMode = NamePatternMode.GLOB,
+            caseSensitive = true,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+        )
+
+        val results = search(criteria)
+        assertEquals(1, results.size)
+        assertEquals("report.txt", results[0].name)
+    }
+
+    @Test
+    fun `regexp pattern is case-insensitive by default`() {
+        val dir = createTempDir()
+        Files.write(dir.resolve("Data_2024.csv"), ByteArray(0))
+        Files.write(dir.resolve("notes.txt"), ByteArray(0))
+
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = "data",
+            namePatternMode = NamePatternMode.REGEXP,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+        )
+
+        val results = search(criteria)
+        assertEquals(1, results.size)
+        assertEquals("Data_2024.csv", results[0].name)
+    }
+
+    @Test
+    fun `regexp pattern case-sensitive when enabled`() {
+        val dir = createTempDir()
+        Files.write(dir.resolve("data_2024.csv"), ByteArray(0))
+        Files.write(dir.resolve("notes.txt"), ByteArray(0))
+
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = "^data",
+            namePatternMode = NamePatternMode.REGEXP,
+            caseSensitive = true,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+        )
+
+        val results = search(criteria)
+        assertEquals(1, results.size)
+        assertEquals("data_2024.csv", results[0].name)
+    }
+
+    @Test
+    fun `simple glob without dot or star is wrapped`() {
+        val dir = createTempDir()
+        Files.write(dir.resolve("report.txt"), ByteArray(0))
+        Files.write(dir.resolve("my_report.csv"), ByteArray(0))
+        Files.write(dir.resolve("image.png"), ByteArray(0))
+
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = "report",
+            namePatternMode = NamePatternMode.GLOB,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+        )
+
+        val results = search(criteria)
+        assertEquals(2, results.size)
+        assertTrue(results.all { "report" in it.name.lowercase() })
+    }
+
+    @Test
+    fun `glob with star is not wrapped`() {
+        val dir = createTempDir()
+        Files.write(dir.resolve("report.txt"), ByteArray(0))
+        Files.write(dir.resolve("my_report.csv"), ByteArray(0))
+
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = "report*",
+            namePatternMode = NamePatternMode.GLOB,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+        )
+
+        val results = search(criteria)
+        assertEquals(1, results.size)
+        assertEquals("report.txt", results[0].name)
+    }
+
+    @Test
+    fun `glob with dot is not wrapped`() {
+        val dir = createTempDir()
+        Files.write(dir.resolve("report.txt"), ByteArray(0))
+        Files.write(dir.resolve("report.csv"), ByteArray(0))
+
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = "report.txt",
+            namePatternMode = NamePatternMode.GLOB,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+        )
+
+        val results = search(criteria)
+        assertEquals(1, results.size)
+        assertEquals("report.txt", results[0].name)
+    }
+
+    @Test
     fun `invalid glob pattern returns no results`() {
         val dir = createTempDir()
         Files.write(dir.resolve("file.txt"), ByteArray(0))

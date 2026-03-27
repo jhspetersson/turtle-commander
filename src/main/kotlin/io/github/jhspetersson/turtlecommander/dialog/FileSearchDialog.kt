@@ -27,6 +27,7 @@ data class FileSearchCriteria(
     val rootPath: Path,
     val namePattern: String?,
     val namePatternMode: NamePatternMode,
+    val caseSensitive: Boolean = false,
     val sizeFilter: SizeFilter?,
     val creationDateFilter: DateFilter?,
     val modificationDateFilter: DateFilter?,
@@ -77,6 +78,7 @@ class FileSearchDialog(
     private val nameField = JBTextField(initialCriteria?.namePattern ?: "*")
     private val globRadio = JRadioButton("Glob", initialCriteria?.namePatternMode != NamePatternMode.REGEXP)
     private val regexpRadio = JRadioButton("Regexp", initialCriteria?.namePatternMode == NamePatternMode.REGEXP)
+    private val caseSensitiveCheckBox = JCheckBox("Case sensitive", initialCriteria?.caseSensitive == true)
 
     private val sizeCheckBox = JCheckBox("Search by size", initialCriteria?.sizeFilter != null)
     private val sizeModeCombo = ComboBox(DefaultComboBoxModel(arrayOf("More than", "Approximately equal", "Less than", "In between"))).apply {
@@ -138,6 +140,7 @@ class FileSearchDialog(
             nameField.isEnabled = enabled
             globRadio.isEnabled = enabled
             regexpRadio.isEnabled = enabled
+            caseSensitiveCheckBox.isEnabled = enabled
         }
 
         fun updateSizeEnabled() {
@@ -261,6 +264,8 @@ class FileSearchDialog(
             add(globRadio, gbc)
             gbc.gridx = 1
             add(regexpRadio, gbc)
+            gbc.gridx = 2
+            add(caseSensitiveCheckBox, gbc)
             maximumSize = Dimension(Int.MAX_VALUE, preferredSize.height)
         }
     }
@@ -338,6 +343,7 @@ class FileSearchDialog(
             rootPath = Path.of(rootField.text.trim()),
             namePattern = namePattern,
             namePatternMode = nameMode,
+            caseSensitive = caseSensitiveCheckBox.isSelected,
             sizeFilter = sizeFilter,
             creationDateFilter = creationDate,
             modificationDateFilter = modificationDate,

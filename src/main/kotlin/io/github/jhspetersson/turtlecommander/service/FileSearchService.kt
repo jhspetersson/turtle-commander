@@ -34,12 +34,18 @@ class FileSearchService(
             try {
                 when (criteria.namePatternMode) {
                     NamePatternMode.GLOB -> {
-                        val pathMatcher = FileSystems.getDefault().getPathMatcher("glob:$pattern")
-                        val fn: (String) -> Boolean = { name -> pathMatcher.matches(Path.of(name)) }
+                        val wrappedPattern = if ('.' !in pattern && '*' !in pattern) "*$pattern*" else pattern
+                        val effectivePattern = if (criteria.caseSensitive) wrappedPattern else wrappedPattern.lowercase()
+                        val pathMatcher = FileSystems.getDefault().getPathMatcher("glob:$effectivePattern")
+                        val fn: (String) -> Boolean = { name ->
+                            val effectiveName = if (criteria.caseSensitive) name else name.lowercase()
+                            pathMatcher.matches(Path.of(effectiveName))
+                        }
                         fn
                     }
                     NamePatternMode.REGEXP -> {
-                        val re = pattern.toRegex()
+                        val options = if (criteria.caseSensitive) emptySet() else setOf(RegexOption.IGNORE_CASE)
+                        val re = pattern.toRegex(options)
                         val fn: (String) -> Boolean = { name -> re.containsMatchIn(name) }
                         fn
                     }
