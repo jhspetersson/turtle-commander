@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- `Search in Directory` for tabs
+
+### Fixed
+
+- Fix renaming a file while it is being edited
+
 ## [0.3.1] - 2026-03-27
 
 ### Fixed
