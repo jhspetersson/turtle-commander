@@ -1403,7 +1403,7 @@ class FileTab(
     private val toggledRows = mutableSetOf<Int>()
     private val toggledTreeRows = mutableSetOf<Int>()
     private var insideToggle = false
-    private val directorySizes = mutableMapOf<Path, Long>()
+    private val directorySizes = java.util.concurrent.ConcurrentHashMap<Path, Long>()
 
     private fun applyToggledSelection(cursorRow: Int) {
         val rowsToSelect = toggledRows.toMutableSet()
