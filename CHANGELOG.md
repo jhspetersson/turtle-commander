@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-03-27
+
 ### Added
 
 - Thumbnail view mode
