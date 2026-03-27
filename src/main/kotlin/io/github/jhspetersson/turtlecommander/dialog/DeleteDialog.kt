@@ -1,5 +1,4 @@
 package io.github.jhspetersson.turtlecommander.dialog
-import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 
 import com.intellij.openapi.project.Project

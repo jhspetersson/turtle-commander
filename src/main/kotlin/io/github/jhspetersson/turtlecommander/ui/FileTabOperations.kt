@@ -18,7 +18,6 @@ import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
 import io.github.jhspetersson.turtlecommander.util.formatSize
 import io.github.jhspetersson.turtlecommander.vfs.VfsEditEntry
 import io.github.jhspetersson.turtlecommander.vfs.VfsEditService
-import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
 import io.github.jhspetersson.turtlecommander.vfs.ZipVirtualFileSystem
 
 import com.intellij.notification.NotificationGroupManager

@@ -1,10 +1,8 @@
 package io.github.jhspetersson.turtlecommander.ui
 import io.github.jhspetersson.turtlecommander.dialog.FileSearchDialog
-import io.github.jhspetersson.turtlecommander.action.FileContextMenuState
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.service.FileSearchService
 import io.github.jhspetersson.turtlecommander.dialog.FileSearchCriteria
-import io.github.jhspetersson.turtlecommander.model.DirectoryType
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 
 import com.intellij.icons.AllIcons

@@ -1,12 +1,8 @@
 package io.github.jhspetersson.turtlecommander.ui
 import io.github.jhspetersson.turtlecommander.action.TabContextMenuState
-import io.github.jhspetersson.turtlecommander.action.FileCopyBuffer
-import io.github.jhspetersson.turtlecommander.action.FileContextMenuState
-import io.github.jhspetersson.turtlecommander.settings.ComponentStyle
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.service.FileOperationService
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
-import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.dialog.FileSearchCriteria
 
 import com.intellij.icons.AllIcons

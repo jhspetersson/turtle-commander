@@ -1,6 +1,5 @@
 package io.github.jhspetersson.turtlecommander.vfs
 import io.github.jhspetersson.turtlecommander.model.FileEntry
-import io.github.jhspetersson.turtlecommander.ui.FileTab
 
 import kotlinx.coroutines.runBlocking
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry

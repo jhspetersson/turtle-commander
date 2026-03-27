@@ -1,9 +1,5 @@
 package io.github.jhspetersson.turtlecommander.service
-import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
 import io.github.jhspetersson.turtlecommander.util.readFilePermissions
-import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
-import io.github.jhspetersson.turtlecommander.util.countFiles
-import io.github.jhspetersson.turtlecommander.util.formatSize
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.model.DirectoryType
 import io.github.jhspetersson.turtlecommander.model.FileEntry

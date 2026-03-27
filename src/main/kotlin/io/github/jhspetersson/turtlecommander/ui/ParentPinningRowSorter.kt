@@ -1,5 +1,4 @@
 package io.github.jhspetersson.turtlecommander.ui
-import io.github.jhspetersson.turtlecommander.settings.ComponentStyle
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 
 import javax.swing.SortOrder
