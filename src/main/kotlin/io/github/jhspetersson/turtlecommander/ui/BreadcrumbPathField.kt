@@ -8,6 +8,7 @@ import java.awt.CardLayout
 import java.awt.Color
 import java.awt.Cursor
 import java.awt.FlowLayout
+import java.awt.Font
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.event.ActionListener
@@ -29,8 +30,8 @@ class BreadcrumbPathField : JPanel() {
     private val breadcrumbPanel = JPanel(GridBagLayout())
     private val editField = JBTextField()
     private var isEditMode = false
-    private var customFont: java.awt.Font? = null
-    private var customFg: java.awt.Color? = null
+    private var customFont: Font? = null
+    private var customFg: Color? = null
 
     var text: String = ""
         get() = if (isEditMode) editField.text else field
@@ -95,7 +96,7 @@ class BreadcrumbPathField : JPanel() {
         editField.registerKeyboardAction(
             { switchToBreadcrumbMode() },
             KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
-            JComponent.WHEN_FOCUSED,
+            WHEN_FOCUSED,
         )
     }
 

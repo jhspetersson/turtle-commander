@@ -204,7 +204,7 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
         val font = style.getFont(null)
         val fg = style.getFontColor()
         for (comp in bar.components) {
-            if (comp is javax.swing.JButton) {
+            if (comp is JButton) {
                 if (font != null) comp.font = font
                 if (fg != null) comp.foreground = fg
             }

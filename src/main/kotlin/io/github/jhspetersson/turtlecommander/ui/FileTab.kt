@@ -34,6 +34,7 @@ import java.awt.Component
 import java.awt.Dimension
 import java.awt.datatransfer.DataFlavor
 import java.awt.event.*
+import java.io.IOException
 import java.nio.file.*
 import java.nio.file.attribute.BasicFileAttributes
 import javax.swing.*
@@ -84,7 +85,7 @@ class FileTab(
     private val filterPanel = JPanel(BorderLayout(4, 0))
     private var updatingDriveCombo = false
     private var driveComboPopupOpen = false
-    private var driveRefreshTimer: javax.swing.Timer? = null
+    private var driveRefreshTimer: Timer? = null
     private val cursorPositions = mutableMapOf<Path, Int>()
     internal var stateService: FileManagerStateService? = null
     private var initialized = false
@@ -1168,7 +1169,7 @@ class FileTab(
     }
 
     private fun startDriveRefreshTimer() {
-        driveRefreshTimer = javax.swing.Timer(5000) {
+        driveRefreshTimer = Timer(5000) {
             if (driveComboPopupOpen || currentVfs != null) return@Timer
             fileOps.launch {
                 val roots = withContext(Dispatchers.IO) { fileOps.getRoots() }
@@ -1531,7 +1532,7 @@ class FileTab(
                             total += attrs.size()
                             return FileVisitResult.CONTINUE
                         }
-                        override fun visitFileFailed(file: Path, exc: java.io.IOException): FileVisitResult {
+                        override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
                             return FileVisitResult.CONTINUE
                         }
                     })
@@ -1901,7 +1902,7 @@ fun isArchiveFile(entry: FileEntry): Boolean {
     return VirtualFileSystemRegistry.supportsByExtension(entry.name)
 }
 
-fun fileEntryIcon(entry: FileEntry, enableFileNameHighlighting: Boolean): javax.swing.Icon? {
+fun fileEntryIcon(entry: FileEntry, enableFileNameHighlighting: Boolean): Icon? {
     return when {
         entry.isParentLink -> AllIcons.Nodes.UpLevel
         entry.isDirectory -> if (enableFileNameHighlighting) {

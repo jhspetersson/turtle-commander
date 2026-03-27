@@ -1,5 +1,8 @@
 package io.github.jhspetersson.turtlecommander.action
 
+import com.intellij.diff.DiffContentFactory
+import com.intellij.diff.DiffManager
+import com.intellij.diff.requests.SimpleDiffRequest
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
@@ -9,11 +12,15 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.options.SearchableConfigurable
 import com.intellij.openapi.options.ShowSettingsUtil
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.wm.ToolWindowManager
+import com.intellij.ui.treeStructure.Tree
 import io.github.jhspetersson.turtlecommander.dialog.FileSearchDialog
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.ui.*
+import java.awt.Component
+import java.awt.Container
 import java.nio.file.Path
 import javax.swing.JTree
 import javax.swing.Timer
@@ -335,9 +342,9 @@ class OpenKeymapSettingsAction : AnAction() {
         return obj.toString()
     }
 
-    private fun findTree(component: java.awt.Component): JTree? {
-        if (component is com.intellij.ui.treeStructure.Tree) return component
-        if (component is java.awt.Container) {
+    private fun findTree(component: Component): JTree? {
+        if (component is Tree) return component
+        if (component is Container) {
             for (child in component.components) {
                 val found = findTree(child)
                 if (found != null) return found
@@ -783,22 +790,22 @@ class CompareFilesAction : AnAction("Compare Files", "Compare two files", AllIco
         val (left, right) = resolveFiles(e)
         if (left == null || right == null) return
 
-        val vfsLeft = com.intellij.openapi.vfs.LocalFileSystem.getInstance().findFileByNioFile(left.path)
-        val vfsRight = com.intellij.openapi.vfs.LocalFileSystem.getInstance().findFileByNioFile(right.path)
+        val vfsLeft = LocalFileSystem.getInstance().findFileByNioFile(left.path)
+        val vfsRight = LocalFileSystem.getInstance().findFileByNioFile(right.path)
         if (vfsLeft == null || vfsRight == null) return
 
-        val factory = com.intellij.diff.DiffContentFactory.getInstance()
+        val factory = DiffContentFactory.getInstance()
         val leftContent = factory.create(project, vfsLeft)
         val rightContent = factory.create(project, vfsRight)
 
-        val request = com.intellij.diff.requests.SimpleDiffRequest(
+        val request = SimpleDiffRequest(
             "${left.name} vs ${right.name}",
             leftContent,
             rightContent,
             left.name,
             right.name,
         )
-        com.intellij.diff.DiffManager.getInstance().showDiff(project, request)
+        DiffManager.getInstance().showDiff(project, request)
     }
 
     private fun resolveFiles(e: AnActionEvent): Pair<FileEntry?, FileEntry?> {
