@@ -13,6 +13,32 @@ interface TurtleCommanderSettingsListener {
     fun settingsChanged()
 }
 
+class ColumnConfig {
+    var id: String = ""
+    var visible: Boolean = true
+    var style: ComponentStyle = ComponentStyle()
+
+    override fun equals(other: Any?): Boolean {
+        if (other !is ColumnConfig) return false
+        return id == other.id && visible == other.visible && style == other.style
+    }
+
+    override fun hashCode(): Int {
+        var result = id.hashCode()
+        result = 31 * result + visible.hashCode()
+        result = 31 * result + style.hashCode()
+        return result
+    }
+
+    companion object {
+        val ALL_COLUMN_IDS = listOf("Name", "Ext", "Size", "Date Created", "Date Modified", "Permissions")
+
+        fun defaults(): List<ColumnConfig> = ALL_COLUMN_IDS.map { id ->
+            ColumnConfig().apply { this.id = id }
+        }
+    }
+}
+
 class ComponentStyle {
     var fontFamily: String = ""
     var fontSize: Int = 0
@@ -90,6 +116,21 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
         var commandBarStyle: ComponentStyle = ComponentStyle()
         var driveSelectorStyle: ComponentStyle = ComponentStyle()
         var columnHeaderStyle: ComponentStyle = ComponentStyle()
+        var columns: MutableList<ColumnConfig> = mutableListOf()
+    }
+
+    fun getEffectiveColumns(): List<ColumnConfig> {
+        val saved = myState.columns
+        if (saved.isEmpty()) return ColumnConfig.defaults()
+        // Ensure all known columns are present (in case new columns were added)
+        val savedIds = saved.map { it.id }.toSet()
+        val result = saved.toMutableList()
+        for (id in ColumnConfig.ALL_COLUMN_IDS) {
+            if (id !in savedIds) {
+                result.add(ColumnConfig().apply { this.id = id })
+            }
+        }
+        return result
     }
 
     fun getPanelFont(): Font? {

@@ -1,83 +1,44 @@
 package io.github.jhspetersson.turtlecommander.ui
-import io.github.jhspetersson.turtlecommander.service.ThumbnailCache
-import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
-import io.github.jhspetersson.turtlecommander.action.FileCopyBuffer
-import io.github.jhspetersson.turtlecommander.action.FileContextMenuState
-import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
-import io.github.jhspetersson.turtlecommander.util.formatSize
-import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
-import io.github.jhspetersson.turtlecommander.service.FileOperationService
-import io.github.jhspetersson.turtlecommander.settings.ComponentStyle
-import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
-import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
-import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
-import io.github.jhspetersson.turtlecommander.model.FileEntry
 
 import com.intellij.icons.AllIcons
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
-import com.intellij.openapi.actionSystem.ActionGroup
-import com.intellij.openapi.actionSystem.ActionManager
-import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.actionSystem.CustomShortcutSet
-import com.intellij.openapi.actionSystem.KeyboardShortcut
+import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
-import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
 import com.intellij.ui.treeStructure.Tree
+import io.github.jhspetersson.turtlecommander.action.FileContextMenuState
+import io.github.jhspetersson.turtlecommander.model.FileEntry
+import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
+import io.github.jhspetersson.turtlecommander.service.FileOperationService
+import io.github.jhspetersson.turtlecommander.service.ThumbnailCache
+import io.github.jhspetersson.turtlecommander.settings.ColumnConfig
+import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
+import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
+import io.github.jhspetersson.turtlecommander.util.formatSize
+import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
+import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
+import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.awt.BorderLayout
 import java.awt.CardLayout
-import java.awt.Color
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.datatransfer.DataFlavor
-import java.awt.event.FocusEvent
-import java.awt.event.FocusListener
-import java.awt.event.InputEvent
-import java.awt.event.KeyAdapter
-import java.awt.event.KeyEvent
-import java.awt.event.MouseAdapter
-import java.awt.event.MouseEvent
-import java.io.File
-import java.nio.file.FileSystems
-import java.nio.file.FileVisitResult
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.SimpleFileVisitor
-import java.nio.file.StandardCopyOption
+import java.awt.event.*
+import java.nio.file.*
 import java.nio.file.attribute.BasicFileAttributes
-import javax.swing.BorderFactory
-import javax.swing.DefaultCellEditor
-import javax.swing.DefaultListModel
-import javax.swing.JButton
-import javax.swing.JComponent
-import javax.swing.JLabel
-import javax.swing.JList
-import javax.swing.JPanel
-import javax.swing.JTable
-import javax.swing.JTextField
-import javax.swing.JTree
-import javax.swing.KeyStroke
-import javax.swing.ListCellRenderer
-import javax.swing.ListSelectionModel
-import javax.swing.TransferHandler
-import javax.swing.event.CellEditorListener
-import javax.swing.event.ChangeEvent
-import javax.swing.event.DocumentEvent
-import javax.swing.event.DocumentListener
-import javax.swing.event.PopupMenuEvent
-import javax.swing.event.PopupMenuListener
-import javax.swing.event.TreeExpansionEvent
-import javax.swing.event.TreeWillExpandListener
+import javax.swing.*
+import javax.swing.event.*
+import javax.swing.table.TableColumn
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
 import javax.swing.tree.TreePath
@@ -215,6 +176,67 @@ class FileTab(
         applyColumnHeaderStyle()
         applyStatusBarStyle()
         applyPathBarStyle()
+        reapplyColumnConfig()
+    }
+
+    private fun reapplyColumnConfig() {
+        // Rebuild column model from scratch: add back all model columns, then apply config
+        val cm = table.columnModel
+        // Remove all view columns
+        while (cm.columnCount > 0) {
+            table.removeColumn(cm.getColumn(0))
+        }
+        // Re-add all model columns
+        for (i in 0 until tableModel.columnCount) {
+            val tc = TableColumn(i)
+            tc.headerValue = tableModel.getColumnName(i)
+            table.addColumn(tc)
+        }
+        applyColumnConfig(this)
+    }
+
+    private fun setupHeaderContextMenu() {
+        table.tableHeader.addMouseListener(object : MouseAdapter() {
+            override fun mousePressed(e: MouseEvent) { showPopup(e) }
+            override fun mouseReleased(e: MouseEvent) { showPopup(e) }
+            private fun showPopup(e: MouseEvent) {
+                if (!e.isPopupTrigger) return
+                val settings = TurtleCommanderSettings.getInstance()
+                val columns = settings.getEffectiveColumns()
+                val columnsById = columns.associateBy { it.id }
+
+                // Build ordered list: visible columns in current table view order, then hidden columns
+                val modelIndexToName = COLUMN_NAME_TO_MODEL_INDEX.entries.associate { (k, v) -> v to k }
+                val cm = table.columnModel
+                val visibleOrder = (0 until cm.columnCount).mapNotNull { modelIndexToName[cm.getColumn(it).modelIndex] }
+                val hiddenOrder = columns.filter { !it.visible }.map { it.id }
+                val ordered = visibleOrder + hiddenOrder
+
+                val visibleCount = columns.count { it.visible }
+                val popup = JPopupMenu()
+                for (id in ordered) {
+                    val col = columnsById[id] ?: continue
+                    val item = JMenuItem(col.id)
+                    item.icon = if (col.visible) AllIcons.Actions.Checked else null
+                    if (col.visible && visibleCount <= 1) item.isEnabled = false
+                    item.addActionListener {
+                        col.visible = !col.visible
+                        settings.state.columns.clear()
+                        settings.state.columns.addAll(columns.map { c ->
+                            ColumnConfig().apply {
+                                this.id = c.id
+                                visible = c.visible
+                                style.copyFrom(c.style)
+                            }
+                        })
+                        reapplyColumnConfig()
+                        settings.fireSettingsChanged()
+                    }
+                    popup.add(item)
+                }
+                popup.show(e.component, e.x, e.y)
+            }
+        })
     }
 
     private fun applyDriveSelectorStyle() {
@@ -327,18 +349,8 @@ class FileTab(
             autoResizeMode = JBTable.AUTO_RESIZE_OFF
             rowHeight = 20
 
-            columnModel.getColumn(0).cellRenderer = FileNameCellRenderer(this@FileTab)
-            columnModel.getColumn(0).preferredWidth = 200
-            columnModel.getColumn(1).preferredWidth = 50
-            columnModel.getColumn(1).cellRenderer = DisplayValueRenderer(this@FileTab)
-            columnModel.getColumn(2).preferredWidth = 80
-            columnModel.getColumn(2).cellRenderer = DisplayValueRenderer(this@FileTab)
-            columnModel.getColumn(3).preferredWidth = 130
-            columnModel.getColumn(3).cellRenderer = DisplayValueRenderer(this@FileTab)
-            columnModel.getColumn(4).preferredWidth = 130
-            columnModel.getColumn(4).cellRenderer = DisplayValueRenderer(this@FileTab)
-            columnModel.getColumn(5).preferredWidth = 80
-            columnModel.getColumn(5).cellRenderer = DisplayValueRenderer(this@FileTab)
+            applyColumnConfig(this@FileTab)
+            setupHeaderContextMenu()
 
             rowSorter = ParentPinningRowSorter(tableModel)
 

@@ -1,9 +1,4 @@
 package io.github.jhspetersson.turtlecommander.settings
-import io.github.jhspetersson.turtlecommander.ui.DirectoryIcons
-import io.github.jhspetersson.turtlecommander.service.ThumbnailCache
-import io.github.jhspetersson.turtlecommander.ui.FAVORITE_PRESET_COLORS
-import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
-import io.github.jhspetersson.turtlecommander.util.formatSize
 
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.components.service
@@ -18,35 +13,12 @@ import com.intellij.ui.SimpleColoredComponent
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
 import com.intellij.util.ui.JBUI
-import java.awt.BorderLayout
-import java.awt.Color
-import java.awt.Component
-import java.awt.Dimension
-import java.awt.FlowLayout
-import java.awt.Font
-import java.awt.Graphics
-import java.awt.Graphics2D
-import java.awt.GraphicsEnvironment
-import java.awt.GridBagConstraints
-import java.awt.GridBagLayout
-import java.awt.RenderingHints
-import javax.swing.BorderFactory
-import javax.swing.Box
-import javax.swing.BoxLayout
-import javax.swing.DefaultComboBoxModel
-import javax.swing.DefaultListModel
-import javax.swing.Icon
-import javax.swing.JButton
-import javax.swing.JCheckBox
-import javax.swing.JComponent
-import javax.swing.JList
-import javax.swing.JMenuItem
-import javax.swing.JPanel
-import javax.swing.JPopupMenu
-import javax.swing.JScrollPane
-import javax.swing.JSpinner
-import javax.swing.ListCellRenderer
-import javax.swing.SpinnerNumberModel
+import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
+import io.github.jhspetersson.turtlecommander.service.ThumbnailCache
+import io.github.jhspetersson.turtlecommander.ui.FAVORITE_PRESET_COLORS
+import io.github.jhspetersson.turtlecommander.util.formatSize
+import java.awt.*
+import javax.swing.*
 
 class TurtleCommanderConfigurable : Configurable {
 
@@ -60,6 +32,7 @@ class TurtleCommanderConfigurable : Configurable {
     private var defaultViewModeCombo: ComboBox<String>? = null
     private var favoritesListModel: DefaultListModel<FileManagerStateService.FavoriteEntry>? = null
     private var favoritesList: JBList<FileManagerStateService.FavoriteEntry>? = null
+    private var columnsEditor: ColumnsEditor? = null
 
     // Legacy font combos kept for backward compat during migration
     private var panelFontCombo: ComboBox<String>? = null
@@ -186,6 +159,11 @@ class TurtleCommanderConfigurable : Configurable {
         sortWithDirectoriesCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         calculateDirectorySizeCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
 
+        // Columns editor
+        val fontItemsForColumns = fontItems
+        val colEditor = ColumnsEditor(fontItemsForColumns, TurtleCommanderSettings.getInstance().getEffectiveColumns())
+        columnsEditor = colEditor
+
         // Favorites editor
         val favListModel = DefaultListModel<FileManagerStateService.FavoriteEntry>()
         favoritesListModel = favListModel
@@ -301,6 +279,8 @@ class TurtleCommanderConfigurable : Configurable {
             add(Box.createVerticalStrut(8))
             add(appearancePanel)
             add(Box.createVerticalStrut(8))
+            add(colEditor.panel)
+            add(Box.createVerticalStrut(8))
             add(favoritesPanel)
             add(Box.createVerticalStrut(8))
             add(thumbnailCachePanel)
@@ -328,6 +308,7 @@ class TurtleCommanderConfigurable : Configurable {
             || styleEditors["commandBar"]?.isModified(settings.commandBarStyle) == true
             || styleEditors["driveSelector"]?.isModified(settings.driveSelectorStyle) == true
             || styleEditors["columnHeader"]?.isModified(settings.columnHeaderStyle) == true
+            || columnsEditor?.isModified(TurtleCommanderSettings.getInstance().getEffectiveColumns()) == true
             || isFavoritesModified()
     }
 
@@ -364,6 +345,8 @@ class TurtleCommanderConfigurable : Configurable {
         styleEditors["commandBar"]?.applyTo(settings.commandBarStyle)
         styleEditors["driveSelector"]?.applyTo(settings.driveSelectorStyle)
         styleEditors["columnHeader"]?.applyTo(settings.columnHeaderStyle)
+
+        columnsEditor?.applyTo(settings)
 
         // Sync legacy fields from panelStyle/tabStyle
         settings.panelFontFamily = settings.panelStyle.fontFamily
@@ -407,6 +390,7 @@ class TurtleCommanderConfigurable : Configurable {
         styleEditors["commandBar"]?.resetFrom(settings.commandBarStyle)
         styleEditors["driveSelector"]?.resetFrom(settings.driveSelectorStyle)
         styleEditors["columnHeader"]?.resetFrom(settings.columnHeaderStyle)
+        columnsEditor?.resetFrom(TurtleCommanderSettings.getInstance().getEffectiveColumns())
 
         val model = favoritesListModel
         if (model != null) {
@@ -434,6 +418,7 @@ class TurtleCommanderConfigurable : Configurable {
         defaultViewModeCombo = null
         favoritesListModel = null
         favoritesList = null
+        columnsEditor = null
         styleEditors.clear()
     }
 
@@ -638,6 +623,187 @@ private class FavoriteListCellRenderer : ListCellRenderer<FileManagerStateServic
             delegate.append(value.path)
         }
         return delegate
+    }
+}
+
+private class ColumnsEditor(
+    private val fontItems: Array<String>,
+    initialColumns: List<ColumnConfig>,
+) {
+    private data class ColumnRow(
+        val id: String,
+        var visible: Boolean,
+        val styleEditor: ComponentStyleEditor,
+    )
+
+    private val rows = mutableListOf<ColumnRow>()
+    private val listModel = DefaultListModel<ColumnRow>()
+    private val list = JBList(listModel)
+    private val detailPanel = JPanel(BorderLayout())
+    val panel: JPanel
+
+    init {
+        resetFrom(initialColumns)
+
+        list.selectionMode = javax.swing.ListSelectionModel.SINGLE_SELECTION
+        list.cellRenderer = object : ListCellRenderer<ColumnRow> {
+            private val checkBox = JCheckBox()
+            override fun getListCellRendererComponent(
+                list: JList<out ColumnRow>,
+                value: ColumnRow?,
+                index: Int,
+                isSelected: Boolean,
+                cellHasFocus: Boolean,
+            ): Component {
+                checkBox.text = value?.id ?: ""
+                checkBox.isSelected = value?.visible == true
+                checkBox.background = if (isSelected) list.selectionBackground else list.background
+                checkBox.foreground = if (isSelected) list.selectionForeground else list.foreground
+                checkBox.isOpaque = true
+                checkBox.font = list.font
+                return checkBox
+            }
+        }
+        list.addMouseListener(object : java.awt.event.MouseAdapter() {
+            override fun mouseClicked(e: java.awt.event.MouseEvent) {
+                val idx = list.locationToIndex(e.point)
+                if (idx < 0) return
+                val cellBounds = list.getCellBounds(idx, idx) ?: return
+                // Toggle checkbox when clicking in the checkbox area (left ~24px)
+                if (e.x - cellBounds.x < 24) {
+                    rows[idx].visible = !rows[idx].visible
+                    listModel.set(idx, rows[idx])
+                    updateDetail()
+                }
+            }
+        })
+        list.addListSelectionListener { updateDetail() }
+
+        val moveUpButton = JButton("Up").apply {
+            addActionListener {
+                val idx = list.selectedIndex
+                if (idx > 0) {
+                    val item = rows.removeAt(idx)
+                    rows.add(idx - 1, item)
+                    rebuildListModel()
+                    list.selectedIndex = idx - 1
+                }
+            }
+        }
+        val moveDownButton = JButton("Down").apply {
+            addActionListener {
+                val idx = list.selectedIndex
+                if (idx >= 0 && idx < rows.size - 1) {
+                    val item = rows.removeAt(idx)
+                    rows.add(idx + 1, item)
+                    rebuildListModel()
+                    list.selectedIndex = idx + 1
+                }
+            }
+        }
+
+        val buttonPanel = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+            add(moveUpButton)
+            add(moveDownButton)
+            for (btn in listOf(moveUpButton, moveDownButton)) {
+                btn.maximumSize = Dimension(Int.MAX_VALUE, btn.preferredSize.height)
+            }
+        }
+
+        val listPanel = JPanel(BorderLayout(4, 0)).apply {
+            add(JScrollPane(list).apply {
+                preferredSize = Dimension(160, 0)
+            }, BorderLayout.CENTER)
+            add(buttonPanel, BorderLayout.EAST)
+        }
+
+        panel = JPanel(BorderLayout(8, 0)).apply {
+            alignmentX = JComponent.LEFT_ALIGNMENT
+            border = BorderFactory.createTitledBorder("Columns")
+            add(listPanel, BorderLayout.WEST)
+            add(detailPanel, BorderLayout.CENTER)
+            preferredSize = Dimension(Int.MAX_VALUE, 260)
+            maximumSize = Dimension(Int.MAX_VALUE, 260)
+        }
+
+        if (rows.isNotEmpty()) list.selectedIndex = 0
+    }
+
+    private fun updateDetail() {
+        detailPanel.removeAll()
+
+        val idx = list.selectedIndex
+        if (idx < 0 || idx >= rows.size) {
+            detailPanel.revalidate()
+            detailPanel.repaint()
+            return
+        }
+
+        val editor = rows[idx].styleEditor
+        val grid = JPanel(GridBagLayout())
+        val gbc = GridBagConstraints().apply {
+            anchor = GridBagConstraints.WEST
+            fill = GridBagConstraints.NONE
+            insets = JBUI.insets(2, 4, 2, 4)
+        }
+        gbc.gridy = 0
+        gbc.gridx = 0; grid.add(JBLabel("Font:"), gbc)
+        gbc.gridx = 1; grid.add(editor.fontCombo, gbc)
+        gbc.gridy = 1
+        gbc.gridx = 0; grid.add(JBLabel("Size:"), gbc)
+        gbc.gridx = 1; grid.add(editor.sizeSpinner, gbc)
+        gbc.gridy = 2
+        gbc.gridx = 0; grid.add(JBLabel("Style:"), gbc)
+        gbc.gridx = 1; grid.add(editor.styleCombo, gbc)
+        gbc.gridy = 3
+        gbc.gridx = 0; grid.add(JBLabel("Color:"), gbc)
+        gbc.gridx = 1; grid.add(editor.colorButton, gbc)
+
+        detailPanel.add(grid, BorderLayout.CENTER)
+        detailPanel.revalidate()
+        detailPanel.repaint()
+    }
+
+    private fun rebuildListModel() {
+        listModel.clear()
+        for (row in rows) {
+            listModel.addElement(row)
+        }
+    }
+
+    fun resetFrom(columns: List<ColumnConfig>) {
+        rows.clear()
+        for (col in columns) {
+            val editor = ComponentStyleEditor(col.id, fontItems, col.style)
+            rows.add(ColumnRow(col.id, col.visible, editor))
+        }
+        rebuildListModel()
+        if (rows.isNotEmpty() && list.selectedIndex < 0) list.selectedIndex = 0
+        updateDetail()
+    }
+
+    fun applyTo(settings: TurtleCommanderSettings.State) {
+        settings.columns.clear()
+        for (row in rows) {
+            val config = ColumnConfig().apply {
+                id = row.id
+                visible = row.visible
+            }
+            row.styleEditor.applyTo(config.style)
+            settings.columns.add(config)
+        }
+    }
+
+    fun isModified(savedColumns: List<ColumnConfig>): Boolean {
+        if (rows.size != savedColumns.size) return true
+        for ((i, row) in rows.withIndex()) {
+            val saved = savedColumns[i]
+            if (row.id != saved.id) return true
+            if (row.visible != saved.visible) return true
+            if (row.styleEditor.isModified(saved.style)) return true
+        }
+        return false
     }
 }
 

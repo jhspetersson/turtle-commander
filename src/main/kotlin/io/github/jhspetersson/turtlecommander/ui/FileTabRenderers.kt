@@ -1,27 +1,166 @@
 package io.github.jhspetersson.turtlecommander.ui
 
-import io.github.jhspetersson.turtlecommander.service.ThumbnailCache
-import io.github.jhspetersson.turtlecommander.model.DirectoryType
-import io.github.jhspetersson.turtlecommander.model.FileEntry
-import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
-
 import com.intellij.ui.JBColor
 import com.intellij.util.IconUtil
+import io.github.jhspetersson.turtlecommander.model.DirectoryType
+import io.github.jhspetersson.turtlecommander.model.FileEntry
+import io.github.jhspetersson.turtlecommander.service.ThumbnailCache
+import io.github.jhspetersson.turtlecommander.settings.ComponentStyle
+import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component
-import javax.swing.BorderFactory
-import javax.swing.DefaultListCellRenderer
-import javax.swing.JLabel
-import javax.swing.JList
-import javax.swing.JPanel
-import javax.swing.JTable
-import javax.swing.JTree
-import javax.swing.ListCellRenderer
-import javax.swing.SwingUtilities
+import javax.swing.*
 import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeCellRenderer
+
+private val DEFAULT_COLUMN_WIDTHS = mapOf(
+    "Name" to 200,
+    "Ext" to 50,
+    "Size" to 80,
+    "Date Created" to 130,
+    "Date Modified" to 130,
+    "Permissions" to 80,
+)
+
+internal val COLUMN_NAME_TO_MODEL_INDEX = mapOf(
+    "Name" to FileTableModel.COL_NAME,
+    "Ext" to FileTableModel.COL_EXT,
+    "Size" to FileTableModel.COL_SIZE,
+    "Date Created" to FileTableModel.COL_CREATED,
+    "Date Modified" to FileTableModel.COL_DATE,
+    "Permissions" to FileTableModel.COL_PERMS,
+)
+
+internal fun applyColumnConfig(tab: FileTab) {
+    val table = tab.table
+    val columns = TurtleCommanderSettings.getInstance().getEffectiveColumns()
+    val columnStyleMap = mutableMapOf<Int, ComponentStyle>()
+
+    // Remove hidden columns (iterate in reverse to avoid index shifting)
+    val hiddenModelIndices = mutableSetOf<Int>()
+    for (col in columns) {
+        if (!col.visible) {
+            val modelIdx = COLUMN_NAME_TO_MODEL_INDEX[col.id] ?: continue
+            hiddenModelIndices.add(modelIdx)
+        }
+        if (!col.style.isDefault()) {
+            val modelIdx = COLUMN_NAME_TO_MODEL_INDEX[col.id] ?: continue
+            columnStyleMap[modelIdx] = col.style
+        }
+    }
+
+    // Set renderers on all columns first (before removing any)
+    for (i in 0 until table.columnModel.columnCount) {
+        val tc = table.columnModel.getColumn(i)
+        val modelIdx = tc.modelIndex
+        val style = columnStyleMap[modelIdx]
+        if (modelIdx == FileTableModel.COL_NAME) {
+            tc.cellRenderer = StyledFileNameCellRenderer(tab, style)
+        } else {
+            tc.cellRenderer = StyledDisplayValueRenderer(tab, style)
+        }
+        tc.preferredWidth = DEFAULT_COLUMN_WIDTHS[
+            COLUMN_NAME_TO_MODEL_INDEX.entries.find { it.value == modelIdx }?.key
+        ] ?: 80
+    }
+
+    // Remove hidden columns
+    for (modelIdx in hiddenModelIndices) {
+        for (i in table.columnModel.columnCount - 1 downTo 0) {
+            if (table.columnModel.getColumn(i).modelIndex == modelIdx) {
+                table.removeColumn(table.columnModel.getColumn(i))
+                break
+            }
+        }
+    }
+
+    // Reorder visible columns to match settings order
+    val desiredOrder = columns.filter { it.visible }.mapNotNull { COLUMN_NAME_TO_MODEL_INDEX[it.id] }
+    for (targetViewIdx in desiredOrder.indices) {
+        val wantedModelIdx = desiredOrder[targetViewIdx]
+        var currentViewIdx = -1
+        for (i in 0 until table.columnModel.columnCount) {
+            if (table.columnModel.getColumn(i).modelIndex == wantedModelIdx) {
+                currentViewIdx = i
+                break
+            }
+        }
+        if (currentViewIdx >= 0 && currentViewIdx != targetViewIdx && targetViewIdx < table.columnModel.columnCount) {
+            table.columnModel.moveColumn(currentViewIdx, targetViewIdx)
+        }
+    }
+}
+
+internal class StyledFileNameCellRenderer(
+    private val tab: FileTab,
+    private val style: ComponentStyle?,
+) : DefaultTableCellRenderer() {
+    override fun getTableCellRendererComponent(
+        table: JTable,
+        value: Any?,
+        isSelected: Boolean,
+        hasFocus: Boolean,
+        row: Int,
+        column: Int,
+    ): Component {
+        super.getTableCellRendererComponent(table, value, isSelected, false, row, column)
+        if (isSelected && !table.hasFocus()) {
+            background = tab.inactiveSelectionBackground()
+            foreground = tab.inactiveSelectionForeground()
+        }
+        val modelRow = table.convertRowIndexToModel(row)
+        val entry = tab.tableModel.getEntryAt(modelRow)
+        icon = if (entry != null) fileEntryIcon(entry, tab.enableFileNameHighlighting) else null
+        if (isSelected && !table.hasFocus()) {
+            foreground = tab.inactiveSelectionForeground()
+        } else if (!isSelected) {
+            background = table.background
+            foreground = if (tab.enableFileNameHighlighting && entry != null && entry.isDirectory && entry.directoryType != io.github.jhspetersson.turtlecommander.model.DirectoryType.NONE) {
+                DirectoryIcons.getColor(entry.directoryType)
+            } else {
+                style?.getFontColor() ?: table.foreground
+            }
+        }
+        if (style != null) {
+            val f = style.getFont(table.font)
+            if (f != null) font = f
+        }
+        return this
+    }
+}
+
+internal class StyledDisplayValueRenderer(
+    private val tab: FileTab,
+    private val style: ComponentStyle?,
+) : DefaultTableCellRenderer() {
+    override fun getTableCellRendererComponent(
+        table: JTable,
+        value: Any?,
+        isSelected: Boolean,
+        hasFocus: Boolean,
+        row: Int,
+        column: Int,
+    ): Component {
+        val modelRow = table.convertRowIndexToModel(row)
+        val modelCol = table.convertColumnIndexToModel(column)
+        val displayValue = tab.tableModel.getDisplayValue(modelRow, modelCol)
+        val comp = super.getTableCellRendererComponent(table, displayValue, isSelected, false, row, column)
+        if (isSelected && !table.hasFocus()) {
+            background = tab.inactiveSelectionBackground()
+            foreground = tab.inactiveSelectionForeground()
+        } else if (!isSelected) {
+            background = table.background
+            foreground = style?.getFontColor() ?: table.foreground
+        }
+        if (style != null) {
+            val f = style.getFont(table.font)
+            if (f != null) font = f
+        }
+        return comp
+    }
+}
 
 internal fun FileTab.inactiveSelectionBackground(): Color {
     val active = table.selectionBackground
