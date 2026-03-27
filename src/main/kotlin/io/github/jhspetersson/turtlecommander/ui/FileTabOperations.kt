@@ -806,7 +806,12 @@ internal fun FileTab.startRename() {
     if (entry.isParentLink) return
     if (viewMode == ViewMode.TABLE) {
         val row = table.selectedRow
-        if (row >= 0) table.editCellAt(row, 0)
+        if (row >= 0) {
+            val nameViewCol = (0 until table.columnCount).firstOrNull {
+                table.convertColumnIndexToModel(it) == FileTableModel.COL_NAME
+            } ?: 0
+            table.editCellAt(row, nameViewCol)
+        }
     } else {
         val newName = Messages.showInputDialog(
             project,

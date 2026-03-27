@@ -90,6 +90,7 @@ class FileTab(
     internal var stateService: FileManagerStateService? = null
     private var initialized = false
     internal var enableFileNameHighlighting = TurtleCommanderSettings.getInstance().state.enableFileNameHighlighting
+    private var nameEditor: DefaultCellEditor? = null
 
     var currentPath: Path = initialPath
         private set
@@ -194,6 +195,18 @@ class FileTab(
             table.addColumn(tc)
         }
         applyColumnConfig(this)
+        assignNameEditor()
+    }
+
+    private fun assignNameEditor() {
+        val editor = nameEditor ?: return
+        val cm = table.columnModel
+        for (i in 0 until cm.columnCount) {
+            if (cm.getColumn(i).modelIndex == FileTableModel.COL_NAME) {
+                cm.getColumn(i).cellEditor = editor
+                break
+            }
+        }
     }
 
     private fun setupHeaderContextMenu() {
@@ -356,7 +369,7 @@ class FileTab(
             rowSorter = ParentPinningRowSorter(tableModel)
 
             var editingEntry: FileEntry? = null
-            val nameEditor = object : DefaultCellEditor(JTextField()) {
+            nameEditor = object : DefaultCellEditor(JTextField()) {
                 init {
                     clickCountToStart = Int.MAX_VALUE
                 }
@@ -371,11 +384,11 @@ class FileTab(
                     return super.getTableCellEditorComponent(table, fullName, isSelected, row, column)
                 }
             }
-            nameEditor.addCellEditorListener(object : CellEditorListener {
+            nameEditor!!.addCellEditorListener(object : CellEditorListener {
                 override fun editingStopped(e: ChangeEvent) {
                     val entry = editingEntry ?: return
                     editingEntry = null
-                    val newName = (nameEditor.cellEditorValue as? String)?.trim() ?: return
+                    val newName = (nameEditor!!.cellEditorValue as? String)?.trim() ?: return
                     if (newName.isNotEmpty() && newName != entry.name) {
                         performRename(entry, newName)
                     }
@@ -385,7 +398,7 @@ class FileTab(
                     editingEntry = null
                 }
             })
-            columnModel.getColumn(0).cellEditor = nameEditor
+            assignNameEditor()
 
             addMouseListener(object : MouseAdapter() {
                 override fun mouseClicked(e: MouseEvent) {

@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-03-27
+
+### Fixed
+
+- Fix the issue with the `Rename` action
+
 ## [0.3.0] - 2026-03-27
 
 ### Added
