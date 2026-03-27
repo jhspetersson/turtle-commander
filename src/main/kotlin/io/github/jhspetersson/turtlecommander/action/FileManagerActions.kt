@@ -854,6 +854,29 @@ class AddToFavoritesAction : AnAction("Add to Favorites", "Add directory to favo
     }
 }
 
+class TabSearchInDirectoryAction : TabContextAction() {
+    init {
+        templatePresentation.text = "Search in Directory..."
+        templatePresentation.icon = AllIcons.Actions.Find
+    }
+
+    override fun update(e: AnActionEvent) {
+        val (panel, tabIndex) = resolveTabContext(e)
+        val tab = panel?.getTabAt(tabIndex)
+        e.presentation.isEnabledAndVisible = tab != null && tab.currentVfs == null
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val (panel, tabIndex) = resolveTabContext(e)
+        val tab = panel?.getTabAt(tabIndex) ?: return
+        val project = e.project ?: return
+        val dialog = FileSearchDialog(project, tab.currentPath)
+        if (!dialog.showAndGet()) return
+        val criteria = dialog.getCriteria()
+        panel.openSearchTab(criteria)
+    }
+}
+
 class TabAddToFavoritesAction : TabContextAction() {
     init {
         templatePresentation.text = "Add to Favorites"

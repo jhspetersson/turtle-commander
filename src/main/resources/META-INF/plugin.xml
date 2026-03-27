@@ -350,6 +350,11 @@
             <separator/>
             <reference ref="TurtleCommander.AddToFavorites"/>
         </group>
+        <action id="TurtleCommander.TabSearchInDirectory"
+                class="io.github.jhspetersson.turtlecommander.action.TabSearchInDirectoryAction"
+                text="Search in Directory..."
+                icon="AllIcons.Actions.Find"
+                description="Search for files in the tab directory"/>
         <action id="TurtleCommander.TabAddToFavorites"
                 class="io.github.jhspetersson.turtlecommander.action.TabAddToFavoritesAction"
                 text="Add to Favorites"
@@ -362,6 +367,8 @@
             <separator/>
             <reference ref="TurtleCommander.CloseTabsToTheLeft"/>
             <reference ref="TurtleCommander.CloseTabsToTheRight"/>
+            <separator/>
+            <reference ref="TurtleCommander.TabSearchInDirectory"/>
             <separator/>
             <reference ref="TurtleCommander.TabAddToFavorites"/>
         </group>
