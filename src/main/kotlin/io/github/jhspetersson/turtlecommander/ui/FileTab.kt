@@ -21,7 +21,6 @@ import io.github.jhspetersson.turtlecommander.service.FileOperationService
 import io.github.jhspetersson.turtlecommander.service.ThumbnailCache
 import io.github.jhspetersson.turtlecommander.settings.ColumnConfig
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
-import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
 import io.github.jhspetersson.turtlecommander.util.formatSize
 import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
@@ -34,9 +33,7 @@ import java.awt.Component
 import java.awt.Dimension
 import java.awt.datatransfer.DataFlavor
 import java.awt.event.*
-import java.io.IOException
 import java.nio.file.*
-import java.nio.file.attribute.BasicFileAttributes
 import javax.swing.*
 import javax.swing.event.*
 import javax.swing.table.TableColumn
@@ -59,21 +56,21 @@ class FileTab(
     val table = JBTable(tableModel)
     private val defaultTableFont by lazy { table.font }
 
-    private val listModel = DefaultListModel<FileEntry>()
+    internal val listModel = DefaultListModel<FileEntry>()
     val list = JBList(listModel)
-    private val thumbnailListModel = DefaultListModel<FileEntry>()
+    internal val thumbnailListModel = DefaultListModel<FileEntry>()
     val thumbnailList = JBList(thumbnailListModel)
-    private val treeRootNode = DefaultMutableTreeNode()
-    private val treeModel = DefaultTreeModel(treeRootNode)
+    internal val treeRootNode = DefaultMutableTreeNode()
+    internal val treeModel = DefaultTreeModel(treeRootNode)
     val tree = Tree(treeModel)
-    private val viewCardLayout = CardLayout()
-    private val viewPanel = JPanel(viewCardLayout)
+    internal val viewCardLayout = CardLayout()
+    internal val viewPanel = JPanel(viewCardLayout)
     var viewMode: ViewMode = try {
         ViewMode.valueOf(TurtleCommanderSettings.getInstance().state.defaultViewMode)
     } catch (_: Exception) {
         ViewMode.TABLE
     }
-        private set
+        internal set
 
     private val driveCombo = ComboBox<String>()
     private val pathField = BreadcrumbPathField()
@@ -855,247 +852,7 @@ class FileTab(
         add(bottomPanel, BorderLayout.SOUTH)
     }
 
-    fun setViewMode(mode: ViewMode) {
-        val previousMode = viewMode
-        if (previousMode == mode) return
-
-        // Capture selection from the current (old) view before switching
-        val selectedEntries = getSelectedEntries()
-        val selectedNames = selectedEntries.map { it.name }.toSet()
-
-        // For tree -> flat: navigate to the parent directory of the selected entries and select them
-        val treeNavigation = if (previousMode == ViewMode.TREE && selectedEntries.isNotEmpty()) {
-            val lastEntry = selectedEntries.last()
-            val targetDir = lastEntry.path.parent ?: currentPath
-            val namesInDir = selectedEntries
-                .filter { (it.path.parent ?: currentPath) == targetDir }
-                .map { it.name }
-                .toSet()
-            Pair(targetDir, namesInDir)
-        } else null
-
-        viewMode = mode
-        val card = when (mode) {
-            ViewMode.TABLE -> VIEW_TABLE
-            ViewMode.LIST -> VIEW_LIST
-            ViewMode.THUMBNAIL -> VIEW_THUMBNAIL
-            ViewMode.TREE -> VIEW_TREE
-        }
-        viewCardLayout.show(viewPanel, card)
-
-        when (mode) {
-            ViewMode.TABLE -> {
-                if (treeNavigation != null) {
-                    val (targetDir, namesInDir) = treeNavigation
-                    if (targetDir != currentPath) {
-                        fileOps.launch {
-                            navigateTo(targetDir, selectName = namesInDir.firstOrNull())
-                            if (namesInDir.size > 1) {
-                                withContext(Dispatchers.EDT) { selectEntriesByName(namesInDir) }
-                            }
-                        }
-                    } else {
-                        selectEntriesByName(namesInDir)
-                    }
-                } else {
-                    selectEntriesByName(selectedNames)
-                }
-                table.requestFocusInWindow()
-            }
-            ViewMode.LIST, ViewMode.THUMBNAIL -> {
-                if (treeNavigation != null) {
-                    val (targetDir, namesInDir) = treeNavigation
-                    if (targetDir != currentPath) {
-                        fileOps.launch {
-                            navigateTo(targetDir, selectName = namesInDir.firstOrNull())
-                            if (namesInDir.size > 1) {
-                                withContext(Dispatchers.EDT) { selectEntriesByName(namesInDir) }
-                            }
-                        }
-                    } else {
-                        selectEntriesByName(namesInDir)
-                    }
-                } else {
-                    selectEntriesByName(selectedNames)
-                }
-                if (mode == ViewMode.THUMBNAIL) thumbnailList.requestFocusInWindow()
-                else list.requestFocusInWindow()
-            }
-            ViewMode.TREE -> {
-                rebuildFullTree(selectedNames)
-                tree.requestFocusInWindow()
-            }
-        }
-    }
-
-    private fun rebuildFullTree(selectNames: Set<String> = emptySet()) {
-        fileOps.launch {
-            val vfs = currentVfs
-
-            // Collect ancestor paths from root to currentPath (inclusive)
-            val ancestors = mutableListOf<Path>()
-            if (vfs != null) {
-                var p: Path? = currentPath
-                while (p != null && !vfs.isRoot(p)) {
-                    ancestors.add(0, p)
-                    p = p.parent
-                }
-                ancestors.add(0, vfs.root)
-            } else {
-                var p: Path? = currentPath
-                while (p != null) {
-                    ancestors.add(0, p)
-                    p = p.parent
-                }
-            }
-
-            // For each ancestor (except the root), load its parent's children (siblings).
-            // For the last ancestor (currentPath), load its own children too.
-            // Structure: ancestorSiblings[i] = siblings of ancestors[i] (children of ancestors[i]'s parent)
-            // For ancestors[0] (root), we load its children directly since it has no parent to list siblings from.
-            data class LevelData(
-                val ancestorPath: Path,
-                val entries: List<FileEntry>,  // entries at this level (siblings of the ancestor)
-            )
-
-            val levels = mutableListOf<LevelData>()
-
-            // Level 0: children of the root
-            val rootEntries = try {
-                vfs?.listFiles(ancestors[0]) ?: fileOps.listFiles(ancestors[0])
-            } catch (_: Exception) {
-                emptyList()
-            }.filter { !it.isParentLink }
-            levels.add(LevelData(ancestors[0], rootEntries))
-
-            // Levels 1..n-1: for each non-root ancestor, list its parent's children
-            // But we already have ancestors[i-1]'s children from the previous level if ancestors[i-1] == parent.
-            // Actually, ancestors[i] is a child of ancestors[i-1], so we need children of ancestors[i-1].
-            // We already loaded children of ancestors[0] above. For ancestors[1], its parent is ancestors[0],
-            // and we already have those entries. So we only need to load children of ancestors[i] for i >= 1.
-            for (i in 1 until ancestors.size) {
-                val entries = try {
-                    vfs?.listFiles(ancestors[i]) ?: fileOps.listFiles(ancestors[i])
-                } catch (_: Exception) {
-                    emptyList()
-                }.filter { !it.isParentLink }
-                levels.add(LevelData(ancestors[i], entries))
-            }
-
-            withContext(Dispatchers.EDT) {
-                treeRootNode.removeAllChildren()
-
-                val ancestorNodes = mutableListOf<DefaultMutableTreeNode>()
-                var currentParentNode = treeRootNode
-
-                for (levelIdx in levels.indices) {
-                    val level = levels[levelIdx]
-                    val entries = level.entries
-                    val nextAncestorPath = ancestors.getOrNull(levelIdx + 1)
-                    val ancestorPathNormalized = nextAncestorPath?.normalize()
-
-                    // First pass: find the ancestor node for the next level (if any)
-                    var nextParentNode: DefaultMutableTreeNode? = null
-
-                    for (entry in entries) {
-                        val node = DefaultMutableTreeNode(entry)
-                        if (entry.isDirectory && nextParentNode == null && nextAncestorPath != null &&
-                                (entry.path == nextAncestorPath ||
-                                 entry.path.normalize() == ancestorPathNormalized ||
-                                 entry.path.toAbsolutePath().normalize() == nextAncestorPath.toAbsolutePath().normalize())) {
-                            // This directory is on the ancestor path — its children come from the next level
-                            nextParentNode = node
-                            ancestorNodes.add(node)
-                            currentParentNode.add(node)
-                        } else if (entry.isDirectory) {
-                            // Sibling directory — add lazy placeholder
-                            node.add(DefaultMutableTreeNode("Loading..."))
-                            currentParentNode.add(node)
-                        } else {
-                            currentParentNode.add(node)
-                        }
-                    }
-
-                    // If we didn't find the ancestor entry in the listing (e.g., hidden dir, permission issue),
-                    // create an explicit node for it so the tree structure stays correct
-                    if (nextParentNode == null && nextAncestorPath != null) {
-                        val syntheticEntry = FileEntry(
-                            name = nextAncestorPath.fileName?.toString() ?: nextAncestorPath.toString(),
-                            path = nextAncestorPath,
-                            isDirectory = true,
-                            size = 0,
-                            lastModified = null,
-                            permissions = "",
-                        )
-                        nextParentNode = DefaultMutableTreeNode(syntheticEntry)
-                        ancestorNodes.add(nextParentNode)
-                        currentParentNode.add(nextParentNode)
-                    }
-
-                    // Advance to the next level's parent AFTER all siblings have been added
-                    if (nextParentNode != null) {
-                        currentParentNode = nextParentNode
-                    }
-                }
-
-                treeModel.nodeStructureChanged(treeRootNode)
-
-                // Expand all ancestor nodes so the path to current directory is visible
-                for (node in ancestorNodes) {
-                    tree.expandPath(TreePath(node.path))
-                }
-
-                // Select entries by name in the current directory node
-                if (selectNames.isNotEmpty()) {
-                    val currentDirNode = if (ancestorNodes.isNotEmpty()) ancestorNodes.last() else treeRootNode
-                    val treePaths = (0 until currentDirNode.childCount).mapNotNull { i ->
-                        val child = currentDirNode.getChildAt(i) as DefaultMutableTreeNode
-                        val entry = child.userObject as? FileEntry
-                        if (entry != null && entry.name in selectNames) TreePath(child.path) else null
-                    }.toTypedArray()
-                    if (treePaths.isNotEmpty()) {
-                        tree.selectionPaths = treePaths
-                        tree.scrollPathToVisible(treePaths.first())
-                    }
-                }
-            }
-        }
-    }
-
-    private fun selectEntriesByName(names: Set<String>) {
-        if (viewMode == ViewMode.TABLE) {
-            table.clearSelection()
-            var firstSelectedRow = -1
-            for (viewRow in 0 until table.rowCount) {
-                val modelRow = table.convertRowIndexToModel(viewRow)
-                val entry = tableModel.getEntryAt(modelRow) ?: continue
-                if (entry.name in names) {
-                    table.addRowSelectionInterval(viewRow, viewRow)
-                    if (firstSelectedRow == -1) firstSelectedRow = viewRow
-                }
-            }
-            if (firstSelectedRow >= 0) {
-                table.scrollRectToVisible(table.getCellRect(firstSelectedRow, 0, true))
-            }
-        } else if (viewMode == ViewMode.LIST) {
-            list.clearSelection()
-            val indices = (0 until listModel.size()).filter { listModel.getElementAt(it).name in names }.toIntArray()
-            if (indices.isNotEmpty()) {
-                list.selectedIndices = indices
-                list.ensureIndexIsVisible(indices.first())
-            }
-        } else if (viewMode == ViewMode.THUMBNAIL) {
-            thumbnailList.clearSelection()
-            val indices = (0 until thumbnailListModel.size()).filter { thumbnailListModel.getElementAt(it).name in names }.toIntArray()
-            if (indices.isNotEmpty()) {
-                thumbnailList.selectedIndices = indices
-                thumbnailList.ensureIndexIsVisible(indices.first())
-            }
-        }
-    }
-
-
-    private fun updateStatusBar() {
+    internal fun updateStatusBar() {
         val entries = tableModel.let { model ->
             (0 until model.rowCount).mapNotNull { model.getEntryAt(it) }
         }.filter { !it.isParentLink }
@@ -1132,23 +889,6 @@ class FileTab(
                 withContext(Dispatchers.EDT) { freeSpaceLabel.text = "" }
             }
         }
-    }
-
-    internal fun getSelectedEntry(): FileEntry? {
-        if (viewMode == ViewMode.LIST) {
-            return list.selectedValue
-        }
-        if (viewMode == ViewMode.THUMBNAIL) {
-            return thumbnailList.selectedValue
-        }
-        if (viewMode == ViewMode.TREE) {
-            val node = tree.lastSelectedPathComponent as? DefaultMutableTreeNode ?: return null
-            return node.userObject as? FileEntry
-        }
-        val viewRow = table.selectedRow
-        if (viewRow < 0) return null
-        val modelRow = table.convertRowIndexToModel(viewRow)
-        return tableModel.getEntryAt(modelRow)
     }
 
     private fun loadDrives() {
@@ -1356,282 +1096,15 @@ class FileTab(
         }
     }
 
-    internal suspend fun refreshAfterVfsChange(selectName: String? = null) {
-        val vfs = currentVfs
-        if (vfs != null) {
-            val relativePath = vfsRelativePath(vfs, currentPath)
-            vfs.flush()
-            writeBackNestedArchives()
-            val newPath = if (relativePath.isEmpty()) vfs.root else vfs.root.resolve(relativePath)
-            navigateTo(newPath, selectName = selectName)
-        } else {
-            navigateTo(currentPath, selectName = selectName)
-        }
-    }
-
-    private suspend fun writeBackNestedArchives() = withContext(Dispatchers.IO) {
-        for (i in vfsStack.indices.reversed()) {
-            val entry = vfsStack[i]
-            if (entry.tempFile == null || i == 0) continue
-            // Copy the modified temp file back into the parent VFS
-            val parentEntry = vfsStack[i - 1]
-            Files.copy(entry.tempFile.toPath(), entry.parentPath, StandardCopyOption.REPLACE_EXISTING)
-            // Remember the relative path before flush invalidates the old FileSystem paths
-            val relPath = vfsRelativePath(parentEntry.vfs, entry.parentPath)
-            parentEntry.vfs.flush()
-            // Reconstruct parentPath as a valid path in the reopened FileSystem
-            val newParentPath = if (relPath.isEmpty()) parentEntry.vfs.root else parentEntry.vfs.root.resolve(relPath)
-            entry.parentPath = newParentPath
-        }
-    }
-
-    internal fun vfsRelativePath(vfs: VirtualFileSystem, path: Path): String {
-        val rootStr = vfs.root.toString().trimEnd('/').trimEnd('\\')
-        val pathStr = path.toString()
-        return if (pathStr.startsWith(rootStr)) {
-            pathStr.removePrefix(rootStr).removePrefix("/").removePrefix("\\")
-        } else {
-            pathStr
-        }
-    }
-
     fun showDriveSelector() {
         driveCombo.requestFocusInWindow()
         driveCombo.showPopup()
     }
 
-    private val toggledRows = mutableSetOf<Int>()
-    private val toggledTreeRows = mutableSetOf<Int>()
-    private var insideToggle = false
-    private val directorySizes = java.util.concurrent.ConcurrentHashMap<Path, Long>()
-
-    private fun applyToggledSelection(cursorRow: Int) {
-        val rowsToSelect = toggledRows.toMutableSet()
-        rowsToSelect.add(cursorRow)
-        table.clearSelection()
-        for (row in rowsToSelect) {
-            if (row in 0 until table.rowCount) {
-                table.addRowSelectionInterval(row, row)
-            }
-        }
-    }
-
-    private fun applyToggledTreeSelection(cursorRow: Int) {
-        val rowsToSelect = toggledTreeRows.toMutableSet()
-        rowsToSelect.add(cursorRow)
-        tree.clearSelection()
-        for (row in rowsToSelect) {
-            if (row in 0 until tree.rowCount) {
-                tree.addSelectionRow(row)
-            }
-        }
-    }
-
-    fun toggleSelectionAndMoveDown() {
-        insideToggle = true
-        try {
-        when (viewMode) {
-            ViewMode.TABLE -> {
-                val row = table.selectionModel.leadSelectionIndex
-                if (row < 0) return
-                val modelRow = table.convertRowIndexToModel(row)
-                val entry = tableModel.getEntryAt(modelRow)
-                if (entry != null && !entry.isParentLink) {
-                    if (row in toggledRows) {
-                        toggledRows.remove(row)
-                    } else {
-                        toggledRows.add(row)
-                        if (entry.isDirectory) calculateDirectorySize(entry)
-                    }
-                }
-                val nextRow = if (row + 1 < table.rowCount) row + 1 else row
-                val nextModelRow = table.convertRowIndexToModel(nextRow)
-                val nextEntry = tableModel.getEntryAt(nextModelRow)
-                if (nextEntry != null && nextEntry.isDirectory && !nextEntry.isParentLink) {
-                    calculateDirectorySize(nextEntry)
-                }
-                applyToggledSelection(nextRow)
-                table.selectionModel.leadSelectionIndex = nextRow
-                table.scrollRectToVisible(table.getCellRect(nextRow, 0, true))
-            }
-            ViewMode.LIST -> {
-                val index = list.selectionModel.leadSelectionIndex
-                if (index < 0) return
-                val entry = listModel.getElementAt(index)
-                val selectedSet = list.selectedIndices.toMutableSet()
-                if (entry != null && !entry.isParentLink) {
-                    if (index in selectedSet) {
-                        selectedSet.remove(index)
-                    } else {
-                        selectedSet.add(index)
-                        if (entry.isDirectory) calculateDirectorySize(entry)
-                    }
-                }
-                val nextIndex = if (index + 1 < listModel.size()) index + 1 else index
-                val nextEntry = listModel.getElementAt(nextIndex)
-                if (nextEntry != null && nextEntry.isDirectory && !nextEntry.isParentLink) {
-                    calculateDirectorySize(nextEntry)
-                }
-                selectedSet.add(nextIndex)
-                list.clearSelection()
-                for (i in selectedSet) {
-                    list.addSelectionInterval(i, i)
-                }
-                list.ensureIndexIsVisible(nextIndex)
-            }
-            ViewMode.THUMBNAIL -> {
-                val index = thumbnailList.selectionModel.leadSelectionIndex
-                if (index < 0) return
-                val entry = thumbnailListModel.getElementAt(index)
-                val selectedSet = thumbnailList.selectedIndices.toMutableSet()
-                if (entry != null && !entry.isParentLink) {
-                    if (index in selectedSet) {
-                        selectedSet.remove(index)
-                    } else {
-                        selectedSet.add(index)
-                        if (entry.isDirectory) calculateDirectorySize(entry)
-                    }
-                }
-                val nextIndex = if (index + 1 < thumbnailListModel.size()) index + 1 else index
-                val nextEntry = thumbnailListModel.getElementAt(nextIndex)
-                if (nextEntry != null && nextEntry.isDirectory && !nextEntry.isParentLink) {
-                    calculateDirectorySize(nextEntry)
-                }
-                selectedSet.add(nextIndex)
-                thumbnailList.clearSelection()
-                for (i in selectedSet) {
-                    thumbnailList.addSelectionInterval(i, i)
-                }
-                thumbnailList.ensureIndexIsVisible(nextIndex)
-            }
-            ViewMode.TREE -> {
-                val leadRow = tree.leadSelectionRow
-                if (leadRow < 0) return
-                val node = (tree.getPathForRow(leadRow)?.lastPathComponent) as? DefaultMutableTreeNode
-                val entry = node?.userObject as? FileEntry
-                if (entry != null && !entry.isParentLink) {
-                    if (leadRow in toggledTreeRows) {
-                        toggledTreeRows.remove(leadRow)
-                    } else {
-                        toggledTreeRows.add(leadRow)
-                        if (entry.isDirectory) calculateDirectorySize(entry)
-                    }
-                }
-                val nextRow = if (leadRow + 1 < tree.rowCount) leadRow + 1 else leadRow
-                val nextNode = (tree.getPathForRow(nextRow)?.lastPathComponent) as? DefaultMutableTreeNode
-                val nextEntry = nextNode?.userObject as? FileEntry
-                if (nextEntry != null && nextEntry.isDirectory && !nextEntry.isParentLink) {
-                    calculateDirectorySize(nextEntry)
-                }
-                applyToggledTreeSelection(nextRow)
-                tree.scrollRowToVisible(nextRow)
-            }
-        }
-        } finally {
-            insideToggle = false
-        }
-    }
-
-    private fun calculateDirectorySize(entry: FileEntry) {
-        if (!entry.isDirectory || entry.isParentLink) return
-        if (!TurtleCommanderSettings.getInstance().state.calculateDirectorySize) return
-        if (directorySizes.containsKey(entry.path)) return
-        fileOps.launch {
-            val size = withContext(Dispatchers.IO) {
-                var total = 0L
-                try {
-                    Files.walkFileTree(entry.path, object : SimpleFileVisitor<Path>() {
-                        override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
-                            total += attrs.size()
-                            return FileVisitResult.CONTINUE
-                        }
-                        override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
-                            return FileVisitResult.CONTINUE
-                        }
-                    })
-                } catch (_: Exception) {}
-                total
-            }
-            directorySizes[entry.path] = size
-            withContext(Dispatchers.EDT) {
-                val modelRow = (0 until tableModel.rowCount).firstOrNull {
-                    tableModel.getEntryAt(it)?.path == entry.path
-                }
-                if (modelRow != null) {
-                    tableModel.fireTableCellUpdated(modelRow, FileTableModel.COL_SIZE)
-                }
-                updateStatusBar()
-            }
-        }
-    }
-
-    fun getSelectedEntries(): List<FileEntry> {
-        if (viewMode == ViewMode.LIST) {
-            return list.selectedValuesList.filter { !it.isParentLink }
-        }
-        if (viewMode == ViewMode.THUMBNAIL) {
-            return thumbnailList.selectedValuesList.filter { !it.isParentLink }
-        }
-        if (viewMode == ViewMode.TREE) {
-            return (tree.selectionPaths ?: emptyArray()).mapNotNull { path ->
-                val node = path.lastPathComponent as? DefaultMutableTreeNode
-                node?.userObject as? FileEntry
-            }.filter { !it.isParentLink }
-        }
-        return table.selectedRows.toList()
-            .map { table.convertRowIndexToModel(it) }
-            .mapNotNull { tableModel.getEntryAt(it) }
-            .filter { !it.isParentLink }
-    }
-
-    fun showContextMenu() {
-        val entry = getSelectedEntry()
-        FileContextMenuState.clickedEntry = entry
-        FileContextMenuState.clickedTab = this
-
-        val am = ActionManager.getInstance()
-        val group = am.getAction("TurtleCommander.FileContextMenu") as? ActionGroup ?: return
-        val popupMenu = am.createActionPopupMenu("TurtleCommander.FileContextMenu", group)
-
-        when (viewMode) {
-            ViewMode.TABLE -> {
-                val row = table.selectedRow
-                if (row >= 0) {
-                    val rect = table.getCellRect(row, 0, true)
-                    popupMenu.component.show(table, rect.x, rect.y + rect.height)
-                } else {
-                    popupMenu.component.show(table, 0, 0)
-                }
-            }
-            ViewMode.LIST -> {
-                val index = list.selectedIndex
-                if (index >= 0) {
-                    val rect = list.getCellBounds(index, index)
-                    popupMenu.component.show(list, rect.x, rect.y + rect.height)
-                } else {
-                    popupMenu.component.show(list, 0, 0)
-                }
-            }
-            ViewMode.THUMBNAIL -> {
-                val index = thumbnailList.selectedIndex
-                if (index >= 0) {
-                    val rect = thumbnailList.getCellBounds(index, index)
-                    popupMenu.component.show(thumbnailList, rect.x, rect.y + rect.height)
-                } else {
-                    popupMenu.component.show(thumbnailList, 0, 0)
-                }
-            }
-            ViewMode.TREE -> {
-                val row = tree.leadSelectionRow
-                if (row >= 0) {
-                    val rect = tree.getRowBounds(row)
-                    popupMenu.component.show(tree, rect.x, rect.y + rect.height)
-                } else {
-                    popupMenu.component.show(tree, 0, 0)
-                }
-            }
-        }
-    }
+    internal val toggledRows = mutableSetOf<Int>()
+    internal val toggledTreeRows = mutableSetOf<Int>()
+    internal var insideToggle = false
+    internal val directorySizes = java.util.concurrent.ConcurrentHashMap<Path, Long>()
 
     fun openSelectedEntry() {
         val entry = getSelectedEntry() ?: return
@@ -1669,119 +1142,6 @@ class FileTab(
         }
     }
 
-    private fun handleVfsBreadcrumbClick(segmentPath: String) {
-        // Build the path prefix for each VFS level to determine which level was clicked
-        val separator = if (vfsStack.first().parentPath.toString().contains("\\")) "\\" else "/"
-        val outerArchiveStr = vfsStack.first().parentPath.toString()
-
-        // Check if the click is outside of all VFS levels (on the real filesystem)
-        if (segmentPath.length < outerArchiveStr.length) {
-            // Exit all VFS levels and navigate to real filesystem
-            dispose()
-            val path = try { Path.of(segmentPath) } catch (_: Exception) { null }
-            if (path != null && path.toFile().isDirectory) {
-                fileOps.launch { navigateTo(path) }
-            }
-            return
-        }
-
-        // Build cumulative path prefixes for each VFS level
-        val prefixes = mutableListOf<String>()
-        val sb = StringBuilder()
-        for (stackEntry in vfsStack) {
-            if (sb.isEmpty()) {
-                sb.append(stackEntry.parentPath.toString())
-            } else {
-                val nestedPath = stackEntry.parentPath.toString().removePrefix("/").replace("/", separator)
-                sb.append(separator).append(nestedPath)
-            }
-            prefixes.add(sb.toString())
-        }
-
-        // Find which VFS level the click falls into
-        var targetLevel = -1
-        for (i in prefixes.indices.reversed()) {
-            if (segmentPath.length >= prefixes[i].length) {
-                targetLevel = i
-                break
-            }
-        }
-
-        if (targetLevel < 0) return
-
-        // Pop VFS levels above the target
-        while (vfsStack.size > targetLevel + 1) {
-            val entry = vfsStack.removeLast()
-            entry.vfs.close()
-            if (entry.tempFile != null) {
-                try {
-                    entry.tempFile.delete()
-                    entry.tempFile.parentFile?.delete()
-                } catch (_: Exception) {}
-            }
-        }
-
-        val vfs = vfsStack.last().vfs
-        val archivePrefix = prefixes[targetLevel]
-        val relativePath = segmentPath.removePrefix(archivePrefix)
-            .removePrefix("\\").removePrefix("/")
-            .replace("\\", "/")
-        val vfsPath = if (relativePath.isEmpty()) vfs.root else vfs.getPath("/$relativePath")
-        fileOps.launch { navigateTo(vfsPath) }
-    }
-
-    private fun enterVfs(archivePath: Path) {
-        try {
-            if (vfsStack.isEmpty()) {
-                // Entering archive from real filesystem
-                val vfs = VirtualFileSystemRegistry.create(archivePath)
-                vfsStack.add(VfsStackEntry(vfs, archivePath))
-                fileOps.launch { navigateTo(vfs.root) }
-            } else {
-                // Entering archive inside another archive — extract to temp
-                fileOps.launch {
-                    try {
-                        val tempFile = withContext(Dispatchers.IO) {
-                            val tempDir = Files.createTempDirectory("turtle-vfs-")
-                            val fileName = archivePath.fileName.toString()
-                            val tempPath = tempDir.resolve(fileName)
-                            Files.copy(archivePath, tempPath)
-                            tempPath.toFile()
-                        }
-                        val vfs = VirtualFileSystemRegistry.create(tempFile.toPath())
-                        vfsStack.add(VfsStackEntry(vfs, archivePath, tempFile))
-                        navigateTo(vfs.root)
-                    } catch (e: Exception) {
-                        fileErrorNotification("Cannot open nested archive: ${fileErrorMessage(e)}")
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            fileErrorNotification("Cannot open archive: ${fileErrorMessage(e)}")
-        }
-    }
-
-    private fun exitVfs() {
-        if (vfsStack.isEmpty()) return
-        val entry = vfsStack.removeLast()
-        entry.vfs.close()
-        if (entry.tempFile != null) {
-            try {
-                entry.tempFile.delete()
-                entry.tempFile.parentFile?.delete()
-            } catch (_: Exception) {}
-        }
-        val parentPath = entry.parentPath
-        if (vfsStack.isNotEmpty()) {
-            // Return to parent VFS — navigate to directory containing the inner archive
-            val parentVfsPath = parentPath.parent ?: vfsStack.last().vfs.root
-            fileOps.launch { navigateTo(parentVfsPath, selectName = parentPath.fileName.toString()) }
-        } else {
-            // Return to real filesystem
-            fileOps.launch { navigateTo(parentPath.parent ?: parentPath, selectName = parentPath.fileName.toString()) }
-        }
-    }
-
     fun dispose() {
         driveRefreshTimer?.stop()
         driveRefreshTimer = null
@@ -1795,25 +1155,6 @@ class FileTab(
             }
         }
         vfsStack.clear()
-    }
-
-    fun getDisplayPath(): String {
-        val vfs = currentVfs ?: return currentPath.toString()
-        val separator = if (vfsStack.first().parentPath.toString().contains("\\")) "\\" else "/"
-        val sb = StringBuilder()
-        for (stackEntry in vfsStack) {
-            if (sb.isEmpty()) {
-                sb.append(stackEntry.parentPath.toString())
-            } else {
-                val nestedPath = stackEntry.parentPath.toString().removePrefix("/").replace("/", separator)
-                sb.append(separator).append(nestedPath)
-            }
-        }
-        if (!vfs.isRoot(currentPath)) {
-            val relativePath = currentPath.toString()
-            sb.append(separator).append(relativePath.removePrefix("/").replace("/", separator))
-        }
-        return sb.toString()
     }
 
     internal fun getOtherPanelDisplayPath(): String? {
@@ -1903,10 +1244,10 @@ class FileTab(
             DataFlavor.javaJVMLocalObjectMimeType + ";class=java.util.List",
             "FileEntry List",
         )
-        private const val VIEW_TABLE = "table"
-        private const val VIEW_LIST = "list"
-        private const val VIEW_THUMBNAIL = "thumbnail"
-        private const val VIEW_TREE = "tree"
+        internal const val VIEW_TABLE = "table"
+        internal const val VIEW_LIST = "list"
+        internal const val VIEW_THUMBNAIL = "thumbnail"
+        internal const val VIEW_TREE = "tree"
     }
 }
 

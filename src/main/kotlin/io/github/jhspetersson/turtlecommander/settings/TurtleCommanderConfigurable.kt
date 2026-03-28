@@ -1,21 +1,10 @@
 package io.github.jhspetersson.turtlecommander.settings
 
-import com.intellij.icons.AllIcons
-import com.intellij.openapi.components.service
-import com.intellij.openapi.fileChooser.FileChooser
-import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.options.Configurable
-import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.ui.ComboBox
-import com.intellij.ui.ColorChooserService
-import com.intellij.ui.JBColor
-import com.intellij.ui.SimpleColoredComponent
 import com.intellij.ui.components.JBLabel
-import com.intellij.ui.components.JBList
 import com.intellij.util.ui.JBUI
-import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.service.ThumbnailCache
-import io.github.jhspetersson.turtlecommander.ui.FAVORITE_PRESET_COLORS
 import io.github.jhspetersson.turtlecommander.util.formatSize
 import java.awt.*
 import javax.swing.*
@@ -30,9 +19,8 @@ class TurtleCommanderConfigurable : Configurable {
     private var sortWithDirectoriesCheckBox: JCheckBox? = null
     private var calculateDirectorySizeCheckBox: JCheckBox? = null
     private var defaultViewModeCombo: ComboBox<String>? = null
-    private var favoritesListModel: DefaultListModel<FileManagerStateService.FavoriteEntry>? = null
-    private var favoritesList: JBList<FileManagerStateService.FavoriteEntry>? = null
     private var columnsEditor: ColumnsEditor? = null
+    private var favoritesEditor: FavoritesEditor? = null
 
     // Legacy font combos kept for backward compat during migration
     private var panelFontCombo: ComboBox<String>? = null
@@ -101,55 +89,9 @@ class TurtleCommanderConfigurable : Configurable {
             add(defaultViewModeCombo!!)
         }
 
-        val styleGrid = JPanel(GridBagLayout()).apply {
-            val gbc = GridBagConstraints().apply {
-                anchor = GridBagConstraints.WEST
-                fill = GridBagConstraints.NONE
-                insets = JBUI.insets(2, 4, 2, 4)
-            }
-
-            // Header row
-            gbc.gridy = 0
-            gbc.gridx = 0; gbc.insets = JBUI.insets(2, 0, 2, 4)
-            add(JBLabel("").apply { minimumSize = Dimension(90, 0); preferredSize = Dimension(90, preferredSize.height) }, gbc)
-            gbc.insets = JBUI.insets(2, 4, 2, 4)
-            gbc.gridx = 1; add(JBLabel("Font"), gbc)
-            gbc.gridx = 2; add(JBLabel("Size"), gbc)
-            gbc.gridx = 3; add(JBLabel("Style"), gbc)
-            gbc.gridx = 4; add(JBLabel("Color"), gbc)
-
-            val editors = listOf(tabEditor, driveSelectorEditor, pathBarEditor, columnHeaderEditor, panelEditor, statusBarEditor, commandBarEditor)
-            for ((i, editor) in editors.withIndex()) {
-                gbc.gridy = i + 1
-                gbc.gridx = 0; gbc.insets = JBUI.insets(2, 0, 2, 4)
-                val lbl = JBLabel("${editor.label}:").apply { minimumSize = Dimension(90, 0) }
-                add(lbl, gbc)
-                gbc.insets = JBUI.insets(2, 4, 2, 4)
-                gbc.gridx = 1; add(editor.fontCombo, gbc)
-                gbc.gridx = 2; add(editor.sizeSpinner, gbc)
-                gbc.gridx = 3; add(editor.styleCombo, gbc)
-                gbc.gridx = 4; add(editor.colorButton, gbc)
-            }
-        }
-
-        val resetStylesButton = JButton("Reset to Defaults").apply {
-            addActionListener {
-                for (editor in styleEditors.values) {
-                    editor.resetFrom(ComponentStyle())
-                }
-            }
-        }
-
-        val appearancePanel = JPanel(BorderLayout(8, 4)).apply {
-            alignmentX = JComponent.LEFT_ALIGNMENT
-            border = BorderFactory.createTitledBorder("Appearance")
-            add(styleGrid, BorderLayout.CENTER)
-            val bottomRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
-                border = JBUI.Borders.empty(4)
-                add(resetStylesButton)
-            }
-            add(bottomRow, BorderLayout.SOUTH)
-        }
+        val appearancePanel = createAppearancePanel(
+            listOf(tabEditor, driveSelectorEditor, pathBarEditor, columnHeaderEditor, panelEditor, statusBarEditor, commandBarEditor)
+        )
 
         highlightingCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         commandBarCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
@@ -160,95 +102,12 @@ class TurtleCommanderConfigurable : Configurable {
         calculateDirectorySizeCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
 
         // Columns editor
-        val fontItemsForColumns = fontItems
-        val colEditor = ColumnsEditor(fontItemsForColumns, TurtleCommanderSettings.getInstance().getEffectiveColumns())
+        val colEditor = ColumnsEditor(fontItems, TurtleCommanderSettings.getInstance().getEffectiveColumns())
         columnsEditor = colEditor
 
         // Favorites editor
-        val favListModel = DefaultListModel<FileManagerStateService.FavoriteEntry>()
-        favoritesListModel = favListModel
-        val currentProject = ProjectManager.getInstance().openProjects.firstOrNull()
-        if (currentProject != null) {
-            val stateService = currentProject.service<FileManagerStateService>()
-            stateService.getFavoriteEntries().forEach { favListModel.addElement(FileManagerStateService.FavoriteEntry(it.path, it.color)) }
-        }
-
-        val favList = JBList(favListModel)
-        favoritesList = favList
-        favList.visibleRowCount = 6
-        favList.cellRenderer = FavoriteListCellRenderer()
-
-        val addButton = JButton("Add").apply {
-            addActionListener {
-                val descriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor().apply {
-                    title = "Add Favorite"
-                    description = "Select a directory to add to favorites"
-                }
-                val chosen = FileChooser.chooseFile(descriptor, null, null)
-                if (chosen != null) {
-                    favListModel.addElement(FileManagerStateService.FavoriteEntry(chosen.path))
-                }
-            }
-        }
-        val removeButton = JButton("Remove").apply {
-            addActionListener {
-                val idx = favList.selectedIndex
-                if (idx >= 0) favListModel.remove(idx)
-            }
-        }
-        val moveUpButton = JButton("Up").apply {
-            addActionListener {
-                val idx = favList.selectedIndex
-                if (idx > 0) {
-                    val item = favListModel.remove(idx)
-                    favListModel.add(idx - 1, item)
-                    favList.selectedIndex = idx - 1
-                }
-            }
-        }
-        val moveDownButton = JButton("Down").apply {
-            addActionListener {
-                val idx = favList.selectedIndex
-                if (idx >= 0 && idx < favListModel.size() - 1) {
-                    val item = favListModel.remove(idx)
-                    favListModel.add(idx + 1, item)
-                    favList.selectedIndex = idx + 1
-                }
-            }
-        }
-        val colorButton = JButton("Color...").apply {
-            addActionListener {
-                val idx = favList.selectedIndex
-                if (idx < 0) return@addActionListener
-                val entry = favListModel.getElementAt(idx)
-                showColorChooser(favList, entry, idx, favListModel)
-            }
-        }
-
-        val favButtons = listOf(addButton, removeButton, moveUpButton, moveDownButton, colorButton)
-        for (btn in favButtons) {
-            btn.maximumSize = Dimension(Int.MAX_VALUE, btn.preferredSize.height)
-        }
-
-        val favButtonPanel = JPanel().apply {
-            layout = BoxLayout(this, BoxLayout.Y_AXIS)
-            add(addButton)
-            add(removeButton)
-            add(Box.createVerticalStrut(8))
-            add(moveUpButton)
-            add(moveDownButton)
-            add(Box.createVerticalStrut(8))
-            add(colorButton)
-        }
-
-        val favoritesPanel = JPanel(BorderLayout(8, 0)).apply {
-            alignmentX = JComponent.LEFT_ALIGNMENT
-            border = BorderFactory.createTitledBorder("Favorites")
-            add(JScrollPane(favList), BorderLayout.CENTER)
-            add(favButtonPanel, BorderLayout.EAST)
-            preferredSize = Dimension(Int.MAX_VALUE, 260)
-            maximumSize = Dimension(Int.MAX_VALUE, 260)
-        }
+        val favEditor = FavoritesEditor()
+        favoritesEditor = favEditor
 
         val thumbnailCacheSizeLabel = JBLabel(formatSize(ThumbnailCache.getCacheSize()))
         val clearCacheButton = JButton("Clear").apply {
@@ -281,13 +140,64 @@ class TurtleCommanderConfigurable : Configurable {
             add(Box.createVerticalStrut(8))
             add(colEditor.panel)
             add(Box.createVerticalStrut(8))
-            add(favoritesPanel)
+            add(favEditor.panel)
             add(Box.createVerticalStrut(8))
             add(thumbnailCachePanel)
         }
 
         return JPanel(BorderLayout()).apply {
             add(inner, BorderLayout.NORTH)
+        }
+    }
+
+    private fun createAppearancePanel(editors: List<ComponentStyleEditor>): JPanel {
+        val styleGrid = JPanel(GridBagLayout()).apply {
+            val gbc = GridBagConstraints().apply {
+                anchor = GridBagConstraints.WEST
+                fill = GridBagConstraints.NONE
+                insets = JBUI.insets(2, 4, 2, 4)
+            }
+
+            // Header row
+            gbc.gridy = 0
+            gbc.gridx = 0; gbc.insets = JBUI.insets(2, 0, 2, 4)
+            add(JBLabel("").apply { minimumSize = Dimension(90, 0); preferredSize = Dimension(90, preferredSize.height) }, gbc)
+            gbc.insets = JBUI.insets(2, 4, 2, 4)
+            gbc.gridx = 1; add(JBLabel("Font"), gbc)
+            gbc.gridx = 2; add(JBLabel("Size"), gbc)
+            gbc.gridx = 3; add(JBLabel("Style"), gbc)
+            gbc.gridx = 4; add(JBLabel("Color"), gbc)
+
+            for ((i, editor) in editors.withIndex()) {
+                gbc.gridy = i + 1
+                gbc.gridx = 0; gbc.insets = JBUI.insets(2, 0, 2, 4)
+                val lbl = JBLabel("${editor.label}:").apply { minimumSize = Dimension(90, 0) }
+                add(lbl, gbc)
+                gbc.insets = JBUI.insets(2, 4, 2, 4)
+                gbc.gridx = 1; add(editor.fontCombo, gbc)
+                gbc.gridx = 2; add(editor.sizeSpinner, gbc)
+                gbc.gridx = 3; add(editor.styleCombo, gbc)
+                gbc.gridx = 4; add(editor.colorButton, gbc)
+            }
+        }
+
+        val resetStylesButton = JButton("Reset to Defaults").apply {
+            addActionListener {
+                for (editor in styleEditors.values) {
+                    editor.resetFrom(ComponentStyle())
+                }
+            }
+        }
+
+        return JPanel(BorderLayout(8, 4)).apply {
+            alignmentX = JComponent.LEFT_ALIGNMENT
+            border = BorderFactory.createTitledBorder("Appearance")
+            add(styleGrid, BorderLayout.CENTER)
+            val bottomRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
+                border = JBUI.Borders.empty(4)
+                add(resetStylesButton)
+            }
+            add(bottomRow, BorderLayout.SOUTH)
         }
     }
 
@@ -309,21 +219,7 @@ class TurtleCommanderConfigurable : Configurable {
             || styleEditors["driveSelector"]?.isModified(settings.driveSelectorStyle) == true
             || styleEditors["columnHeader"]?.isModified(settings.columnHeaderStyle) == true
             || columnsEditor?.isModified(TurtleCommanderSettings.getInstance().getEffectiveColumns()) == true
-            || isFavoritesModified()
-    }
-
-    private fun isFavoritesModified(): Boolean {
-        val model = favoritesListModel ?: return false
-        val currentProject = ProjectManager.getInstance().openProjects.firstOrNull() ?: return false
-        val stateService = currentProject.service<FileManagerStateService>()
-        val saved = stateService.getFavoriteEntries()
-        if (model.size() != saved.size) return true
-        for (i in 0 until model.size()) {
-            val m = model.getElementAt(i)
-            val s = saved[i]
-            if (m.path != s.path || m.color != s.color) return true
-        }
-        return false
+            || favoritesEditor?.isModified() == true
     }
 
     override fun apply() {
@@ -356,15 +252,7 @@ class TurtleCommanderConfigurable : Configurable {
 
         service.fireSettingsChanged()
 
-        val model = favoritesListModel
-        if (model != null) {
-            val currentProject = ProjectManager.getInstance().openProjects.firstOrNull()
-            if (currentProject != null) {
-                val stateService = currentProject.service<FileManagerStateService>()
-                val newEntries = (0 until model.size()).map { model.getElementAt(it) }
-                stateService.setFavoriteEntries(newEntries)
-            }
-        }
+        favoritesEditor?.apply()
     }
 
     override fun reset() {
@@ -392,15 +280,7 @@ class TurtleCommanderConfigurable : Configurable {
         styleEditors["columnHeader"]?.resetFrom(settings.columnHeaderStyle)
         columnsEditor?.resetFrom(TurtleCommanderSettings.getInstance().getEffectiveColumns())
 
-        val model = favoritesListModel
-        if (model != null) {
-            model.clear()
-            val currentProject = ProjectManager.getInstance().openProjects.firstOrNull()
-            if (currentProject != null) {
-                val stateService = currentProject.service<FileManagerStateService>()
-                stateService.getFavoriteEntries().forEach { model.addElement(FileManagerStateService.FavoriteEntry(it.path, it.color)) }
-            }
-        }
+        favoritesEditor?.reset()
     }
 
     override fun disposeUIResources() {
@@ -416,9 +296,8 @@ class TurtleCommanderConfigurable : Configurable {
         tabFontCombo = null
         tabFontSizeSpinner = null
         defaultViewModeCombo = null
-        favoritesListModel = null
-        favoritesList = null
         columnsEditor = null
+        favoritesEditor = null
         styleEditors.clear()
     }
 
@@ -446,379 +325,4 @@ class TurtleCommanderConfigurable : Configurable {
             else -> "TABLE"
         }
     }
-
-    private fun showColorChooser(
-        favList: JBList<FileManagerStateService.FavoriteEntry>,
-        entry: FileManagerStateService.FavoriteEntry,
-        idx: Int,
-        model: DefaultListModel<FileManagerStateService.FavoriteEntry>,
-    ) {
-        val presets = FAVORITE_PRESET_COLORS
-        val popup = JPopupMenu()
-        for ((name, hex) in presets) {
-            val item = JMenuItem(name)
-            if (hex.isNotEmpty()) {
-                item.icon = ColorSwatchIcon(Color.decode(hex))
-            }
-            item.addActionListener {
-                model.set(idx, FileManagerStateService.FavoriteEntry(entry.path, hex))
-                favList.repaint()
-            }
-            popup.add(item)
-        }
-        popup.addSeparator()
-        val customItem = JMenuItem("Custom...")
-        customItem.addActionListener {
-            val initial = if (entry.color.isNotBlank()) {
-                try { Color.decode(entry.color) } catch (_: Exception) { null }
-            } else null
-            val chosen = ColorChooserService.getInstance().showDialog(
-                favList, "Choose Favorite Color", initial ?: JBColor.GRAY, true, emptyList(), true
-            )
-            if (chosen != null) {
-                val hex = String.format("#%02X%02X%02X", chosen.red, chosen.green, chosen.blue)
-                model.set(idx, FileManagerStateService.FavoriteEntry(entry.path, hex))
-                favList.repaint()
-            }
-        }
-        popup.add(customItem)
-        popup.show(favList, favList.width / 2, favList.indexToLocation(idx)?.y ?: 0)
-    }
-}
-
-private class ComponentStyleEditor(
-    val label: String,
-    fontItems: Array<String>,
-    style: ComponentStyle,
-    legacyFamily: String = "",
-    legacySize: Int = 0,
-) {
-    private val defaultLabel = "(Default)"
-    val fontCombo = ComboBox(DefaultComboBoxModel(fontItems)).apply {
-        preferredSize = Dimension(160, preferredSize.height)
-        maximumSize = Dimension(160, maximumSize.height)
-    }
-    val sizeSpinner = JSpinner(SpinnerNumberModel(13, 8, 48, 1)).apply {
-        preferredSize = Dimension(60, preferredSize.height)
-    }
-    val styleCombo = ComboBox(DefaultComboBoxModel(arrayOf("Plain", "Bold", "Italic", "Bold Italic")))
-    val colorButton = ColorPickerButton("...")
-
-    init {
-        resetFrom(style, legacyFamily, legacySize)
-    }
-
-    fun resetFrom(style: ComponentStyle, legacyFamily: String = "", legacySize: Int = 0) {
-        val family = style.fontFamily.ifEmpty { legacyFamily }
-        fontCombo.selectedItem = family.ifEmpty { defaultLabel }
-        val size = if (style.fontSize > 0) style.fontSize else if (legacySize > 0) legacySize else 13
-        sizeSpinner.value = size
-        styleCombo.selectedIndex = when (style.fontStyle) {
-            Font.BOLD -> 1
-            Font.ITALIC -> 2
-            Font.BOLD or Font.ITALIC -> 3
-            else -> 0
-        }
-        colorButton.setColor(style.getFontColor())
-    }
-
-    fun applyTo(style: ComponentStyle) {
-        val sel = fontCombo.selectedItem as? String ?: ""
-        style.fontFamily = if (sel == defaultLabel) "" else sel
-        style.fontSize = (sizeSpinner.value as? Number)?.toInt() ?: 0
-        style.fontStyle = when (styleCombo.selectedIndex) {
-            1 -> Font.BOLD
-            2 -> Font.ITALIC
-            3 -> Font.BOLD or Font.ITALIC
-            else -> Font.PLAIN
-        }
-        style.fontColor = colorButton.getColorHex()
-    }
-
-    fun isModified(style: ComponentStyle, legacyFamily: String = "", legacySize: Int = 0): Boolean {
-        val tmp = ComponentStyle()
-        applyTo(tmp)
-        val expected = ComponentStyle().apply {
-            fontFamily = style.fontFamily.ifEmpty { legacyFamily }
-            fontSize = if (style.fontSize > 0) style.fontSize else if (legacySize > 0) legacySize else 13
-            fontStyle = style.fontStyle
-            fontColor = style.fontColor
-        }
-        // Compare what the UI shows vs. what would be stored
-        return tmp.fontFamily != expected.fontFamily
-            || tmp.fontSize != expected.fontSize
-            || tmp.fontStyle != expected.fontStyle
-            || tmp.fontColor != expected.fontColor
-    }
-}
-
-private class ColorPickerButton(text: String) : JButton(text) {
-    private var selectedColor: Color? = null
-
-    init {
-        preferredSize = Dimension(28, 28)
-        isFocusable = false
-        addActionListener {
-            val popup = JPopupMenu()
-            val presets = FAVORITE_PRESET_COLORS
-            for ((name, hex) in presets) {
-                val item = JMenuItem(name)
-                if (hex.isNotEmpty()) {
-                    item.icon = ColorSwatchIcon(Color.decode(hex))
-                }
-                item.addActionListener {
-                    setColor(if (hex.isEmpty()) null else Color.decode(hex))
-                }
-                popup.add(item)
-            }
-            popup.addSeparator()
-            val customItem = JMenuItem("Custom...")
-            customItem.addActionListener {
-                val chosen = ColorChooserService.getInstance().showDialog(
-                    this, "Choose Color", selectedColor ?: JBColor.GRAY, true, emptyList(), true
-                )
-                if (chosen != null) {
-                    setColor(chosen)
-                }
-            }
-            popup.add(customItem)
-            popup.show(this, 0, height)
-        }
-    }
-
-    fun setColor(color: Color?) {
-        selectedColor = color
-        icon = if (color != null) ColorSwatchIcon(color) else null
-        text = if (color != null) "" else "..."
-        toolTipText = if (color != null) String.format("#%02X%02X%02X", color.red, color.green, color.blue) else "Default"
-    }
-
-    fun getColorHex(): String {
-        val c = selectedColor ?: return ""
-        return String.format("#%02X%02X%02X", c.red, c.green, c.blue)
-    }
-}
-
-private class FavoriteListCellRenderer : ListCellRenderer<FileManagerStateService.FavoriteEntry> {
-    private val delegate = SimpleColoredComponent()
-
-    override fun getListCellRendererComponent(
-        list: JList<out FileManagerStateService.FavoriteEntry>,
-        value: FileManagerStateService.FavoriteEntry?,
-        index: Int,
-        isSelected: Boolean,
-        cellHasFocus: Boolean,
-    ): Component {
-        delegate.clear()
-        delegate.background = if (isSelected) list.selectionBackground else list.background
-        delegate.foreground = if (isSelected) list.selectionForeground else list.foreground
-        delegate.isOpaque = true
-        if (value != null) {
-            val icon = if (value.color.isNotBlank()) {
-                try { ColorSwatchIcon(Color.decode(value.color)) } catch (_: Exception) { AllIcons.Nodes.Folder }
-            } else {
-                AllIcons.Nodes.Folder
-            }
-            delegate.icon = icon
-            delegate.append(value.path)
-        }
-        return delegate
-    }
-}
-
-private class ColumnsEditor(
-    private val fontItems: Array<String>,
-    initialColumns: List<ColumnConfig>,
-) {
-    private data class ColumnRow(
-        val id: String,
-        var visible: Boolean,
-        val styleEditor: ComponentStyleEditor,
-    )
-
-    private val rows = mutableListOf<ColumnRow>()
-    private val listModel = DefaultListModel<ColumnRow>()
-    private val list = JBList(listModel)
-    private val detailPanel = JPanel(BorderLayout())
-    val panel: JPanel
-
-    init {
-        resetFrom(initialColumns)
-
-        list.selectionMode = javax.swing.ListSelectionModel.SINGLE_SELECTION
-        list.cellRenderer = object : ListCellRenderer<ColumnRow> {
-            private val checkBox = JCheckBox()
-            override fun getListCellRendererComponent(
-                list: JList<out ColumnRow>,
-                value: ColumnRow?,
-                index: Int,
-                isSelected: Boolean,
-                cellHasFocus: Boolean,
-            ): Component {
-                checkBox.text = value?.id ?: ""
-                checkBox.isSelected = value?.visible == true
-                checkBox.background = if (isSelected) list.selectionBackground else list.background
-                checkBox.foreground = if (isSelected) list.selectionForeground else list.foreground
-                checkBox.isOpaque = true
-                checkBox.font = list.font
-                return checkBox
-            }
-        }
-        list.addMouseListener(object : java.awt.event.MouseAdapter() {
-            override fun mouseClicked(e: java.awt.event.MouseEvent) {
-                val idx = list.locationToIndex(e.point)
-                if (idx < 0) return
-                val cellBounds = list.getCellBounds(idx, idx) ?: return
-                // Toggle checkbox when clicking in the checkbox area (left ~24px)
-                if (e.x - cellBounds.x < 24) {
-                    rows[idx].visible = !rows[idx].visible
-                    listModel.set(idx, rows[idx])
-                    updateDetail()
-                }
-            }
-        })
-        list.addListSelectionListener { updateDetail() }
-
-        val moveUpButton = JButton("Up").apply {
-            addActionListener {
-                val idx = list.selectedIndex
-                if (idx > 0) {
-                    val item = rows.removeAt(idx)
-                    rows.add(idx - 1, item)
-                    rebuildListModel()
-                    list.selectedIndex = idx - 1
-                }
-            }
-        }
-        val moveDownButton = JButton("Down").apply {
-            addActionListener {
-                val idx = list.selectedIndex
-                if (idx >= 0 && idx < rows.size - 1) {
-                    val item = rows.removeAt(idx)
-                    rows.add(idx + 1, item)
-                    rebuildListModel()
-                    list.selectedIndex = idx + 1
-                }
-            }
-        }
-
-        val buttonPanel = JPanel().apply {
-            layout = BoxLayout(this, BoxLayout.Y_AXIS)
-            add(moveUpButton)
-            add(moveDownButton)
-            for (btn in listOf(moveUpButton, moveDownButton)) {
-                btn.maximumSize = Dimension(Int.MAX_VALUE, btn.preferredSize.height)
-            }
-        }
-
-        val listPanel = JPanel(BorderLayout(4, 0)).apply {
-            add(JScrollPane(list).apply {
-                preferredSize = Dimension(160, 0)
-            }, BorderLayout.CENTER)
-            add(buttonPanel, BorderLayout.EAST)
-        }
-
-        panel = JPanel(BorderLayout(8, 0)).apply {
-            alignmentX = JComponent.LEFT_ALIGNMENT
-            border = BorderFactory.createTitledBorder("Columns")
-            add(listPanel, BorderLayout.WEST)
-            add(detailPanel, BorderLayout.CENTER)
-            preferredSize = Dimension(Int.MAX_VALUE, 260)
-            maximumSize = Dimension(Int.MAX_VALUE, 260)
-        }
-
-        if (rows.isNotEmpty()) list.selectedIndex = 0
-    }
-
-    private fun updateDetail() {
-        detailPanel.removeAll()
-
-        val idx = list.selectedIndex
-        if (idx < 0 || idx >= rows.size) {
-            detailPanel.revalidate()
-            detailPanel.repaint()
-            return
-        }
-
-        val editor = rows[idx].styleEditor
-        val grid = JPanel(GridBagLayout())
-        val gbc = GridBagConstraints().apply {
-            anchor = GridBagConstraints.WEST
-            fill = GridBagConstraints.NONE
-            insets = JBUI.insets(2, 4, 2, 4)
-        }
-        gbc.gridy = 0
-        gbc.gridx = 0; grid.add(JBLabel("Font:"), gbc)
-        gbc.gridx = 1; grid.add(editor.fontCombo, gbc)
-        gbc.gridy = 1
-        gbc.gridx = 0; grid.add(JBLabel("Size:"), gbc)
-        gbc.gridx = 1; grid.add(editor.sizeSpinner, gbc)
-        gbc.gridy = 2
-        gbc.gridx = 0; grid.add(JBLabel("Style:"), gbc)
-        gbc.gridx = 1; grid.add(editor.styleCombo, gbc)
-        gbc.gridy = 3
-        gbc.gridx = 0; grid.add(JBLabel("Color:"), gbc)
-        gbc.gridx = 1; grid.add(editor.colorButton, gbc)
-
-        detailPanel.add(grid, BorderLayout.CENTER)
-        detailPanel.revalidate()
-        detailPanel.repaint()
-    }
-
-    private fun rebuildListModel() {
-        listModel.clear()
-        for (row in rows) {
-            listModel.addElement(row)
-        }
-    }
-
-    fun resetFrom(columns: List<ColumnConfig>) {
-        rows.clear()
-        for (col in columns) {
-            val editor = ComponentStyleEditor(col.id, fontItems, col.style)
-            rows.add(ColumnRow(col.id, col.visible, editor))
-        }
-        rebuildListModel()
-        if (rows.isNotEmpty() && list.selectedIndex < 0) list.selectedIndex = 0
-        updateDetail()
-    }
-
-    fun applyTo(settings: TurtleCommanderSettings.State) {
-        settings.columns.clear()
-        for (row in rows) {
-            val config = ColumnConfig().apply {
-                id = row.id
-                visible = row.visible
-            }
-            row.styleEditor.applyTo(config.style)
-            settings.columns.add(config)
-        }
-    }
-
-    fun isModified(savedColumns: List<ColumnConfig>): Boolean {
-        if (rows.size != savedColumns.size) return true
-        for ((i, row) in rows.withIndex()) {
-            val saved = savedColumns[i]
-            if (row.id != saved.id) return true
-            if (row.visible != saved.visible) return true
-            if (row.styleEditor.isModified(saved.style)) return true
-        }
-        return false
-    }
-}
-
-private class ColorSwatchIcon(private val color: Color) : Icon {
-    override fun paintIcon(c: Component?, g: Graphics, x: Int, y: Int) {
-        val g2 = (g.create() as Graphics2D).apply {
-            setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-        }
-        try {
-            g2.color = color
-            g2.fillRoundRect(x + 1, y + 1, iconWidth - 2, iconHeight - 2, 4, 4)
-        } finally {
-            g2.dispose()
-        }
-    }
-    override fun getIconWidth(): Int = 14
-    override fun getIconHeight(): Int = 14
 }

@@ -11,7 +11,6 @@ import com.intellij.openapi.actionSystem.ActionPlaces
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
-import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBTabbedPane
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
@@ -19,21 +18,15 @@ import java.awt.Color
 import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.FlowLayout
-import java.awt.Graphics
-import java.awt.Graphics2D
 import java.awt.Point
 import java.awt.Rectangle
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.awt.event.MouseMotionAdapter
 import java.nio.file.Path
-import javax.swing.BorderFactory
 import javax.swing.ButtonGroup
-import javax.swing.Icon
-import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
-import javax.swing.JToggleButton
 import javax.swing.OverlayLayout
 import javax.swing.SwingUtilities
 
@@ -663,119 +656,5 @@ class FileManagerPanel(
         val tab = getActiveTab() ?: return
         val fileOps = project.service<FileOperationService>()
         fileOps.launch { tab.navigateTo(tab.currentPath, selectName = selectName) }
-    }
-}
-
-private class DraggableTabbedPaneWrapper(
-    tabbedPane: JBTabbedPane,
-    private val panel: FileManagerPanel,
-) : JPanel(BorderLayout()) {
-    init {
-        add(tabbedPane, BorderLayout.CENTER)
-        isOpaque = false
-    }
-
-    override fun paint(g: Graphics) {
-        super.paint(g)
-        val rect = panel.getDropIndicatorRect() ?: return
-        val g2 = g as Graphics2D
-        g2.color = Color(0x3574F0) // IntelliJ blue
-        g2.fillRect(rect.x, rect.y, rect.width, rect.height)
-    }
-}
-
-private class NewTabButton(private val onClick: () -> Unit) : JComponent() {
-    private var hovered = false
-
-    init {
-        preferredSize = Dimension(16, 16)
-        cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-        toolTipText = "New tab"
-        isOpaque = false
-        addMouseListener(object : MouseAdapter() {
-            override fun mouseEntered(e: MouseEvent) {
-                hovered = true
-                repaint()
-            }
-
-            override fun mouseExited(e: MouseEvent) {
-                hovered = false
-                repaint()
-            }
-
-            override fun mouseClicked(e: MouseEvent) {
-                if (e.button == MouseEvent.BUTTON1) {
-                    onClick()
-                }
-            }
-        })
-    }
-
-    override fun paintComponent(g: Graphics) {
-        val icon = if (hovered) AllIcons.General.Add else AllIcons.General.InlineAdd
-        val x = (width - icon.iconWidth) / 2
-        val y = (height - icon.iconHeight) / 2
-        icon.paintIcon(this, g, x, y)
-    }
-}
-
-private class ViewModeButton(
-    icon: Icon,
-    tooltip: String,
-    selected: Boolean,
-) : JToggleButton(icon, selected) {
-    init {
-        toolTipText = tooltip
-        isFocusable = false
-        preferredSize = Dimension(24, 24)
-        margin = JBUI.emptyInsets()
-        isContentAreaFilled = false
-        border = BorderFactory.createEmptyBorder(2, 2, 2, 2)
-    }
-
-    override fun paintComponent(g: Graphics) {
-        if (isSelected) {
-            val g2 = g as Graphics2D
-            g2.color = JBColor(
-                Color(0, 0, 0, 30),
-                Color(255, 255, 255, 40),
-            )
-            g2.fillRoundRect(0, 0, width, height, 6, 6)
-        }
-        super.paintComponent(g)
-    }
-}
-
-private class TabCloseButton(private val onClose: () -> Unit) : JComponent() {
-    private var hovered = false
-
-    init {
-        preferredSize = Dimension(16, 16)
-        cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-        isOpaque = false
-        addMouseListener(object : MouseAdapter() {
-            override fun mouseEntered(e: MouseEvent) {
-                hovered = true
-                repaint()
-            }
-
-            override fun mouseExited(e: MouseEvent) {
-                hovered = false
-                repaint()
-            }
-
-            override fun mouseClicked(e: MouseEvent) {
-                if (e.button == MouseEvent.BUTTON1) {
-                    onClose()
-                }
-            }
-        })
-    }
-
-    override fun paintComponent(g: Graphics) {
-        val icon = if (hovered) AllIcons.Actions.CloseHovered else AllIcons.Actions.Close
-        val x = (width - icon.iconWidth) / 2
-        val y = (height - icon.iconHeight) / 2
-        icon.paintIcon(this, g, x, y)
     }
 }
