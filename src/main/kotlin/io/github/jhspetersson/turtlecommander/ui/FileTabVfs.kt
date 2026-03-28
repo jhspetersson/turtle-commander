@@ -139,7 +139,7 @@ internal suspend fun FileTab.refreshAfterVfsChange(selectName: String? = null) {
     }
 }
 
-internal fun FileTab.vfsRelativePath(vfs: VirtualFileSystem, path: Path): String {
+internal fun vfsRelativePath(vfs: VirtualFileSystem, path: Path): String {
     val rootStr = vfs.root.toString().trimEnd('/').trimEnd('\\')
     val pathStr = path.toString()
     return if (pathStr.startsWith(rootStr)) {

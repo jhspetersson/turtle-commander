@@ -1,6 +1,6 @@
 package io.github.jhspetersson.turtlecommander.util
 
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class FormatSizeTest {
@@ -22,7 +22,7 @@ class FormatSizeTest {
     }
 
     @Test
-    fun `kilobytes`() {
+    fun kilobytes() {
         assertEquals("1.5 KB", formatSize(1536))
         assertEquals("10.0 KB", formatSize(10240))
     }
@@ -33,7 +33,7 @@ class FormatSizeTest {
     }
 
     @Test
-    fun `megabytes`() {
+    fun megabytes() {
         assertEquals("5.5 MB", formatSize((5.5 * 1024 * 1024).toLong()))
     }
 
@@ -43,7 +43,7 @@ class FormatSizeTest {
     }
 
     @Test
-    fun `gigabytes`() {
+    fun gigabytes() {
         assertEquals("2.5 GB", formatSize((2.5 * 1024 * 1024 * 1024).toLong()))
     }
 
@@ -53,7 +53,7 @@ class FormatSizeTest {
     }
 
     @Test
-    fun `terabytes`() {
+    fun terabytes() {
         assertEquals("3.0 TB", formatSize(3L * 1024 * 1024 * 1024 * 1024))
     }
 }

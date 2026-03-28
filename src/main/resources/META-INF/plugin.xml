@@ -23,9 +23,6 @@
             id="io.github.jhspetersson.turtlecommander.settings"
             displayName="Turtle Commander"
         />
-        <projectService
-            serviceImplementation="io.github.jhspetersson.turtlecommander.vfs.VfsEditService"
-        />
     </extensions>
 
     <projectListeners>

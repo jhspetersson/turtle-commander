@@ -5,23 +5,15 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
+import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
-import java.awt.Insets
 import java.nio.file.Path
 import java.text.SimpleDateFormat
-import java.util.Calendar
-import javax.swing.BorderFactory
-import javax.swing.Box
-import javax.swing.BoxLayout
-import javax.swing.ButtonGroup
-import javax.swing.DefaultComboBoxModel
-import javax.swing.JCheckBox
-import javax.swing.JComponent
-import javax.swing.JPanel
-import javax.swing.JRadioButton
+import java.util.*
+import javax.swing.*
 
 data class FileSearchCriteria(
     val rootPath: Path,
@@ -254,7 +246,7 @@ class FileSearchDialog(
             border = BorderFactory.createEmptyBorder(2, 20, 0, 0)
             val gbc = GridBagConstraints().apply {
                 anchor = GridBagConstraints.WEST
-                insets = Insets(2, 4, 2, 4)
+                insets = JBUI.insets(2, 4)
             }
             gbc.gridx = 0; gbc.gridy = 0; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0
             gbc.gridwidth = 2
@@ -276,7 +268,7 @@ class FileSearchDialog(
             border = BorderFactory.createEmptyBorder(2, 20, 0, 0)
             val gbc = GridBagConstraints().apply {
                 anchor = GridBagConstraints.WEST
-                insets = Insets(2, 4, 2, 4)
+                insets = JBUI.insets(2, 4)
             }
             gbc.gridx = 0; gbc.gridy = 0
             add(sizeModeCombo, gbc)
@@ -303,7 +295,7 @@ class FileSearchDialog(
             border = BorderFactory.createEmptyBorder(2, 20, 0, 0)
             val gbc = GridBagConstraints().apply {
                 anchor = GridBagConstraints.WEST
-                insets = Insets(2, 4, 2, 4)
+                insets = JBUI.insets(2, 4)
             }
             gbc.gridx = 0; gbc.gridy = 0
             add(modeCombo, gbc)

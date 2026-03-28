@@ -1,7 +1,8 @@
 package io.github.jhspetersson.turtlecommander.operation
 
 import org.junit.After
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
@@ -133,10 +134,10 @@ class TarOutputStreamTest {
         // Calculate expected checksum: sum of all bytes, treating checksum field (148-155) as spaces
         var checksum = 0L
         for (i in header.indices) {
-            if (i in 148..155) {
-                checksum += ' '.code
+            checksum += if (i in 148..155) {
+                ' '.code
             } else {
-                checksum += (header[i].toInt() and 0xFF)
+                (header[i].toInt() and 0xFF)
             }
         }
 

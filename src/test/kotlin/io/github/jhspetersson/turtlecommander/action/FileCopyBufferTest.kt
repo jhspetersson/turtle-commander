@@ -39,14 +39,6 @@ class FileCopyBufferTest {
     }
 
     @Test
-    fun testIsCutFlag() {
-        FileCopyBuffer.isCut = true
-        assertTrue(FileCopyBuffer.isCut)
-        FileCopyBuffer.isCut = false
-        assertFalse(FileCopyBuffer.isCut)
-    }
-
-    @Test
     fun testChangeListenerFires() {
         var callCount = 0
         FileCopyBuffer.addChangeListener { callCount++ }

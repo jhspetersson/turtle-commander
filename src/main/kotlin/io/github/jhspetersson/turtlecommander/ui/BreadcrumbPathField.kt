@@ -1,28 +1,12 @@
 package io.github.jhspetersson.turtlecommander.ui
-import io.github.jhspetersson.turtlecommander.settings.ComponentStyle
 
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
-import java.awt.CardLayout
-import java.awt.Color
-import java.awt.Cursor
-import java.awt.FlowLayout
-import java.awt.Font
-import java.awt.GridBagConstraints
-import java.awt.GridBagLayout
-import java.awt.event.ActionListener
-import java.awt.event.FocusAdapter
-import java.awt.event.FocusEvent
-import java.awt.event.KeyEvent
-import java.awt.event.MouseAdapter
-import java.awt.event.MouseEvent
-import javax.swing.BorderFactory
-import javax.swing.JComponent
-import javax.swing.JLabel
-import javax.swing.JPanel
-import javax.swing.KeyStroke
-import javax.swing.SwingUtilities
+import io.github.jhspetersson.turtlecommander.settings.ComponentStyle
+import java.awt.*
+import java.awt.event.*
+import javax.swing.*
 
 class BreadcrumbPathField : JPanel() {
     private val cardLayout = CardLayout()

@@ -117,7 +117,7 @@ internal class StyledFileNameCellRenderer(
             foreground = tab.inactiveSelectionForeground()
         } else if (!isSelected) {
             background = table.background
-            foreground = if (tab.enableFileNameHighlighting && entry != null && entry.isDirectory && entry.directoryType != io.github.jhspetersson.turtlecommander.model.DirectoryType.NONE) {
+            foreground = if (tab.enableFileNameHighlighting && entry != null && entry.isDirectory && entry.directoryType != DirectoryType.NONE) {
                 DirectoryIcons.getColor(entry.directoryType)
             } else {
                 style?.getFontColor() ?: table.foreground
@@ -174,61 +174,6 @@ internal fun FileTab.inactiveSelectionBackground(): Color {
 
 internal fun FileTab.inactiveSelectionForeground(): Color {
     return table.foreground
-}
-
-internal class FileNameCellRenderer(private val tab: FileTab) : DefaultTableCellRenderer() {
-    override fun getTableCellRendererComponent(
-        table: JTable,
-        value: Any?,
-        isSelected: Boolean,
-        hasFocus: Boolean,
-        row: Int,
-        column: Int,
-    ): Component {
-        super.getTableCellRendererComponent(table, value, isSelected, false, row, column)
-        if (isSelected && !table.hasFocus()) {
-            background = tab.inactiveSelectionBackground()
-            foreground = tab.inactiveSelectionForeground()
-        }
-        val modelRow = table.convertRowIndexToModel(row)
-        val entry = tab.tableModel.getEntryAt(modelRow)
-        icon = if (entry != null) fileEntryIcon(entry, tab.enableFileNameHighlighting) else null
-        if (isSelected && !table.hasFocus()) {
-            foreground = tab.inactiveSelectionForeground()
-        } else if (!isSelected) {
-            background = table.background
-            foreground = if (tab.enableFileNameHighlighting && entry != null && entry.isDirectory && entry.directoryType != DirectoryType.NONE) {
-                DirectoryIcons.getColor(entry.directoryType)
-            } else {
-                table.foreground
-            }
-        }
-        return this
-    }
-}
-
-internal class DisplayValueRenderer(private val tab: FileTab) : DefaultTableCellRenderer() {
-    override fun getTableCellRendererComponent(
-        table: JTable,
-        value: Any?,
-        isSelected: Boolean,
-        hasFocus: Boolean,
-        row: Int,
-        column: Int,
-    ): Component {
-        val modelRow = table.convertRowIndexToModel(row)
-        val modelCol = table.convertColumnIndexToModel(column)
-        val displayValue = tab.tableModel.getDisplayValue(modelRow, modelCol)
-        val comp = super.getTableCellRendererComponent(table, displayValue, isSelected, false, row, column)
-        if (isSelected && !table.hasFocus()) {
-            background = tab.inactiveSelectionBackground()
-            foreground = tab.inactiveSelectionForeground()
-        } else if (!isSelected) {
-            background = table.background
-            foreground = table.foreground
-        }
-        return comp
-    }
 }
 
 internal class FileListCellRenderer(private val tab: FileTab) : DefaultListCellRenderer() {

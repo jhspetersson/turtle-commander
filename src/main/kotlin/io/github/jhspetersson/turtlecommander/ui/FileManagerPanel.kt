@@ -1,9 +1,4 @@
 package io.github.jhspetersson.turtlecommander.ui
-import io.github.jhspetersson.turtlecommander.action.TabContextMenuState
-import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
-import io.github.jhspetersson.turtlecommander.service.FileOperationService
-import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
-import io.github.jhspetersson.turtlecommander.dialog.FileSearchCriteria
 
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.ActionManager
@@ -13,22 +8,17 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.ui.components.JBTabbedPane
 import com.intellij.util.ui.JBUI
-import java.awt.BorderLayout
-import java.awt.Color
-import java.awt.Cursor
-import java.awt.Dimension
-import java.awt.FlowLayout
-import java.awt.Point
-import java.awt.Rectangle
+import io.github.jhspetersson.turtlecommander.action.TabContextMenuState
+import io.github.jhspetersson.turtlecommander.dialog.FileSearchCriteria
+import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
+import io.github.jhspetersson.turtlecommander.service.FileOperationService
+import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
+import java.awt.*
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.awt.event.MouseMotionAdapter
 import java.nio.file.Path
-import javax.swing.ButtonGroup
-import javax.swing.JLabel
-import javax.swing.JPanel
-import javax.swing.OverlayLayout
-import javax.swing.SwingUtilities
+import javax.swing.*
 
 class FileManagerPanel(
     private val project: Project,

@@ -142,8 +142,8 @@ class VfsReadOnlyFlagTest {
     fun `tar VFS is not read-only`() {
         val path = Files.createTempFile("test-rw-", ".tar")
         tempFiles.add(path)
-        org.apache.commons.compress.archivers.tar.TarArchiveOutputStream(Files.newOutputStream(path)).use { tar ->
-            val entry = org.apache.commons.compress.archivers.tar.TarArchiveEntry("file.txt")
+        TarArchiveOutputStream(Files.newOutputStream(path)).use { tar ->
+            val entry = TarArchiveEntry("file.txt")
             val bytes = "data".toByteArray()
             entry.size = bytes.size.toLong()
             tar.putArchiveEntry(entry)
@@ -241,12 +241,10 @@ class NestedArchiveWriteBackTest {
                 tempFiles.add(verifyDir)
 
                 val verifyVfs = ZipVirtualFileSystem(verifyInner)
-                try {
+                verifyVfs.use { verifyVfs ->
                     val verifyEntries = verifyVfs.listFiles(verifyVfs.root)
                     assertTrue("Propagated inner zip should contain newfile.txt", verifyEntries.any { it.name == "newfile.txt" })
                     assertTrue("Propagated inner zip should contain existing.txt", verifyEntries.any { it.name == "existing.txt" })
-                } finally {
-                    verifyVfs.close()
                 }
 
                 // Outer archive's other files should be intact
@@ -1017,7 +1015,7 @@ class EditWriteBackTest {
         vfsList.add(innerVfs)
 
         // Extract file from inner zip to edit temp
-        var vfsFilePath = innerVfs.getPath("/file.txt")
+        val vfsFilePath = innerVfs.getPath("/file.txt")
         val editDir = Files.createTempDirectory("turtle-vfs-edit-test-")
         val editPath = editDir.resolve("file.txt")
         Files.copy(vfsFilePath, editPath)
@@ -1033,7 +1031,7 @@ class EditWriteBackTest {
         // 2. Flush inner VFS
         val innerRelPath = vfsRelativePath(innerVfs, vfsFilePath)
         innerVfs.flush()
-        vfsFilePath = innerVfs.root.resolve(innerRelPath)
+        innerVfs.root.resolve(innerRelPath)
         // 3. Copy inner temp zip back to outer VFS
         val outerInnerPath = outerVfs.getPath("/inner.zip")
         Files.copy(tempInnerZip, outerInnerPath, StandardCopyOption.REPLACE_EXISTING)
@@ -1344,7 +1342,6 @@ class SharedVfsStackEntryTest {
         vfsList.add(innerVfs)
 
         // Shared stack entries
-        val outerEntry = VfsStackEntry(outerVfs, outerPath)
         val innerEntry = VfsStackEntry(innerVfs, outerVfs.getPath("/inner.zip"), tempInnerZip.toFile())
 
         // Edit and write back
@@ -1592,7 +1589,6 @@ class SharedVfsStackEntryTest {
         vfsList.add(zipVfs)
 
         // Shared VfsStackEntry objects
-        val tarEntry = VfsStackEntry(tarVfs, tarPath)
         val zipEntry = VfsStackEntry(zipVfs, srcZipInTar, tempZip.toFile())
 
         // Edit file inside zip
@@ -1782,7 +1778,7 @@ class SharedVfsStackEntryTest {
         Files.writeString(editPath, "edited")
 
         // 2. Copy back to VFS path
-        var vfsFilePath = vfs.root.resolve("src/main.txt")
+        val vfsFilePath = vfs.root.resolve("src/main.txt")
         Files.copy(editPath, vfsFilePath, StandardCopyOption.REPLACE_EXISTING)
 
         // 3. onBeforeFlush: capture relative path while root is valid
@@ -1792,7 +1788,7 @@ class SharedVfsStackEntryTest {
         // 4. Flush VFS (root changes)
         val relFilePath = vfsRelativePath(vfs, vfsFilePath)
         vfs.flush()
-        vfsFilePath = vfs.root.resolve(relFilePath)
+        vfs.root.resolve(relFilePath)
 
         // 5. onAfterFlush: reconstruct currentPath from new root + captured relative path
         currentPath = if (currentPathRel.isEmpty()) vfs.root else vfs.root.resolve(currentPathRel)

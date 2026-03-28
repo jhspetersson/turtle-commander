@@ -33,13 +33,14 @@ import java.awt.Component
 import java.awt.Dimension
 import java.awt.datatransfer.DataFlavor
 import java.awt.event.*
-import java.nio.file.*
+import java.nio.file.FileSystems
+import java.nio.file.Files
+import java.nio.file.Path
 import javax.swing.*
 import javax.swing.event.*
 import javax.swing.table.TableColumn
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
-import javax.swing.tree.TreePath
 import javax.swing.tree.TreeSelectionModel
 
 class FileTab(
@@ -933,11 +934,7 @@ class FileTab(
 
     suspend fun navigateTo(path: Path, selectName: String? = null) {
         val vfs = currentVfs
-        val entries = if (vfs != null) {
-            vfs.listFiles(path)
-        } else {
-            fileOps.listFiles(path)
-        }
+        val entries = vfs?.listFiles(path) ?: fileOps.listFiles(path)
         withContext(Dispatchers.EDT) {
             // Save cursor position and column state for the current directory
             val selectedRow = table.selectedRow
@@ -1187,8 +1184,8 @@ class FileTab(
     fun applyColumnState(widths: List<Int>, order: List<Int>) {
         val cm = table.columnModel
         if (order.size == cm.columnCount) {
-            for (targetIdx in 0 until order.size) {
-                val modelIdx = order[targetIdx]
+            for ((targetIdx, element) in order.withIndex()) {
+                val modelIdx = element
                 var currentViewIdx = -1
                 for (viewIdx in 0 until cm.columnCount) {
                     if (cm.getColumn(viewIdx).modelIndex == modelIdx) {

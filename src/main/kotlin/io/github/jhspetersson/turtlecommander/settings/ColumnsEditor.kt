@@ -125,7 +125,7 @@ internal class ColumnsEditor(
         val gbc = GridBagConstraints().apply {
             anchor = GridBagConstraints.WEST
             fill = GridBagConstraints.NONE
-            insets = JBUI.insets(2, 4, 2, 4)
+            insets = JBUI.insets(2, 4)
         }
         gbc.gridy = 0
         gbc.gridx = 0; grid.add(JBLabel("Font:"), gbc)
