@@ -47,9 +47,9 @@ class DriveSelectionTargetTest {
     }
 
     @Test
-    fun `works with Windows-style paths`() {
-        val drive = Path.of("C:\\")
-        val otherPanel = Path.of("C:\\Users\\someone\\Projects")
+    fun `works with nested subdirectory paths`() {
+        val drive = Path.of(System.getProperty("user.home"))
+        val otherPanel = drive.resolve("Documents").resolve("Projects")
 
         val result = FileTab.resolveDriveSelectionTarget(drive, otherPanel)
 
@@ -57,13 +57,19 @@ class DriveSelectionTargetTest {
     }
 
     @Test
-    fun `returns drive when opposite panel is on different Windows drive`() {
-        val drive = Path.of("D:\\")
-        val otherPanel = Path.of("C:\\Users\\someone")
+    fun `returns drive when opposite panel is under unrelated root`() {
+        val tempDir1 = Files.createTempDirectory("drive-a-")
+        val tempDir2 = Files.createTempDirectory("drive-b-")
+        try {
+            val otherPanel = tempDir2.resolve("somedir")
 
-        val result = FileTab.resolveDriveSelectionTarget(drive, otherPanel)
+            val result = FileTab.resolveDriveSelectionTarget(tempDir1, otherPanel)
 
-        assertEquals(drive, result)
+            assertEquals(tempDir1, result)
+        } finally {
+            tempDir1.toFile().deleteRecursively()
+            tempDir2.toFile().deleteRecursively()
+        }
     }
 
     @Test
