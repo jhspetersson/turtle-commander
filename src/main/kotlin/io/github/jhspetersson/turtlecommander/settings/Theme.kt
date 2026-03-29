@@ -8,6 +8,8 @@ data class ThemeStyle(
     val fontStyle: Int = Font.PLAIN,
     val fontColor: String = "",
     val backgroundColor: String = "",
+    val selectedColor: String = "",
+    val activeSelectedColor: String = "",
 ) {
     fun toComponentStyle(): ComponentStyle = ComponentStyle().apply {
         fontFamily = this@ThemeStyle.fontFamily
@@ -15,6 +17,8 @@ data class ThemeStyle(
         fontStyle = this@ThemeStyle.fontStyle
         fontColor = this@ThemeStyle.fontColor
         backgroundColor = this@ThemeStyle.backgroundColor
+        selectedColor = this@ThemeStyle.selectedColor
+        activeSelectedColor = this@ThemeStyle.activeSelectedColor
     }
 
     companion object {
@@ -24,6 +28,8 @@ data class ThemeStyle(
             fontStyle = cs.fontStyle,
             fontColor = cs.fontColor,
             backgroundColor = cs.backgroundColor,
+            selectedColor = cs.selectedColor,
+            activeSelectedColor = cs.activeSelectedColor,
         )
     }
 }
@@ -60,6 +66,8 @@ data class Theme(
                 fontSize = 13,
                 fontColor = "#00FFFF",
                 backgroundColor = "#000080",
+                selectedColor = "#000050",
+                activeSelectedColor = "#0000AA",
             ),
             tabStyle = ThemeStyle(
                 fontFamily = "Consolas",
@@ -106,6 +114,8 @@ data class Theme(
                 fontSize = 13,
                 fontColor = "#33FF33",
                 backgroundColor = "#0A0A0A",
+                selectedColor = "#1A3A1A",
+                activeSelectedColor = "#0A4A0A",
             ),
             tabStyle = ThemeStyle(
                 fontFamily = "Consolas",
@@ -152,6 +162,8 @@ data class Theme(
                 fontSize = 13,
                 fontColor = "#FFD700",
                 backgroundColor = "#3B2507",
+                selectedColor = "#5C3A11",
+                activeSelectedColor = "#7A4E1A",
             ),
             tabStyle = ThemeStyle(
                 fontFamily = "Courier New",
@@ -198,6 +210,8 @@ data class Theme(
                 fontSize = 13,
                 fontColor = "#CCCCBB",
                 backgroundColor = "#3D3D35",
+                selectedColor = "#4D4D45",
+                activeSelectedColor = "#5D5D55",
             ),
             tabStyle = ThemeStyle(
                 fontFamily = "Consolas",
@@ -244,6 +258,8 @@ data class Theme(
                 fontSize = 13,
                 fontColor = "#FFFFFF",
                 backgroundColor = "#000000",
+                selectedColor = "#222222",
+                activeSelectedColor = "#444444",
             ),
             tabStyle = ThemeStyle(
                 fontFamily = "Consolas",
@@ -299,6 +315,8 @@ class SavedTheme {
     var panelFontStyle: Int = Font.PLAIN
     var panelFontColor: String = ""
     var panelBackgroundColor: String = ""
+    var panelSelectedColor: String = ""
+    var panelActiveSelectedColor: String = ""
     var tabFontFamily: String = ""
     var tabFontSize: Int = 0
     var tabFontStyle: Int = Font.PLAIN
@@ -332,7 +350,7 @@ class SavedTheme {
 
     fun toTheme(): Theme = Theme(
         name = name,
-        panelStyle = ThemeStyle(panelFontFamily, panelFontSize, panelFontStyle, panelFontColor, panelBackgroundColor),
+        panelStyle = ThemeStyle(panelFontFamily, panelFontSize, panelFontStyle, panelFontColor, panelBackgroundColor, panelSelectedColor, panelActiveSelectedColor),
         tabStyle = ThemeStyle(tabFontFamily, tabFontSize, tabFontStyle, tabFontColor, tabBackgroundColor),
         pathBarStyle = ThemeStyle(pathBarFontFamily, pathBarFontSize, pathBarFontStyle, pathBarFontColor, pathBarBackgroundColor),
         statusBarStyle = ThemeStyle(statusBarFontFamily, statusBarFontSize, statusBarFontStyle, statusBarFontColor, statusBarBackgroundColor),
@@ -344,7 +362,7 @@ class SavedTheme {
     companion object {
         fun fromTheme(theme: Theme): SavedTheme = SavedTheme().apply {
             name = theme.name
-            panelFontFamily = theme.panelStyle.fontFamily; panelFontSize = theme.panelStyle.fontSize; panelFontStyle = theme.panelStyle.fontStyle; panelFontColor = theme.panelStyle.fontColor; panelBackgroundColor = theme.panelStyle.backgroundColor
+            panelFontFamily = theme.panelStyle.fontFamily; panelFontSize = theme.panelStyle.fontSize; panelFontStyle = theme.panelStyle.fontStyle; panelFontColor = theme.panelStyle.fontColor; panelBackgroundColor = theme.panelStyle.backgroundColor; panelSelectedColor = theme.panelStyle.selectedColor; panelActiveSelectedColor = theme.panelStyle.activeSelectedColor
             tabFontFamily = theme.tabStyle.fontFamily; tabFontSize = theme.tabStyle.fontSize; tabFontStyle = theme.tabStyle.fontStyle; tabFontColor = theme.tabStyle.fontColor; tabBackgroundColor = theme.tabStyle.backgroundColor
             pathBarFontFamily = theme.pathBarStyle.fontFamily; pathBarFontSize = theme.pathBarStyle.fontSize; pathBarFontStyle = theme.pathBarStyle.fontStyle; pathBarFontColor = theme.pathBarStyle.fontColor; pathBarBackgroundColor = theme.pathBarStyle.backgroundColor
             statusBarFontFamily = theme.statusBarStyle.fontFamily; statusBarFontSize = theme.statusBarStyle.fontSize; statusBarFontStyle = theme.statusBarStyle.fontStyle; statusBarFontColor = theme.statusBarStyle.fontColor; statusBarBackgroundColor = theme.statusBarStyle.backgroundColor
@@ -471,6 +489,8 @@ object ThemeManager {
         if (style.fontStyle != Font.PLAIN) sb.appendLine("$prefix.fontStyle=${style.fontStyle}")
         if (style.fontColor.isNotEmpty()) sb.appendLine("$prefix.fontColor=${style.fontColor}")
         if (style.backgroundColor.isNotEmpty()) sb.appendLine("$prefix.backgroundColor=${style.backgroundColor}")
+        if (style.selectedColor.isNotEmpty()) sb.appendLine("$prefix.selectedColor=${style.selectedColor}")
+        if (style.activeSelectedColor.isNotEmpty()) sb.appendLine("$prefix.activeSelectedColor=${style.activeSelectedColor}")
     }
 
     private fun parseStyle(props: Map<String, String>, prefix: String): ThemeStyle = ThemeStyle(
@@ -479,6 +499,8 @@ object ThemeManager {
         fontStyle = props["$prefix.fontStyle"]?.toIntOrNull() ?: Font.PLAIN,
         fontColor = props["$prefix.fontColor"] ?: "",
         backgroundColor = props["$prefix.backgroundColor"] ?: "",
+        selectedColor = props["$prefix.selectedColor"] ?: "",
+        activeSelectedColor = props["$prefix.activeSelectedColor"] ?: "",
     )
 
     enum class SaveResult { Saved, Replaced }

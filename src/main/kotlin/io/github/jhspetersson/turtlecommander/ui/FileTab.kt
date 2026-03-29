@@ -192,6 +192,13 @@ class FileTab(
         tree.background = bg
         (table.parent as? javax.swing.JViewport)?.background = bg
 
+        val activeSel = panelStyle.parsedActiveSelectedColor()
+        if (activeSel != null) {
+            table.selectionBackground = activeSel
+            list.selectionBackground = activeSel
+            thumbnailList.selectionBackground = activeSel
+        }
+
         applyDriveSelectorStyle()
         applyColumnHeaderStyle()
         applyStatusBarStyle()

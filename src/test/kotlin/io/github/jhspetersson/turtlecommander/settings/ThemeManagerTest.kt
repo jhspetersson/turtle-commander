@@ -220,7 +220,7 @@ class ThemeManagerTest {
     fun `export and import round-trips a theme`() {
         val theme = Theme(
             name = "Exported Theme",
-            panelStyle = ThemeStyle("Consolas", 14, Font.BOLD, "#AA0000", "#001100"),
+            panelStyle = ThemeStyle("Consolas", 14, Font.BOLD, "#AA0000", "#001100", "#111111", "#222222"),
             tabStyle = ThemeStyle("Arial", 12, Font.ITALIC, "#BB0000", "#002200"),
             pathBarStyle = ThemeStyle("Courier New", 13, Font.PLAIN, "#CC0000", "#003300"),
             statusBarStyle = ThemeStyle("Monospaced", 11, Font.PLAIN, "#DD0000", "#004400"),
@@ -315,6 +315,20 @@ class ThemeManagerTest {
         assertEquals(Font.BOLD, imported.panelStyle.fontStyle)
         assertEquals(Font.ITALIC, imported.tabStyle.fontStyle)
         assertEquals(Font.BOLD or Font.ITALIC, imported.commandBarStyle.fontStyle)
+    }
+
+    @Test
+    fun `export and import round-trips selection colors`() {
+        val theme = Theme(
+            name = "Selection Test",
+            panelStyle = ThemeStyle(fontColor = "#FFFFFF", backgroundColor = "#000000", selectedColor = "#111111", activeSelectedColor = "#222222"),
+        )
+        val text = ThemeManager.exportTheme(theme)
+        assertTrue(text.contains("panel.selectedColor=#111111"))
+        assertTrue(text.contains("panel.activeSelectedColor=#222222"))
+        val imported = ThemeManager.importTheme(text)!!
+        assertEquals("#111111", imported.panelStyle.selectedColor)
+        assertEquals("#222222", imported.panelStyle.activeSelectedColor)
     }
 
     @Test
@@ -456,7 +470,7 @@ class ThemeManagerTest {
     fun `SavedTheme fromTheme and toTheme round-trip all seven styles`() {
         val original = Theme(
             name = "RoundTrip",
-            panelStyle = ThemeStyle("Consolas", 14, Font.BOLD, "#AA0000", "#001100"),
+            panelStyle = ThemeStyle("Consolas", 14, Font.BOLD, "#AA0000", "#001100", "#111111", "#222222"),
             tabStyle = ThemeStyle("Arial", 12, Font.ITALIC, "#BB0000", "#002200"),
             pathBarStyle = ThemeStyle("Courier New", 13, Font.PLAIN, "#CC0000", "#003300"),
             statusBarStyle = ThemeStyle("Monospaced", 11, Font.PLAIN, "#DD0000", "#004400"),

@@ -25,6 +25,8 @@ internal class ComponentStyleEditor(
     val styleCombo = ComboBox(DefaultComboBoxModel(arrayOf("Plain", "Bold", "Italic", "Bold Italic")))
     val colorButton = ColorPickerButton("...")
     val bgColorButton = ColorPickerButton("...")
+    val selectedColorButton = ColorPickerButton("...")
+    val activeSelectedColorButton = ColorPickerButton("...")
 
     init {
         resetFrom(style, legacyFamily, legacySize)
@@ -43,6 +45,8 @@ internal class ComponentStyleEditor(
         }
         colorButton.setColor(style.parsedFontColor())
         bgColorButton.setColor(style.parsedBackgroundColor())
+        selectedColorButton.setColor(style.parsedSelectedColor())
+        activeSelectedColorButton.setColor(style.parsedActiveSelectedColor())
     }
 
     fun applyTo(style: ComponentStyle) {
@@ -57,6 +61,8 @@ internal class ComponentStyleEditor(
         }
         style.fontColor = colorButton.getColorHex()
         style.backgroundColor = bgColorButton.getColorHex()
+        style.selectedColor = selectedColorButton.getColorHex()
+        style.activeSelectedColor = activeSelectedColorButton.getColorHex()
     }
 
     fun isModified(style: ComponentStyle, legacyFamily: String = "", legacySize: Int = 0): Boolean {
@@ -68,12 +74,16 @@ internal class ComponentStyleEditor(
             fontStyle = style.fontStyle
             fontColor = style.fontColor
             backgroundColor = style.backgroundColor
+            selectedColor = style.selectedColor
+            activeSelectedColor = style.activeSelectedColor
         }
         return tmp.fontFamily != expected.fontFamily
             || tmp.fontSize != expected.fontSize
             || tmp.fontStyle != expected.fontStyle
             || tmp.fontColor != expected.fontColor
             || tmp.backgroundColor != expected.backgroundColor
+            || tmp.selectedColor != expected.selectedColor
+            || tmp.activeSelectedColor != expected.activeSelectedColor
     }
 }
 

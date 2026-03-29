@@ -205,6 +205,79 @@ class ThemeTest {
         assertNull(ComponentStyle().apply { backgroundColor = "not-a-color" }.parsedBackgroundColor())
     }
 
+    // --- Selected / Active Selected color fields ---
+
+    @Test
+    fun `component style selectedColor round-trips`() {
+        val style = ComponentStyle().apply { selectedColor = "#112233" }
+        assertNotNull(style.parsedSelectedColor())
+        assertEquals(0x11, style.parsedSelectedColor()!!.red)
+    }
+
+    @Test
+    fun `component style activeSelectedColor round-trips`() {
+        val style = ComponentStyle().apply { activeSelectedColor = "#445566" }
+        assertNotNull(style.parsedActiveSelectedColor())
+        assertEquals(0x44, style.parsedActiveSelectedColor()!!.red)
+    }
+
+    @Test
+    fun `component style copyFrom includes selection colors`() {
+        val src = ComponentStyle().apply { selectedColor = "#AABB00"; activeSelectedColor = "#CC0011" }
+        val dst = ComponentStyle()
+        dst.copyFrom(src)
+        assertEquals("#AABB00", dst.selectedColor)
+        assertEquals("#CC0011", dst.activeSelectedColor)
+    }
+
+    @Test
+    fun `component style isDefault false when selectedColor set`() {
+        assertFalse(ComponentStyle().apply { selectedColor = "#112233" }.isDefault())
+    }
+
+    @Test
+    fun `component style isDefault false when activeSelectedColor set`() {
+        assertFalse(ComponentStyle().apply { activeSelectedColor = "#112233" }.isDefault())
+    }
+
+    @Test
+    fun `component style equals includes selection colors`() {
+        val a = ComponentStyle().apply { selectedColor = "#FF0000"; activeSelectedColor = "#00FF00" }
+        val b = ComponentStyle().apply { selectedColor = "#FF0000"; activeSelectedColor = "#00FF00" }
+        val c = ComponentStyle().apply { selectedColor = "#FF0000"; activeSelectedColor = "#0000FF" }
+        assertEquals(a, b)
+        assertNotEquals(a, c)
+    }
+
+    @Test
+    fun `parsedSelectedColor returns null for empty string`() {
+        assertNull(ComponentStyle().parsedSelectedColor())
+    }
+
+    @Test
+    fun `parsedActiveSelectedColor returns null for empty string`() {
+        assertNull(ComponentStyle().parsedActiveSelectedColor())
+    }
+
+    // --- Initial themes selection colors ---
+
+    @Test
+    fun `all non-default initial themes have panel selection colors`() {
+        for (theme in Theme.INITIAL_THEMES) {
+            if (theme.name == Theme.DEFAULT.name) continue
+            assertTrue("${theme.name} should have selectedColor",
+                theme.panelStyle.selectedColor.isNotEmpty())
+            assertTrue("${theme.name} should have activeSelectedColor",
+                theme.panelStyle.activeSelectedColor.isNotEmpty())
+        }
+    }
+
+    @Test
+    fun `classic NC selection colors are dark blue variants`() {
+        assertEquals("#000050", Theme.CLASSIC_NC.panelStyle.selectedColor)
+        assertEquals("#0000AA", Theme.CLASSIC_NC.panelStyle.activeSelectedColor)
+    }
+
     // --- Initial themes invariants ---
 
     @Test
@@ -266,13 +339,15 @@ class ThemeTest {
 
     @Test
     fun `ThemeStyle toComponentStyle copies all fields`() {
-        val ts = ThemeStyle("Courier", 14, Font.BOLD, "#AABBCC", "#112233")
+        val ts = ThemeStyle("Courier", 14, Font.BOLD, "#AABBCC", "#112233", "#001122", "#334455")
         val cs = ts.toComponentStyle()
         assertEquals("Courier", cs.fontFamily)
         assertEquals(14, cs.fontSize)
         assertEquals(Font.BOLD, cs.fontStyle)
         assertEquals("#AABBCC", cs.fontColor)
         assertEquals("#112233", cs.backgroundColor)
+        assertEquals("#001122", cs.selectedColor)
+        assertEquals("#334455", cs.activeSelectedColor)
     }
 
     @Test
@@ -285,6 +360,7 @@ class ThemeTest {
         val cs = ComponentStyle().apply {
             fontFamily = "Arial"; fontSize = 16; fontStyle = Font.ITALIC
             fontColor = "#AABBCC"; backgroundColor = "#112233"
+            selectedColor = "#445566"; activeSelectedColor = "#778899"
         }
         val ts = ThemeStyle.fromComponentStyle(cs)
         val cs2 = ts.toComponentStyle()
@@ -293,6 +369,8 @@ class ThemeTest {
         assertEquals(cs.fontStyle, cs2.fontStyle)
         assertEquals(cs.fontColor, cs2.fontColor)
         assertEquals(cs.backgroundColor, cs2.backgroundColor)
+        assertEquals(cs.selectedColor, cs2.selectedColor)
+        assertEquals(cs.activeSelectedColor, cs2.activeSelectedColor)
     }
 
     // --- Theme.applyTo ---

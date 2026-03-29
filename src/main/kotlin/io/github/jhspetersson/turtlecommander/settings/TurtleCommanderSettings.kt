@@ -45,6 +45,8 @@ class ComponentStyle {
     var fontStyle: Int = Font.PLAIN
     var fontColor: String = ""
     var backgroundColor: String = ""
+    var selectedColor: String = ""
+    var activeSelectedColor: String = ""
 
     fun getFont(defaultFont: Font?): Font? {
         val baseSize = if (fontSize > 0) fontSize else defaultFont?.size ?: 13
@@ -60,23 +62,32 @@ class ComponentStyle {
 
     fun parsedBackgroundColor(): Color? = parseColor(backgroundColor)
 
+    fun parsedSelectedColor(): Color? = parseColor(selectedColor)
+
+    fun parsedActiveSelectedColor(): Color? = parseColor(activeSelectedColor)
+
     fun copyFrom(other: ComponentStyle) {
         fontFamily = other.fontFamily
         fontSize = other.fontSize
         fontStyle = other.fontStyle
         fontColor = other.fontColor
         backgroundColor = other.backgroundColor
+        selectedColor = other.selectedColor
+        activeSelectedColor = other.activeSelectedColor
     }
 
     fun isDefault(): Boolean =
         fontFamily.isEmpty() && fontSize == 0 && fontStyle == Font.PLAIN
             && fontColor.isEmpty() && backgroundColor.isEmpty()
+            && selectedColor.isEmpty() && activeSelectedColor.isEmpty()
 
     override fun equals(other: Any?): Boolean {
         if (other !is ComponentStyle) return false
         return fontFamily == other.fontFamily && fontSize == other.fontSize
             && fontStyle == other.fontStyle && fontColor == other.fontColor
             && backgroundColor == other.backgroundColor
+            && selectedColor == other.selectedColor
+            && activeSelectedColor == other.activeSelectedColor
     }
 
     override fun hashCode(): Int {
@@ -85,6 +96,8 @@ class ComponentStyle {
         result = 31 * result + fontStyle
         result = 31 * result + fontColor.hashCode()
         result = 31 * result + backgroundColor.hashCode()
+        result = 31 * result + selectedColor.hashCode()
+        result = 31 * result + activeSelectedColor.hashCode()
         return result
     }
 }

@@ -326,7 +326,10 @@ class TurtleCommanderConfigurable : Configurable {
             gbc.gridx = 3; add(JBLabel("Style"), gbc)
             gbc.gridx = 4; add(JBLabel("Color"), gbc)
             gbc.gridx = 5; add(JBLabel("Bg"), gbc)
+            gbc.gridx = 6; add(JBLabel("Sel"), gbc)
+            gbc.gridx = 7; add(JBLabel("Active"), gbc)
 
+            val panelEditorLabel = styleEditors["panel"]?.label
             for ((i, editor) in editors.withIndex()) {
                 gbc.gridy = i + 1
                 gbc.gridx = 0; gbc.insets = JBUI.insets(2, 0, 2, 4)
@@ -338,6 +341,10 @@ class TurtleCommanderConfigurable : Configurable {
                 gbc.gridx = 3; add(editor.styleCombo, gbc)
                 gbc.gridx = 4; add(editor.colorButton, gbc)
                 gbc.gridx = 5; add(editor.bgColorButton, gbc)
+                if (editor.label == panelEditorLabel) {
+                    gbc.gridx = 6; add(editor.selectedColorButton, gbc)
+                    gbc.gridx = 7; add(editor.activeSelectedColorButton, gbc)
+                }
             }
         }
 
