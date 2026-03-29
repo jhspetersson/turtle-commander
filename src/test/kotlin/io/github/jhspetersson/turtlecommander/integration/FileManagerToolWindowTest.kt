@@ -1,4 +1,4 @@
-package io.github.jhspetersson.turtlecommander.ui
+package io.github.jhspetersson.turtlecommander.integration
 
 import com.intellij.openapi.components.service
 import com.intellij.openapi.wm.ToolWindowManager
@@ -6,6 +6,8 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.testFramework.PlatformTestUtil
 import io.github.jhspetersson.turtlecommander.service.FileOperationService
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
+import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
+import io.github.jhspetersson.turtlecommander.ui.FileManagerToolWindowFactory
 import kotlinx.coroutines.runBlocking
 import java.nio.file.Path
 

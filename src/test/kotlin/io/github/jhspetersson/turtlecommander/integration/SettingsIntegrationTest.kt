@@ -1,0 +1,298 @@
+package io.github.jhspetersson.turtlecommander.integration
+
+import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import io.github.jhspetersson.turtlecommander.settings.ColumnConfig
+import io.github.jhspetersson.turtlecommander.settings.ComponentStyle
+import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
+import java.awt.Color
+import java.awt.Font
+
+/**
+ * Integration tests for plugin settings: defaults, persistence, column config, component styles.
+ */
+class SettingsIntegrationTest : BasePlatformTestCase() {
+
+    private lateinit var settings: TurtleCommanderSettings
+    private lateinit var originalState: TurtleCommanderSettings.State
+
+    override fun setUp() {
+        super.setUp()
+        settings = TurtleCommanderSettings.getInstance()
+        // Save original state to restore in tearDown (settings are app-level and shared)
+        originalState = TurtleCommanderSettings.State().also { it ->
+            val s = settings.state
+            it.enableFileNameHighlighting = s.enableFileNameHighlighting
+            it.showCommandBar = s.showCommandBar
+            it.hideDriveSelector = s.hideDriveSelector
+            it.hideStatusBar = s.hideStatusBar
+            it.alwaysOverwriteFiles = s.alwaysOverwriteFiles
+            it.defaultViewMode = s.defaultViewMode
+            it.sortWithDirectories = s.sortWithDirectories
+            it.calculateDirectorySize = s.calculateDirectorySize
+            it.panelFontFamily = s.panelFontFamily
+            it.panelFontSize = s.panelFontSize
+            it.tabFontFamily = s.tabFontFamily
+            it.tabFontSize = s.tabFontSize
+        }
+    }
+
+    override fun tearDown() {
+        try {
+            settings.loadState(originalState)
+        } finally {
+            super.tearDown()
+        }
+    }
+
+    // --- Default values ---
+
+    fun testDefaultSettings() {
+        val state = settings.state
+        assertTrue("File name highlighting should default to true", state.enableFileNameHighlighting)
+        assertTrue("Command bar should default to visible", state.showCommandBar)
+        assertFalse("Drive selector should not be hidden by default", state.hideDriveSelector)
+        assertFalse("Status bar should not be hidden by default", state.hideStatusBar)
+        assertFalse("Overwrite should not default to always", state.alwaysOverwriteFiles)
+        assertEquals("Default view mode should be TABLE", "TABLE", state.defaultViewMode)
+        assertFalse("Sort with directories should default to false", state.sortWithDirectories)
+        assertTrue("Calculate directory size should default to true", state.calculateDirectorySize)
+    }
+
+    // --- State mutation and read-back ---
+
+    fun testSettingsStateRoundtrip() {
+        val state = settings.state
+
+        state.enableFileNameHighlighting = false
+        state.showCommandBar = false
+        state.hideDriveSelector = true
+        state.hideStatusBar = true
+        state.alwaysOverwriteFiles = true
+        state.defaultViewMode = "LIST"
+        state.sortWithDirectories = true
+        state.calculateDirectorySize = false
+
+        // Read back through the same instance
+        assertFalse(settings.state.enableFileNameHighlighting)
+        assertFalse(settings.state.showCommandBar)
+        assertTrue(settings.state.hideDriveSelector)
+        assertTrue(settings.state.hideStatusBar)
+        assertTrue(settings.state.alwaysOverwriteFiles)
+        assertEquals("LIST", settings.state.defaultViewMode)
+        assertTrue(settings.state.sortWithDirectories)
+        assertFalse(settings.state.calculateDirectorySize)
+    }
+
+    fun testLoadStateOverwritesExisting() {
+        val newState = TurtleCommanderSettings.State().apply {
+            defaultViewMode = "THUMBNAIL"
+            enableFileNameHighlighting = false
+            panelFontFamily = "Monospaced"
+            panelFontSize = 16
+        }
+
+        settings.loadState(newState)
+
+        assertEquals("THUMBNAIL", settings.state.defaultViewMode)
+        assertFalse(settings.state.enableFileNameHighlighting)
+        assertEquals("Monospaced", settings.state.panelFontFamily)
+        assertEquals(16, settings.state.panelFontSize)
+    }
+
+    // --- Column config ---
+
+    fun testEffectiveColumnsReturnsDefaults() {
+        settings.state.columns.clear()
+
+        val columns = settings.getEffectiveColumns()
+
+        assertEquals("Should have all 6 default columns", 6, columns.size)
+        assertEquals("Name", columns[0].id)
+        assertEquals("Ext", columns[1].id)
+        assertEquals("Size", columns[2].id)
+        assertEquals("Date Created", columns[3].id)
+        assertEquals("Date Modified", columns[4].id)
+        assertEquals("Permissions", columns[5].id)
+        assertTrue("All columns visible by default", columns.all { it.visible })
+    }
+
+    fun testEffectiveColumnsPreservesCustomization() {
+        settings.state.columns.clear()
+        settings.state.columns.add(ColumnConfig().apply { id = "Name"; visible = true })
+        settings.state.columns.add(ColumnConfig().apply { id = "Size"; visible = false })
+
+        val columns = settings.getEffectiveColumns()
+
+        // Should include the 2 saved columns + fill in the 4 missing ones
+        assertTrue("Should have at least 6 columns", columns.size >= 6)
+        val sizeCol = columns.find { it.id == "Size" }
+        assertNotNull(sizeCol)
+        assertFalse("Size column should be hidden", sizeCol!!.visible)
+    }
+
+    fun testEffectiveColumnsAddsNewColumns() {
+        // Simulate having only 3 saved columns (as if from an older version)
+        settings.state.columns.clear()
+        settings.state.columns.add(ColumnConfig().apply { id = "Name" })
+        settings.state.columns.add(ColumnConfig().apply { id = "Size" })
+        settings.state.columns.add(ColumnConfig().apply { id = "Date Modified" })
+
+        val columns = settings.getEffectiveColumns()
+
+        // Missing columns (Ext, Date Created, Permissions) should be appended
+        val ids = columns.map { it.id }.toSet()
+        assertTrue("Should include Ext", "Ext" in ids)
+        assertTrue("Should include Date Created", "Date Created" in ids)
+        assertTrue("Should include Permissions", "Permissions" in ids)
+    }
+
+    fun testColumnConfigDefaults() {
+        val defaults = ColumnConfig.defaults()
+        assertEquals(6, defaults.size)
+        assertEquals(ColumnConfig.ALL_COLUMN_IDS, defaults.map { it.id })
+        assertTrue(defaults.all { it.visible })
+        assertTrue("All default styles should be default", defaults.all { it.style.isDefault() })
+    }
+
+    // --- Component style ---
+
+    fun testComponentStyleDefault() {
+        val style = ComponentStyle()
+        assertTrue("New style should be default", style.isDefault())
+        assertEquals("", style.fontFamily)
+        assertEquals(0, style.fontSize)
+        assertEquals(Font.PLAIN, style.fontStyle)
+        assertEquals("", style.fontColor)
+        assertNull("Default style should return null font", style.getFont(null))
+        assertNull("Default style should return null color", style.getFontColor())
+    }
+
+    fun testComponentStyleWithCustomValues() {
+        val style = ComponentStyle().apply {
+            fontFamily = "Monospaced"
+            fontSize = 14
+            fontStyle = Font.BOLD
+            fontColor = "#FF0000"
+        }
+
+        assertFalse(style.isDefault())
+        val font = style.getFont(null)
+        assertNotNull(font)
+        assertEquals("Monospaced", font!!.family)
+        assertEquals(14, font.size)
+        assertEquals(Font.BOLD, font.style)
+        val color = style.getFontColor()
+        assertNotNull(color)
+        assertEquals(Color.RED, color)
+    }
+
+    fun testComponentStyleCopyFrom() {
+        val source = ComponentStyle().apply {
+            fontFamily = "Arial"
+            fontSize = 18
+            fontStyle = Font.ITALIC
+            fontColor = "#00FF00"
+        }
+        val target = ComponentStyle()
+
+        target.copyFrom(source)
+
+        assertEquals("Arial", target.fontFamily)
+        assertEquals(18, target.fontSize)
+        assertEquals(Font.ITALIC, target.fontStyle)
+        assertEquals("#00FF00", target.fontColor)
+    }
+
+    fun testComponentStyleEquality() {
+        val a = ComponentStyle().apply { fontFamily = "Arial"; fontSize = 12 }
+        val b = ComponentStyle().apply { fontFamily = "Arial"; fontSize = 12 }
+        val c = ComponentStyle().apply { fontFamily = "Arial"; fontSize = 14 }
+
+        assertEquals(a, b)
+        assertNotSame(a, b)
+        assertFalse(a == c)
+        assertEquals(a.hashCode(), b.hashCode())
+    }
+
+    fun testComponentStyleGetFontUsesDefaultWhenPartial() {
+        val defaultFont = Font("Dialog", Font.PLAIN, 13)
+
+        // Only fontSize set — should use default family
+        val sizeOnly = ComponentStyle().apply { fontSize = 20 }
+        val font = sizeOnly.getFont(defaultFont)
+        assertNotNull(font)
+        assertEquals(20, font!!.size)
+
+        // Only fontStyle set — should produce a font
+        val styleOnly = ComponentStyle().apply { fontStyle = Font.BOLD }
+        val boldFont = styleOnly.getFont(defaultFont)
+        assertNotNull(boldFont)
+        assertEquals(Font.BOLD, boldFont!!.style)
+    }
+
+    fun testComponentStyleInvalidColorReturnsNull() {
+        val style = ComponentStyle().apply { fontColor = "not-a-color" }
+        assertNull("Invalid color should return null", style.getFontColor())
+    }
+
+    // --- Panel/tab font methods ---
+
+    fun testGetPanelFontWithLegacyFields() {
+        settings.loadState(TurtleCommanderSettings.State().apply {
+            panelFontFamily = "Monospaced"
+            panelFontSize = 15
+        })
+
+        val font = settings.getPanelFont()
+        assertNotNull("Legacy font family should produce a font", font)
+        assertEquals(15, font!!.size)
+        assertEquals(Font.PLAIN, font.style)
+    }
+
+    fun testGetPanelFontStyleOverridesLegacy() {
+        settings.loadState(TurtleCommanderSettings.State().apply {
+            panelFontFamily = "Courier"
+            panelFontSize = 15
+            panelStyle = ComponentStyle().apply {
+                fontFamily = "Arial"
+                fontSize = 20
+                fontStyle = Font.BOLD
+            }
+        })
+
+        val font = settings.getPanelFont()
+        assertNotNull(font)
+        assertEquals("Arial", font!!.family)
+        assertEquals(20, font.size)
+    }
+
+    fun testGetTabFontWithLegacyFields() {
+        settings.loadState(TurtleCommanderSettings.State().apply {
+            tabFontFamily = "Monospaced"
+            tabFontSize = 11
+        })
+
+        val font = settings.getTabFont()
+        assertNotNull("Legacy tab font family should produce a font", font)
+        assertEquals(11, font!!.size)
+    }
+
+    fun testGetPanelFontReturnsNullWhenUnset() {
+        settings.loadState(TurtleCommanderSettings.State())
+
+        assertNull("Panel font should be null when no font configured", settings.getPanelFont())
+    }
+
+    // --- All component styles initialized ---
+
+    fun testAllComponentStylesInitialized() {
+        val state = settings.state
+        assertNotNull(state.panelStyle)
+        assertNotNull(state.tabStyle)
+        assertNotNull(state.pathBarStyle)
+        assertNotNull(state.statusBarStyle)
+        assertNotNull(state.commandBarStyle)
+        assertNotNull(state.driveSelectorStyle)
+        assertNotNull(state.columnHeaderStyle)
+    }
+}
