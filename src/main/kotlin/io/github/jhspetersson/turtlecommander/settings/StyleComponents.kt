@@ -41,8 +41,8 @@ internal class ComponentStyleEditor(
             Font.BOLD or Font.ITALIC -> 3
             else -> 0
         }
-        colorButton.setColor(style.getFontColor())
-        bgColorButton.setColor(style.getBackgroundColor())
+        colorButton.setColor(style.parsedFontColor())
+        bgColorButton.setColor(style.parsedBackgroundColor())
     }
 
     fun applyTo(style: ComponentStyle) {

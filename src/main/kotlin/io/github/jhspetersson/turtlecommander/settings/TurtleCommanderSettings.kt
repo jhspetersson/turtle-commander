@@ -56,9 +56,9 @@ class ComponentStyle {
         }
     }
 
-    fun getFontColor(): Color? = parseColor(fontColor)
+    fun parsedFontColor(): Color? = parseColor(fontColor)
 
-    fun getBackgroundColor(): Color? = parseColor(backgroundColor)
+    fun parsedBackgroundColor(): Color? = parseColor(backgroundColor)
 
     fun copyFrom(other: ComponentStyle) {
         fontFamily = other.fontFamily
@@ -123,6 +123,8 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
         var driveSelectorStyle: ComponentStyle = ComponentStyle()
         var columnHeaderStyle: ComponentStyle = ComponentStyle()
         var themeName: String = ""
+        var themes: MutableList<SavedTheme> = mutableListOf()
+        var themesInitialized: Boolean = false
 
         // Styles saved before a theme was applied, so "Default" can restore them
         var preThemePanelStyle: ComponentStyle = ComponentStyle()

@@ -120,7 +120,7 @@ internal class StyledFileNameCellRenderer(
             foreground = if (tab.enableFileNameHighlighting && entry != null && entry.isDirectory && entry.directoryType != DirectoryType.NONE) {
                 DirectoryIcons.getColor(entry.directoryType)
             } else {
-                style?.getFontColor() ?: table.foreground
+                style?.parsedFontColor() ?: table.foreground
             }
         }
         if (style != null) {
@@ -152,7 +152,7 @@ internal class StyledDisplayValueRenderer(
             foreground = tab.inactiveSelectionForeground()
         } else if (!isSelected) {
             background = table.background
-            foreground = style?.getFontColor() ?: table.foreground
+            foreground = style?.parsedFontColor() ?: table.foreground
         }
         if (style != null) {
             val f = style.getFont(table.font)

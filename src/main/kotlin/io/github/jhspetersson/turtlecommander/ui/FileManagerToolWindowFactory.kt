@@ -82,7 +82,6 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
             add(splitter, BorderLayout.CENTER)
             add(bottomBar, BorderLayout.SOUTH)
         }
-
         val content = ContentFactory.getInstance().createContent(contentPanel, null, false)
         toolWindow.contentManager.addContent(content)
 
@@ -208,8 +207,8 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
         val defaultBarBg = bar.getClientProperty("defaultBg") as? java.awt.Color ?: bar.background
 
         val font = style.getFont(null)
-        val fg = style.getFontColor()
-        val bg = style.getBackgroundColor()
+        val fg = style.parsedFontColor()
+        val bg = style.parsedBackgroundColor()
         bar.background = bg ?: defaultBarBg
         for (comp in bar.components) {
             if (comp is JButton) {

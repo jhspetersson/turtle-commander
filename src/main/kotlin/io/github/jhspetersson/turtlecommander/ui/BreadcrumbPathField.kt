@@ -186,10 +186,10 @@ class BreadcrumbPathField : JPanel() {
 
     fun applyStyle(style: ComponentStyle) {
         customFont = style.getFont(defaultEditFieldFont)
-        customFg = style.getFontColor()
+        customFg = style.parsedFontColor()
         editField.font = customFont ?: defaultEditFieldFont
         editField.foreground = customFg ?: defaultEditFieldFg
-        val bg = style.getBackgroundColor()
+        val bg = style.parsedBackgroundColor()
         if (bg != null) {
             editField.background = bg
             isOpaque = true

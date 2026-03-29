@@ -201,7 +201,7 @@ class FileManagerPanel(
         val tabStyle = settings.state.tabStyle
         val tabFont = settings.getTabFont()
         if (tabFont != null) tabbedPane.font = tabFont
-        val tabBg = tabStyle.getBackgroundColor()
+        val tabBg = tabStyle.parsedBackgroundColor()
         if (tabBg != null) tabbedPane.background = tabBg
     }
 
@@ -440,9 +440,9 @@ class FileManagerPanel(
         val tabStyle = settings.state.tabStyle
         val font = settings.getTabFont()
         if (font != null) label.font = font
-        val fg = tabStyle.getFontColor()
+        val fg = tabStyle.parsedFontColor()
         if (fg != null) label.foreground = fg
-        val bg = tabStyle.getBackgroundColor()
+        val bg = tabStyle.parsedBackgroundColor()
         if (bg != null) {
             panel.isOpaque = true
             panel.background = bg
@@ -581,8 +581,8 @@ class FileManagerPanel(
             else -> defaultTabFont
         }
         tabbedPane.font = effectiveTabFont
-        val tabFg = tabStyle.getFontColor()
-        val tabBg = tabStyle.getBackgroundColor()
+        val tabFg = tabStyle.parsedFontColor()
+        val tabBg = tabStyle.parsedBackgroundColor()
         tabbedPane.background = tabBg ?: defaultTabBg
         for (i in 0 until tabbedPane.tabCount) {
             val tabComponent = tabbedPane.getTabComponentAt(i)

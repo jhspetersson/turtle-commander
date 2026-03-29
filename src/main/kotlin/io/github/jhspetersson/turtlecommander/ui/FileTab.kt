@@ -179,13 +179,13 @@ class FileTab(
         }
 
         val panelStyle = settings.state.panelStyle
-        val fg = panelStyle.getFontColor() ?: defaultTableFg
+        val fg = panelStyle.parsedFontColor() ?: defaultTableFg
         table.foreground = fg
         list.foreground = fg
         thumbnailList.foreground = fg
         tree.foreground = fg
 
-        val bg = panelStyle.getBackgroundColor() ?: defaultTableBg
+        val bg = panelStyle.parsedBackgroundColor() ?: defaultTableBg
         table.background = bg
         list.background = bg
         thumbnailList.background = bg
@@ -274,16 +274,16 @@ class FileTab(
     private fun applyDriveSelectorStyle() {
         val style = TurtleCommanderSettings.getInstance().state.driveSelectorStyle
         driveCombo.font = style.getFont(defaultDriveComboFont) ?: defaultDriveComboFont
-        driveCombo.foreground = style.getFontColor() ?: defaultDriveComboFg
-        driveCombo.background = style.getBackgroundColor() ?: defaultDriveComboBg
+        driveCombo.foreground = style.parsedFontColor() ?: defaultDriveComboFg
+        driveCombo.background = style.parsedBackgroundColor() ?: defaultDriveComboBg
     }
 
     private fun applyColumnHeaderStyle() {
         val style = TurtleCommanderSettings.getInstance().state.columnHeaderStyle
         val header = table.tableHeader ?: return
         header.font = style.getFont(defaultHeaderFont) ?: defaultHeaderFont
-        header.foreground = style.getFontColor() ?: defaultHeaderFg
-        header.background = style.getBackgroundColor() ?: defaultHeaderBg
+        header.foreground = style.parsedFontColor() ?: defaultHeaderFg
+        header.background = style.parsedBackgroundColor() ?: defaultHeaderBg
     }
 
     private fun applyStatusBarStyle() {
@@ -291,10 +291,10 @@ class FileTab(
         val font = style.getFont(defaultStatusFont) ?: defaultStatusFont
         statusLabel.font = font
         freeSpaceLabel.font = font
-        val fg = style.getFontColor() ?: defaultStatusFg
+        val fg = style.parsedFontColor() ?: defaultStatusFg
         statusLabel.foreground = fg
         freeSpaceLabel.foreground = fg
-        val bg = style.getBackgroundColor() ?: defaultStatusBg
+        val bg = style.parsedBackgroundColor() ?: defaultStatusBg
         statusPanel.background = bg
         statusLabel.background = bg
         freeSpaceLabel.background = bg

@@ -86,26 +86,26 @@ class ComponentStyleTest {
     // --- getFontColor ---
 
     @Test
-    fun `getFontColor returns null for empty color`() {
-        assertNull(ComponentStyle().getFontColor())
+    fun `parsedFontColor returns null for empty color`() {
+        assertNull(ComponentStyle().parsedFontColor())
     }
 
     @Test
-    fun `getFontColor returns null for blank color`() {
+    fun `parsedFontColor returns null for blank color`() {
         val style = ComponentStyle().apply { fontColor = "   " }
-        assertNull(style.getFontColor())
+        assertNull(style.parsedFontColor())
     }
 
     @Test
-    fun `getFontColor parses valid hex color`() {
+    fun `parsedFontColor parses valid hex color`() {
         val style = ComponentStyle().apply { fontColor = "#FF0000" }
-        assertEquals(Color.RED, style.getFontColor())
+        assertEquals(Color.RED, style.parsedFontColor())
     }
 
     @Test
-    fun `getFontColor returns null for invalid color`() {
+    fun `parsedFontColor returns null for invalid color`() {
         val style = ComponentStyle().apply { fontColor = "not-a-color" }
-        assertNull(style.getFontColor())
+        assertNull(style.parsedFontColor())
     }
 
     // --- copyFrom ---

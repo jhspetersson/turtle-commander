@@ -164,7 +164,7 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
         assertEquals(Font.PLAIN, style.fontStyle)
         assertEquals("", style.fontColor)
         assertNull("Default style should return null font", style.getFont(null))
-        assertNull("Default style should return null color", style.getFontColor())
+        assertNull("Default style should return null color", style.parsedFontColor())
     }
 
     fun testComponentStyleWithCustomValues() {
@@ -181,7 +181,7 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
         assertEquals("Monospaced", font!!.family)
         assertEquals(14, font.size)
         assertEquals(Font.BOLD, font.style)
-        val color = style.getFontColor()
+        val color = style.parsedFontColor()
         assertNotNull(color)
         assertEquals(Color.RED, color)
     }
@@ -232,7 +232,7 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
 
     fun testComponentStyleInvalidColorReturnsNull() {
         val style = ComponentStyle().apply { fontColor = "not-a-color" }
-        assertNull("Invalid color should return null", style.getFontColor())
+        assertNull("Invalid color should return null", style.parsedFontColor())
     }
 
     // --- Panel/tab font methods ---

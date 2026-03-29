@@ -16,6 +16,16 @@ data class ThemeStyle(
         fontColor = this@ThemeStyle.fontColor
         backgroundColor = this@ThemeStyle.backgroundColor
     }
+
+    companion object {
+        fun fromComponentStyle(cs: ComponentStyle) = ThemeStyle(
+            fontFamily = cs.fontFamily,
+            fontSize = cs.fontSize,
+            fontStyle = cs.fontStyle,
+            fontColor = cs.fontColor,
+            backgroundColor = cs.backgroundColor,
+        )
+    }
 }
 
 data class Theme(
@@ -43,8 +53,8 @@ data class Theme(
     companion object {
         val DEFAULT = Theme(name = "Default")
 
-        val NORTON_COMMANDER = Theme(
-            name = "Norton Commander",
+        val CLASSIC_NC = Theme(
+            name = "Classic NC",
             panelStyle = ThemeStyle(
                 fontFamily = "Consolas",
                 fontSize = 13,
@@ -181,6 +191,297 @@ data class Theme(
             ),
         )
 
-        val ALL_THEMES = listOf(DEFAULT, NORTON_COMMANDER, GREEN_TERMINAL, BROWN_OLDSCHOOL)
+        val GREY_ASH = Theme(
+            name = "Grey Ash",
+            panelStyle = ThemeStyle(
+                fontFamily = "Consolas",
+                fontSize = 13,
+                fontColor = "#CCCCBB",
+                backgroundColor = "#3D3D35",
+            ),
+            tabStyle = ThemeStyle(
+                fontFamily = "Consolas",
+                fontSize = 12,
+                fontColor = "#CCCCBB",
+                backgroundColor = "#4D4D45",
+            ),
+            pathBarStyle = ThemeStyle(
+                fontFamily = "Consolas",
+                fontSize = 13,
+                fontColor = "#DDDDCC",
+                backgroundColor = "#3D3D35",
+            ),
+            statusBarStyle = ThemeStyle(
+                fontFamily = "Consolas",
+                fontSize = 13,
+                fontColor = "#BBBBAA",
+                backgroundColor = "#3D3D35",
+            ),
+            commandBarStyle = ThemeStyle(
+                fontFamily = "Consolas",
+                fontSize = 13,
+                fontColor = "#CCCCBB",
+                backgroundColor = "#4D4D45",
+            ),
+            driveSelectorStyle = ThemeStyle(
+                fontFamily = "Consolas",
+                fontSize = 13,
+                fontColor = "#CCCCBB",
+                backgroundColor = "#3D3D35",
+            ),
+            columnHeaderStyle = ThemeStyle(
+                fontFamily = "Consolas",
+                fontSize = 13,
+                fontColor = "#AAAA99",
+                backgroundColor = "#4D4D45",
+            ),
+        )
+
+        val MONOCHROME = Theme(
+            name = "Monochrome",
+            panelStyle = ThemeStyle(
+                fontFamily = "Consolas",
+                fontSize = 13,
+                fontColor = "#FFFFFF",
+                backgroundColor = "#000000",
+            ),
+            tabStyle = ThemeStyle(
+                fontFamily = "Consolas",
+                fontSize = 12,
+                fontColor = "#FFFFFF",
+                backgroundColor = "#000000",
+            ),
+            pathBarStyle = ThemeStyle(
+                fontFamily = "Consolas",
+                fontSize = 13,
+                fontColor = "#FFFFFF",
+                backgroundColor = "#000000",
+            ),
+            statusBarStyle = ThemeStyle(
+                fontFamily = "Consolas",
+                fontSize = 13,
+                fontColor = "#CCCCCC",
+                backgroundColor = "#000000",
+            ),
+            commandBarStyle = ThemeStyle(
+                fontFamily = "Consolas",
+                fontSize = 13,
+                fontColor = "#FFFFFF",
+                backgroundColor = "#000000",
+            ),
+            driveSelectorStyle = ThemeStyle(
+                fontFamily = "Consolas",
+                fontSize = 13,
+                fontColor = "#FFFFFF",
+                backgroundColor = "#000000",
+            ),
+            columnHeaderStyle = ThemeStyle(
+                fontFamily = "Consolas",
+                fontSize = 13,
+                fontColor = "#999999",
+                backgroundColor = "#000000",
+            ),
+        )
+
+        /** Themes seeded on first plugin install. */
+        val INITIAL_THEMES = listOf(DEFAULT, CLASSIC_NC, GREEN_TERMINAL, BROWN_OLDSCHOOL, GREY_ASH, MONOCHROME)
     }
+}
+
+/**
+ * Serializable theme entry for persistence in settings.
+ * IntelliJ's XmlSerializer needs mutable fields with no-arg constructor.
+ */
+class SavedTheme {
+    var name: String = ""
+    var panelFontFamily: String = ""
+    var panelFontSize: Int = 0
+    var panelFontStyle: Int = Font.PLAIN
+    var panelFontColor: String = ""
+    var panelBackgroundColor: String = ""
+    var tabFontFamily: String = ""
+    var tabFontSize: Int = 0
+    var tabFontStyle: Int = Font.PLAIN
+    var tabFontColor: String = ""
+    var tabBackgroundColor: String = ""
+    var pathBarFontFamily: String = ""
+    var pathBarFontSize: Int = 0
+    var pathBarFontStyle: Int = Font.PLAIN
+    var pathBarFontColor: String = ""
+    var pathBarBackgroundColor: String = ""
+    var statusBarFontFamily: String = ""
+    var statusBarFontSize: Int = 0
+    var statusBarFontStyle: Int = Font.PLAIN
+    var statusBarFontColor: String = ""
+    var statusBarBackgroundColor: String = ""
+    var commandBarFontFamily: String = ""
+    var commandBarFontSize: Int = 0
+    var commandBarFontStyle: Int = Font.PLAIN
+    var commandBarFontColor: String = ""
+    var commandBarBackgroundColor: String = ""
+    var driveSelectorFontFamily: String = ""
+    var driveSelectorFontSize: Int = 0
+    var driveSelectorFontStyle: Int = Font.PLAIN
+    var driveSelectorFontColor: String = ""
+    var driveSelectorBackgroundColor: String = ""
+    var columnHeaderFontFamily: String = ""
+    var columnHeaderFontSize: Int = 0
+    var columnHeaderFontStyle: Int = Font.PLAIN
+    var columnHeaderFontColor: String = ""
+    var columnHeaderBackgroundColor: String = ""
+
+    fun toTheme(): Theme = Theme(
+        name = name,
+        panelStyle = ThemeStyle(panelFontFamily, panelFontSize, panelFontStyle, panelFontColor, panelBackgroundColor),
+        tabStyle = ThemeStyle(tabFontFamily, tabFontSize, tabFontStyle, tabFontColor, tabBackgroundColor),
+        pathBarStyle = ThemeStyle(pathBarFontFamily, pathBarFontSize, pathBarFontStyle, pathBarFontColor, pathBarBackgroundColor),
+        statusBarStyle = ThemeStyle(statusBarFontFamily, statusBarFontSize, statusBarFontStyle, statusBarFontColor, statusBarBackgroundColor),
+        commandBarStyle = ThemeStyle(commandBarFontFamily, commandBarFontSize, commandBarFontStyle, commandBarFontColor, commandBarBackgroundColor),
+        driveSelectorStyle = ThemeStyle(driveSelectorFontFamily, driveSelectorFontSize, driveSelectorFontStyle, driveSelectorFontColor, driveSelectorBackgroundColor),
+        columnHeaderStyle = ThemeStyle(columnHeaderFontFamily, columnHeaderFontSize, columnHeaderFontStyle, columnHeaderFontColor, columnHeaderBackgroundColor),
+    )
+
+    companion object {
+        fun fromTheme(theme: Theme): SavedTheme = SavedTheme().apply {
+            name = theme.name
+            panelFontFamily = theme.panelStyle.fontFamily; panelFontSize = theme.panelStyle.fontSize; panelFontStyle = theme.panelStyle.fontStyle; panelFontColor = theme.panelStyle.fontColor; panelBackgroundColor = theme.panelStyle.backgroundColor
+            tabFontFamily = theme.tabStyle.fontFamily; tabFontSize = theme.tabStyle.fontSize; tabFontStyle = theme.tabStyle.fontStyle; tabFontColor = theme.tabStyle.fontColor; tabBackgroundColor = theme.tabStyle.backgroundColor
+            pathBarFontFamily = theme.pathBarStyle.fontFamily; pathBarFontSize = theme.pathBarStyle.fontSize; pathBarFontStyle = theme.pathBarStyle.fontStyle; pathBarFontColor = theme.pathBarStyle.fontColor; pathBarBackgroundColor = theme.pathBarStyle.backgroundColor
+            statusBarFontFamily = theme.statusBarStyle.fontFamily; statusBarFontSize = theme.statusBarStyle.fontSize; statusBarFontStyle = theme.statusBarStyle.fontStyle; statusBarFontColor = theme.statusBarStyle.fontColor; statusBarBackgroundColor = theme.statusBarStyle.backgroundColor
+            commandBarFontFamily = theme.commandBarStyle.fontFamily; commandBarFontSize = theme.commandBarStyle.fontSize; commandBarFontStyle = theme.commandBarStyle.fontStyle; commandBarFontColor = theme.commandBarStyle.fontColor; commandBarBackgroundColor = theme.commandBarStyle.backgroundColor
+            driveSelectorFontFamily = theme.driveSelectorStyle.fontFamily; driveSelectorFontSize = theme.driveSelectorStyle.fontSize; driveSelectorFontStyle = theme.driveSelectorStyle.fontStyle; driveSelectorFontColor = theme.driveSelectorStyle.fontColor; driveSelectorBackgroundColor = theme.driveSelectorStyle.backgroundColor
+            columnHeaderFontFamily = theme.columnHeaderStyle.fontFamily; columnHeaderFontSize = theme.columnHeaderStyle.fontSize; columnHeaderFontStyle = theme.columnHeaderStyle.fontStyle; columnHeaderFontColor = theme.columnHeaderStyle.fontColor; columnHeaderBackgroundColor = theme.columnHeaderStyle.backgroundColor
+        }
+    }
+}
+
+/**
+ * Manages the theme list persisted in settings.
+ * On first use, seeds initial themes; after that all themes are user-owned.
+ */
+object ThemeManager {
+
+    fun getAllThemes(state: TurtleCommanderSettings.State): List<Theme> {
+        if (!state.themesInitialized) {
+            for (theme in Theme.INITIAL_THEMES) {
+                state.themes.add(SavedTheme.fromTheme(theme))
+            }
+            state.themesInitialized = true
+        }
+        val themes = state.themes.map { it.toTheme() }
+        val default = themes.filter { it.name == Theme.DEFAULT.name }
+        val rest = themes.filter { it.name != Theme.DEFAULT.name }.sortedBy { it.name }
+        return default + rest
+    }
+
+    fun saveTheme(state: TurtleCommanderSettings.State, theme: Theme): SaveResult {
+        val existingIdx = state.themes.indexOfFirst { it.name == theme.name }
+        if (existingIdx >= 0) {
+            state.themes[existingIdx] = SavedTheme.fromTheme(theme)
+            return SaveResult.Replaced
+        }
+        state.themes.add(SavedTheme.fromTheme(theme))
+        return SaveResult.Saved
+    }
+
+    fun deleteTheme(state: TurtleCommanderSettings.State, themeName: String): Boolean {
+        return state.themes.removeIf { it.name == themeName }
+    }
+
+    fun renameTheme(state: TurtleCommanderSettings.State, oldName: String, newName: String): RenameResult {
+        if (newName.isBlank()) return RenameResult.InvalidName
+        if (oldName == newName) return RenameResult.Success
+        if (state.themes.any { it.name == newName }) return RenameResult.Conflict
+        val entry = state.themes.find { it.name == oldName } ?: return RenameResult.NotFound
+        entry.name = newName
+        return RenameResult.Success
+    }
+
+    fun exportTheme(theme: Theme): String {
+        val sb = StringBuilder()
+        sb.appendLine("name=${theme.name}")
+        appendStyle(sb, "panel", theme.panelStyle)
+        appendStyle(sb, "tab", theme.tabStyle)
+        appendStyle(sb, "pathBar", theme.pathBarStyle)
+        appendStyle(sb, "statusBar", theme.statusBarStyle)
+        appendStyle(sb, "commandBar", theme.commandBarStyle)
+        appendStyle(sb, "driveSelector", theme.driveSelectorStyle)
+        appendStyle(sb, "columnHeader", theme.columnHeaderStyle)
+        return sb.toString()
+    }
+
+    fun importTheme(text: String): Theme? {
+        val props = mutableMapOf<String, String>()
+        for (line in text.lines()) {
+            val trimmed = line.trim()
+            if (trimmed.isEmpty() || trimmed.startsWith("#")) continue
+            val eqIdx = trimmed.indexOf('=')
+            if (eqIdx < 0) continue
+            props[trimmed.substring(0, eqIdx).trim()] = trimmed.substring(eqIdx + 1).trim()
+        }
+        val name = props["name"] ?: return null
+        if (name.isBlank()) return null
+        return Theme(
+            name = name,
+            panelStyle = parseStyle(props, "panel"),
+            tabStyle = parseStyle(props, "tab"),
+            pathBarStyle = parseStyle(props, "pathBar"),
+            statusBarStyle = parseStyle(props, "statusBar"),
+            commandBarStyle = parseStyle(props, "commandBar"),
+            driveSelectorStyle = parseStyle(props, "driveSelector"),
+            columnHeaderStyle = parseStyle(props, "columnHeader"),
+        )
+    }
+
+    /**
+     * Import a theme into state. Returns the result and the effective name used.
+     */
+    fun importThemeToState(state: TurtleCommanderSettings.State, theme: Theme, overwrite: Boolean = false): Pair<ImportResult, String> {
+        val conflict = state.themes.any { it.name == theme.name }
+
+        if (conflict) {
+            if (overwrite) {
+                val idx = state.themes.indexOfFirst { it.name == theme.name }
+                state.themes[idx] = SavedTheme.fromTheme(theme)
+                return Pair(ImportResult.Replaced, theme.name)
+            } else {
+                val newName = generateUniqueName(theme.name, state)
+                state.themes.add(SavedTheme.fromTheme(theme.copy(name = newName)))
+                return Pair(ImportResult.Renamed, newName)
+            }
+        }
+        state.themes.add(SavedTheme.fromTheme(theme))
+        return Pair(ImportResult.Imported, theme.name)
+    }
+
+    internal fun generateUniqueName(baseName: String, state: TurtleCommanderSettings.State): String {
+        val allNames = state.themes.map { it.name }.toSet()
+        var candidate = "$baseName (2)"
+        var counter = 3
+        while (candidate in allNames) {
+            candidate = "$baseName ($counter)"
+            counter++
+        }
+        return candidate
+    }
+
+    private fun appendStyle(sb: StringBuilder, prefix: String, style: ThemeStyle) {
+        if (style.fontFamily.isNotEmpty()) sb.appendLine("$prefix.fontFamily=${style.fontFamily}")
+        if (style.fontSize > 0) sb.appendLine("$prefix.fontSize=${style.fontSize}")
+        if (style.fontStyle != Font.PLAIN) sb.appendLine("$prefix.fontStyle=${style.fontStyle}")
+        if (style.fontColor.isNotEmpty()) sb.appendLine("$prefix.fontColor=${style.fontColor}")
+        if (style.backgroundColor.isNotEmpty()) sb.appendLine("$prefix.backgroundColor=${style.backgroundColor}")
+    }
+
+    private fun parseStyle(props: Map<String, String>, prefix: String): ThemeStyle = ThemeStyle(
+        fontFamily = props["$prefix.fontFamily"] ?: "",
+        fontSize = props["$prefix.fontSize"]?.toIntOrNull() ?: 0,
+        fontStyle = props["$prefix.fontStyle"]?.toIntOrNull() ?: Font.PLAIN,
+        fontColor = props["$prefix.fontColor"] ?: "",
+        backgroundColor = props["$prefix.backgroundColor"] ?: "",
+    )
+
+    enum class SaveResult { Saved, Replaced }
+    enum class RenameResult { Success, Conflict, NotFound, InvalidName }
+    enum class ImportResult { Imported, Replaced, Renamed }
 }
