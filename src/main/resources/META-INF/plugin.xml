@@ -320,6 +320,21 @@
                 <keyboard-shortcut first-keystroke="ctrl 9" keymap="$default"/>
             </action>
         </group>
+        <!-- Copy as submenu actions (file context menu) -->
+        <action id="TurtleCommander.CopyAsName"
+                class="io.github.jhspetersson.turtlecommander.action.CopyAsNameAction"
+                text="Filename"/>
+        <action id="TurtleCommander.CopyAsFullPath"
+                class="io.github.jhspetersson.turtlecommander.action.CopyAsFullPathAction"
+                text="Full Path"/>
+        <action id="TurtleCommander.CopyAsParentPath"
+                class="io.github.jhspetersson.turtlecommander.action.CopyAsParentPathAction"
+                text="Parent Path"/>
+        <group id="TurtleCommander.CopyAsGroup" text="Copy as" popup="true" icon="AllIcons.Actions.Copy">
+            <reference ref="TurtleCommander.CopyAsName"/>
+            <reference ref="TurtleCommander.CopyAsFullPath"/>
+            <reference ref="TurtleCommander.CopyAsParentPath"/>
+        </group>
         <group id="TurtleCommander.FileContextMenu" text="File Context Menu" popup="true">
             <reference ref="TurtleCommander.OpenInNewTab"/>
             <reference ref="TurtleCommander.OpenFile"/>
@@ -330,6 +345,8 @@
             <reference ref="TurtleCommander.ContextCut"/>
             <reference ref="TurtleCommander.ContextPaste"/>
             <reference ref="TurtleCommander.ContextPasteInto"/>
+            <separator/>
+            <reference ref="TurtleCommander.CopyAsGroup"/>
             <separator/>
             <reference ref="TurtleCommander.ContextRename"/>
             <separator/>
@@ -357,6 +374,21 @@
                 text="Add to Favorites"
                 icon="AllIcons.Nodes.Favorite"
                 description="Add tab directory to favorites"/>
+        <!-- Copy as submenu actions (tab context menu) -->
+        <action id="TurtleCommander.TabCopyAsName"
+                class="io.github.jhspetersson.turtlecommander.action.TabCopyAsNameAction"
+                text="Directory Name"/>
+        <action id="TurtleCommander.TabCopyAsFullPath"
+                class="io.github.jhspetersson.turtlecommander.action.TabCopyAsFullPathAction"
+                text="Full Path"/>
+        <action id="TurtleCommander.TabCopyAsParentPath"
+                class="io.github.jhspetersson.turtlecommander.action.TabCopyAsParentPathAction"
+                text="Parent Path"/>
+        <group id="TurtleCommander.TabCopyAsGroup" text="Copy as" popup="true" icon="AllIcons.Actions.Copy">
+            <reference ref="TurtleCommander.TabCopyAsName"/>
+            <reference ref="TurtleCommander.TabCopyAsFullPath"/>
+            <reference ref="TurtleCommander.TabCopyAsParentPath"/>
+        </group>
         <group id="TurtleCommander.TabContextMenu" text="Tab Context Menu" popup="true">
             <reference ref="TurtleCommander.CloseTab"/>
             <reference ref="TurtleCommander.CloseOtherTabs"/>
@@ -365,9 +397,29 @@
             <reference ref="TurtleCommander.CloseTabsToTheLeft"/>
             <reference ref="TurtleCommander.CloseTabsToTheRight"/>
             <separator/>
+            <reference ref="TurtleCommander.TabCopyAsGroup"/>
+            <separator/>
             <reference ref="TurtleCommander.TabSearchInDirectory"/>
             <separator/>
             <reference ref="TurtleCommander.TabAddToFavorites"/>
+        </group>
+        <!-- Copy as submenu actions (search results context menu) -->
+        <action id="TurtleCommander.SearchCopyAsName"
+                class="io.github.jhspetersson.turtlecommander.action.SearchCopyAsNameAction"
+                text="Filename"/>
+        <action id="TurtleCommander.SearchCopyAsFullPath"
+                class="io.github.jhspetersson.turtlecommander.action.SearchCopyAsFullPathAction"
+                text="Full Path"/>
+        <action id="TurtleCommander.SearchCopyAsParentPath"
+                class="io.github.jhspetersson.turtlecommander.action.SearchCopyAsParentPathAction"
+                text="Parent Path"/>
+        <group id="TurtleCommander.SearchCopyAsGroup" text="Copy as" popup="true" icon="AllIcons.Actions.Copy">
+            <reference ref="TurtleCommander.SearchCopyAsName"/>
+            <reference ref="TurtleCommander.SearchCopyAsFullPath"/>
+            <reference ref="TurtleCommander.SearchCopyAsParentPath"/>
+        </group>
+        <group id="TurtleCommander.SearchContextMenu" text="Search Context Menu" popup="true">
+            <reference ref="TurtleCommander.SearchCopyAsGroup"/>
         </group>
         <action id="TurtleCommander.OpenInTurtleCommander"
                 class="io.github.jhspetersson.turtlecommander.action.OpenInTurtleCommanderAction"

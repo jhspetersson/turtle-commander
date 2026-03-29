@@ -6,6 +6,7 @@
 
 ### Added
 
+- Copy file or directory name, path, and parent to the clipboard from the context menu
 - `Search in Directory` for tabs
 
 ### Changed

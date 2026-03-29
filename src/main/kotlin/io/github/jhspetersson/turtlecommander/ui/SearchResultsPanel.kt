@@ -6,6 +6,8 @@ import io.github.jhspetersson.turtlecommander.dialog.FileSearchCriteria
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.actionSystem.ActionGroup
+import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.components.service
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
@@ -14,6 +16,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
 import com.intellij.openapi.fileTypes.FileTypeManager
+import io.github.jhspetersson.turtlecommander.action.SearchContextMenuState
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.FlowLayout
@@ -96,6 +99,25 @@ class SearchResultsPanel(
                     if (e.clickCount == 2) {
                         navigateToSelected()
                     }
+                }
+
+                override fun mousePressed(e: MouseEvent) { handleContextMenu(e) }
+                override fun mouseReleased(e: MouseEvent) { handleContextMenu(e) }
+
+                private fun handleContextMenu(e: MouseEvent) {
+                    if (!e.isPopupTrigger) return
+                    val row = table.rowAtPoint(e.point)
+                    if (row >= 0) {
+                        table.setRowSelectionInterval(row, row)
+                        val modelRow = table.convertRowIndexToModel(row)
+                        SearchContextMenuState.clickedEntry = tableModel.getEntryAt(modelRow)
+                    } else {
+                        SearchContextMenuState.clickedEntry = null
+                    }
+                    val am = ActionManager.getInstance()
+                    val group = am.getAction("TurtleCommander.SearchContextMenu") as? ActionGroup ?: return
+                    val popupMenu = am.createActionPopupMenu("TurtleCommander.SearchContextMenu", group)
+                    popupMenu.component.show(table, e.x, e.y)
                 }
             })
 
