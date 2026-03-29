@@ -268,7 +268,7 @@ class FileManagerPanel(
 
         // Update the tab's callbacks to point to the new panel context
         fileTab.updatePanelCallbacks(
-            otherPanelPathProvider = { target.otherPanel?.getActiveTab()?.currentPath },
+            otherPanelPathProvider = { target.otherPanel?.getActiveTab()?.realFilesystemPath },
             onDirectoryChanged = { tab -> target.updateTabTitle(tab); target.syncViewToggle() },
             onSwitchToOtherPanel = { target.otherPanel?.focusActiveTab() },
             onRefreshOtherPanel = { target.otherPanel?.refreshActiveTab() },
@@ -368,7 +368,7 @@ class FileManagerPanel(
         val fileTab = FileTab(
             project = project,
             initialPath = path,
-            otherPanelPathProvider = { otherPanel?.getActiveTab()?.currentPath ?: otherPanelPathProvider() },
+            otherPanelPathProvider = { otherPanel?.getActiveTab()?.realFilesystemPath ?: otherPanelPathProvider() },
             onDirectoryChanged = { tab -> updateTabTitle(tab); syncViewToggle() },
             onSwitchToOtherPanel = { otherPanel?.focusActiveTab() },
             onRefreshOtherPanel = { otherPanel?.refreshActiveTab() },

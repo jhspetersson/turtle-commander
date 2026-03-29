@@ -19,7 +19,7 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
         super.setUp()
         settings = TurtleCommanderSettings.getInstance()
         // Save original state to restore in tearDown (settings are app-level and shared)
-        originalState = TurtleCommanderSettings.State().also { it ->
+        originalState = TurtleCommanderSettings.State().also {
             val s = settings.state
             it.enableFileNameHighlighting = s.enableFileNameHighlighting
             it.showCommandBar = s.showCommandBar

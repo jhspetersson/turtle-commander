@@ -155,14 +155,14 @@ class TurtleCommanderConfigurable : Configurable {
             val gbc = GridBagConstraints().apply {
                 anchor = GridBagConstraints.WEST
                 fill = GridBagConstraints.NONE
-                insets = JBUI.insets(2, 4, 2, 4)
+                insets = JBUI.insets(2, 4)
             }
 
             // Header row
             gbc.gridy = 0
             gbc.gridx = 0; gbc.insets = JBUI.insets(2, 0, 2, 4)
             add(JBLabel("").apply { minimumSize = Dimension(90, 0); preferredSize = Dimension(90, preferredSize.height) }, gbc)
-            gbc.insets = JBUI.insets(2, 4, 2, 4)
+            gbc.insets = JBUI.insets(2, 4)
             gbc.gridx = 1; add(JBLabel("Font"), gbc)
             gbc.gridx = 2; add(JBLabel("Size"), gbc)
             gbc.gridx = 3; add(JBLabel("Style"), gbc)
@@ -173,7 +173,7 @@ class TurtleCommanderConfigurable : Configurable {
                 gbc.gridx = 0; gbc.insets = JBUI.insets(2, 0, 2, 4)
                 val lbl = JBLabel("${editor.label}:").apply { minimumSize = Dimension(90, 0) }
                 add(lbl, gbc)
-                gbc.insets = JBUI.insets(2, 4, 2, 4)
+                gbc.insets = JBUI.insets(2, 4)
                 gbc.gridx = 1; add(editor.fontCombo, gbc)
                 gbc.gridx = 2; add(editor.sizeSpinner, gbc)
                 gbc.gridx = 3; add(editor.styleCombo, gbc)

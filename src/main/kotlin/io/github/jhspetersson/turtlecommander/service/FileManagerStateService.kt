@@ -1,6 +1,4 @@
 package io.github.jhspetersson.turtlecommander.service
-import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
-import io.github.jhspetersson.turtlecommander.ui.FileTab
 
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
@@ -12,6 +10,8 @@ import com.intellij.util.messages.Topic
 import com.intellij.util.xmlb.annotations.Attribute
 import com.intellij.util.xmlb.annotations.Tag
 import com.intellij.util.xmlb.annotations.XCollection
+import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
+import io.github.jhspetersson.turtlecommander.ui.FileTab
 
 interface FavoritesChangeListener {
     fun favoritesChanged()
@@ -79,7 +79,6 @@ class FileManagerStateService(
         var color: String = ""
 
         /** Required by XML deserializer */
-        @Suppress("unused")
         constructor()
 
         constructor(path: String, color: String = "") {

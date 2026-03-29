@@ -139,7 +139,6 @@ class FileSearchIntegrationTest : BasePlatformTestCase() {
         )
 
         val results = searchAndCollect(criteria)
-        val names = results.map { it.name }.toSet()
 
         // Only files starting with a-d and ending in .txt: (data.csv won't match .txt)
         // From our fixture: no .txt files start with a-d at root level, but nested.txt doesn't start with a-d either

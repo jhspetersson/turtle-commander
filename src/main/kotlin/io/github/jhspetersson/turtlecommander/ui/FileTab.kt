@@ -102,6 +102,10 @@ class FileTab(
     val isInsideArchive: Boolean
         get() = vfsStack.isNotEmpty()
 
+    /** The real filesystem path: the directory containing the archive when inside VFS, otherwise currentPath. */
+    val realFilesystemPath: Path
+        get() = if (vfsStack.isNotEmpty()) vfsStack.first().parentPath else currentPath
+
 
 
     init {
@@ -299,14 +303,14 @@ class FileTab(
                     driveComboPopupOpen = false
                     if (updatingDriveCombo) return
                     val selected = selectedItem as? String ?: return
-                    val drivePath = Path.of(selected)
+                    val targetPath = resolveDriveSelectionTarget(Path.of(selected), otherPanelPathProvider())
                     // Exit VFS if active
                     if (vfsStack.isNotEmpty()) {
                         dispose()
                     }
-                    if (drivePath != currentPath) {
+                    if (targetPath != currentPath) {
                         fileOps.launch {
-                            navigateTo(drivePath)
+                            navigateTo(targetPath)
                         }
                     }
                     table.requestFocusInWindow()
@@ -1245,6 +1249,17 @@ class FileTab(
         internal const val VIEW_LIST = "list"
         internal const val VIEW_THUMBNAIL = "thumbnail"
         internal const val VIEW_TREE = "tree"
+
+        /**
+         * Resolves the target path for a drive selector selection.
+         * If the opposite panel is under the selected drive, returns the opposite panel's path instead.
+         */
+        internal fun resolveDriveSelectionTarget(selectedDrive: Path, otherPanelPath: Path?): Path {
+            if (otherPanelPath != null && otherPanelPath.startsWith(selectedDrive) && otherPanelPath != selectedDrive) {
+                return otherPanelPath
+            }
+            return selectedDrive
+        }
     }
 }
 

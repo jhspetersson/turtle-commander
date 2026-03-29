@@ -8,6 +8,10 @@
 
 - `Search in Directory` for tabs
 
+### Changed
+
+- Switch to the same directory as the opposite panel when selecting a drive if the drives are the same
+
 ### Fixed
 
 - Fix renaming a file while it is being edited
