@@ -4,6 +4,7 @@ import com.intellij.openapi.components.service
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
+import java.awt.GraphicsEnvironment
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -156,6 +157,7 @@ class StateAndFavoritesIntegrationTest : BasePlatformTestCase() {
     // --- Panel state save/restore via FileManagerPanel ---
 
     fun testPanelSaveAndRestoreState() {
+        if (GraphicsEnvironment.isHeadless()) return
         val projectPath = Path.of(project.basePath!!)
 
         val panel = io.github.jhspetersson.turtlecommander.ui.FileManagerPanel(
@@ -176,6 +178,7 @@ class StateAndFavoritesIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testPanelRestoreMultipleTabs() {
+        if (GraphicsEnvironment.isHeadless()) return
         // Use real temp dirs that definitely exist on the file system
         val tempDir1 = Files.createTempDirectory("turtle-tab1-")
         val tempDir2 = Files.createTempDirectory("turtle-tab2-")
@@ -204,6 +207,7 @@ class StateAndFavoritesIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testPanelRestoreWithInvalidPathFallsBack() {
+        if (GraphicsEnvironment.isHeadless()) return
         val projectPath = Path.of(project.basePath!!)
 
         val panelState = FileManagerStateService.PanelState().apply {
@@ -224,6 +228,7 @@ class StateAndFavoritesIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testPanelRestoreViewModes() {
+        if (GraphicsEnvironment.isHeadless()) return
         val tempDir = Files.createTempDirectory("turtle-viewmode-")
         try {
             val panelState = FileManagerStateService.PanelState().apply {

@@ -262,8 +262,9 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
 
         val font = settings.getPanelFont()
         assertNotNull(font)
-        assertEquals("Arial", font!!.family)
-        assertEquals(20, font.size)
+        // Don't assert font family — "Arial" may not be installed on CI (Linux), causing fallback
+        assertEquals(20, font!!.size)
+        assertEquals(Font.BOLD, font.style)
     }
 
     fun testGetTabFontWithLegacyFields() {
