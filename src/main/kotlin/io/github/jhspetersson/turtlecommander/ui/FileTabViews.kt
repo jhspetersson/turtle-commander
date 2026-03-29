@@ -36,47 +36,29 @@ fun FileTab.setViewMode(mode: ViewMode) {
     }
     viewCardLayout.show(viewPanel, card)
 
-    when (mode) {
-        ViewMode.TABLE -> {
-            if (treeNavigation != null) {
-                val (targetDir, namesInDir) = treeNavigation
-                if (targetDir != currentPath) {
-                    fileOps.launch {
-                        navigateTo(targetDir, selectName = namesInDir.firstOrNull())
-                        if (namesInDir.size > 1) {
-                            withContext(Dispatchers.EDT) { selectEntriesByName(namesInDir) }
-                        }
+    if (mode == ViewMode.TREE) {
+        rebuildFullTree(selectedNames)
+        tree.requestFocusInWindow()
+    } else {
+        if (treeNavigation != null) {
+            val (targetDir, namesInDir) = treeNavigation
+            if (targetDir != currentPath) {
+                fileOps.launch {
+                    navigateTo(targetDir, selectName = namesInDir.firstOrNull())
+                    if (namesInDir.size > 1) {
+                        withContext(Dispatchers.EDT) { selectEntriesByName(namesInDir) }
                     }
-                } else {
-                    selectEntriesByName(namesInDir)
                 }
             } else {
-                selectEntriesByName(selectedNames)
+                selectEntriesByName(namesInDir)
             }
-            table.requestFocusInWindow()
+        } else {
+            selectEntriesByName(selectedNames)
         }
-        ViewMode.LIST, ViewMode.THUMBNAIL -> {
-            if (treeNavigation != null) {
-                val (targetDir, namesInDir) = treeNavigation
-                if (targetDir != currentPath) {
-                    fileOps.launch {
-                        navigateTo(targetDir, selectName = namesInDir.firstOrNull())
-                        if (namesInDir.size > 1) {
-                            withContext(Dispatchers.EDT) { selectEntriesByName(namesInDir) }
-                        }
-                    }
-                } else {
-                    selectEntriesByName(namesInDir)
-                }
-            } else {
-                selectEntriesByName(selectedNames)
-            }
-            if (mode == ViewMode.THUMBNAIL) thumbnailList.requestFocusInWindow()
-            else list.requestFocusInWindow()
-        }
-        ViewMode.TREE -> {
-            rebuildFullTree(selectedNames)
-            tree.requestFocusInWindow()
+        when (mode) {
+            ViewMode.THUMBNAIL -> thumbnailList.requestFocusInWindow()
+            ViewMode.LIST -> list.requestFocusInWindow()
+            else -> table.requestFocusInWindow()
         }
     }
 }
