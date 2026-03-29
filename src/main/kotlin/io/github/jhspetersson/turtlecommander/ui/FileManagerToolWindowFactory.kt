@@ -201,12 +201,26 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
     override fun shouldBeAvailable(project: Project) = true
 
     private fun applyCommandBarStyle(bar: JPanel, style: ComponentStyle) {
+        // Save original defaults on first call
+        if (bar.getClientProperty("defaultBg") == null) {
+            bar.putClientProperty("defaultBg", bar.background)
+        }
+        val defaultBarBg = bar.getClientProperty("defaultBg") as? java.awt.Color ?: bar.background
+
         val font = style.getFont(null)
         val fg = style.getFontColor()
+        val bg = style.getBackgroundColor()
+        bar.background = bg ?: defaultBarBg
         for (comp in bar.components) {
             if (comp is JButton) {
-                if (font != null) comp.font = font
-                if (fg != null) comp.foreground = fg
+                if (comp.getClientProperty("defaultFont") == null) {
+                    comp.putClientProperty("defaultFont", comp.font)
+                    comp.putClientProperty("defaultFg", comp.foreground)
+                    comp.putClientProperty("defaultBg", comp.background)
+                }
+                comp.font = font ?: comp.getClientProperty("defaultFont") as? java.awt.Font ?: comp.font
+                comp.foreground = fg ?: comp.getClientProperty("defaultFg") as? java.awt.Color ?: comp.foreground
+                comp.background = bg ?: comp.getClientProperty("defaultBg") as? java.awt.Color ?: comp.background
             }
         }
     }

@@ -28,6 +28,7 @@ class FileManagerPanel(
 
     private val tabbedPane = JBTabbedPane()
     private val defaultTabFont by lazy { tabbedPane.font }
+    private val defaultTabBg = javax.swing.UIManager.getColor("TabbedPane.background")
     private val addTabPlaceholder = JPanel()
     var otherPanel: FileManagerPanel? = null
     private var stateService: FileManagerStateService? = null
@@ -191,6 +192,17 @@ class FileManagerPanel(
         }
 
         add(layeredWrapper, BorderLayout.CENTER)
+
+        applyTabbedPaneStyle()
+    }
+
+    private fun applyTabbedPaneStyle() {
+        val settings = TurtleCommanderSettings.getInstance()
+        val tabStyle = settings.state.tabStyle
+        val tabFont = settings.getTabFont()
+        if (tabFont != null) tabbedPane.font = tabFont
+        val tabBg = tabStyle.getBackgroundColor()
+        if (tabBg != null) tabbedPane.background = tabBg
     }
 
     private fun updateDropIndicator(localPoint: Point) {
@@ -353,7 +365,7 @@ class FileManagerPanel(
         val panel = JPanel(BorderLayout(4, 0))
         panel.isOpaque = false
         val label = JLabel(title)
-        TurtleCommanderSettings.getInstance().getTabFont()?.let { label.font = it }
+        applyTabStyleToHeader(panel, label)
         panel.add(label, BorderLayout.CENTER)
         val closeButton = TabCloseButton {
             searchPanel.dispose()
@@ -406,7 +418,7 @@ class FileManagerPanel(
         panel.isOpaque = false
 
         val label = JLabel(title)
-        TurtleCommanderSettings.getInstance().getTabFont()?.let { label.font = it }
+        applyTabStyleToHeader(panel, label)
         panel.add(label, BorderLayout.CENTER)
 
         val closeButton = TabCloseButton {
@@ -421,6 +433,20 @@ class FileManagerPanel(
         panel.add(closeButton, BorderLayout.EAST)
 
         return panel
+    }
+
+    private fun applyTabStyleToHeader(panel: JPanel, label: JLabel) {
+        val settings = TurtleCommanderSettings.getInstance()
+        val tabStyle = settings.state.tabStyle
+        val font = settings.getTabFont()
+        if (font != null) label.font = font
+        val fg = tabStyle.getFontColor()
+        if (fg != null) label.foreground = fg
+        val bg = tabStyle.getBackgroundColor()
+        if (bg != null) {
+            panel.isOpaque = true
+            panel.background = bg
+        }
     }
 
     private fun updateTabTitle(tab: FileTab) {
@@ -556,14 +582,23 @@ class FileManagerPanel(
         }
         tabbedPane.font = effectiveTabFont
         val tabFg = tabStyle.getFontColor()
+        val tabBg = tabStyle.getBackgroundColor()
+        tabbedPane.background = tabBg ?: defaultTabBg
         for (i in 0 until tabbedPane.tabCount) {
             val tabComponent = tabbedPane.getTabComponentAt(i)
             if (i == plusIndex) continue
             if (tabComponent is JPanel) {
+                if (tabBg != null) {
+                    tabComponent.isOpaque = true
+                    tabComponent.background = tabBg
+                } else {
+                    tabComponent.isOpaque = false
+                }
                 val label = tabComponent.getComponent(0)
                 if (label is JLabel) {
                     label.font = effectiveTabFont
                     if (tabFg != null) label.foreground = tabFg
+                    else label.foreground = null  // inherit from parent/L&F
                 }
             }
         }

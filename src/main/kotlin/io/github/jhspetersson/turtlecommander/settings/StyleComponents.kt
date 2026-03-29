@@ -24,6 +24,7 @@ internal class ComponentStyleEditor(
     }
     val styleCombo = ComboBox(DefaultComboBoxModel(arrayOf("Plain", "Bold", "Italic", "Bold Italic")))
     val colorButton = ColorPickerButton("...")
+    val bgColorButton = ColorPickerButton("...")
 
     init {
         resetFrom(style, legacyFamily, legacySize)
@@ -41,6 +42,7 @@ internal class ComponentStyleEditor(
             else -> 0
         }
         colorButton.setColor(style.getFontColor())
+        bgColorButton.setColor(style.getBackgroundColor())
     }
 
     fun applyTo(style: ComponentStyle) {
@@ -54,6 +56,7 @@ internal class ComponentStyleEditor(
             else -> Font.PLAIN
         }
         style.fontColor = colorButton.getColorHex()
+        style.backgroundColor = bgColorButton.getColorHex()
     }
 
     fun isModified(style: ComponentStyle, legacyFamily: String = "", legacySize: Int = 0): Boolean {
@@ -64,11 +67,13 @@ internal class ComponentStyleEditor(
             fontSize = if (style.fontSize > 0) style.fontSize else if (legacySize > 0) legacySize else 13
             fontStyle = style.fontStyle
             fontColor = style.fontColor
+            backgroundColor = style.backgroundColor
         }
         return tmp.fontFamily != expected.fontFamily
             || tmp.fontSize != expected.fontSize
             || tmp.fontStyle != expected.fontStyle
             || tmp.fontColor != expected.fontColor
+            || tmp.backgroundColor != expected.backgroundColor
     }
 }
 

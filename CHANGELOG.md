@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Initial themes support
+
 ## [0.3.2] - 2026-03-29
 
 ### Added

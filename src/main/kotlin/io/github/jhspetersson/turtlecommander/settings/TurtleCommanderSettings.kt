@@ -44,6 +44,7 @@ class ComponentStyle {
     var fontSize: Int = 0
     var fontStyle: Int = Font.PLAIN
     var fontColor: String = ""
+    var backgroundColor: String = ""
 
     fun getFont(defaultFont: Font?): Font? {
         val baseSize = if (fontSize > 0) fontSize else defaultFont?.size ?: 13
@@ -57,21 +58,25 @@ class ComponentStyle {
 
     fun getFontColor(): Color? = parseColor(fontColor)
 
+    fun getBackgroundColor(): Color? = parseColor(backgroundColor)
+
     fun copyFrom(other: ComponentStyle) {
         fontFamily = other.fontFamily
         fontSize = other.fontSize
         fontStyle = other.fontStyle
         fontColor = other.fontColor
+        backgroundColor = other.backgroundColor
     }
 
     fun isDefault(): Boolean =
         fontFamily.isEmpty() && fontSize == 0 && fontStyle == Font.PLAIN
-            && fontColor.isEmpty()
+            && fontColor.isEmpty() && backgroundColor.isEmpty()
 
     override fun equals(other: Any?): Boolean {
         if (other !is ComponentStyle) return false
         return fontFamily == other.fontFamily && fontSize == other.fontSize
             && fontStyle == other.fontStyle && fontColor == other.fontColor
+            && backgroundColor == other.backgroundColor
     }
 
     override fun hashCode(): Int {
@@ -79,6 +84,7 @@ class ComponentStyle {
         result = 31 * result + fontSize
         result = 31 * result + fontStyle
         result = 31 * result + fontColor.hashCode()
+        result = 31 * result + backgroundColor.hashCode()
         return result
     }
 }
@@ -116,6 +122,17 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
         var commandBarStyle: ComponentStyle = ComponentStyle()
         var driveSelectorStyle: ComponentStyle = ComponentStyle()
         var columnHeaderStyle: ComponentStyle = ComponentStyle()
+        var themeName: String = ""
+
+        // Styles saved before a theme was applied, so "Default" can restore them
+        var preThemePanelStyle: ComponentStyle = ComponentStyle()
+        var preThemeTabStyle: ComponentStyle = ComponentStyle()
+        var preThemePathBarStyle: ComponentStyle = ComponentStyle()
+        var preThemeStatusBarStyle: ComponentStyle = ComponentStyle()
+        var preThemeCommandBarStyle: ComponentStyle = ComponentStyle()
+        var preThemeDriveSelectorStyle: ComponentStyle = ComponentStyle()
+        var preThemeColumnHeaderStyle: ComponentStyle = ComponentStyle()
+
         var columns: MutableList<ColumnConfig> = mutableListOf()
     }
 

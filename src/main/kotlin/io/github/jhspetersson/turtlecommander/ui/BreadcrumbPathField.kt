@@ -16,6 +16,9 @@ class BreadcrumbPathField : JPanel() {
     private var isEditMode = false
     private var customFont: Font? = null
     private var customFg: Color? = null
+    private val defaultEditFieldFont by lazy { editField.font }
+    private val defaultEditFieldFg = javax.swing.UIManager.getColor("TextField.foreground")
+    private val defaultEditFieldBg = javax.swing.UIManager.getColor("TextField.background")
 
     var text: String = ""
         get() = if (isEditMode) editField.text else field
@@ -182,10 +185,25 @@ class BreadcrumbPathField : JPanel() {
     }
 
     fun applyStyle(style: ComponentStyle) {
-        customFont = style.getFont(editField.font)
+        customFont = style.getFont(defaultEditFieldFont)
         customFg = style.getFontColor()
-        if (customFont != null) editField.font = customFont
-        if (customFg != null) editField.foreground = customFg
+        editField.font = customFont ?: defaultEditFieldFont
+        editField.foreground = customFg ?: defaultEditFieldFg
+        val bg = style.getBackgroundColor()
+        if (bg != null) {
+            editField.background = bg
+            isOpaque = true
+            background = bg
+            breadcrumbContent.isOpaque = true
+            breadcrumbContent.background = bg
+            breadcrumbPanel.isOpaque = true
+            breadcrumbPanel.background = bg
+        } else {
+            editField.background = defaultEditFieldBg
+            isOpaque = false
+            breadcrumbContent.isOpaque = false
+            breadcrumbPanel.isOpaque = false
+        }
         rebuildBreadcrumbs()
     }
 

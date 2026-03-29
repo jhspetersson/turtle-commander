@@ -29,6 +29,7 @@ class TurtleCommanderConfigurable : Configurable {
     private var tabFontSizeSpinner: JSpinner? = null
 
     private val styleEditors = mutableMapOf<String, ComponentStyleEditor>()
+    private var themeCombo: ComboBox<Theme>? = null
 
     override fun getDisplayName(): String = "Turtle Commander"
 
@@ -150,7 +151,86 @@ class TurtleCommanderConfigurable : Configurable {
         }
     }
 
+    private fun snapshotEditorsToPreTheme(state: TurtleCommanderSettings.State) {
+        styleEditors["panel"]?.applyTo(state.preThemePanelStyle)
+        styleEditors["tab"]?.applyTo(state.preThemeTabStyle)
+        styleEditors["pathBar"]?.applyTo(state.preThemePathBarStyle)
+        styleEditors["statusBar"]?.applyTo(state.preThemeStatusBarStyle)
+        styleEditors["commandBar"]?.applyTo(state.preThemeCommandBarStyle)
+        styleEditors["driveSelector"]?.applyTo(state.preThemeDriveSelectorStyle)
+        styleEditors["columnHeader"]?.applyTo(state.preThemeColumnHeaderStyle)
+    }
+
+    private var suppressThemeAction = false
+
+    private fun applyThemeToEditors(theme: Theme, previousTheme: Theme = Theme.DEFAULT) {
+        if (suppressThemeAction) return
+        val state = TurtleCommanderSettings.getInstance().state
+        if (theme.name == Theme.DEFAULT.name) {
+            // Restore pre-theme styles
+            styleEditors["panel"]?.resetFrom(state.preThemePanelStyle)
+            styleEditors["tab"]?.resetFrom(state.preThemeTabStyle)
+            styleEditors["pathBar"]?.resetFrom(state.preThemePathBarStyle)
+            styleEditors["statusBar"]?.resetFrom(state.preThemeStatusBarStyle)
+            styleEditors["commandBar"]?.resetFrom(state.preThemeCommandBarStyle)
+            styleEditors["driveSelector"]?.resetFrom(state.preThemeDriveSelectorStyle)
+            styleEditors["columnHeader"]?.resetFrom(state.preThemeColumnHeaderStyle)
+            return
+        }
+        // Snapshot current editor state only when switching away from Default
+        if (previousTheme.name == Theme.DEFAULT.name) {
+            snapshotEditorsToPreTheme(state)
+        }
+        styleEditors["panel"]?.resetFrom(theme.panelStyle.toComponentStyle())
+        styleEditors["tab"]?.resetFrom(theme.tabStyle.toComponentStyle())
+        styleEditors["pathBar"]?.resetFrom(theme.pathBarStyle.toComponentStyle())
+        styleEditors["statusBar"]?.resetFrom(theme.statusBarStyle.toComponentStyle())
+        styleEditors["commandBar"]?.resetFrom(theme.commandBarStyle.toComponentStyle())
+        styleEditors["driveSelector"]?.resetFrom(theme.driveSelectorStyle.toComponentStyle())
+        styleEditors["columnHeader"]?.resetFrom(theme.columnHeaderStyle.toComponentStyle())
+    }
+
     private fun createAppearancePanel(editors: List<ComponentStyleEditor>): JPanel {
+        val savedThemeName = TurtleCommanderSettings.getInstance().state.themeName.ifEmpty { Theme.DEFAULT.name }
+        val initialIndex = Theme.ALL_THEMES.indexOfFirst { it.name == savedThemeName }.coerceAtLeast(0)
+
+        var previousTheme: Theme = Theme.ALL_THEMES[initialIndex]
+        val combo = ComboBox(DefaultComboBoxModel(Theme.ALL_THEMES.toTypedArray())).apply {
+            selectedIndex = initialIndex
+        }
+        combo.addActionListener {
+            val theme = combo.selectedItem as? Theme ?: return@addActionListener
+            val prev = previousTheme
+            previousTheme = theme
+            applyThemeToEditors(theme, prev)
+        }
+        themeCombo = combo
+
+        val resetStylesButton = JButton("Reset to Defaults").apply {
+            addActionListener {
+                for (editor in styleEditors.values) {
+                    editor.resetFrom(ComponentStyle())
+                }
+                // Clear pre-theme snapshot so Default doesn't restore old styles
+                val state = TurtleCommanderSettings.getInstance().state
+                state.preThemePanelStyle = ComponentStyle()
+                state.preThemeTabStyle = ComponentStyle()
+                state.preThemePathBarStyle = ComponentStyle()
+                state.preThemeStatusBarStyle = ComponentStyle()
+                state.preThemeCommandBarStyle = ComponentStyle()
+                state.preThemeDriveSelectorStyle = ComponentStyle()
+                state.preThemeColumnHeaderStyle = ComponentStyle()
+                themeCombo?.selectedItem = Theme.DEFAULT
+            }
+        }
+
+        val themeRow = JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).apply {
+            add(JBLabel("Theme:"))
+            add(combo)
+            add(JSeparator(SwingConstants.VERTICAL).apply { preferredSize = Dimension(2, 24) })
+            add(resetStylesButton)
+        }
+
         val styleGrid = JPanel(GridBagLayout()).apply {
             val gbc = GridBagConstraints().apply {
                 anchor = GridBagConstraints.WEST
@@ -167,6 +247,7 @@ class TurtleCommanderConfigurable : Configurable {
             gbc.gridx = 2; add(JBLabel("Size"), gbc)
             gbc.gridx = 3; add(JBLabel("Style"), gbc)
             gbc.gridx = 4; add(JBLabel("Color"), gbc)
+            gbc.gridx = 5; add(JBLabel("Bg"), gbc)
 
             for ((i, editor) in editors.withIndex()) {
                 gbc.gridy = i + 1
@@ -178,26 +259,18 @@ class TurtleCommanderConfigurable : Configurable {
                 gbc.gridx = 2; add(editor.sizeSpinner, gbc)
                 gbc.gridx = 3; add(editor.styleCombo, gbc)
                 gbc.gridx = 4; add(editor.colorButton, gbc)
-            }
-        }
-
-        val resetStylesButton = JButton("Reset to Defaults").apply {
-            addActionListener {
-                for (editor in styleEditors.values) {
-                    editor.resetFrom(ComponentStyle())
-                }
+                gbc.gridx = 5; add(editor.bgColorButton, gbc)
             }
         }
 
         return JPanel(BorderLayout(8, 4)).apply {
             alignmentX = JComponent.LEFT_ALIGNMENT
             border = BorderFactory.createTitledBorder("Appearance")
-            add(styleGrid, BorderLayout.CENTER)
-            val bottomRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
-                border = JBUI.Borders.empty(4)
-                add(resetStylesButton)
+            val topPanel = JPanel(BorderLayout()).apply {
+                add(themeRow, BorderLayout.NORTH)
+                add(styleGrid, BorderLayout.CENTER)
             }
-            add(bottomRow, BorderLayout.SOUTH)
+            add(topPanel, BorderLayout.CENTER)
         }
     }
 
@@ -218,6 +291,7 @@ class TurtleCommanderConfigurable : Configurable {
             || styleEditors["commandBar"]?.isModified(settings.commandBarStyle) == true
             || styleEditors["driveSelector"]?.isModified(settings.driveSelectorStyle) == true
             || styleEditors["columnHeader"]?.isModified(settings.columnHeaderStyle) == true
+            || getSelectedThemeName() != settings.themeName.ifEmpty { Theme.DEFAULT.name }
             || columnsEditor?.isModified(TurtleCommanderSettings.getInstance().getEffectiveColumns()) == true
             || favoritesEditor?.isModified() == true
     }
@@ -241,6 +315,8 @@ class TurtleCommanderConfigurable : Configurable {
         styleEditors["commandBar"]?.applyTo(settings.commandBarStyle)
         styleEditors["driveSelector"]?.applyTo(settings.driveSelectorStyle)
         styleEditors["columnHeader"]?.applyTo(settings.columnHeaderStyle)
+
+        settings.themeName = getSelectedThemeName()
 
         columnsEditor?.applyTo(settings)
 
@@ -278,6 +354,10 @@ class TurtleCommanderConfigurable : Configurable {
         styleEditors["commandBar"]?.resetFrom(settings.commandBarStyle)
         styleEditors["driveSelector"]?.resetFrom(settings.driveSelectorStyle)
         styleEditors["columnHeader"]?.resetFrom(settings.columnHeaderStyle)
+        val themeIdx = Theme.ALL_THEMES.indexOfFirst { it.name == settings.themeName.ifEmpty { Theme.DEFAULT.name } }.coerceAtLeast(0)
+        suppressThemeAction = true
+        themeCombo?.selectedIndex = themeIdx
+        suppressThemeAction = false
         columnsEditor?.resetFrom(TurtleCommanderSettings.getInstance().getEffectiveColumns())
 
         favoritesEditor?.reset()
@@ -298,6 +378,8 @@ class TurtleCommanderConfigurable : Configurable {
         defaultViewModeCombo = null
         columnsEditor = null
         favoritesEditor = null
+        themeCombo = null
+        suppressThemeAction = false
         styleEditors.clear()
     }
 
@@ -324,5 +406,10 @@ class TurtleCommanderConfigurable : Configurable {
             "Tree" -> "TREE"
             else -> "TABLE"
         }
+    }
+
+    private fun getSelectedThemeName(): String {
+        val theme = themeCombo?.selectedItem as? Theme ?: return ""
+        return theme.name
     }
 }

@@ -56,6 +56,17 @@ class FileTab(
     internal val tableModel = FileTableModel()
     val table = JBTable(tableModel)
     private val defaultTableFont by lazy { table.font }
+    private val defaultTableFg = javax.swing.UIManager.getColor("Table.foreground")
+    private val defaultTableBg = javax.swing.UIManager.getColor("Table.background")
+    private val defaultDriveComboFont by lazy { driveCombo.font }
+    private val defaultDriveComboFg = javax.swing.UIManager.getColor("ComboBox.foreground")
+    private val defaultDriveComboBg = javax.swing.UIManager.getColor("ComboBox.background")
+    private val defaultHeaderFont by lazy { table.tableHeader?.font }
+    private val defaultHeaderFg = javax.swing.UIManager.getColor("TableHeader.foreground")
+    private val defaultHeaderBg = javax.swing.UIManager.getColor("TableHeader.background")
+    private val defaultStatusFont by lazy { statusLabel.font }
+    private val defaultStatusFg = javax.swing.UIManager.getColor("Label.foreground")
+    private val defaultStatusBg = javax.swing.UIManager.getColor("Panel.background")
 
     internal val listModel = DefaultListModel<FileEntry>()
     val list = JBList(listModel)
@@ -168,13 +179,18 @@ class FileTab(
         }
 
         val panelStyle = settings.state.panelStyle
-        val fg = panelStyle.getFontColor()
-        if (fg != null) {
-            table.foreground = fg
-            list.foreground = fg
-            thumbnailList.foreground = fg
-            tree.foreground = fg
-        }
+        val fg = panelStyle.getFontColor() ?: defaultTableFg
+        table.foreground = fg
+        list.foreground = fg
+        thumbnailList.foreground = fg
+        tree.foreground = fg
+
+        val bg = panelStyle.getBackgroundColor() ?: defaultTableBg
+        table.background = bg
+        list.background = bg
+        thumbnailList.background = bg
+        tree.background = bg
+        (table.parent as? javax.swing.JViewport)?.background = bg
 
         applyDriveSelectorStyle()
         applyColumnHeaderStyle()
@@ -257,33 +273,31 @@ class FileTab(
 
     private fun applyDriveSelectorStyle() {
         val style = TurtleCommanderSettings.getInstance().state.driveSelectorStyle
-        val font = style.getFont(driveCombo.font)
-        if (font != null) driveCombo.font = font
-        val fg = style.getFontColor()
-        if (fg != null) driveCombo.foreground = fg
+        driveCombo.font = style.getFont(defaultDriveComboFont) ?: defaultDriveComboFont
+        driveCombo.foreground = style.getFontColor() ?: defaultDriveComboFg
+        driveCombo.background = style.getBackgroundColor() ?: defaultDriveComboBg
     }
 
     private fun applyColumnHeaderStyle() {
         val style = TurtleCommanderSettings.getInstance().state.columnHeaderStyle
         val header = table.tableHeader ?: return
-        val font = style.getFont(header.font)
-        if (font != null) header.font = font
-        val fg = style.getFontColor()
-        if (fg != null) header.foreground = fg
+        header.font = style.getFont(defaultHeaderFont) ?: defaultHeaderFont
+        header.foreground = style.getFontColor() ?: defaultHeaderFg
+        header.background = style.getBackgroundColor() ?: defaultHeaderBg
     }
 
     private fun applyStatusBarStyle() {
         val style = TurtleCommanderSettings.getInstance().state.statusBarStyle
-        val font = style.getFont(statusLabel.font)
-        if (font != null) {
-            statusLabel.font = font
-            freeSpaceLabel.font = font
-        }
-        val fg = style.getFontColor()
-        if (fg != null) {
-            statusLabel.foreground = fg
-            freeSpaceLabel.foreground = fg
-        }
+        val font = style.getFont(defaultStatusFont) ?: defaultStatusFont
+        statusLabel.font = font
+        freeSpaceLabel.font = font
+        val fg = style.getFontColor() ?: defaultStatusFg
+        statusLabel.foreground = fg
+        freeSpaceLabel.foreground = fg
+        val bg = style.getBackgroundColor() ?: defaultStatusBg
+        statusPanel.background = bg
+        statusLabel.background = bg
+        freeSpaceLabel.background = bg
     }
 
     private fun applyPathBarStyle() {
