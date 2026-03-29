@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-03-29
+
 ### Added
 
 - Copy file or directory name, path, and parent to the clipboard from the context menu
