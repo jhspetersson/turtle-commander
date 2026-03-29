@@ -41,6 +41,7 @@ data class Theme(
     val pathBarStyle: ThemeStyle = ThemeStyle(),
     val statusBarStyle: ThemeStyle = ThemeStyle(),
     val commandBarStyle: ThemeStyle = ThemeStyle(),
+    val commandButtonStyle: ThemeStyle = ThemeStyle(),
     val driveSelectorStyle: ThemeStyle = ThemeStyle(),
     val columnHeaderStyle: ThemeStyle = ThemeStyle(),
 ) {
@@ -50,6 +51,7 @@ data class Theme(
         state.pathBarStyle = pathBarStyle.toComponentStyle()
         state.statusBarStyle = statusBarStyle.toComponentStyle()
         state.commandBarStyle = commandBarStyle.toComponentStyle()
+        state.commandButtonStyle = commandButtonStyle.toComponentStyle()
         state.driveSelectorStyle = driveSelectorStyle.toComponentStyle()
         state.columnHeaderStyle = columnHeaderStyle.toComponentStyle()
     }
@@ -88,6 +90,11 @@ data class Theme(
                 backgroundColor = "#000080",
             ),
             commandBarStyle = ThemeStyle(
+                fontFamily = "Consolas",
+                fontSize = 13,
+                backgroundColor = "#000000",
+            ),
+            commandButtonStyle = ThemeStyle(
                 fontFamily = "Consolas",
                 fontSize = 13,
                 fontColor = "#000000",
@@ -138,6 +145,11 @@ data class Theme(
             commandBarStyle = ThemeStyle(
                 fontFamily = "Consolas",
                 fontSize = 13,
+                backgroundColor = "#0A0A0A",
+            ),
+            commandButtonStyle = ThemeStyle(
+                fontFamily = "Consolas",
+                fontSize = 13,
                 fontColor = "#33FF33",
                 backgroundColor = "#1A1A1A",
             ),
@@ -184,6 +196,11 @@ data class Theme(
                 backgroundColor = "#3B2507",
             ),
             commandBarStyle = ThemeStyle(
+                fontFamily = "Courier New",
+                fontSize = 13,
+                backgroundColor = "#3B2507",
+            ),
+            commandButtonStyle = ThemeStyle(
                 fontFamily = "Courier New",
                 fontSize = 13,
                 fontColor = "#FFD700",
@@ -234,6 +251,11 @@ data class Theme(
             commandBarStyle = ThemeStyle(
                 fontFamily = "Consolas",
                 fontSize = 13,
+                backgroundColor = "#3D3D35",
+            ),
+            commandButtonStyle = ThemeStyle(
+                fontFamily = "Consolas",
+                fontSize = 13,
                 fontColor = "#CCCCBB",
                 backgroundColor = "#4D4D45",
             ),
@@ -280,6 +302,11 @@ data class Theme(
                 backgroundColor = "#000000",
             ),
             commandBarStyle = ThemeStyle(
+                fontFamily = "Consolas",
+                fontSize = 13,
+                backgroundColor = "#000000",
+            ),
+            commandButtonStyle = ThemeStyle(
                 fontFamily = "Consolas",
                 fontSize = 13,
                 fontColor = "#FFFFFF",
@@ -337,6 +364,11 @@ class SavedTheme {
     var commandBarFontStyle: Int = Font.PLAIN
     var commandBarFontColor: String = ""
     var commandBarBackgroundColor: String = ""
+    var commandButtonFontFamily: String = ""
+    var commandButtonFontSize: Int = 0
+    var commandButtonFontStyle: Int = Font.PLAIN
+    var commandButtonFontColor: String = ""
+    var commandButtonBackgroundColor: String = ""
     var driveSelectorFontFamily: String = ""
     var driveSelectorFontSize: Int = 0
     var driveSelectorFontStyle: Int = Font.PLAIN
@@ -355,6 +387,7 @@ class SavedTheme {
         pathBarStyle = ThemeStyle(pathBarFontFamily, pathBarFontSize, pathBarFontStyle, pathBarFontColor, pathBarBackgroundColor),
         statusBarStyle = ThemeStyle(statusBarFontFamily, statusBarFontSize, statusBarFontStyle, statusBarFontColor, statusBarBackgroundColor),
         commandBarStyle = ThemeStyle(commandBarFontFamily, commandBarFontSize, commandBarFontStyle, commandBarFontColor, commandBarBackgroundColor),
+        commandButtonStyle = ThemeStyle(commandButtonFontFamily, commandButtonFontSize, commandButtonFontStyle, commandButtonFontColor, commandButtonBackgroundColor),
         driveSelectorStyle = ThemeStyle(driveSelectorFontFamily, driveSelectorFontSize, driveSelectorFontStyle, driveSelectorFontColor, driveSelectorBackgroundColor),
         columnHeaderStyle = ThemeStyle(columnHeaderFontFamily, columnHeaderFontSize, columnHeaderFontStyle, columnHeaderFontColor, columnHeaderBackgroundColor),
     )
@@ -367,6 +400,7 @@ class SavedTheme {
             pathBarFontFamily = theme.pathBarStyle.fontFamily; pathBarFontSize = theme.pathBarStyle.fontSize; pathBarFontStyle = theme.pathBarStyle.fontStyle; pathBarFontColor = theme.pathBarStyle.fontColor; pathBarBackgroundColor = theme.pathBarStyle.backgroundColor
             statusBarFontFamily = theme.statusBarStyle.fontFamily; statusBarFontSize = theme.statusBarStyle.fontSize; statusBarFontStyle = theme.statusBarStyle.fontStyle; statusBarFontColor = theme.statusBarStyle.fontColor; statusBarBackgroundColor = theme.statusBarStyle.backgroundColor
             commandBarFontFamily = theme.commandBarStyle.fontFamily; commandBarFontSize = theme.commandBarStyle.fontSize; commandBarFontStyle = theme.commandBarStyle.fontStyle; commandBarFontColor = theme.commandBarStyle.fontColor; commandBarBackgroundColor = theme.commandBarStyle.backgroundColor
+            commandButtonFontFamily = theme.commandButtonStyle.fontFamily; commandButtonFontSize = theme.commandButtonStyle.fontSize; commandButtonFontStyle = theme.commandButtonStyle.fontStyle; commandButtonFontColor = theme.commandButtonStyle.fontColor; commandButtonBackgroundColor = theme.commandButtonStyle.backgroundColor
             driveSelectorFontFamily = theme.driveSelectorStyle.fontFamily; driveSelectorFontSize = theme.driveSelectorStyle.fontSize; driveSelectorFontStyle = theme.driveSelectorStyle.fontStyle; driveSelectorFontColor = theme.driveSelectorStyle.fontColor; driveSelectorBackgroundColor = theme.driveSelectorStyle.backgroundColor
             columnHeaderFontFamily = theme.columnHeaderStyle.fontFamily; columnHeaderFontSize = theme.columnHeaderStyle.fontSize; columnHeaderFontStyle = theme.columnHeaderStyle.fontStyle; columnHeaderFontColor = theme.columnHeaderStyle.fontColor; columnHeaderBackgroundColor = theme.columnHeaderStyle.backgroundColor
         }
@@ -379,13 +413,17 @@ class SavedTheme {
  */
 object ThemeManager {
 
-    fun getAllThemes(state: TurtleCommanderSettings.State): List<Theme> {
+    fun ensureInitialThemes(state: TurtleCommanderSettings.State) {
         if (!state.themesInitialized) {
             for (theme in Theme.INITIAL_THEMES) {
                 state.themes.add(SavedTheme.fromTheme(theme))
             }
             state.themesInitialized = true
         }
+    }
+
+    fun getAllThemes(state: TurtleCommanderSettings.State): List<Theme> {
+        ensureInitialThemes(state)
         val themes = state.themes.map { it.toTheme() }
         val default = themes.filter { it.name == Theme.DEFAULT.name }
         val rest = themes.filter { it.name != Theme.DEFAULT.name }.sortedBy { it.name }
@@ -423,6 +461,7 @@ object ThemeManager {
         appendStyle(sb, "pathBar", theme.pathBarStyle)
         appendStyle(sb, "statusBar", theme.statusBarStyle)
         appendStyle(sb, "commandBar", theme.commandBarStyle)
+        appendStyle(sb, "commandButton", theme.commandButtonStyle)
         appendStyle(sb, "driveSelector", theme.driveSelectorStyle)
         appendStyle(sb, "columnHeader", theme.columnHeaderStyle)
         return sb.toString()
@@ -446,6 +485,7 @@ object ThemeManager {
             pathBarStyle = parseStyle(props, "pathBar"),
             statusBarStyle = parseStyle(props, "statusBar"),
             commandBarStyle = parseStyle(props, "commandBar"),
+            commandButtonStyle = parseStyle(props, "commandButton"),
             driveSelectorStyle = parseStyle(props, "driveSelector"),
             columnHeaderStyle = parseStyle(props, "columnHeader"),
         )

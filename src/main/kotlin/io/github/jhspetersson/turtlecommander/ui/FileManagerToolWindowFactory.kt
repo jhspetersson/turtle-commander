@@ -1,19 +1,7 @@
 package io.github.jhspetersson.turtlecommander.ui
-import io.github.jhspetersson.turtlecommander.action.FileCopyBuffer
-import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
-import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
-import io.github.jhspetersson.turtlecommander.service.FavoritesChangeListener
-import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettingsListener
-import io.github.jhspetersson.turtlecommander.settings.ComponentStyle
 
 import com.intellij.icons.AllIcons
-import com.intellij.openapi.actionSystem.ActionManager
-import com.intellij.openapi.actionSystem.ActionUpdateThread
-import com.intellij.openapi.actionSystem.AnAction
-import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.actionSystem.DefaultActionGroup
-import com.intellij.openapi.actionSystem.KeyboardShortcut
-import com.intellij.openapi.actionSystem.Separator
+import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.actionSystem.ex.ActionUtil
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.service
@@ -25,22 +13,17 @@ import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.content.ContentFactory
-import java.awt.BorderLayout
-import java.awt.Color
-import java.awt.Component
-import java.awt.Graphics
-import java.awt.Graphics2D
-import java.awt.KeyboardFocusManager
-import java.awt.RenderingHints
+import io.github.jhspetersson.turtlecommander.action.FileCopyBuffer
+import io.github.jhspetersson.turtlecommander.service.FavoritesChangeListener
+import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
+import io.github.jhspetersson.turtlecommander.settings.ComponentStyle
+import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
+import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettingsListener
+import java.awt.*
 import java.awt.event.InputEvent
 import java.awt.event.KeyEvent
 import java.nio.file.Path
-import javax.swing.BoxLayout
-import javax.swing.Icon
-import javax.swing.JButton
-import javax.swing.JMenuItem
-import javax.swing.JPanel
-import javax.swing.JPopupMenu
+import javax.swing.*
 
 class FileManagerToolWindowFactory : ToolWindowFactory {
 
@@ -154,7 +137,7 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
                 override fun settingsChanged() {
                     val s = TurtleCommanderSettings.getInstance().state
                     bottomBar.isVisible = s.showCommandBar
-                    applyCommandBarStyle(bottomBar, s.commandBarStyle)
+                    applyCommandBarStyle(bottomBar, s.commandBarStyle, s.commandButtonStyle)
                     leftPanel.applyFonts()
                     rightPanel.applyFonts()
                     leftPanel.applyVisibilitySettings()
@@ -199,17 +182,19 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
 
     override fun shouldBeAvailable(project: Project) = true
 
-    private fun applyCommandBarStyle(bar: JPanel, style: ComponentStyle) {
+    private fun applyCommandBarStyle(bar: JPanel, barStyle: ComponentStyle, buttonStyle: ComponentStyle) {
         // Save original defaults on first call
         if (bar.getClientProperty("defaultBg") == null) {
             bar.putClientProperty("defaultBg", bar.background)
         }
-        val defaultBarBg = bar.getClientProperty("defaultBg") as? java.awt.Color ?: bar.background
+        val defaultBarBg = bar.getClientProperty("defaultBg") as? Color ?: bar.background
 
-        val font = style.getFont(null)
-        val fg = style.parsedFontColor()
-        val bg = style.parsedBackgroundColor()
-        bar.background = bg ?: defaultBarBg
+        val barBg = barStyle.parsedBackgroundColor()
+        bar.background = barBg ?: defaultBarBg
+
+        val btnFont = buttonStyle.getFont(null)
+        val btnFg = buttonStyle.parsedFontColor()
+        val btnBg = buttonStyle.parsedBackgroundColor()
         for (comp in bar.components) {
             if (comp is JButton) {
                 if (comp.getClientProperty("defaultFont") == null) {
@@ -217,9 +202,11 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
                     comp.putClientProperty("defaultFg", comp.foreground)
                     comp.putClientProperty("defaultBg", comp.background)
                 }
-                comp.font = font ?: comp.getClientProperty("defaultFont") as? java.awt.Font ?: comp.font
-                comp.foreground = fg ?: comp.getClientProperty("defaultFg") as? java.awt.Color ?: comp.foreground
-                comp.background = bg ?: comp.getClientProperty("defaultBg") as? java.awt.Color ?: comp.background
+                comp.font = btnFont ?: comp.getClientProperty("defaultFont") as? Font ?: comp.font
+                comp.foreground = btnFg ?: comp.getClientProperty("defaultFg") as? Color ?: comp.foreground
+                comp.background = btnBg ?: comp.getClientProperty("defaultBg") as? Color ?: comp.background
+                comp.isContentAreaFilled = btnBg == null
+                comp.isOpaque = btnBg != null
             }
         }
     }
@@ -264,11 +251,12 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
             Triple("TurtleCommander.Rename", "Rename") { activePanel().getActiveTab()?.startRename() },
         )
 
-        val barButtons = buttonDefs.map { (actionId, label, action) ->
+        val barButtons = buttonDefs.mapIndexed { index, (actionId, label, action) ->
             val button = JButton().apply {
                 isFocusable = false
                 addActionListener { action() }
             }
+            if (index > 0) bar.add(Box.createHorizontalStrut(2))
             bar.add(button)
             BarButton(actionId, label, button)
         }
@@ -285,7 +273,8 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
         }
 
         updateBar(false)
-        applyCommandBarStyle(bar, TurtleCommanderSettings.getInstance().state.commandBarStyle)
+        val settings = TurtleCommanderSettings.getInstance().state
+        applyCommandBarStyle(bar, settings.commandBarStyle, settings.commandButtonStyle)
 
         ApplicationManager.getApplication().messageBus
             .connect()

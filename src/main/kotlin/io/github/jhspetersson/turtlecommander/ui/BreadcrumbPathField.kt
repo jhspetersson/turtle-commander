@@ -17,8 +17,8 @@ class BreadcrumbPathField : JPanel() {
     private var customFont: Font? = null
     private var customFg: Color? = null
     private val defaultEditFieldFont by lazy { editField.font }
-    private val defaultEditFieldFg = javax.swing.UIManager.getColor("TextField.foreground")
-    private val defaultEditFieldBg = javax.swing.UIManager.getColor("TextField.background")
+    private val defaultEditFieldFg = UIManager.getColor("TextField.foreground")
+    private val defaultEditFieldBg = UIManager.getColor("TextField.background")
 
     var text: String = ""
         get() = if (isEditMode) editField.text else field

@@ -7,7 +7,6 @@ import com.intellij.openapi.fileChooser.FileSaverDescriptor
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.Messages
-import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
 import io.github.jhspetersson.turtlecommander.service.ThumbnailCache
@@ -82,6 +81,7 @@ class TurtleCommanderConfigurable : Configurable {
         val pathBarEditor = ComponentStyleEditor("Path bar", fontItems, settings.pathBarStyle)
         val statusBarEditor = ComponentStyleEditor("Status bar", fontItems, settings.statusBarStyle)
         val commandBarEditor = ComponentStyleEditor("Command bar", fontItems, settings.commandBarStyle)
+        val commandButtonEditor = ComponentStyleEditor("Cmd buttons", fontItems, settings.commandButtonStyle)
         val driveSelectorEditor = ComponentStyleEditor("Drive selector", fontItems, settings.driveSelectorStyle)
         val columnHeaderEditor = ComponentStyleEditor("Column headers", fontItems, settings.columnHeaderStyle)
         styleEditors["panel"] = panelEditor
@@ -89,6 +89,7 @@ class TurtleCommanderConfigurable : Configurable {
         styleEditors["pathBar"] = pathBarEditor
         styleEditors["statusBar"] = statusBarEditor
         styleEditors["commandBar"] = commandBarEditor
+        styleEditors["commandButton"] = commandButtonEditor
         styleEditors["driveSelector"] = driveSelectorEditor
         styleEditors["columnHeader"] = columnHeaderEditor
 
@@ -99,7 +100,7 @@ class TurtleCommanderConfigurable : Configurable {
         }
 
         val appearancePanel = createAppearancePanel(
-            listOf(tabEditor, driveSelectorEditor, pathBarEditor, columnHeaderEditor, panelEditor, statusBarEditor, commandBarEditor)
+            listOf(tabEditor, driveSelectorEditor, pathBarEditor, columnHeaderEditor, panelEditor, statusBarEditor, commandBarEditor, commandButtonEditor)
         )
 
         highlightingCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
@@ -165,6 +166,7 @@ class TurtleCommanderConfigurable : Configurable {
         styleEditors["pathBar"]?.applyTo(state.preThemePathBarStyle)
         styleEditors["statusBar"]?.applyTo(state.preThemeStatusBarStyle)
         styleEditors["commandBar"]?.applyTo(state.preThemeCommandBarStyle)
+        styleEditors["commandButton"]?.applyTo(state.preThemeCommandButtonStyle)
         styleEditors["driveSelector"]?.applyTo(state.preThemeDriveSelectorStyle)
         styleEditors["columnHeader"]?.applyTo(state.preThemeColumnHeaderStyle)
     }
@@ -179,6 +181,7 @@ class TurtleCommanderConfigurable : Configurable {
             styleEditors["pathBar"]?.resetFrom(state.preThemePathBarStyle)
             styleEditors["statusBar"]?.resetFrom(state.preThemeStatusBarStyle)
             styleEditors["commandBar"]?.resetFrom(state.preThemeCommandBarStyle)
+            styleEditors["commandButton"]?.resetFrom(state.preThemeCommandButtonStyle)
             styleEditors["driveSelector"]?.resetFrom(state.preThemeDriveSelectorStyle)
             styleEditors["columnHeader"]?.resetFrom(state.preThemeColumnHeaderStyle)
             return
@@ -192,6 +195,7 @@ class TurtleCommanderConfigurable : Configurable {
         styleEditors["pathBar"]?.resetFrom(theme.pathBarStyle.toComponentStyle())
         styleEditors["statusBar"]?.resetFrom(theme.statusBarStyle.toComponentStyle())
         styleEditors["commandBar"]?.resetFrom(theme.commandBarStyle.toComponentStyle())
+        styleEditors["commandButton"]?.resetFrom(theme.commandButtonStyle.toComponentStyle())
         styleEditors["driveSelector"]?.resetFrom(theme.driveSelectorStyle.toComponentStyle())
         styleEditors["columnHeader"]?.resetFrom(theme.columnHeaderStyle.toComponentStyle())
     }
@@ -203,6 +207,7 @@ class TurtleCommanderConfigurable : Configurable {
             "pathBar" to ComponentStyle(),
             "statusBar" to ComponentStyle(),
             "commandBar" to ComponentStyle(),
+            "commandButton" to ComponentStyle(),
             "driveSelector" to ComponentStyle(),
             "columnHeader" to ComponentStyle(),
         )
@@ -216,6 +221,7 @@ class TurtleCommanderConfigurable : Configurable {
             pathBarStyle = ThemeStyle.fromComponentStyle(styles["pathBar"]!!),
             statusBarStyle = ThemeStyle.fromComponentStyle(styles["statusBar"]!!),
             commandBarStyle = ThemeStyle.fromComponentStyle(styles["commandBar"]!!),
+            commandButtonStyle = ThemeStyle.fromComponentStyle(styles["commandButton"]!!),
             driveSelectorStyle = ThemeStyle.fromComponentStyle(styles["driveSelector"]!!),
             columnHeaderStyle = ThemeStyle.fromComponentStyle(styles["columnHeader"]!!),
         )
@@ -282,6 +288,7 @@ class TurtleCommanderConfigurable : Configurable {
                 s.preThemePathBarStyle = ComponentStyle()
                 s.preThemeStatusBarStyle = ComponentStyle()
                 s.preThemeCommandBarStyle = ComponentStyle()
+                s.preThemeCommandButtonStyle = ComponentStyle()
                 s.preThemeDriveSelectorStyle = ComponentStyle()
                 s.preThemeColumnHeaderStyle = ComponentStyle()
                 // Re-seed initial themes if all were deleted
@@ -330,16 +337,20 @@ class TurtleCommanderConfigurable : Configurable {
             gbc.gridx = 7; add(JBLabel("Active"), gbc)
 
             val panelEditorLabel = styleEditors["panel"]?.label
+            val commandBarEditorLabel = styleEditors["commandBar"]?.label
             for ((i, editor) in editors.withIndex()) {
                 gbc.gridy = i + 1
                 gbc.gridx = 0; gbc.insets = JBUI.insets(2, 0, 2, 4)
                 val lbl = JBLabel("${editor.label}:").apply { minimumSize = Dimension(90, 0) }
                 add(lbl, gbc)
                 gbc.insets = JBUI.insets(2, 4)
-                gbc.gridx = 1; add(editor.fontCombo, gbc)
-                gbc.gridx = 2; add(editor.sizeSpinner, gbc)
-                gbc.gridx = 3; add(editor.styleCombo, gbc)
-                gbc.gridx = 4; add(editor.colorButton, gbc)
+                val bgOnly = editor.label == commandBarEditorLabel
+                if (!bgOnly) {
+                    gbc.gridx = 1; add(editor.fontCombo, gbc)
+                    gbc.gridx = 2; add(editor.sizeSpinner, gbc)
+                    gbc.gridx = 3; add(editor.styleCombo, gbc)
+                    gbc.gridx = 4; add(editor.colorButton, gbc)
+                }
                 gbc.gridx = 5; add(editor.bgColorButton, gbc)
                 if (editor.label == panelEditorLabel) {
                     gbc.gridx = 6; add(editor.selectedColorButton, gbc)
@@ -488,6 +499,7 @@ class TurtleCommanderConfigurable : Configurable {
             || styleEditors["pathBar"]?.isModified(settings.pathBarStyle) == true
             || styleEditors["statusBar"]?.isModified(settings.statusBarStyle) == true
             || styleEditors["commandBar"]?.isModified(settings.commandBarStyle) == true
+            || styleEditors["commandButton"]?.isModified(settings.commandButtonStyle) == true
             || styleEditors["driveSelector"]?.isModified(settings.driveSelectorStyle) == true
             || styleEditors["columnHeader"]?.isModified(settings.columnHeaderStyle) == true
             || getSelectedThemeName() != settings.themeName.ifEmpty { Theme.DEFAULT.name }
@@ -512,6 +524,7 @@ class TurtleCommanderConfigurable : Configurable {
         styleEditors["pathBar"]?.applyTo(settings.pathBarStyle)
         styleEditors["statusBar"]?.applyTo(settings.statusBarStyle)
         styleEditors["commandBar"]?.applyTo(settings.commandBarStyle)
+        styleEditors["commandButton"]?.applyTo(settings.commandButtonStyle)
         styleEditors["driveSelector"]?.applyTo(settings.driveSelectorStyle)
         styleEditors["columnHeader"]?.applyTo(settings.columnHeaderStyle)
 
@@ -551,6 +564,7 @@ class TurtleCommanderConfigurable : Configurable {
         styleEditors["pathBar"]?.resetFrom(settings.pathBarStyle)
         styleEditors["statusBar"]?.resetFrom(settings.statusBarStyle)
         styleEditors["commandBar"]?.resetFrom(settings.commandBarStyle)
+        styleEditors["commandButton"]?.resetFrom(settings.commandButtonStyle)
         styleEditors["driveSelector"]?.resetFrom(settings.driveSelectorStyle)
         styleEditors["columnHeader"]?.resetFrom(settings.columnHeaderStyle)
 

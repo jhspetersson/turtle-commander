@@ -171,7 +171,7 @@ class ArchiveIntegrationTest : BasePlatformTestCase() {
 
         // Open VFS and browse
         val vfs = VirtualFileSystemRegistry.create(archivePath)
-        try {
+        vfs.use { vfs ->
             assertNotNull("VFS root should not be null", vfs.root)
             assertFalse("Archive should not be read-only for zip", vfs.isReadOnly)
 
@@ -183,8 +183,6 @@ class ArchiveIntegrationTest : BasePlatformTestCase() {
             val contentEntry = entries.find { it.name == "content.txt" }
             assertNotNull(contentEntry)
             assertFalse("content.txt should not be a directory", contentEntry!!.isDirectory)
-        } finally {
-            vfs.close()
         }
     }
 
@@ -204,15 +202,13 @@ class ArchiveIntegrationTest : BasePlatformTestCase() {
         )
 
         val vfs = VirtualFileSystemRegistry.create(archivePath)
-        try {
+        vfs.use { vfs ->
             val rootEntries = vfs.listFiles(vfs.root)
             val folderEntry = rootEntries.find { it.name == "folder" && it.isDirectory }
             assertNotNull("Should find folder directory", folderEntry)
 
             val folderContents = vfs.listFiles(folderEntry!!.path)
             assertTrue("Folder should contain inner.txt", folderContents.any { it.name == "inner.txt" })
-        } finally {
-            vfs.close()
         }
     }
 
@@ -231,10 +227,8 @@ class ArchiveIntegrationTest : BasePlatformTestCase() {
         )
 
         val vfs = VirtualFileSystemRegistry.create(archivePath)
-        try {
+        vfs.use { vfs ->
             assertTrue("Root should be identified as root", vfs.isRoot(vfs.root))
-        } finally {
-            vfs.close()
         }
     }
 
@@ -254,12 +248,10 @@ class ArchiveIntegrationTest : BasePlatformTestCase() {
         )
 
         val vfs = VirtualFileSystemRegistry.create(archivePath)
-        try {
+        vfs.use { vfs ->
             val path = vfs.getPath("/adir/file.txt")
             assertNotNull(path)
             assertTrue("Path should end with expected file", path.toString().endsWith("file.txt"))
-        } finally {
-            vfs.close()
         }
     }
 

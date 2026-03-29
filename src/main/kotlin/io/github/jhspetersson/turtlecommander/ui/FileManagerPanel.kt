@@ -28,7 +28,7 @@ class FileManagerPanel(
 
     private val tabbedPane = JBTabbedPane()
     private val defaultTabFont by lazy { tabbedPane.font }
-    private val defaultTabBg = javax.swing.UIManager.getColor("TabbedPane.background")
+    private val defaultTabBg = UIManager.getColor("TabbedPane.background")
     private val addTabPlaceholder = JPanel()
     var otherPanel: FileManagerPanel? = null
     private var stateService: FileManagerStateService? = null

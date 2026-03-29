@@ -1,9 +1,9 @@
 package io.github.jhspetersson.turtlecommander.settings
 
 import org.junit.Assert.*
-import org.junit.Before
 import org.junit.Test
 import java.awt.Font
+import kotlin.math.abs
 
 class ThemeTest {
 
@@ -18,6 +18,7 @@ class ThemeTest {
         assertTrue(state.pathBarStyle.isDefault())
         assertTrue(state.statusBarStyle.isDefault())
         assertTrue(state.commandBarStyle.isDefault())
+        assertTrue(state.commandButtonStyle.isDefault())
         assertTrue(state.driveSelectorStyle.isDefault())
         assertTrue(state.columnHeaderStyle.isDefault())
     }
@@ -40,7 +41,7 @@ class ThemeTest {
         val fgLuminance = 0.299 * fg.red + 0.587 * fg.green + 0.114 * fg.blue
         val bgLuminance = 0.299 * bg.red + 0.587 * bg.green + 0.114 * bg.blue
         assertTrue("Tab contrast too low: fg=$fgLuminance bg=$bgLuminance",
-            Math.abs(fgLuminance - bgLuminance) > 80)
+            abs(fgLuminance - bgLuminance) > 80)
     }
 
     @Test
@@ -61,7 +62,7 @@ class ThemeTest {
     }
 
     @Test
-    fun `theme applies all seven component styles`() {
+    fun `theme applies all eight component styles`() {
         val state = TurtleCommanderSettings.State()
         Theme.CLASSIC_NC.applyTo(state)
         assertFalse(state.panelStyle.isDefault())
@@ -69,6 +70,7 @@ class ThemeTest {
         assertFalse(state.pathBarStyle.isDefault())
         assertFalse(state.statusBarStyle.isDefault())
         assertFalse(state.commandBarStyle.isDefault())
+        assertFalse(state.commandButtonStyle.isDefault())
         assertFalse(state.driveSelectorStyle.isDefault())
         assertFalse(state.columnHeaderStyle.isDefault())
     }
@@ -110,6 +112,7 @@ class ThemeTest {
             "pathBar" to theme.pathBarStyle,
             "statusBar" to theme.statusBarStyle,
             "commandBar" to theme.commandBarStyle,
+            "commandButton" to theme.commandButtonStyle,
             "driveSelector" to theme.driveSelectorStyle,
             "columnHeader" to theme.columnHeaderStyle,
         )) {
@@ -132,7 +135,7 @@ class ThemeTest {
                 "tab" to theme.tabStyle,
                 "pathBar" to theme.pathBarStyle,
                 "statusBar" to theme.statusBarStyle,
-                "commandBar" to theme.commandBarStyle,
+                "commandButton" to theme.commandButtonStyle,
                 "driveSelector" to theme.driveSelectorStyle,
                 "columnHeader" to theme.columnHeaderStyle,
             )) {
@@ -142,7 +145,7 @@ class ThemeTest {
                 val fgL = 0.299 * fg.red + 0.587 * fg.green + 0.114 * fg.blue
                 val bgL = 0.299 * bg.red + 0.587 * bg.green + 0.114 * bg.blue
                 assertTrue("${theme.name}/$label contrast too low: fg=$fgL bg=$bgL",
-                    Math.abs(fgL - bgL) > 50)
+                    abs(fgL - bgL) > 50)
             }
         }
     }
@@ -287,7 +290,7 @@ class ThemeTest {
     }
 
     @Test
-    fun `all non-default initial themes set all seven components`() {
+    fun `all non-default initial themes set all eight components`() {
         for (theme in Theme.INITIAL_THEMES) {
             if (theme.name == Theme.DEFAULT.name) continue
             for ((label, style) in listOf(
@@ -296,19 +299,31 @@ class ThemeTest {
                 "pathBar" to theme.pathBarStyle,
                 "statusBar" to theme.statusBarStyle,
                 "commandBar" to theme.commandBarStyle,
+                "commandButton" to theme.commandButtonStyle,
                 "driveSelector" to theme.driveSelectorStyle,
                 "columnHeader" to theme.columnHeaderStyle,
             )) {
                 assertFalse("${theme.name}/$label style should not be default",
                     style.toComponentStyle().isDefault())
-                assertTrue("${theme.name}/$label should have font color",
-                    style.fontColor.isNotEmpty())
                 assertTrue("${theme.name}/$label should have background color",
                     style.backgroundColor.isNotEmpty())
                 assertTrue("${theme.name}/$label should have font family",
                     style.fontFamily.isNotEmpty())
                 assertTrue("${theme.name}/$label should have font size",
                     style.fontSize > 0)
+            }
+            // commandBar is panel-only (no font color), commandButton has full styling
+            for ((label, style) in listOf(
+                "panel" to theme.panelStyle,
+                "tab" to theme.tabStyle,
+                "pathBar" to theme.pathBarStyle,
+                "statusBar" to theme.statusBarStyle,
+                "commandButton" to theme.commandButtonStyle,
+                "driveSelector" to theme.driveSelectorStyle,
+                "columnHeader" to theme.columnHeaderStyle,
+            )) {
+                assertTrue("${theme.name}/$label should have font color",
+                    style.fontColor.isNotEmpty())
             }
         }
     }
@@ -409,6 +424,7 @@ class ThemeTest {
         assertTrue(state.preThemePathBarStyle.isDefault())
         assertTrue(state.preThemeStatusBarStyle.isDefault())
         assertTrue(state.preThemeCommandBarStyle.isDefault())
+        assertTrue(state.preThemeCommandButtonStyle.isDefault())
         assertTrue(state.preThemeDriveSelectorStyle.isDefault())
         assertTrue(state.preThemeColumnHeaderStyle.isDefault())
     }

@@ -56,17 +56,18 @@ class FileTab(
     internal val tableModel = FileTableModel()
     val table = JBTable(tableModel)
     private val defaultTableFont by lazy { table.font }
-    private val defaultTableFg = javax.swing.UIManager.getColor("Table.foreground")
-    private val defaultTableBg = javax.swing.UIManager.getColor("Table.background")
+    private val defaultTableFg = UIManager.getColor("Table.foreground")
+    private val defaultTableBg = UIManager.getColor("Table.background")
+    private val defaultSelectionBg = UIManager.getColor("Table.selectionBackground")
     private val defaultDriveComboFont by lazy { driveCombo.font }
-    private val defaultDriveComboFg = javax.swing.UIManager.getColor("ComboBox.foreground")
-    private val defaultDriveComboBg = javax.swing.UIManager.getColor("ComboBox.background")
+    private val defaultDriveComboFg = UIManager.getColor("ComboBox.foreground")
+    private val defaultDriveComboBg = UIManager.getColor("ComboBox.background")
     private val defaultHeaderFont by lazy { table.tableHeader?.font }
-    private val defaultHeaderFg = javax.swing.UIManager.getColor("TableHeader.foreground")
-    private val defaultHeaderBg = javax.swing.UIManager.getColor("TableHeader.background")
+    private val defaultHeaderFg = UIManager.getColor("TableHeader.foreground")
+    private val defaultHeaderBg = UIManager.getColor("TableHeader.background")
     private val defaultStatusFont by lazy { statusLabel.font }
-    private val defaultStatusFg = javax.swing.UIManager.getColor("Label.foreground")
-    private val defaultStatusBg = javax.swing.UIManager.getColor("Panel.background")
+    private val defaultStatusFg = UIManager.getColor("Label.foreground")
+    private val defaultStatusBg = UIManager.getColor("Panel.background")
 
     internal val listModel = DefaultListModel<FileEntry>()
     val list = JBList(listModel)
@@ -190,14 +191,12 @@ class FileTab(
         list.background = bg
         thumbnailList.background = bg
         tree.background = bg
-        (table.parent as? javax.swing.JViewport)?.background = bg
+        (table.parent as? JViewport)?.background = bg
 
-        val activeSel = panelStyle.parsedActiveSelectedColor()
-        if (activeSel != null) {
-            table.selectionBackground = activeSel
-            list.selectionBackground = activeSel
-            thumbnailList.selectionBackground = activeSel
-        }
+        val activeSel = panelStyle.parsedActiveSelectedColor() ?: defaultSelectionBg
+        table.selectionBackground = activeSel
+        list.selectionBackground = activeSel
+        thumbnailList.selectionBackground = activeSel
 
         applyDriveSelectorStyle()
         applyColumnHeaderStyle()

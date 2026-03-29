@@ -121,6 +121,7 @@ class ThemeManagerTest {
             pathBarStyle = ThemeStyle("Courier New", 13, Font.PLAIN, "#CC0000", "#003300"),
             statusBarStyle = ThemeStyle("Monospaced", 11, Font.PLAIN, "#DD0000", "#004400"),
             commandBarStyle = ThemeStyle("Dialog", 15, Font.BOLD, "#EE0000", "#005500"),
+            commandButtonStyle = ThemeStyle("Dialog", 14, Font.PLAIN, "#DD0000", "#004400"),
             driveSelectorStyle = ThemeStyle("SansSerif", 13, Font.PLAIN, "#FF0000", "#006600"),
             columnHeaderStyle = ThemeStyle("Serif", 13, Font.PLAIN, "#110000", "#007700"),
         )
@@ -131,6 +132,7 @@ class ThemeManagerTest {
         assertEquals(theme.pathBarStyle, restored.pathBarStyle)
         assertEquals(theme.statusBarStyle, restored.statusBarStyle)
         assertEquals(theme.commandBarStyle, restored.commandBarStyle)
+        assertEquals(theme.commandButtonStyle, restored.commandButtonStyle)
         assertEquals(theme.driveSelectorStyle, restored.driveSelectorStyle)
         assertEquals(theme.columnHeaderStyle, restored.columnHeaderStyle)
     }
@@ -225,6 +227,7 @@ class ThemeManagerTest {
             pathBarStyle = ThemeStyle("Courier New", 13, Font.PLAIN, "#CC0000", "#003300"),
             statusBarStyle = ThemeStyle("Monospaced", 11, Font.PLAIN, "#DD0000", "#004400"),
             commandBarStyle = ThemeStyle("Dialog", 15, Font.BOLD, "#EE0000", "#005500"),
+            commandButtonStyle = ThemeStyle("Dialog", 14, Font.PLAIN, "#DD0000", "#004400"),
             driveSelectorStyle = ThemeStyle("SansSerif", 13, Font.PLAIN, "#FF0000", "#006600"),
             columnHeaderStyle = ThemeStyle("Serif", 13, Font.PLAIN, "#110000", "#007700"),
         )
@@ -237,6 +240,7 @@ class ThemeManagerTest {
         assertEquals(theme.pathBarStyle, imported.pathBarStyle)
         assertEquals(theme.statusBarStyle, imported.statusBarStyle)
         assertEquals(theme.commandBarStyle, imported.commandBarStyle)
+        assertEquals(theme.commandButtonStyle, imported.commandButtonStyle)
         assertEquals(theme.driveSelectorStyle, imported.driveSelectorStyle)
         assertEquals(theme.columnHeaderStyle, imported.columnHeaderStyle)
     }
@@ -467,7 +471,7 @@ class ThemeManagerTest {
     // --- SavedTheme serialization ---
 
     @Test
-    fun `SavedTheme fromTheme and toTheme round-trip all seven styles`() {
+    fun `SavedTheme fromTheme and toTheme round-trip all eight styles`() {
         val original = Theme(
             name = "RoundTrip",
             panelStyle = ThemeStyle("Consolas", 14, Font.BOLD, "#AA0000", "#001100", "#111111", "#222222"),
@@ -475,6 +479,7 @@ class ThemeManagerTest {
             pathBarStyle = ThemeStyle("Courier New", 13, Font.PLAIN, "#CC0000", "#003300"),
             statusBarStyle = ThemeStyle("Monospaced", 11, Font.PLAIN, "#DD0000", "#004400"),
             commandBarStyle = ThemeStyle("Dialog", 15, Font.BOLD, "#EE0000", "#005500"),
+            commandButtonStyle = ThemeStyle("Dialog", 14, Font.PLAIN, "#DD0000", "#004400"),
             driveSelectorStyle = ThemeStyle("SansSerif", 13, Font.PLAIN, "#FF0000", "#006600"),
             columnHeaderStyle = ThemeStyle("Serif", 13, Font.PLAIN, "#110000", "#007700"),
         )
@@ -486,6 +491,7 @@ class ThemeManagerTest {
         assertEquals(original.pathBarStyle, restored.pathBarStyle)
         assertEquals(original.statusBarStyle, restored.statusBarStyle)
         assertEquals(original.commandBarStyle, restored.commandBarStyle)
+        assertEquals(original.commandButtonStyle, restored.commandButtonStyle)
         assertEquals(original.driveSelectorStyle, restored.driveSelectorStyle)
         assertEquals(original.columnHeaderStyle, restored.columnHeaderStyle)
     }
@@ -572,6 +578,7 @@ class ThemeManagerTest {
             pathBarStyle = ThemeStyle("Courier New", 13, Font.PLAIN, "#CC0000", "#003300"),
             statusBarStyle = ThemeStyle("Monospaced", 11, Font.PLAIN, "#DD0000", "#004400"),
             commandBarStyle = ThemeStyle("Dialog", 15, Font.BOLD, "#EE0000", "#005500"),
+            commandButtonStyle = ThemeStyle("Dialog", 14, Font.PLAIN, "#DD0000", "#004400"),
             driveSelectorStyle = ThemeStyle("SansSerif", 13, Font.PLAIN, "#FF0000", "#006600"),
             columnHeaderStyle = ThemeStyle("Serif", 13, Font.PLAIN, "#110000", "#007700"),
         )
@@ -582,6 +589,7 @@ class ThemeManagerTest {
         assertEquals(theme.pathBarStyle, restored.pathBarStyle)
         assertEquals(theme.statusBarStyle, restored.statusBarStyle)
         assertEquals(theme.commandBarStyle, restored.commandBarStyle)
+        assertEquals(theme.commandButtonStyle, restored.commandButtonStyle)
         assertEquals(theme.driveSelectorStyle, restored.driveSelectorStyle)
         assertEquals(theme.columnHeaderStyle, restored.columnHeaderStyle)
     }

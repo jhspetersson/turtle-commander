@@ -133,6 +133,7 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
         var pathBarStyle: ComponentStyle = ComponentStyle()
         var statusBarStyle: ComponentStyle = ComponentStyle()
         var commandBarStyle: ComponentStyle = ComponentStyle()
+        var commandButtonStyle: ComponentStyle = ComponentStyle()
         var driveSelectorStyle: ComponentStyle = ComponentStyle()
         var columnHeaderStyle: ComponentStyle = ComponentStyle()
         var themeName: String = ""
@@ -145,6 +146,7 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
         var preThemePathBarStyle: ComponentStyle = ComponentStyle()
         var preThemeStatusBarStyle: ComponentStyle = ComponentStyle()
         var preThemeCommandBarStyle: ComponentStyle = ComponentStyle()
+        var preThemeCommandButtonStyle: ComponentStyle = ComponentStyle()
         var preThemeDriveSelectorStyle: ComponentStyle = ComponentStyle()
         var preThemeColumnHeaderStyle: ComponentStyle = ComponentStyle()
 
@@ -202,7 +204,10 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
 
     private var myState = State()
 
-    override fun getState(): State = myState
+    override fun getState(): State {
+        ThemeManager.ensureInitialThemes(myState)
+        return myState
+    }
 
     override fun loadState(state: State) {
         myState = state
