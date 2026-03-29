@@ -309,6 +309,7 @@ class FileTab(
         val headerPanel = JPanel(BorderLayout())
 
         driveCombo.apply {
+            renderer = DriveComboRenderer()
             addPopupMenuListener(object : PopupMenuListener {
                 override fun popupMenuWillBecomeVisible(e: PopupMenuEvent) {
                     driveComboPopupOpen = true
@@ -932,7 +933,7 @@ class FileTab(
                 driveCombo.selectedItem = bestMatch
             }
 
-            val widest = roots.maxByOrNull { it.length } ?: ""
+            val widest = roots.maxByOrNull { DriveComboRenderer.getDisplayText(it).length } ?: ""
             driveCombo.setPrototypeDisplayValue(widest)
             driveCombo.revalidate()
         } finally {

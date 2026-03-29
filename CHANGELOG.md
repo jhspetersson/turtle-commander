@@ -7,6 +7,7 @@
 ### Added
 
 - Initial themes support
+- Labels for the drives on Windows
 
 ## [0.3.2] - 2026-03-29
 

@@ -4,19 +4,45 @@ import com.intellij.icons.AllIcons
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBTabbedPane
 import com.intellij.util.ui.JBUI
-import java.awt.BorderLayout
-import java.awt.Color
-import java.awt.Cursor
-import java.awt.Dimension
-import java.awt.Graphics
-import java.awt.Graphics2D
+import java.awt.*
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
-import javax.swing.BorderFactory
-import javax.swing.Icon
-import javax.swing.JComponent
-import javax.swing.JPanel
-import javax.swing.JToggleButton
+import java.util.concurrent.ConcurrentHashMap
+import javax.swing.*
+import javax.swing.filechooser.FileSystemView
+
+internal class DriveComboRenderer : DefaultListCellRenderer() {
+    override fun getListCellRendererComponent(
+        list: JList<*>?,
+        value: Any?,
+        index: Int,
+        isSelected: Boolean,
+        cellHasFocus: Boolean,
+    ): Component {
+        val display = getDisplayText(value as? String ?: "")
+        return super.getListCellRendererComponent(list, display, index, isSelected, cellHasFocus)
+    }
+
+    companion object {
+        private val isWindows = System.getProperty("os.name").lowercase().contains("win")
+        private val labelCache = ConcurrentHashMap<String, String>()
+
+        fun getDisplayText(path: String): String {
+            if (!isWindows || path.isEmpty()) return path
+            // Only add labels for drive roots (e.g. "C:\")
+            if (!path.matches(Regex("[A-Za-z]:\\\\"))) return path
+            return labelCache.getOrPut(path) {
+                try {
+                    val label = FileSystemView.getFileSystemView()
+                        .getSystemDisplayName(java.io.File(path))
+                    if (label.isNotBlank() && label != path.trimEnd('\\')) label else path
+                } catch (_: Exception) {
+                    path
+                }
+            }
+        }
+    }
+}
 
 internal class DraggableTabbedPaneWrapper(
     tabbedPane: JBTabbedPane,
