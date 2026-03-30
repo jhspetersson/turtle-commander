@@ -253,7 +253,7 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
         settings.loadState(TurtleCommanderSettings.State().apply {
             panelFontFamily = "Courier"
             panelFontSize = 15
-            panelStyle = ComponentStyle().apply {
+            styles.panelStyle = ComponentStyle().apply {
                 fontFamily = "Arial"
                 fontSize = 20
                 fontStyle = Font.BOLD
@@ -288,12 +288,12 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
 
     fun testAllComponentStylesInitialized() {
         val state = settings.state
-        assertNotNull(state.panelStyle)
-        assertNotNull(state.tabStyle)
-        assertNotNull(state.pathBarStyle)
-        assertNotNull(state.statusBarStyle)
-        assertNotNull(state.commandBarStyle)
-        assertNotNull(state.driveSelectorStyle)
-        assertNotNull(state.columnHeaderStyle)
+        assertNotNull(state.styles.panelStyle)
+        assertNotNull(state.styles.tabStyle)
+        assertNotNull(state.styles.pathBarStyle)
+        assertNotNull(state.styles.statusBarStyle)
+        assertNotNull(state.styles.commandBarStyle)
+        assertNotNull(state.styles.driveSelectorStyle)
+        assertNotNull(state.styles.columnHeaderStyle)
     }
 }

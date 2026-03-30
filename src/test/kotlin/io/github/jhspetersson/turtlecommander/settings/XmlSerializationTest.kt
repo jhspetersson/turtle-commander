@@ -46,7 +46,7 @@ class XmlSerializationTest {
     @Test
     fun `ComponentStyle all fields survive round-trip`() {
         val state = TurtleCommanderSettings.State().apply {
-            panelStyle = ComponentStyle().apply {
+            styles.panelStyle = ComponentStyle().apply {
                 fontFamily = "Consolas"
                 fontSize = 14
                 fontStyle = Font.BOLD
@@ -57,13 +57,13 @@ class XmlSerializationTest {
             }
         }
         val restored = roundTrip(state)
-        assertEquals("Consolas", restored.panelStyle.fontFamily)
-        assertEquals(14, restored.panelStyle.fontSize)
-        assertEquals(Font.BOLD, restored.panelStyle.fontStyle)
-        assertEquals("#00FFFF", restored.panelStyle.fontColor)
-        assertEquals("#000080", restored.panelStyle.backgroundColor)
-        assertEquals("#000050", restored.panelStyle.selectedColor)
-        assertEquals("#0000AA", restored.panelStyle.activeSelectedColor)
+        assertEquals("Consolas", restored.styles.panelStyle.fontFamily)
+        assertEquals(14, restored.styles.panelStyle.fontSize)
+        assertEquals(Font.BOLD, restored.styles.panelStyle.fontStyle)
+        assertEquals("#00FFFF", restored.styles.panelStyle.fontColor)
+        assertEquals("#000080", restored.styles.panelStyle.backgroundColor)
+        assertEquals("#000050", restored.styles.panelStyle.selectedColor)
+        assertEquals("#0000AA", restored.styles.panelStyle.activeSelectedColor)
     }
 
     @Test
@@ -75,47 +75,47 @@ class XmlSerializationTest {
             backgroundColor = "#00FF00"
         }
         val state = TurtleCommanderSettings.State().apply {
-            panelStyle = ComponentStyle().apply { copyFrom(testStyle) }
-            tabStyle = ComponentStyle().apply { copyFrom(testStyle); fontFamily = "Tab" }
-            pathBarStyle = ComponentStyle().apply { copyFrom(testStyle); fontFamily = "PathBar" }
-            statusBarStyle = ComponentStyle().apply { copyFrom(testStyle); fontFamily = "StatusBar" }
-            commandBarStyle = ComponentStyle().apply { copyFrom(testStyle); fontFamily = "CommandBar" }
-            commandButtonStyle = ComponentStyle().apply { copyFrom(testStyle); fontFamily = "CommandButton" }
-            driveSelectorStyle = ComponentStyle().apply { copyFrom(testStyle); fontFamily = "DriveSelector" }
-            columnHeaderStyle = ComponentStyle().apply { copyFrom(testStyle); fontFamily = "ColumnHeader" }
+            styles.panelStyle = ComponentStyle().apply { copyFrom(testStyle) }
+            styles.tabStyle = ComponentStyle().apply { copyFrom(testStyle); fontFamily = "Tab" }
+            styles.pathBarStyle = ComponentStyle().apply { copyFrom(testStyle); fontFamily = "PathBar" }
+            styles.statusBarStyle = ComponentStyle().apply { copyFrom(testStyle); fontFamily = "StatusBar" }
+            styles.commandBarStyle = ComponentStyle().apply { copyFrom(testStyle); fontFamily = "CommandBar" }
+            styles.commandButtonStyle = ComponentStyle().apply { copyFrom(testStyle); fontFamily = "CommandButton" }
+            styles.driveSelectorStyle = ComponentStyle().apply { copyFrom(testStyle); fontFamily = "DriveSelector" }
+            styles.columnHeaderStyle = ComponentStyle().apply { copyFrom(testStyle); fontFamily = "ColumnHeader" }
         }
         val restored = roundTrip(state)
-        assertEquals("Arial", restored.panelStyle.fontFamily)
-        assertEquals("Tab", restored.tabStyle.fontFamily)
-        assertEquals("PathBar", restored.pathBarStyle.fontFamily)
-        assertEquals("StatusBar", restored.statusBarStyle.fontFamily)
-        assertEquals("CommandBar", restored.commandBarStyle.fontFamily)
-        assertEquals("CommandButton", restored.commandButtonStyle.fontFamily)
-        assertEquals("DriveSelector", restored.driveSelectorStyle.fontFamily)
-        assertEquals("ColumnHeader", restored.columnHeaderStyle.fontFamily)
+        assertEquals("Arial", restored.styles.panelStyle.fontFamily)
+        assertEquals("Tab", restored.styles.tabStyle.fontFamily)
+        assertEquals("PathBar", restored.styles.pathBarStyle.fontFamily)
+        assertEquals("StatusBar", restored.styles.statusBarStyle.fontFamily)
+        assertEquals("CommandBar", restored.styles.commandBarStyle.fontFamily)
+        assertEquals("CommandButton", restored.styles.commandButtonStyle.fontFamily)
+        assertEquals("DriveSelector", restored.styles.driveSelectorStyle.fontFamily)
+        assertEquals("ColumnHeader", restored.styles.columnHeaderStyle.fontFamily)
     }
 
     @Test
     fun `pre-theme styles survive round-trip`() {
         val state = TurtleCommanderSettings.State().apply {
-            preThemePanelStyle = ComponentStyle().apply { fontColor = "#111111" }
-            preThemeTabStyle = ComponentStyle().apply { fontColor = "#222222" }
-            preThemePathBarStyle = ComponentStyle().apply { fontColor = "#333333" }
-            preThemeStatusBarStyle = ComponentStyle().apply { fontColor = "#444444" }
-            preThemeCommandBarStyle = ComponentStyle().apply { fontColor = "#555555" }
-            preThemeCommandButtonStyle = ComponentStyle().apply { fontColor = "#565656" }
-            preThemeDriveSelectorStyle = ComponentStyle().apply { fontColor = "#666666" }
-            preThemeColumnHeaderStyle = ComponentStyle().apply { fontColor = "#777777" }
+            preThemeStyles.panelStyle = ComponentStyle().apply { fontColor = "#111111" }
+            preThemeStyles.tabStyle = ComponentStyle().apply { fontColor = "#222222" }
+            preThemeStyles.pathBarStyle = ComponentStyle().apply { fontColor = "#333333" }
+            preThemeStyles.statusBarStyle = ComponentStyle().apply { fontColor = "#444444" }
+            preThemeStyles.commandBarStyle = ComponentStyle().apply { fontColor = "#555555" }
+            preThemeStyles.commandButtonStyle = ComponentStyle().apply { fontColor = "#565656" }
+            preThemeStyles.driveSelectorStyle = ComponentStyle().apply { fontColor = "#666666" }
+            preThemeStyles.columnHeaderStyle = ComponentStyle().apply { fontColor = "#777777" }
         }
         val restored = roundTrip(state)
-        assertEquals("#111111", restored.preThemePanelStyle.fontColor)
-        assertEquals("#222222", restored.preThemeTabStyle.fontColor)
-        assertEquals("#333333", restored.preThemePathBarStyle.fontColor)
-        assertEquals("#444444", restored.preThemeStatusBarStyle.fontColor)
-        assertEquals("#555555", restored.preThemeCommandBarStyle.fontColor)
-        assertEquals("#565656", restored.preThemeCommandButtonStyle.fontColor)
-        assertEquals("#666666", restored.preThemeDriveSelectorStyle.fontColor)
-        assertEquals("#777777", restored.preThemeColumnHeaderStyle.fontColor)
+        assertEquals("#111111", restored.preThemeStyles.panelStyle.fontColor)
+        assertEquals("#222222", restored.preThemeStyles.tabStyle.fontColor)
+        assertEquals("#333333", restored.preThemeStyles.pathBarStyle.fontColor)
+        assertEquals("#444444", restored.preThemeStyles.statusBarStyle.fontColor)
+        assertEquals("#555555", restored.preThemeStyles.commandBarStyle.fontColor)
+        assertEquals("#565656", restored.preThemeStyles.commandButtonStyle.fontColor)
+        assertEquals("#666666", restored.preThemeStyles.driveSelectorStyle.fontColor)
+        assertEquals("#777777", restored.preThemeStyles.columnHeaderStyle.fontColor)
     }
 
     @Test
@@ -183,14 +183,14 @@ class XmlSerializationTest {
     @Test
     fun `selectedColor and activeSelectedColor survive round-trip`() {
         val state = TurtleCommanderSettings.State().apply {
-            panelStyle = ComponentStyle().apply {
+            styles.panelStyle = ComponentStyle().apply {
                 selectedColor = "#AABBCC"
                 activeSelectedColor = "#DDEEFF"
             }
         }
         val restored = roundTrip(state)
-        assertEquals("#AABBCC", restored.panelStyle.selectedColor)
-        assertEquals("#DDEEFF", restored.panelStyle.activeSelectedColor)
+        assertEquals("#AABBCC", restored.styles.panelStyle.selectedColor)
+        assertEquals("#DDEEFF", restored.styles.panelStyle.activeSelectedColor)
     }
 
     @Test
@@ -234,8 +234,8 @@ class XmlSerializationTest {
     fun `default State round-trips cleanly`() {
         val state = TurtleCommanderSettings.State()
         val restored = roundTrip(state)
-        assertTrue(restored.panelStyle.isDefault())
-        assertTrue(restored.commandButtonStyle.isDefault())
+        assertTrue(restored.styles.panelStyle.isDefault())
+        assertTrue(restored.styles.commandButtonStyle.isDefault())
         assertFalse(restored.themesInitialized)
         assertEquals("", restored.themeName)
         assertTrue(restored.themes.isEmpty())
@@ -251,20 +251,33 @@ class XmlSerializationTest {
             state.themes.add(SavedTheme.fromTheme(theme))
         }
         Theme.CLASSIC_NC.applyTo(state)
-        state.preThemePanelStyle = ComponentStyle().apply { fontColor = "#FFFFFF" }
+        state.preThemeStyles.panelStyle = ComponentStyle().apply { fontColor = "#FFFFFF" }
 
         val restored = roundTrip(state)
 
         assertTrue(restored.themesInitialized)
         assertEquals("Classic NC", restored.themeName)
         assertEquals(Theme.INITIAL_THEMES.size, restored.themes.size)
-        assertEquals("#00FFFF", restored.panelStyle.fontColor)
-        assertEquals("#000080", restored.panelStyle.backgroundColor)
-        assertEquals("#000050", restored.panelStyle.selectedColor)
-        assertEquals("#0000AA", restored.panelStyle.activeSelectedColor)
-        assertEquals("#000000", restored.commandBarStyle.backgroundColor)
-        assertEquals("#000000", restored.commandButtonStyle.fontColor)
-        assertEquals("#00AAAA", restored.commandButtonStyle.backgroundColor)
-        assertEquals("#FFFFFF", restored.preThemePanelStyle.fontColor)
+        assertEquals("#00FFFF", restored.styles.panelStyle.fontColor)
+        assertEquals("#000080", restored.styles.panelStyle.backgroundColor)
+        assertEquals("#000050", restored.styles.panelStyle.selectedColor)
+        assertEquals("#0000AA", restored.styles.panelStyle.activeSelectedColor)
+        assertEquals("#000000", restored.styles.commandBarStyle.backgroundColor)
+        assertEquals("#000000", restored.styles.commandButtonStyle.fontColor)
+        assertEquals("#00AAAA", restored.styles.commandButtonStyle.backgroundColor)
+        assertEquals("#FFFFFF", restored.preThemeStyles.panelStyle.fontColor)
+    }
+
+    @Test
+    fun `StyleSet survives round-trip`() {
+        val state = TurtleCommanderSettings.State().apply {
+            styles.panelStyle.fontColor = "#AABBCC"
+            styles.tabStyle.fontFamily = "Consolas"
+            preThemeStyles.panelStyle.backgroundColor = "#112233"
+        }
+        val restored = roundTrip(state)
+        assertEquals("#AABBCC", restored.styles.panelStyle.fontColor)
+        assertEquals("Consolas", restored.styles.tabStyle.fontFamily)
+        assertEquals("#112233", restored.preThemeStyles.panelStyle.backgroundColor)
     }
 }

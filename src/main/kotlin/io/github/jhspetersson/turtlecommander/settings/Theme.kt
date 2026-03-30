@@ -46,14 +46,14 @@ data class Theme(
     val columnHeaderStyle: ThemeStyle = ThemeStyle(),
 ) {
     fun applyTo(state: TurtleCommanderSettings.State) {
-        state.panelStyle = panelStyle.toComponentStyle()
-        state.tabStyle = tabStyle.toComponentStyle()
-        state.pathBarStyle = pathBarStyle.toComponentStyle()
-        state.statusBarStyle = statusBarStyle.toComponentStyle()
-        state.commandBarStyle = commandBarStyle.toComponentStyle()
-        state.commandButtonStyle = commandButtonStyle.toComponentStyle()
-        state.driveSelectorStyle = driveSelectorStyle.toComponentStyle()
-        state.columnHeaderStyle = columnHeaderStyle.toComponentStyle()
+        state.styles.panelStyle = panelStyle.toComponentStyle()
+        state.styles.tabStyle = tabStyle.toComponentStyle()
+        state.styles.pathBarStyle = pathBarStyle.toComponentStyle()
+        state.styles.statusBarStyle = statusBarStyle.toComponentStyle()
+        state.styles.commandBarStyle = commandBarStyle.toComponentStyle()
+        state.styles.commandButtonStyle = commandButtonStyle.toComponentStyle()
+        state.styles.driveSelectorStyle = driveSelectorStyle.toComponentStyle()
+        state.styles.columnHeaderStyle = columnHeaderStyle.toComponentStyle()
     }
 
     override fun toString(): String = name
@@ -74,8 +74,6 @@ data class Theme(
             tabStyle = ThemeStyle(
                 fontFamily = "Consolas",
                 fontSize = 12,
-                fontColor = "#FFFFFF",
-                backgroundColor = "#000080",
             ),
             pathBarStyle = ThemeStyle(
                 fontFamily = "Consolas",
@@ -127,8 +125,6 @@ data class Theme(
             tabStyle = ThemeStyle(
                 fontFamily = "Consolas",
                 fontSize = 12,
-                fontColor = "#33FF33",
-                backgroundColor = "#1A1A1A",
             ),
             pathBarStyle = ThemeStyle(
                 fontFamily = "Consolas",
@@ -180,8 +176,6 @@ data class Theme(
             tabStyle = ThemeStyle(
                 fontFamily = "Courier New",
                 fontSize = 12,
-                fontColor = "#FFD700",
-                backgroundColor = "#5C3A11",
             ),
             pathBarStyle = ThemeStyle(
                 fontFamily = "Courier New",
@@ -233,8 +227,6 @@ data class Theme(
             tabStyle = ThemeStyle(
                 fontFamily = "Consolas",
                 fontSize = 12,
-                fontColor = "#CCCCBB",
-                backgroundColor = "#4D4D45",
             ),
             pathBarStyle = ThemeStyle(
                 fontFamily = "Consolas",
@@ -286,8 +278,6 @@ data class Theme(
             tabStyle = ThemeStyle(
                 fontFamily = "Consolas",
                 fontSize = 12,
-                fontColor = "#FFFFFF",
-                backgroundColor = "#000000",
             ),
             pathBarStyle = ThemeStyle(
                 fontFamily = "Consolas",

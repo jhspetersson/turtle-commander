@@ -102,6 +102,65 @@ class ComponentStyle {
     }
 }
 
+class StyleSet {
+    var panelStyle: ComponentStyle = ComponentStyle()
+    var tabStyle: ComponentStyle = ComponentStyle()
+    var pathBarStyle: ComponentStyle = ComponentStyle()
+    var statusBarStyle: ComponentStyle = ComponentStyle()
+    var commandBarStyle: ComponentStyle = ComponentStyle()
+    var commandButtonStyle: ComponentStyle = ComponentStyle()
+    var driveSelectorStyle: ComponentStyle = ComponentStyle()
+    var columnHeaderStyle: ComponentStyle = ComponentStyle()
+
+    fun isDefault(): Boolean =
+        panelStyle.isDefault() && tabStyle.isDefault() && pathBarStyle.isDefault()
+            && statusBarStyle.isDefault() && commandBarStyle.isDefault()
+            && commandButtonStyle.isDefault() && driveSelectorStyle.isDefault()
+            && columnHeaderStyle.isDefault()
+
+    fun copyFrom(other: StyleSet) {
+        panelStyle.copyFrom(other.panelStyle)
+        tabStyle.copyFrom(other.tabStyle)
+        pathBarStyle.copyFrom(other.pathBarStyle)
+        statusBarStyle.copyFrom(other.statusBarStyle)
+        commandBarStyle.copyFrom(other.commandBarStyle)
+        commandButtonStyle.copyFrom(other.commandButtonStyle)
+        driveSelectorStyle.copyFrom(other.driveSelectorStyle)
+        columnHeaderStyle.copyFrom(other.columnHeaderStyle)
+    }
+
+    fun reset() {
+        panelStyle = ComponentStyle()
+        tabStyle = ComponentStyle()
+        pathBarStyle = ComponentStyle()
+        statusBarStyle = ComponentStyle()
+        commandBarStyle = ComponentStyle()
+        commandButtonStyle = ComponentStyle()
+        driveSelectorStyle = ComponentStyle()
+        columnHeaderStyle = ComponentStyle()
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (other !is StyleSet) return false
+        return panelStyle == other.panelStyle && tabStyle == other.tabStyle
+            && pathBarStyle == other.pathBarStyle && statusBarStyle == other.statusBarStyle
+            && commandBarStyle == other.commandBarStyle && commandButtonStyle == other.commandButtonStyle
+            && driveSelectorStyle == other.driveSelectorStyle && columnHeaderStyle == other.columnHeaderStyle
+    }
+
+    override fun hashCode(): Int {
+        var result = panelStyle.hashCode()
+        result = 31 * result + tabStyle.hashCode()
+        result = 31 * result + pathBarStyle.hashCode()
+        result = 31 * result + statusBarStyle.hashCode()
+        result = 31 * result + commandBarStyle.hashCode()
+        result = 31 * result + commandButtonStyle.hashCode()
+        result = 31 * result + driveSelectorStyle.hashCode()
+        result = 31 * result + columnHeaderStyle.hashCode()
+        return result
+    }
+}
+
 private fun parseColor(hex: String): Color? {
     if (hex.isBlank()) return null
     return try { Color.decode(hex) } catch (_: Exception) { null }
@@ -128,27 +187,13 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
         var sortWithDirectories: Boolean = false
         var calculateDirectorySize: Boolean = true
 
-        var panelStyle: ComponentStyle = ComponentStyle()
-        var tabStyle: ComponentStyle = ComponentStyle()
-        var pathBarStyle: ComponentStyle = ComponentStyle()
-        var statusBarStyle: ComponentStyle = ComponentStyle()
-        var commandBarStyle: ComponentStyle = ComponentStyle()
-        var commandButtonStyle: ComponentStyle = ComponentStyle()
-        var driveSelectorStyle: ComponentStyle = ComponentStyle()
-        var columnHeaderStyle: ComponentStyle = ComponentStyle()
+        var styles: StyleSet = StyleSet()
         var themeName: String = ""
         var themes: MutableList<SavedTheme> = mutableListOf()
         var themesInitialized: Boolean = false
 
         // Styles saved before a theme was applied, so "Default" can restore them
-        var preThemePanelStyle: ComponentStyle = ComponentStyle()
-        var preThemeTabStyle: ComponentStyle = ComponentStyle()
-        var preThemePathBarStyle: ComponentStyle = ComponentStyle()
-        var preThemeStatusBarStyle: ComponentStyle = ComponentStyle()
-        var preThemeCommandBarStyle: ComponentStyle = ComponentStyle()
-        var preThemeCommandButtonStyle: ComponentStyle = ComponentStyle()
-        var preThemeDriveSelectorStyle: ComponentStyle = ComponentStyle()
-        var preThemeColumnHeaderStyle: ComponentStyle = ComponentStyle()
+        var preThemeStyles: StyleSet = StyleSet()
 
         var columns: MutableList<ColumnConfig> = mutableListOf()
     }
@@ -170,7 +215,7 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
     fun getPanelFont(): Font? {
         val s = myState
         // Use new panelStyle if it has values, otherwise fall back to legacy fields
-        if (!s.panelStyle.isDefault()) return s.panelStyle.getFont(null)
+        if (!s.styles.panelStyle.isDefault()) return s.styles.panelStyle.getFont(null)
         if (s.panelFontFamily.isEmpty() && s.panelFontSize <= 0) return null
         return if (s.panelFontFamily.isNotEmpty()) {
             Font(s.panelFontFamily, Font.PLAIN, if (s.panelFontSize > 0) s.panelFontSize else 13)
@@ -181,13 +226,13 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
 
     fun getPanelFontSize(): Int {
         val s = myState
-        if (s.panelStyle.fontSize > 0) return s.panelStyle.fontSize
+        if (s.styles.panelStyle.fontSize > 0) return s.styles.panelStyle.fontSize
         return s.panelFontSize
     }
 
     fun getTabFont(): Font? {
         val s = myState
-        if (!s.tabStyle.isDefault()) return s.tabStyle.getFont(null)
+        if (!s.styles.tabStyle.isDefault()) return s.styles.tabStyle.getFont(null)
         if (s.tabFontFamily.isEmpty() && s.tabFontSize <= 0) return null
         return if (s.tabFontFamily.isNotEmpty()) {
             Font(s.tabFontFamily, Font.PLAIN, if (s.tabFontSize > 0) s.tabFontSize else 12)
@@ -198,7 +243,7 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
 
     fun getTabFontSize(): Int {
         val s = myState
-        if (s.tabStyle.fontSize > 0) return s.tabStyle.fontSize
+        if (s.styles.tabStyle.fontSize > 0) return s.styles.tabStyle.fontSize
         return s.tabFontSize
     }
 

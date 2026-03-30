@@ -137,7 +137,7 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
                 override fun settingsChanged() {
                     val s = TurtleCommanderSettings.getInstance().state
                     bottomBar.isVisible = s.showCommandBar
-                    applyCommandBarStyle(bottomBar, s.commandBarStyle, s.commandButtonStyle)
+                    applyCommandBarStyle(bottomBar, s.styles.commandBarStyle, s.styles.commandButtonStyle)
                     leftPanel.applyFonts()
                     rightPanel.applyFonts()
                     leftPanel.applyVisibilitySettings()
@@ -274,7 +274,7 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
 
         updateBar(false)
         val settings = TurtleCommanderSettings.getInstance().state
-        applyCommandBarStyle(bar, settings.commandBarStyle, settings.commandButtonStyle)
+        applyCommandBarStyle(bar, settings.styles.commandBarStyle, settings.styles.commandButtonStyle)
 
         ApplicationManager.getApplication().messageBus
             .connect()

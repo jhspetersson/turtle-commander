@@ -76,14 +76,14 @@ class TurtleCommanderConfigurable : Configurable {
         tabFontSizeSpinner = JSpinner(SpinnerNumberModel(effectiveTabSize(settings), 8, 48, 1))
 
         // Style editors for each component
-        val panelEditor = ComponentStyleEditor("File panel", fontItems, settings.panelStyle, effectivePanelFamily(settings), effectivePanelSize(settings))
-        val tabEditor = ComponentStyleEditor("Tab bar", fontItems, settings.tabStyle, effectiveTabFamily(settings), effectiveTabSize(settings))
-        val pathBarEditor = ComponentStyleEditor("Path bar", fontItems, settings.pathBarStyle)
-        val statusBarEditor = ComponentStyleEditor("Status bar", fontItems, settings.statusBarStyle)
-        val commandBarEditor = ComponentStyleEditor("Command bar", fontItems, settings.commandBarStyle)
-        val commandButtonEditor = ComponentStyleEditor("Cmd buttons", fontItems, settings.commandButtonStyle)
-        val driveSelectorEditor = ComponentStyleEditor("Drive selector", fontItems, settings.driveSelectorStyle)
-        val columnHeaderEditor = ComponentStyleEditor("Column headers", fontItems, settings.columnHeaderStyle)
+        val panelEditor = ComponentStyleEditor("File panel", fontItems, settings.styles.panelStyle, effectivePanelFamily(settings), effectivePanelSize(settings))
+        val tabEditor = ComponentStyleEditor("Tab bar", fontItems, settings.styles.tabStyle, effectiveTabFamily(settings), effectiveTabSize(settings))
+        val pathBarEditor = ComponentStyleEditor("Path bar", fontItems, settings.styles.pathBarStyle)
+        val statusBarEditor = ComponentStyleEditor("Status bar", fontItems, settings.styles.statusBarStyle)
+        val commandBarEditor = ComponentStyleEditor("Command bar", fontItems, settings.styles.commandBarStyle)
+        val commandButtonEditor = ComponentStyleEditor("Cmd buttons", fontItems, settings.styles.commandButtonStyle)
+        val driveSelectorEditor = ComponentStyleEditor("Drive selector", fontItems, settings.styles.driveSelectorStyle)
+        val columnHeaderEditor = ComponentStyleEditor("Column headers", fontItems, settings.styles.columnHeaderStyle)
         styleEditors["panel"] = panelEditor
         styleEditors["tab"] = tabEditor
         styleEditors["pathBar"] = pathBarEditor
@@ -161,14 +161,14 @@ class TurtleCommanderConfigurable : Configurable {
     }
 
     private fun snapshotEditorsToPreTheme(state: TurtleCommanderSettings.State) {
-        styleEditors["panel"]?.applyTo(state.preThemePanelStyle)
-        styleEditors["tab"]?.applyTo(state.preThemeTabStyle)
-        styleEditors["pathBar"]?.applyTo(state.preThemePathBarStyle)
-        styleEditors["statusBar"]?.applyTo(state.preThemeStatusBarStyle)
-        styleEditors["commandBar"]?.applyTo(state.preThemeCommandBarStyle)
-        styleEditors["commandButton"]?.applyTo(state.preThemeCommandButtonStyle)
-        styleEditors["driveSelector"]?.applyTo(state.preThemeDriveSelectorStyle)
-        styleEditors["columnHeader"]?.applyTo(state.preThemeColumnHeaderStyle)
+        styleEditors["panel"]?.applyTo(state.preThemeStyles.panelStyle)
+        styleEditors["tab"]?.applyTo(state.preThemeStyles.tabStyle)
+        styleEditors["pathBar"]?.applyTo(state.preThemeStyles.pathBarStyle)
+        styleEditors["statusBar"]?.applyTo(state.preThemeStyles.statusBarStyle)
+        styleEditors["commandBar"]?.applyTo(state.preThemeStyles.commandBarStyle)
+        styleEditors["commandButton"]?.applyTo(state.preThemeStyles.commandButtonStyle)
+        styleEditors["driveSelector"]?.applyTo(state.preThemeStyles.driveSelectorStyle)
+        styleEditors["columnHeader"]?.applyTo(state.preThemeStyles.columnHeaderStyle)
     }
 
     private fun applyThemeToEditors(theme: Theme, previousTheme: Theme = Theme.DEFAULT) {
@@ -176,14 +176,14 @@ class TurtleCommanderConfigurable : Configurable {
         val state = TurtleCommanderSettings.getInstance().state
         if (theme.name == Theme.DEFAULT.name) {
             // Restore pre-theme styles
-            styleEditors["panel"]?.resetFrom(state.preThemePanelStyle)
-            styleEditors["tab"]?.resetFrom(state.preThemeTabStyle)
-            styleEditors["pathBar"]?.resetFrom(state.preThemePathBarStyle)
-            styleEditors["statusBar"]?.resetFrom(state.preThemeStatusBarStyle)
-            styleEditors["commandBar"]?.resetFrom(state.preThemeCommandBarStyle)
-            styleEditors["commandButton"]?.resetFrom(state.preThemeCommandButtonStyle)
-            styleEditors["driveSelector"]?.resetFrom(state.preThemeDriveSelectorStyle)
-            styleEditors["columnHeader"]?.resetFrom(state.preThemeColumnHeaderStyle)
+            styleEditors["panel"]?.resetFrom(state.preThemeStyles.panelStyle)
+            styleEditors["tab"]?.resetFrom(state.preThemeStyles.tabStyle)
+            styleEditors["pathBar"]?.resetFrom(state.preThemeStyles.pathBarStyle)
+            styleEditors["statusBar"]?.resetFrom(state.preThemeStyles.statusBarStyle)
+            styleEditors["commandBar"]?.resetFrom(state.preThemeStyles.commandBarStyle)
+            styleEditors["commandButton"]?.resetFrom(state.preThemeStyles.commandButtonStyle)
+            styleEditors["driveSelector"]?.resetFrom(state.preThemeStyles.driveSelectorStyle)
+            styleEditors["columnHeader"]?.resetFrom(state.preThemeStyles.columnHeaderStyle)
             return
         }
         // Snapshot current editor state only when switching away from Default
@@ -283,14 +283,7 @@ class TurtleCommanderConfigurable : Configurable {
                     editor.resetFrom(ComponentStyle())
                 }
                 val s = TurtleCommanderSettings.getInstance().state
-                s.preThemePanelStyle = ComponentStyle()
-                s.preThemeTabStyle = ComponentStyle()
-                s.preThemePathBarStyle = ComponentStyle()
-                s.preThemeStatusBarStyle = ComponentStyle()
-                s.preThemeCommandBarStyle = ComponentStyle()
-                s.preThemeCommandButtonStyle = ComponentStyle()
-                s.preThemeDriveSelectorStyle = ComponentStyle()
-                s.preThemeColumnHeaderStyle = ComponentStyle()
+                s.preThemeStyles.reset()
                 // Re-seed initial themes if all were deleted
                 if (s.themes.isEmpty()) {
                     for (theme in Theme.INITIAL_THEMES) {
@@ -494,14 +487,14 @@ class TurtleCommanderConfigurable : Configurable {
             || sortWithDirectoriesCheckBox?.isSelected != settings.sortWithDirectories
             || calculateDirectorySizeCheckBox?.isSelected != settings.calculateDirectorySize
             || getSelectedViewMode() != settings.defaultViewMode
-            || styleEditors["panel"]?.isModified(settings.panelStyle, effectivePanelFamily(settings), effectivePanelSize(settings)) == true
-            || styleEditors["tab"]?.isModified(settings.tabStyle, effectiveTabFamily(settings), effectiveTabSize(settings)) == true
-            || styleEditors["pathBar"]?.isModified(settings.pathBarStyle) == true
-            || styleEditors["statusBar"]?.isModified(settings.statusBarStyle) == true
-            || styleEditors["commandBar"]?.isModified(settings.commandBarStyle) == true
-            || styleEditors["commandButton"]?.isModified(settings.commandButtonStyle) == true
-            || styleEditors["driveSelector"]?.isModified(settings.driveSelectorStyle) == true
-            || styleEditors["columnHeader"]?.isModified(settings.columnHeaderStyle) == true
+            || styleEditors["panel"]?.isModified(settings.styles.panelStyle, effectivePanelFamily(settings), effectivePanelSize(settings)) == true
+            || styleEditors["tab"]?.isModified(settings.styles.tabStyle, effectiveTabFamily(settings), effectiveTabSize(settings)) == true
+            || styleEditors["pathBar"]?.isModified(settings.styles.pathBarStyle) == true
+            || styleEditors["statusBar"]?.isModified(settings.styles.statusBarStyle) == true
+            || styleEditors["commandBar"]?.isModified(settings.styles.commandBarStyle) == true
+            || styleEditors["commandButton"]?.isModified(settings.styles.commandButtonStyle) == true
+            || styleEditors["driveSelector"]?.isModified(settings.styles.driveSelectorStyle) == true
+            || styleEditors["columnHeader"]?.isModified(settings.styles.columnHeaderStyle) == true
             || getSelectedThemeName() != settings.themeName.ifEmpty { Theme.DEFAULT.name }
             || columnsEditor?.isModified(TurtleCommanderSettings.getInstance().getEffectiveColumns()) == true
             || favoritesEditor?.isModified() == true
@@ -519,24 +512,24 @@ class TurtleCommanderConfigurable : Configurable {
         settings.calculateDirectorySize = calculateDirectorySizeCheckBox?.isSelected ?: settings.calculateDirectorySize
         settings.defaultViewMode = getSelectedViewMode()
 
-        styleEditors["panel"]?.applyTo(settings.panelStyle)
-        styleEditors["tab"]?.applyTo(settings.tabStyle)
-        styleEditors["pathBar"]?.applyTo(settings.pathBarStyle)
-        styleEditors["statusBar"]?.applyTo(settings.statusBarStyle)
-        styleEditors["commandBar"]?.applyTo(settings.commandBarStyle)
-        styleEditors["commandButton"]?.applyTo(settings.commandButtonStyle)
-        styleEditors["driveSelector"]?.applyTo(settings.driveSelectorStyle)
-        styleEditors["columnHeader"]?.applyTo(settings.columnHeaderStyle)
+        styleEditors["panel"]?.applyTo(settings.styles.panelStyle)
+        styleEditors["tab"]?.applyTo(settings.styles.tabStyle)
+        styleEditors["pathBar"]?.applyTo(settings.styles.pathBarStyle)
+        styleEditors["statusBar"]?.applyTo(settings.styles.statusBarStyle)
+        styleEditors["commandBar"]?.applyTo(settings.styles.commandBarStyle)
+        styleEditors["commandButton"]?.applyTo(settings.styles.commandButtonStyle)
+        styleEditors["driveSelector"]?.applyTo(settings.styles.driveSelectorStyle)
+        styleEditors["columnHeader"]?.applyTo(settings.styles.columnHeaderStyle)
 
         settings.themeName = getSelectedThemeName()
 
         columnsEditor?.applyTo(settings)
 
         // Sync legacy fields from panelStyle/tabStyle
-        settings.panelFontFamily = settings.panelStyle.fontFamily
-        settings.panelFontSize = settings.panelStyle.fontSize
-        settings.tabFontFamily = settings.tabStyle.fontFamily
-        settings.tabFontSize = settings.tabStyle.fontSize
+        settings.panelFontFamily = settings.styles.panelStyle.fontFamily
+        settings.panelFontSize = settings.styles.panelStyle.fontSize
+        settings.tabFontFamily = settings.styles.tabStyle.fontFamily
+        settings.tabFontSize = settings.styles.tabStyle.fontSize
 
         service.fireSettingsChanged()
 
@@ -559,14 +552,14 @@ class TurtleCommanderConfigurable : Configurable {
             else -> "Table"
         }
 
-        styleEditors["panel"]?.resetFrom(settings.panelStyle, effectivePanelFamily(settings), effectivePanelSize(settings))
-        styleEditors["tab"]?.resetFrom(settings.tabStyle, effectiveTabFamily(settings), effectiveTabSize(settings))
-        styleEditors["pathBar"]?.resetFrom(settings.pathBarStyle)
-        styleEditors["statusBar"]?.resetFrom(settings.statusBarStyle)
-        styleEditors["commandBar"]?.resetFrom(settings.commandBarStyle)
-        styleEditors["commandButton"]?.resetFrom(settings.commandButtonStyle)
-        styleEditors["driveSelector"]?.resetFrom(settings.driveSelectorStyle)
-        styleEditors["columnHeader"]?.resetFrom(settings.columnHeaderStyle)
+        styleEditors["panel"]?.resetFrom(settings.styles.panelStyle, effectivePanelFamily(settings), effectivePanelSize(settings))
+        styleEditors["tab"]?.resetFrom(settings.styles.tabStyle, effectiveTabFamily(settings), effectiveTabSize(settings))
+        styleEditors["pathBar"]?.resetFrom(settings.styles.pathBarStyle)
+        styleEditors["statusBar"]?.resetFrom(settings.styles.statusBarStyle)
+        styleEditors["commandBar"]?.resetFrom(settings.styles.commandBarStyle)
+        styleEditors["commandButton"]?.resetFrom(settings.styles.commandButtonStyle)
+        styleEditors["driveSelector"]?.resetFrom(settings.styles.driveSelectorStyle)
+        styleEditors["columnHeader"]?.resetFrom(settings.styles.columnHeaderStyle)
 
         rebuildThemeCombo()
         val allThemes = ThemeManager.getAllThemes(settings)
@@ -600,18 +593,18 @@ class TurtleCommanderConfigurable : Configurable {
     }
 
     private fun effectivePanelFamily(settings: TurtleCommanderSettings.State): String =
-        settings.panelStyle.fontFamily.ifEmpty { settings.panelFontFamily }
+        settings.styles.panelStyle.fontFamily.ifEmpty { settings.panelFontFamily }
 
     private fun effectivePanelSize(settings: TurtleCommanderSettings.State): Int {
-        val s = settings.panelStyle.fontSize
+        val s = settings.styles.panelStyle.fontSize
         return if (s > 0) s else if (settings.panelFontSize > 0) settings.panelFontSize else 13
     }
 
     private fun effectiveTabFamily(settings: TurtleCommanderSettings.State): String =
-        settings.tabStyle.fontFamily.ifEmpty { settings.tabFontFamily }
+        settings.styles.tabStyle.fontFamily.ifEmpty { settings.tabFontFamily }
 
     private fun effectiveTabSize(settings: TurtleCommanderSettings.State): Int {
-        val s = settings.tabStyle.fontSize
+        val s = settings.styles.tabStyle.fontSize
         return if (s > 0) s else if (settings.tabFontSize > 0) settings.tabFontSize else 12
     }
 

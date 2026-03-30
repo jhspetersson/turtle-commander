@@ -163,7 +163,7 @@ internal class StyledDisplayValueRenderer(
 }
 
 internal fun FileTab.inactiveSelectionBackground(): Color {
-    val panelStyle = TurtleCommanderSettings.getInstance().state.panelStyle
+    val panelStyle = TurtleCommanderSettings.getInstance().state.styles.panelStyle
     val custom = panelStyle.parsedSelectedColor()
     if (custom != null) return custom
     val active = table.selectionBackground

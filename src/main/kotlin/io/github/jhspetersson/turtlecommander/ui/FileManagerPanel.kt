@@ -198,7 +198,7 @@ class FileManagerPanel(
 
     private fun applyTabbedPaneStyle() {
         val settings = TurtleCommanderSettings.getInstance()
-        val tabStyle = settings.state.tabStyle
+        val tabStyle = settings.state.styles.tabStyle
         val tabFont = settings.getTabFont()
         if (tabFont != null) tabbedPane.font = tabFont
         val tabBg = tabStyle.parsedBackgroundColor()
@@ -437,7 +437,7 @@ class FileManagerPanel(
 
     private fun applyTabStyleToHeader(panel: JPanel, label: JLabel) {
         val settings = TurtleCommanderSettings.getInstance()
-        val tabStyle = settings.state.tabStyle
+        val tabStyle = settings.state.styles.tabStyle
         val font = settings.getTabFont()
         if (font != null) label.font = font
         val fg = tabStyle.parsedFontColor()
@@ -573,7 +573,7 @@ class FileManagerPanel(
         // Apply tab font
         val tabFont = settings.getTabFont()
         val tabFontSize = settings.getTabFontSize()
-        val tabStyle = settings.state.tabStyle
+        val tabStyle = settings.state.styles.tabStyle
         val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
         val effectiveTabFont = when {
             tabFont != null -> tabFont

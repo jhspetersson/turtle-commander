@@ -179,7 +179,7 @@ class FileTab(
             tree.rowHeight = 20
         }
 
-        val panelStyle = settings.state.panelStyle
+        val panelStyle = settings.state.styles.panelStyle
         val fg = panelStyle.parsedFontColor() ?: defaultTableFg
         table.foreground = fg
         list.foreground = fg
@@ -278,14 +278,14 @@ class FileTab(
     }
 
     private fun applyDriveSelectorStyle() {
-        val style = TurtleCommanderSettings.getInstance().state.driveSelectorStyle
+        val style = TurtleCommanderSettings.getInstance().state.styles.driveSelectorStyle
         driveCombo.font = style.getFont(defaultDriveComboFont) ?: defaultDriveComboFont
         driveCombo.foreground = style.parsedFontColor() ?: defaultDriveComboFg
         driveCombo.background = style.parsedBackgroundColor() ?: defaultDriveComboBg
     }
 
     private fun applyColumnHeaderStyle() {
-        val style = TurtleCommanderSettings.getInstance().state.columnHeaderStyle
+        val style = TurtleCommanderSettings.getInstance().state.styles.columnHeaderStyle
         val header = table.tableHeader ?: return
         header.font = style.getFont(defaultHeaderFont) ?: defaultHeaderFont
         header.foreground = style.parsedFontColor() ?: defaultHeaderFg
@@ -293,7 +293,7 @@ class FileTab(
     }
 
     private fun applyStatusBarStyle() {
-        val style = TurtleCommanderSettings.getInstance().state.statusBarStyle
+        val style = TurtleCommanderSettings.getInstance().state.styles.statusBarStyle
         val font = style.getFont(defaultStatusFont) ?: defaultStatusFont
         statusLabel.font = font
         freeSpaceLabel.font = font
@@ -307,7 +307,7 @@ class FileTab(
     }
 
     private fun applyPathBarStyle() {
-        val style = TurtleCommanderSettings.getInstance().state.pathBarStyle
+        val style = TurtleCommanderSettings.getInstance().state.styles.pathBarStyle
         pathField.applyStyle(style)
     }
 

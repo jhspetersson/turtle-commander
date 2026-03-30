@@ -13,66 +13,64 @@ class ThemeTest {
     fun `default theme produces empty component styles`() {
         val state = TurtleCommanderSettings.State()
         Theme.DEFAULT.applyTo(state)
-        assertTrue(state.panelStyle.isDefault())
-        assertTrue(state.tabStyle.isDefault())
-        assertTrue(state.pathBarStyle.isDefault())
-        assertTrue(state.statusBarStyle.isDefault())
-        assertTrue(state.commandBarStyle.isDefault())
-        assertTrue(state.commandButtonStyle.isDefault())
-        assertTrue(state.driveSelectorStyle.isDefault())
-        assertTrue(state.columnHeaderStyle.isDefault())
+        assertTrue(state.styles.panelStyle.isDefault())
+        assertTrue(state.styles.tabStyle.isDefault())
+        assertTrue(state.styles.pathBarStyle.isDefault())
+        assertTrue(state.styles.statusBarStyle.isDefault())
+        assertTrue(state.styles.commandBarStyle.isDefault())
+        assertTrue(state.styles.commandButtonStyle.isDefault())
+        assertTrue(state.styles.driveSelectorStyle.isDefault())
+        assertTrue(state.styles.columnHeaderStyle.isDefault())
     }
 
     @Test
     fun `classic NC theme sets expected panel colors`() {
         val state = TurtleCommanderSettings.State()
         Theme.CLASSIC_NC.applyTo(state)
-        assertEquals("#00FFFF", state.panelStyle.fontColor)
-        assertEquals("#000080", state.panelStyle.backgroundColor)
-        assertEquals("Consolas", state.panelStyle.fontFamily)
-        assertEquals(13, state.panelStyle.fontSize)
+        assertEquals("#00FFFF", state.styles.panelStyle.fontColor)
+        assertEquals("#000080", state.styles.panelStyle.backgroundColor)
+        assertEquals("Consolas", state.styles.panelStyle.fontFamily)
+        assertEquals(13, state.styles.panelStyle.fontSize)
     }
 
     @Test
-    fun `classic NC tab text is readable on dark background`() {
-        val style = Theme.CLASSIC_NC.tabStyle.toComponentStyle()
-        val fg = style.parsedFontColor()!!
-        val bg = style.parsedBackgroundColor()!!
-        val fgLuminance = 0.299 * fg.red + 0.587 * fg.green + 0.114 * fg.blue
-        val bgLuminance = 0.299 * bg.red + 0.587 * bg.green + 0.114 * bg.blue
-        assertTrue("Tab contrast too low: fg=$fgLuminance bg=$bgLuminance",
-            abs(fgLuminance - bgLuminance) > 80)
+    fun `classic NC tab style has font but no colors`() {
+        val style = Theme.CLASSIC_NC.tabStyle
+        assertEquals("Consolas", style.fontFamily)
+        assertEquals(12, style.fontSize)
+        assertEquals("", style.fontColor)
+        assertEquals("", style.backgroundColor)
     }
 
     @Test
     fun `green terminal theme sets green on black`() {
         val state = TurtleCommanderSettings.State()
         Theme.GREEN_TERMINAL.applyTo(state)
-        assertEquals("#33FF33", state.panelStyle.fontColor)
-        assertEquals("#0A0A0A", state.panelStyle.backgroundColor)
+        assertEquals("#33FF33", state.styles.panelStyle.fontColor)
+        assertEquals("#0A0A0A", state.styles.panelStyle.backgroundColor)
     }
 
     @Test
     fun `brown oldschool theme sets gold on brown`() {
         val state = TurtleCommanderSettings.State()
         Theme.BROWN_OLDSCHOOL.applyTo(state)
-        assertEquals("#FFD700", state.panelStyle.fontColor)
-        assertEquals("#3B2507", state.panelStyle.backgroundColor)
-        assertEquals("Courier New", state.panelStyle.fontFamily)
+        assertEquals("#FFD700", state.styles.panelStyle.fontColor)
+        assertEquals("#3B2507", state.styles.panelStyle.backgroundColor)
+        assertEquals("Courier New", state.styles.panelStyle.fontFamily)
     }
 
     @Test
     fun `theme applies all eight component styles`() {
         val state = TurtleCommanderSettings.State()
         Theme.CLASSIC_NC.applyTo(state)
-        assertFalse(state.panelStyle.isDefault())
-        assertFalse(state.tabStyle.isDefault())
-        assertFalse(state.pathBarStyle.isDefault())
-        assertFalse(state.statusBarStyle.isDefault())
-        assertFalse(state.commandBarStyle.isDefault())
-        assertFalse(state.commandButtonStyle.isDefault())
-        assertFalse(state.driveSelectorStyle.isDefault())
-        assertFalse(state.columnHeaderStyle.isDefault())
+        assertFalse(state.styles.panelStyle.isDefault())
+        assertFalse(state.styles.tabStyle.isDefault())
+        assertFalse(state.styles.pathBarStyle.isDefault())
+        assertFalse(state.styles.statusBarStyle.isDefault())
+        assertFalse(state.styles.commandBarStyle.isDefault())
+        assertFalse(state.styles.commandButtonStyle.isDefault())
+        assertFalse(state.styles.driveSelectorStyle.isDefault())
+        assertFalse(state.styles.columnHeaderStyle.isDefault())
     }
 
     @Test
@@ -90,17 +88,17 @@ class ThemeTest {
     fun `grey ash theme sets warm grey colors`() {
         val state = TurtleCommanderSettings.State()
         Theme.GREY_ASH.applyTo(state)
-        assertEquals("#CCCCBB", state.panelStyle.fontColor)
-        assertEquals("#3D3D35", state.panelStyle.backgroundColor)
-        assertEquals("Consolas", state.panelStyle.fontFamily)
+        assertEquals("#CCCCBB", state.styles.panelStyle.fontColor)
+        assertEquals("#3D3D35", state.styles.panelStyle.backgroundColor)
+        assertEquals("Consolas", state.styles.panelStyle.fontFamily)
     }
 
     @Test
     fun `monochrome theme sets white on black`() {
         val state = TurtleCommanderSettings.State()
         Theme.MONOCHROME.applyTo(state)
-        assertEquals("#FFFFFF", state.panelStyle.fontColor)
-        assertEquals("#000000", state.panelStyle.backgroundColor)
+        assertEquals("#FFFFFF", state.styles.panelStyle.fontColor)
+        assertEquals("#000000", state.styles.panelStyle.backgroundColor)
     }
 
     @Test
@@ -108,7 +106,6 @@ class ThemeTest {
         val theme = Theme.MONOCHROME
         for ((label, style) in listOf(
             "panel" to theme.panelStyle,
-            "tab" to theme.tabStyle,
             "pathBar" to theme.pathBarStyle,
             "statusBar" to theme.statusBarStyle,
             "commandBar" to theme.commandBarStyle,
@@ -132,7 +129,6 @@ class ThemeTest {
             if (theme.name == Theme.DEFAULT.name) continue
             for ((label, themeStyle) in listOf(
                 "panel" to theme.panelStyle,
-                "tab" to theme.tabStyle,
                 "pathBar" to theme.pathBarStyle,
                 "statusBar" to theme.statusBarStyle,
                 "commandButton" to theme.commandButtonStyle,
@@ -293,12 +289,11 @@ class ThemeTest {
     fun `all non-default initial themes set all eight components`() {
         for (theme in Theme.INITIAL_THEMES) {
             if (theme.name == Theme.DEFAULT.name) continue
+            // Components with full styling (bg + font color)
             for ((label, style) in listOf(
                 "panel" to theme.panelStyle,
-                "tab" to theme.tabStyle,
                 "pathBar" to theme.pathBarStyle,
                 "statusBar" to theme.statusBarStyle,
-                "commandBar" to theme.commandBarStyle,
                 "commandButton" to theme.commandButtonStyle,
                 "driveSelector" to theme.driveSelectorStyle,
                 "columnHeader" to theme.columnHeaderStyle,
@@ -311,20 +306,23 @@ class ThemeTest {
                     style.fontFamily.isNotEmpty())
                 assertTrue("${theme.name}/$label should have font size",
                     style.fontSize > 0)
-            }
-            // commandBar is panel-only (no font color), commandButton has full styling
-            for ((label, style) in listOf(
-                "panel" to theme.panelStyle,
-                "tab" to theme.tabStyle,
-                "pathBar" to theme.pathBarStyle,
-                "statusBar" to theme.statusBarStyle,
-                "commandButton" to theme.commandButtonStyle,
-                "driveSelector" to theme.driveSelectorStyle,
-                "columnHeader" to theme.columnHeaderStyle,
-            )) {
                 assertTrue("${theme.name}/$label should have font color",
                     style.fontColor.isNotEmpty())
             }
+            // commandBar is panel-only (bg only, no font color)
+            assertTrue("${theme.name}/commandBar should have background color",
+                theme.commandBarStyle.backgroundColor.isNotEmpty())
+            assertTrue("${theme.name}/commandBar should have font family",
+                theme.commandBarStyle.fontFamily.isNotEmpty())
+            // tab has font family/size only (no fg/bg colors)
+            assertTrue("${theme.name}/tab should have font family",
+                theme.tabStyle.fontFamily.isNotEmpty())
+            assertTrue("${theme.name}/tab should have font size",
+                theme.tabStyle.fontSize > 0)
+            assertTrue("${theme.name}/tab should not have font color",
+                theme.tabStyle.fontColor.isEmpty())
+            assertTrue("${theme.name}/tab should not have background color",
+                theme.tabStyle.backgroundColor.isEmpty())
         }
     }
 
@@ -334,20 +332,20 @@ class ThemeTest {
     fun `applyTo overwrites previously applied theme`() {
         val state = TurtleCommanderSettings.State()
         Theme.CLASSIC_NC.applyTo(state)
-        assertEquals("#000080", state.panelStyle.backgroundColor)
+        assertEquals("#000080", state.styles.panelStyle.backgroundColor)
         Theme.GREEN_TERMINAL.applyTo(state)
-        assertEquals("#0A0A0A", state.panelStyle.backgroundColor)
-        assertEquals("#33FF33", state.panelStyle.fontColor)
+        assertEquals("#0A0A0A", state.styles.panelStyle.backgroundColor)
+        assertEquals("#33FF33", state.styles.panelStyle.fontColor)
     }
 
     @Test
     fun `applying default theme clears styles set by another theme`() {
         val state = TurtleCommanderSettings.State()
         Theme.CLASSIC_NC.applyTo(state)
-        assertFalse(state.panelStyle.isDefault())
+        assertFalse(state.styles.panelStyle.isDefault())
         Theme.DEFAULT.applyTo(state)
-        assertTrue(state.panelStyle.isDefault())
-        assertTrue(state.tabStyle.isDefault())
+        assertTrue(state.styles.panelStyle.isDefault())
+        assertTrue(state.styles.tabStyle.isDefault())
     }
 
     // --- ThemeStyle ---
@@ -410,23 +408,23 @@ class ThemeTest {
     @Test
     fun `pre-theme styles are independent from active styles`() {
         val state = TurtleCommanderSettings.State()
-        state.preThemePanelStyle.fontColor = "#FF0000"
-        state.preThemePanelStyle.backgroundColor = "#0000FF"
-        assertEquals("", state.panelStyle.fontColor)
-        assertEquals("", state.panelStyle.backgroundColor)
+        state.preThemeStyles.panelStyle.fontColor = "#FF0000"
+        state.preThemeStyles.panelStyle.backgroundColor = "#0000FF"
+        assertEquals("", state.styles.panelStyle.fontColor)
+        assertEquals("", state.styles.panelStyle.backgroundColor)
     }
 
     @Test
     fun `pre-theme styles default to empty`() {
         val state = TurtleCommanderSettings.State()
-        assertTrue(state.preThemePanelStyle.isDefault())
-        assertTrue(state.preThemeTabStyle.isDefault())
-        assertTrue(state.preThemePathBarStyle.isDefault())
-        assertTrue(state.preThemeStatusBarStyle.isDefault())
-        assertTrue(state.preThemeCommandBarStyle.isDefault())
-        assertTrue(state.preThemeCommandButtonStyle.isDefault())
-        assertTrue(state.preThemeDriveSelectorStyle.isDefault())
-        assertTrue(state.preThemeColumnHeaderStyle.isDefault())
+        assertTrue(state.preThemeStyles.panelStyle.isDefault())
+        assertTrue(state.preThemeStyles.tabStyle.isDefault())
+        assertTrue(state.preThemeStyles.pathBarStyle.isDefault())
+        assertTrue(state.preThemeStyles.statusBarStyle.isDefault())
+        assertTrue(state.preThemeStyles.commandBarStyle.isDefault())
+        assertTrue(state.preThemeStyles.commandButtonStyle.isDefault())
+        assertTrue(state.preThemeStyles.driveSelectorStyle.isDefault())
+        assertTrue(state.preThemeStyles.columnHeaderStyle.isDefault())
     }
 
     // --- Theme name persistence ---
