@@ -14,6 +14,8 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.SimpleFileVisitor
 import java.nio.file.attribute.BasicFileAttributes
+import javax.swing.DefaultListModel
+import javax.swing.JList
 import javax.swing.tree.DefaultMutableTreeNode
 
 internal fun FileTab.getSelectedEntry(): FileEntry? {
@@ -128,56 +130,8 @@ fun FileTab.toggleSelectionAndMoveDown() {
             table.selectionModel.leadSelectionIndex = nextRow
             table.scrollRectToVisible(table.getCellRect(nextRow, 0, true))
         }
-        ViewMode.LIST -> {
-            val index = list.selectionModel.leadSelectionIndex
-            if (index < 0) return
-            val entry = listModel.getElementAt(index)
-            val selectedSet = list.selectedIndices.toMutableSet()
-            if (entry != null && !entry.isParentLink) {
-                if (index in selectedSet) {
-                    selectedSet.remove(index)
-                } else {
-                    selectedSet.add(index)
-                    if (entry.isDirectory) calculateDirectorySize(entry)
-                }
-            }
-            val nextIndex = if (index + 1 < listModel.size()) index + 1 else index
-            val nextEntry = listModel.getElementAt(nextIndex)
-            if (nextEntry != null && nextEntry.isDirectory && !nextEntry.isParentLink) {
-                calculateDirectorySize(nextEntry)
-            }
-            selectedSet.add(nextIndex)
-            list.clearSelection()
-            for (i in selectedSet) {
-                list.addSelectionInterval(i, i)
-            }
-            list.ensureIndexIsVisible(nextIndex)
-        }
-        ViewMode.THUMBNAIL -> {
-            val index = thumbnailList.selectionModel.leadSelectionIndex
-            if (index < 0) return
-            val entry = thumbnailListModel.getElementAt(index)
-            val selectedSet = thumbnailList.selectedIndices.toMutableSet()
-            if (entry != null && !entry.isParentLink) {
-                if (index in selectedSet) {
-                    selectedSet.remove(index)
-                } else {
-                    selectedSet.add(index)
-                    if (entry.isDirectory) calculateDirectorySize(entry)
-                }
-            }
-            val nextIndex = if (index + 1 < thumbnailListModel.size()) index + 1 else index
-            val nextEntry = thumbnailListModel.getElementAt(nextIndex)
-            if (nextEntry != null && nextEntry.isDirectory && !nextEntry.isParentLink) {
-                calculateDirectorySize(nextEntry)
-            }
-            selectedSet.add(nextIndex)
-            thumbnailList.clearSelection()
-            for (i in selectedSet) {
-                thumbnailList.addSelectionInterval(i, i)
-            }
-            thumbnailList.ensureIndexIsVisible(nextIndex)
-        }
+        ViewMode.LIST -> toggleListSelectionAndMoveDown(list, listModel)
+        ViewMode.THUMBNAIL -> toggleListSelectionAndMoveDown(thumbnailList, thumbnailListModel)
         ViewMode.TREE -> {
             val leadRow = tree.leadSelectionRow
             if (leadRow < 0) return
@@ -204,6 +158,34 @@ fun FileTab.toggleSelectionAndMoveDown() {
     } finally {
         insideToggle = false
     }
+}
+
+private fun <T : JList<FileEntry>> FileTab.toggleListSelectionAndMoveDown(
+    jList: T, model: DefaultListModel<FileEntry>,
+) {
+    val index = jList.selectionModel.leadSelectionIndex
+    if (index < 0) return
+    val entry = model.getElementAt(index)
+    val selectedSet = jList.selectedIndices.toMutableSet()
+    if (entry != null && !entry.isParentLink) {
+        if (index in selectedSet) {
+            selectedSet.remove(index)
+        } else {
+            selectedSet.add(index)
+            if (entry.isDirectory) calculateDirectorySize(entry)
+        }
+    }
+    val nextIndex = if (index + 1 < model.size()) index + 1 else index
+    val nextEntry = model.getElementAt(nextIndex)
+    if (nextEntry != null && nextEntry.isDirectory && !nextEntry.isParentLink) {
+        calculateDirectorySize(nextEntry)
+    }
+    selectedSet.add(nextIndex)
+    jList.clearSelection()
+    for (i in selectedSet) {
+        jList.addSelectionInterval(i, i)
+    }
+    jList.ensureIndexIsVisible(nextIndex)
 }
 
 internal fun FileTab.applyToggledSelection(cursorRow: Int) {

@@ -93,47 +93,7 @@ internal fun FileTab.performMove() {
         return
     }
     val destination = otherPanelPathProvider() ?: return
-
-    val displayPath = getOtherPanelDisplayPath() ?: destination.toString()
-    val moveDialog = MoveDialog(project, selected, destination, displayPath)
-    if (!moveDialog.showAndGet()) return
-    val overwriteAll = moveDialog.overwriteExisting
-    val sourcePaths = selected.map { it.path }
-
-    ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Moving files", true) {
-        override fun run(indicator: ProgressIndicator) {
-            indicator.isIndeterminate = true
-            indicator.text = "Counting files..."
-
-            runBlocking {
-                val totalFiles = countFiles(sourcePaths)
-                indicator.isIndeterminate = false
-
-                fileOps.moveFilesWithProgress(
-                    sources = sourcePaths,
-                    destination = destination,
-                    overwriteAll = overwriteAll,
-                    onProgress = { count, name ->
-                        indicator.fraction = count.toDouble() / totalFiles
-                        indicator.text = "Moving $count / $totalFiles"
-                        indicator.text2 = name
-                    },
-                    onOverwriteConfirm = { path ->
-                        askOverwriteConfirm(path)
-                    },
-                    onError = { path, error ->
-                        fileErrorNotification("Failed to move ${path.fileName}: ${fileErrorMessage(error)}")
-                    },
-                    isCancelled = { indicator.isCanceled },
-                )
-
-                refreshAfterVfsChange()
-                withContext(Dispatchers.EDT) {
-                    onRefreshOtherPanel()
-                }
-            }
-        }
-    })
+    performMoveEntries(selected, destination)
 }
 
 internal fun FileTab.performMoveEntries(selected: List<FileEntry>, destination: Path, destinationDisplayPath: String? = null) {

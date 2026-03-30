@@ -112,23 +112,6 @@ class StyleSet {
     var driveSelectorStyle: ComponentStyle = ComponentStyle()
     var columnHeaderStyle: ComponentStyle = ComponentStyle()
 
-    fun isDefault(): Boolean =
-        panelStyle.isDefault() && tabStyle.isDefault() && pathBarStyle.isDefault()
-            && statusBarStyle.isDefault() && commandBarStyle.isDefault()
-            && commandButtonStyle.isDefault() && driveSelectorStyle.isDefault()
-            && columnHeaderStyle.isDefault()
-
-    fun copyFrom(other: StyleSet) {
-        panelStyle.copyFrom(other.panelStyle)
-        tabStyle.copyFrom(other.tabStyle)
-        pathBarStyle.copyFrom(other.pathBarStyle)
-        statusBarStyle.copyFrom(other.statusBarStyle)
-        commandBarStyle.copyFrom(other.commandBarStyle)
-        commandButtonStyle.copyFrom(other.commandButtonStyle)
-        driveSelectorStyle.copyFrom(other.driveSelectorStyle)
-        columnHeaderStyle.copyFrom(other.columnHeaderStyle)
-    }
-
     fun reset() {
         panelStyle = ComponentStyle()
         tabStyle = ComponentStyle()
