@@ -134,10 +134,13 @@ class FileManagerPanel(
                 // Over this panel
                 val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
                 val tabIndex = getTabIndexAt(e.point)
-                dropTargetIndex = if (tabIndex >= 0 && tabIndex != plusIndex && tabIndex != dragSourceIndex) {
-                    tabIndex
-                } else {
-                    -1
+                dropTargetIndex = when {
+                    tabIndex >= 0 && tabIndex != plusIndex && tabIndex != dragSourceIndex -> tabIndex
+                    // Allow dropping on or past the "+" tab → insert before "+"
+                    tabIndex == plusIndex || (tabIndex < 0 && e.point.x > 0) -> {
+                        if (dragSourceIndex != plusIndex - 1) plusIndex else -1
+                    }
+                    else -> -1
                 }
                 tabbedPane.repaint()
             }
@@ -208,11 +211,7 @@ class FileManagerPanel(
     private fun updateDropIndicator(localPoint: Point) {
         val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
         val tabIndex = getTabIndexAt(localPoint)
-        dropTargetIndex = if (tabIndex >= 0 && tabIndex != plusIndex) tabIndex else {
-            // If past all tabs, target the last real tab position
-            val lastReal = tabbedPane.tabCount - 2  // before "+"
-            if (lastReal >= 0) lastReal else -1
-        }
+        dropTargetIndex = if (tabIndex >= 0 && tabIndex != plusIndex) tabIndex else plusIndex
         tabbedPane.repaint()
     }
 
@@ -234,8 +233,9 @@ class FileManagerPanel(
                 other.tabbedPane.width, other.tabbedPane.height)
             if (otherBounds.contains(screenPoint)) {
                 // Drop on other panel — move tab there
+                val targetIdx = other.dropTargetIndex
                 other.clearDropIndicator()
-                moveTabToOtherPanel(dragSourceIndex, other, other.dropTargetIndex)
+                moveTabToOtherPanel(dragSourceIndex, other, targetIdx)
                 return
             }
         }
@@ -246,19 +246,26 @@ class FileManagerPanel(
         }
     }
 
-    private fun reorderTab(fromIndex: Int, toIndex: Int) {
+    internal fun reorderTab(fromIndex: Int, toIndex: Int) {
         val component = tabbedPane.getComponentAt(fromIndex)
         val title = tabbedPane.getTitleAt(fromIndex)
         val tabComponent = tabbedPane.getTabComponentAt(fromIndex)
 
+        // Save border — JBTabbedPane.insertTab calls UIUtil.addInsets which accumulates
+        val savedBorder = (component as? JComponent)?.border
+
         tabbedPane.removeTabAt(fromIndex)
         val adjustedTo = if (fromIndex < toIndex) toIndex - 1 else toIndex
         tabbedPane.insertTab(title, null, component, null, adjustedTo)
+
+        // Restore border to prevent inset accumulation
+        (component as? JComponent)?.border = savedBorder
+
         tabbedPane.setTabComponentAt(adjustedTo, tabComponent)
         tabbedPane.selectedIndex = adjustedTo
     }
 
-    private fun moveTabToOtherPanel(sourceIndex: Int, target: FileManagerPanel, targetIndex: Int) {
+    internal fun moveTabToOtherPanel(sourceIndex: Int, target: FileManagerPanel, targetIndex: Int) {
         val fileTab = tabbedPane.getComponentAt(sourceIndex) as? FileTab ?: return
         val path = fileTab.currentPath
         val realTabCount = tabbedPane.tabCount - 1
@@ -274,7 +281,15 @@ class FileManagerPanel(
         val plusIndex = target.tabbedPane.indexOfComponent(target.addTabPlaceholder)
         val insertAt = if (targetIndex in 0 until plusIndex) targetIndex else plusIndex
         val title = path.fileName?.toString() ?: path.toString()
+
+        // Save border — JBTabbedPane.insertTab calls UIUtil.addInsets which accumulates
+        val savedBorder = fileTab.border
+
         target.tabbedPane.insertTab(title, null, fileTab, null, insertAt)
+
+        // Restore border to prevent inset accumulation
+        fileTab.border = savedBorder
+
         target.tabbedPane.setTabComponentAt(insertAt, target.createTabHeader(title, fileTab))
         target.tabbedPane.selectedIndex = insertAt
 
