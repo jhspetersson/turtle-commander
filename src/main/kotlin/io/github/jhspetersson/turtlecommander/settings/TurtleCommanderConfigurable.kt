@@ -1,5 +1,6 @@
 package io.github.jhspetersson.turtlecommander.settings
 
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.fileChooser.FileChooserFactory
@@ -269,12 +270,15 @@ class TurtleCommanderConfigurable : Configurable {
             toolTipText = "Delete the selected custom theme"
             addActionListener { deleteSelectedTheme() }
         }
-        val exportButton = JButton("Export").apply {
+        val iconSize = AllIcons.ToolbarDecorator.Export.iconWidth + JBUI.scale(14)
+        val exportButton = JButton(AllIcons.ToolbarDecorator.Export).apply {
             toolTipText = "Export the selected theme to a file"
+            preferredSize = Dimension(iconSize, preferredSize.height)
             addActionListener { exportSelectedTheme() }
         }
-        val importButton = JButton("Import").apply {
+        val importButton = JButton(AllIcons.ToolbarDecorator.Import).apply {
             toolTipText = "Import a theme from a file"
+            preferredSize = Dimension(iconSize, preferredSize.height)
             addActionListener { importThemeFromFile() }
         }
         val resetStylesButton = JButton("Reset to Defaults").apply {
@@ -318,8 +322,8 @@ class TurtleCommanderConfigurable : Configurable {
 
             // Header row
             gbc.gridy = 0
-            gbc.gridx = 0; gbc.insets = JBUI.insets(2, 0, 2, 4)
-            add(JBLabel("").apply { minimumSize = Dimension(90, 0); preferredSize = Dimension(90, preferredSize.height) }, gbc)
+            gbc.gridx = 0; gbc.insets = JBUI.insets(2, 8, 2, 4)
+            add(JBLabel(""), gbc)
             gbc.insets = JBUI.insets(2, 4)
             gbc.gridx = 1; add(JBLabel("Font"), gbc)
             gbc.gridx = 2; add(JBLabel("Size"), gbc)
@@ -328,13 +332,17 @@ class TurtleCommanderConfigurable : Configurable {
             gbc.gridx = 5; add(JBLabel("Bg"), gbc)
             gbc.gridx = 6; add(JBLabel("Sel"), gbc)
             gbc.gridx = 7; add(JBLabel("Active"), gbc)
+            // Filler to push everything left
+            gbc.gridx = 8; gbc.weightx = 1.0; gbc.fill = GridBagConstraints.HORIZONTAL
+            add(JPanel().apply { isOpaque = false }, gbc)
+            gbc.weightx = 0.0; gbc.fill = GridBagConstraints.NONE
 
             val panelEditorLabel = styleEditors["panel"]?.label
             val commandBarEditorLabel = styleEditors["commandBar"]?.label
             for ((i, editor) in editors.withIndex()) {
                 gbc.gridy = i + 1
-                gbc.gridx = 0; gbc.insets = JBUI.insets(2, 0, 2, 4)
-                val lbl = JBLabel("${editor.label}:").apply { minimumSize = Dimension(90, 0) }
+                gbc.gridx = 0; gbc.insets = JBUI.insets(2, 8, 2, 4)
+                val lbl = JBLabel("${editor.label}:")
                 add(lbl, gbc)
                 gbc.insets = JBUI.insets(2, 4)
                 val bgOnly = editor.label == commandBarEditorLabel
