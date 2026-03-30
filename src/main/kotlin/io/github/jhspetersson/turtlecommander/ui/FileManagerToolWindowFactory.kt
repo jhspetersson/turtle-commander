@@ -58,7 +58,7 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
         stateService.registerPanels(leftPanel, rightPanel, splitter)
 
         val settings = TurtleCommanderSettings.getInstance()
-        val bottomBar = createBottomBar(leftPanel, rightPanel)
+        val bottomBar = createBottomBar(leftPanel, rightPanel, toolWindow)
         bottomBar.isVisible = settings.state.showCommandBar
 
         val contentPanel = JPanel(BorderLayout()).apply {
@@ -211,7 +211,7 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
         }
     }
 
-    private fun createBottomBar(leftPanel: FileManagerPanel, rightPanel: FileManagerPanel): JPanel {
+    private fun createBottomBar(leftPanel: FileManagerPanel, rightPanel: FileManagerPanel, toolWindow: ToolWindow): JPanel {
         val bar = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.X_AXIS)
         }
@@ -277,7 +277,7 @@ class FileManagerToolWindowFactory : ToolWindowFactory {
         applyCommandBarStyle(bar, settings.styles.commandBarStyle, settings.styles.commandButtonStyle)
 
         ApplicationManager.getApplication().messageBus
-            .connect()
+            .connect(toolWindow.disposable)
             .subscribe(KeymapManagerListener.TOPIC, object : KeymapManagerListener {
                 override fun activeKeymapChanged(keymap: Keymap?) {
                     updateBar(false)

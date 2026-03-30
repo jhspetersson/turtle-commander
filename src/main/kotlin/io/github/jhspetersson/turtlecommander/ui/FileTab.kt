@@ -948,6 +948,7 @@ class FileTab(
     }
 
     private fun startDriveRefreshTimer() {
+        driveRefreshTimer?.stop()
         driveRefreshTimer = Timer(5000) {
             if (driveComboPopupOpen || currentVfs != null) return@Timer
             fileOps.launch {
