@@ -83,6 +83,10 @@ class VfsEditService(
             }
 
             entry.onAfterFlush?.invoke(currentPathRel)
+
+            synchronized(activeEdits) {
+                activeEdits.remove(normalizeKey(entry.tempFilePath))
+            }
         } catch (e: Exception) {
             thisLogger().warn("VFS edit write-back failed: ${e.message}")
         }
