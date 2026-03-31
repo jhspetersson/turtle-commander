@@ -98,16 +98,35 @@ class SplitFileOperationTest {
     }
 
     @Test
-    fun `split empty file creates CRC file but no chunks`() {
+    fun `split empty file creates one empty chunk and CRC file`() {
         val source = createTempFile(ByteArray(0))
         val targetDir = createTempDir()
 
         SplitFileOperation.split(source, targetDir, 100, { _, _, _, _ -> }, { false })
 
-        // The while loop doesn't execute for 0-byte files, so no chunk files are created
-        assertFalse(Files.exists(targetDir.resolve("${source.fileName}.001")))
-        // But CRC file is still written
+        // Zero-byte file should still produce a single empty chunk
+        assertTrue(Files.exists(targetDir.resolve("${source.fileName}.001")))
+        assertEquals(0, Files.size(targetDir.resolve("${source.fileName}.001")))
+        assertFalse(Files.exists(targetDir.resolve("${source.fileName}.002")))
+        // CRC file is still written
         assertTrue(Files.exists(targetDir.resolve("${source.fileName}.crc")))
+    }
+
+    @Test
+    fun `split and combine empty file round-trip`() {
+        val source = createTempFile(ByteArray(0))
+        val targetDir = createTempDir()
+
+        SplitFileOperation.split(source, targetDir, 100, { _, _, _, _ -> }, { false })
+
+        val crcInfo = CombineFilesOperation.parseCrcFile(targetDir.resolve("${source.fileName}.crc"))
+        val chunks = CombineFilesOperation.findChunkFiles(targetDir, crcInfo.filename)
+        assertEquals(1, chunks.size)
+        val combined = targetDir.resolve(crcInfo.filename)
+
+        CombineFilesOperation.combine(chunks, combined, crcInfo.size, crcInfo.crc32, { _, _, _, _ -> }, { false })
+
+        assertArrayEquals(ByteArray(0), Files.readAllBytes(combined))
     }
 
     @Test

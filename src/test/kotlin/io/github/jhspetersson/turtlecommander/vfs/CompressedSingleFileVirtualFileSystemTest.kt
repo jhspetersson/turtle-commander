@@ -107,4 +107,34 @@ class CompressedSingleFileVirtualFileSystemTest {
         val name = entries[0].name
         assertFalse("Inner name should not end with compression suffix", name.endsWith(".fakegz"))
     }
+
+    @Test
+    fun `inner file name strips mixed-case compression suffix`() = runBlocking {
+        val mixedCasePath = Files.createTempFile("test-mixed-", ".FakeGz")
+        Files.write(mixedCasePath, "content".toByteArray())
+        val mixedVfs = CompressedSingleFileVirtualFileSystem(mixedCasePath, ".fakegz") { it }
+        try {
+            val entries = mixedVfs.listFiles(mixedVfs.root).filter { !it.isParentLink }
+            val name = entries[0].name
+            assertFalse("Inner name should not end with mixed-case suffix", name.endsWith(".FakeGz", ignoreCase = true))
+        } finally {
+            mixedVfs.close()
+            Files.deleteIfExists(mixedCasePath)
+        }
+    }
+
+    @Test
+    fun `inner file name strips uppercase compression suffix`() = runBlocking {
+        val upperPath = Files.createTempFile("test-upper-", ".FAKEGZ")
+        Files.write(upperPath, "content".toByteArray())
+        val upperVfs = CompressedSingleFileVirtualFileSystem(upperPath, ".fakegz") { it }
+        try {
+            val entries = upperVfs.listFiles(upperVfs.root).filter { !it.isParentLink }
+            val name = entries[0].name
+            assertFalse("Inner name should not end with uppercase suffix", name.endsWith(".FAKEGZ", ignoreCase = true))
+        } finally {
+            upperVfs.close()
+            Files.deleteIfExists(upperPath)
+        }
+    }
 }

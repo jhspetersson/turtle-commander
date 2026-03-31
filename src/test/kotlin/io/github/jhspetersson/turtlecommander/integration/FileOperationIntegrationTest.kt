@@ -537,4 +537,26 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         assertEquals("Auto-skipped files should not count as copied", 0, progressCount)
     }
 
+    fun testCopyDirectoryProgressNotCountedOnCreateFailure() = runBlocking {
+        val srcDir = Files.createDirectory(tempDir.resolve("srcdir"))
+        Files.writeString(srcDir.resolve("child.txt"), "data")
+        val dest = Files.createDirectory(tempDir.resolve("dest"))
+        // Create a file at the target path where a directory is expected,
+        // so createDirectories will fail
+        Files.writeString(dest.resolve("srcdir"), "blocker")
+
+        var progressCount = 0
+        var errorCount = 0
+        fileOps.copyFilesWithProgress(
+            sources = listOf(srcDir),
+            destination = dest,
+            overwriteAll = false,
+            onProgress = { count, _ -> progressCount = count },
+            onOverwriteConfirm = { OverwriteResponse.YES },
+            onError = { _, _ -> errorCount++ },
+            isCancelled = { false },
+        )
+        assertEquals("Failed directory creation should not count as progress", 0, progressCount)
+        assertTrue("Should have reported an error", errorCount > 0)
+    }
 }
