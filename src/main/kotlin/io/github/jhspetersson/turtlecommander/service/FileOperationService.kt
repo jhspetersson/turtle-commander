@@ -313,6 +313,9 @@ class FileOperationService(
                             return FileVisitResult.CONTINUE
                         }
                         override fun postVisitDirectory(dir: Path, exc: IOException?): FileVisitResult {
+                            if (exc != null) {
+                                walkErrors.add(dir to exc)
+                            }
                             entries.add(dir)
                             return FileVisitResult.CONTINUE
                         }
