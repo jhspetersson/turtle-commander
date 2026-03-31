@@ -326,22 +326,22 @@ class FileOperationService(
                         if (isCancelled()) break
                         try {
                             Files.delete(entry)
+                            deletedCount++
+                            onProgress(deletedCount, entry.name)
                         } catch (e: Exception) {
                             thisLogger().warn("Failed to delete $entry: ${e.message}")
                             onError(entry, e)
                         }
-                        deletedCount++
-                        onProgress(deletedCount, entry.name)
                     }
                 } else {
                     try {
                         Files.deleteIfExists(path)
+                        deletedCount++
+                        onProgress(deletedCount, path.name)
                     } catch (e: Exception) {
                         thisLogger().warn("Failed to delete $path: ${e.message}")
                         onError(path, e)
                     }
-                    deletedCount++
-                    onProgress(deletedCount, path.name)
                 }
             } catch (e: Exception) {
                 thisLogger().warn("Failed to process $path: ${e.message}")
