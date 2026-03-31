@@ -1020,7 +1020,7 @@ class FileTab(
             currentPath = path
 
             // Update path display
-            if (vfs != null) {
+            if (vfs != null && vfsStack.isNotEmpty()) {
                 val separator = if (vfsStack.first().parentPath.toString().contains("\\")) "\\" else "/"
                 val sb = StringBuilder()
                 // Build path showing entire VFS stack chain
