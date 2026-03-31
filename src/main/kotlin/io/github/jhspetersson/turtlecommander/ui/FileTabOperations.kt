@@ -36,7 +36,8 @@ internal fun FileTab.performCopy() {
         fileErrorNotification("Cannot copy into a read-only archive")
         return
     }
-    performCopyEntries(getSelectedEntries(), otherPanelPathProvider() ?: return)
+    val destination = if (otherTab?.isInsideArchive == true) otherTab.currentPath else otherPanelPathProvider() ?: return
+    performCopyEntries(getSelectedEntries(), destination)
 }
 
 internal fun FileTab.performCopyEntries(selected: List<FileEntry>, destination: Path, destinationDisplayPath: String? = null) {
@@ -92,7 +93,7 @@ internal fun FileTab.performMove() {
         fileErrorNotification("Cannot move into a read-only archive")
         return
     }
-    val destination = otherPanelPathProvider() ?: return
+    val destination = if (otherTab?.isInsideArchive == true) otherTab.currentPath else otherPanelPathProvider() ?: return
     performMoveEntries(selected, destination)
 }
 

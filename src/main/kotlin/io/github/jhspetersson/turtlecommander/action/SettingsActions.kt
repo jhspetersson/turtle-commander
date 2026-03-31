@@ -3,10 +3,10 @@ package io.github.jhspetersson.turtlecommander.action
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.options.SearchableConfigurable
 import com.intellij.openapi.options.ShowSettingsUtil
+import com.intellij.openapi.project.DumbAware
 import com.intellij.ui.treeStructure.Tree
 import java.awt.Component
 import java.awt.Container
@@ -30,7 +30,7 @@ class OpenKeymapSettingsAction : AnAction(), DumbAware {
         )
     }
 
-    private var cachedComponent: java.awt.Component? = null
+    private var cachedComponent: Component? = null
 
     private fun scheduleTreeNavigation(configurable: Configurable, attempt: Int) {
         if (attempt > 50) return

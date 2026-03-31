@@ -4,10 +4,13 @@ import com.intellij.openapi.components.service
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import io.github.jhspetersson.turtlecommander.service.FileOperationService
 import io.github.jhspetersson.turtlecommander.service.OverwriteResponse
-import kotlinx.coroutines.runBlocking
 import io.github.jhspetersson.turtlecommander.util.countFiles
+import io.github.jhspetersson.turtlecommander.vfs.ZipVirtualFileSystem
+import kotlinx.coroutines.runBlocking
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 /**
  * Integration tests for file operations: copy, move, delete, rename, create directory/file.
@@ -558,5 +561,109 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         )
         assertEquals("Failed directory creation should not count as progress", 0, progressCount)
         assertTrue("Should have reported an error", errorCount > 0)
+    }
+
+    // --- Copy into archive (VFS destination) ---
+
+    fun testCopyFileIntoZipVfsDestination() = runBlocking {
+        // Regression: copying a real file into a zip archive destination used to fail
+        // because the archive path (e.g. Archive.zip) was used as the destination
+        // instead of the VFS internal path, causing resolve() to produce
+        // "Archive.zip/filename.txt" which doesn't exist on the real filesystem.
+        val source = Files.writeString(tempDir.resolve("newfile.txt"), "new content")
+
+        val zipPath = tempDir.resolve("archive.zip")
+        ZipOutputStream(Files.newOutputStream(zipPath)).use { zos ->
+            zos.putNextEntry(ZipEntry("existing.txt"))
+            zos.write("existing".toByteArray())
+            zos.closeEntry()
+        }
+
+        val vfs = ZipVirtualFileSystem(zipPath)
+        vfs.use { vfs ->
+            // Use the VFS root as the destination (the correct fix),
+            // NOT the archive file path (which was the bug)
+            var progressCount = 0
+            fileOps.copyFilesWithProgress(
+                sources = listOf(source),
+                destination = vfs.root,
+                overwriteAll = false,
+                onProgress = { count, _ -> progressCount = count },
+                onOverwriteConfirm = { OverwriteResponse.NO },
+                onError = { path, e -> fail("Copy into zip failed for $path: $e") },
+                isCancelled = { false },
+            )
+
+            assertEquals("Should report 1 copied file", 1, progressCount)
+            assertTrue("File should exist inside VFS", Files.exists(vfs.getPath("/newfile.txt")))
+            assertEquals("new content", Files.readString(vfs.getPath("/newfile.txt")))
+
+            // Flush and verify persistence
+            vfs.flush()
+            val entries = vfs.listFiles(vfs.root).filter { !it.isParentLink }
+            assertTrue("existing.txt should still be in archive", entries.any { it.name == "existing.txt" })
+            assertTrue("newfile.txt should be in archive after flush", entries.any { it.name == "newfile.txt" })
+        }
+    }
+
+    fun testCopyDirectoryIntoZipVfsDestination() = runBlocking {
+        val srcDir = Files.createDirectory(tempDir.resolve("mydir"))
+        Files.writeString(srcDir.resolve("child.txt"), "child content")
+
+        val zipPath = tempDir.resolve("archive.zip")
+        ZipOutputStream(Files.newOutputStream(zipPath)).use { zos ->
+            zos.putNextEntry(ZipEntry("existing.txt"))
+            zos.write("existing".toByteArray())
+            zos.closeEntry()
+        }
+
+        val vfs = ZipVirtualFileSystem(zipPath)
+        vfs.use { vfs ->
+            var progressCount = 0
+            fileOps.copyFilesWithProgress(
+                sources = listOf(srcDir),
+                destination = vfs.root,
+                overwriteAll = false,
+                onProgress = { count, _ -> progressCount = count },
+                onOverwriteConfirm = { OverwriteResponse.NO },
+                onError = { path, e -> fail("Copy into zip failed for $path: $e") },
+                isCancelled = { false },
+            )
+
+            assertTrue("Progress should have been reported", progressCount > 0)
+            assertTrue("Directory should exist in VFS", Files.exists(vfs.getPath("/mydir")))
+            assertTrue("Child file should exist in VFS", Files.exists(vfs.getPath("/mydir/child.txt")))
+            assertEquals("child content", Files.readString(vfs.getPath("/mydir/child.txt")))
+        }
+    }
+
+    fun testMoveFileIntoZipVfsDestination() = runBlocking {
+        val source = Files.writeString(tempDir.resolve("moveme.txt"), "move content")
+
+        val zipPath = tempDir.resolve("archive.zip")
+        ZipOutputStream(Files.newOutputStream(zipPath)).use { zos ->
+            zos.putNextEntry(ZipEntry("existing.txt"))
+            zos.write("existing".toByteArray())
+            zos.closeEntry()
+        }
+
+        val vfs = ZipVirtualFileSystem(zipPath)
+        vfs.use { vfs ->
+            var progressCount = 0
+            fileOps.moveFilesWithProgress(
+                sources = listOf(source),
+                destination = vfs.root,
+                overwriteAll = false,
+                onProgress = { count, _ -> progressCount = count },
+                onOverwriteConfirm = { OverwriteResponse.NO },
+                onError = { path, e -> fail("Move into zip failed for $path: $e") },
+                isCancelled = { false },
+            )
+
+            assertEquals("Should report 1 moved file", 1, progressCount)
+            assertTrue("File should exist inside VFS", Files.exists(vfs.getPath("/moveme.txt")))
+            assertEquals("move content", Files.readString(vfs.getPath("/moveme.txt")))
+            assertFalse("Source file should be removed after move", Files.exists(source))
+        }
     }
 }
