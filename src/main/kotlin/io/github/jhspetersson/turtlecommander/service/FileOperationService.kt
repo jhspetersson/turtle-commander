@@ -193,12 +193,13 @@ class FileOperationService(
 
         try {
             Files.createDirectories(target)
+            copiedCount++
+            onProgress(copiedCount, source.name)
         } catch (e: Exception) {
             thisLogger().warn("Failed to create directory $target: ${e.message}")
             onError(source, e)
+            return copiedCount
         }
-        copiedCount++
-        onProgress(copiedCount, source.name)
 
         try {
             Files.newDirectoryStream(source).use { stream ->
