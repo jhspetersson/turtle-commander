@@ -84,8 +84,8 @@ fun FileTab.showContextMenu() {
         }
         ViewMode.THUMBNAIL -> {
             val index = thumbnailList.selectedIndex
-            if (index >= 0) {
-                val rect = thumbnailList.getCellBounds(index, index)
+            val rect = if (index >= 0) thumbnailList.getCellBounds(index, index) else null
+            if (rect != null) {
                 popupMenu.component.show(thumbnailList, rect.x, rect.y + rect.height)
             } else {
                 popupMenu.component.show(thumbnailList, 0, 0)
