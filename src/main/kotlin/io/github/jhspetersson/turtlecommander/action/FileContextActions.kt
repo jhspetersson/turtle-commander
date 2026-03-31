@@ -166,8 +166,8 @@ class ContextPasteAction : AnAction("Paste", "Paste files from buffer into curre
         val tab = FileContextMenuState.clickedTab ?: findActiveTab(e) ?: return
         val destination = tab.currentPath
 
-        FileCopyBuffer.entries = emptyList()
         if (cut) {
+            FileCopyBuffer.entries = emptyList()
             tab.performMoveEntries(entries, destination, tab.getDisplayPath())
         } else {
             tab.performCopyEntries(entries, destination, tab.getDisplayPath())
@@ -192,8 +192,8 @@ class ContextPasteIntoAction : AnAction("Paste Into", "Paste files from buffer i
         val entry = FileContextMenuState.clickedEntry ?: return
         val tab = FileContextMenuState.clickedTab ?: findActiveTab(e) ?: return
 
-        FileCopyBuffer.entries = emptyList()
         if (cut) {
+            FileCopyBuffer.entries = emptyList()
             tab.performMoveEntries(entries, entry.path, tab.getDisplayPath())
         } else {
             tab.performCopyEntries(entries, entry.path, tab.getDisplayPath())
