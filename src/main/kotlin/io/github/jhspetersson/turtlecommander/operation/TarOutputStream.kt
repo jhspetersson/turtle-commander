@@ -16,7 +16,7 @@ class TarOutputStream(private val out: OutputStream) : AutoCloseable {
     fun putDirectoryEntry(name: String, modTimeMillis: Long) {
         writeLongNameIfNeeded(name)
         val header = createHeader(
-            name = if (name.length > 100) name.substring(name.length - 100) else name,
+            name = if (name.length > 100) name.substring(0, 100) else name,
             size = 0,
             modTime = modTimeMillis / 1000,
             typeFlag = '5', // directory
@@ -27,7 +27,7 @@ class TarOutputStream(private val out: OutputStream) : AutoCloseable {
     fun putFileEntry(name: String, file: Path, size: Long, modTimeMillis: Long) {
         writeLongNameIfNeeded(name)
         val header = createHeader(
-            name = if (name.length > 100) name.substring(name.length - 100) else name,
+            name = if (name.length > 100) name.substring(0, 100) else name,
             size = size,
             modTime = modTimeMillis / 1000,
             typeFlag = '0', // regular file
