@@ -503,7 +503,9 @@ class FileManagerPanel(
             .filter { it != tabIndex && it != plusIndex }
             .sortedDescending()
         for (idx in indicesToRemove) {
-            (tabbedPane.getComponentAt(idx) as? FileTab)?.dispose()
+            val component = tabbedPane.getComponentAt(idx)
+            (component as? FileTab)?.dispose()
+            (component as? SearchResultsPanel)?.dispose()
             tabbedPane.removeTabAt(idx)
         }
     }
@@ -530,7 +532,9 @@ class FileManagerPanel(
             .filter { it != plusIndex }
             .sortedDescending()
         for (idx in indicesToRemove) {
-            (tabbedPane.getComponentAt(idx) as? FileTab)?.dispose()
+            val component = tabbedPane.getComponentAt(idx)
+            (component as? FileTab)?.dispose()
+            (component as? SearchResultsPanel)?.dispose()
             tabbedPane.removeTabAt(idx)
         }
     }
@@ -542,7 +546,9 @@ class FileManagerPanel(
             .filter { it != plusIndex }
             .sortedDescending()
         for (idx in indicesToRemove) {
-            (tabbedPane.getComponentAt(idx) as? FileTab)?.dispose()
+            val component = tabbedPane.getComponentAt(idx)
+            (component as? FileTab)?.dispose()
+            (component as? SearchResultsPanel)?.dispose()
             tabbedPane.removeTabAt(idx)
         }
     }
