@@ -209,7 +209,7 @@ object ThumbnailCache {
         return thumb
     }
 
-    private fun getCachePath(sourcePath: Path): Path? {
+    internal fun getCachePath(sourcePath: Path): Path? {
         return try {
             // Use a hash of the absolute path to avoid filesystem issues with long paths
             val bytes = sourcePath.toAbsolutePath().toString().toByteArray()

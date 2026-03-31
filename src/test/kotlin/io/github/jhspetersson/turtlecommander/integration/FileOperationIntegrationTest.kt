@@ -340,4 +340,107 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         val home = System.getProperty("user.home")
         assertTrue("Roots should contain home directory", roots.any { it == home })
     }
+
+    // --- Bugfix regressions ---
+
+    fun testDeleteProgressCountMatchesActualDeletions() = runBlocking {
+        val f1 = Files.writeString(tempDir.resolve("f1.txt"), "1")
+        val f2 = Files.writeString(tempDir.resolve("f2.txt"), "2")
+        val f3 = Files.writeString(tempDir.resolve("f3.txt"), "3")
+
+        val progressCounts = mutableListOf<Int>()
+        fileOps.deleteFilesWithProgress(
+            paths = listOf(f1, f2, f3),
+            onProgress = { count, _ -> progressCounts.add(count) },
+            onError = { _, e -> fail("Unexpected error: $e") },
+            isCancelled = { false },
+        )
+
+        // Progress should increment monotonically: 1, 2, 3
+        assertEquals("Should report 3 progress updates", 3, progressCounts.size)
+        assertEquals(listOf(1, 2, 3), progressCounts)
+    }
+
+    fun testDeleteProgressNotReportedOnError() = runBlocking {
+        // Delete a directory that contains files — recursive walk deletes children,
+        // then the directory itself. Each successful deletion increments count.
+        val dir = Files.createDirectory(tempDir.resolve("delDir"))
+        Files.writeString(dir.resolve("a.txt"), "a")
+        Files.writeString(dir.resolve("b.txt"), "b")
+
+        val progressCounts = mutableListOf<Int>()
+        var errorCount = 0
+        fileOps.deleteFilesWithProgress(
+            paths = listOf(dir),
+            onProgress = { count, _ -> progressCounts.add(count) },
+            onError = { _, _ -> errorCount++ },
+            isCancelled = { false },
+        )
+
+        // All progress counts should be sequential with no gaps
+        for (i in progressCounts.indices) {
+            assertEquals("Progress should be sequential", i + 1, progressCounts[i])
+        }
+        assertEquals("No errors expected", 0, errorCount)
+    }
+
+    fun testMoveProgressDoesNotCountSkipped() = runBlocking {
+        val source1 = Files.writeString(tempDir.resolve("skip.txt"), "new")
+        val source2 = Files.writeString(tempDir.resolve("move.txt"), "data")
+        val dest = Files.createDirectory(tempDir.resolve("dest"))
+        // Pre-create conflict for source1
+        Files.writeString(dest.resolve("skip.txt"), "old")
+
+        var progressCount = 0
+        fileOps.moveFilesWithProgress(
+            sources = listOf(source1, source2),
+            destination = dest,
+            overwriteAll = false,
+            onProgress = { count, _ -> progressCount = count },
+            onOverwriteConfirm = { OverwriteResponse.NO },
+            onError = { _, e -> fail("Unexpected error: $e") },
+            isCancelled = { false },
+        )
+
+        assertEquals("Only actually moved files should be counted", 1, progressCount)
+        assertTrue("Skipped file should still exist at source", Files.exists(source1))
+        assertFalse("Moved file should not exist at source", Files.exists(source2))
+    }
+
+    fun testMoveProgressDoesNotCountAutoSkipped() = runBlocking {
+        val source1 = Files.writeString(tempDir.resolve("a.txt"), "new1")
+        val source2 = Files.writeString(tempDir.resolve("b.txt"), "new2")
+        val source3 = Files.writeString(tempDir.resolve("c.txt"), "new3")
+        val dest = Files.createDirectory(tempDir.resolve("dest"))
+        // Pre-create conflicts for all
+        Files.writeString(dest.resolve("a.txt"), "old1")
+        Files.writeString(dest.resolve("b.txt"), "old2")
+        Files.writeString(dest.resolve("c.txt"), "old3")
+
+        var progressCount = 0
+        fileOps.moveFilesWithProgress(
+            sources = listOf(source1, source2, source3),
+            destination = dest,
+            overwriteAll = false,
+            onProgress = { count, _ -> progressCount = count },
+            onOverwriteConfirm = { OverwriteResponse.NO_TO_ALL },
+            onError = { _, e -> fail("Unexpected error: $e") },
+            isCancelled = { false },
+        )
+
+        assertEquals("No files should be counted when all skipped", 0, progressCount)
+        assertTrue("All source files should still exist", Files.exists(source1))
+        assertTrue(Files.exists(source2))
+        assertTrue(Files.exists(source3))
+    }
+
+    fun testRenameRootPathThrows() {
+        val root = tempDir.root
+        try {
+            runBlocking { fileOps.renameFile(root, "impossible") }
+            fail("Should throw for root path")
+        } catch (e: IllegalArgumentException) {
+            assertTrue(e.message!!.contains("root"))
+        }
+    }
 }
