@@ -75,8 +75,8 @@ fun FileTab.showContextMenu() {
         }
         ViewMode.LIST -> {
             val index = list.selectedIndex
-            if (index >= 0) {
-                val rect = list.getCellBounds(index, index)
+            val rect = if (index >= 0) list.getCellBounds(index, index) else null
+            if (rect != null) {
                 popupMenu.component.show(list, rect.x, rect.y + rect.height)
             } else {
                 popupMenu.component.show(list, 0, 0)
