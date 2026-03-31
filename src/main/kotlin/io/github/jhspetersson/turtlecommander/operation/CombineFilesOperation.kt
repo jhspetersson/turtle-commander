@@ -84,14 +84,15 @@ object CombineFilesOperation {
         val crc32 = CRC32()
         var totalBytesWritten = 0L
 
+        var cancelled = false
         BufferedOutputStream(Files.newOutputStream(targetFile), BUFFER_SIZE).use { output ->
             for ((idx, chunk) in chunkFiles.withIndex()) {
-                if (isCancelled()) return
+                if (isCancelled()) { cancelled = true; break }
 
                 BufferedInputStream(Files.newInputStream(chunk), BUFFER_SIZE).use { input ->
                     val buffer = ByteArray(BUFFER_SIZE)
                     while (true) {
-                        if (isCancelled()) return
+                        if (isCancelled()) { cancelled = true; return@use }
 
                         val bytesRead = input.read(buffer)
                         if (bytesRead == -1) break
@@ -104,6 +105,11 @@ object CombineFilesOperation {
                     }
                 }
             }
+        }
+
+        if (cancelled) {
+            Files.deleteIfExists(targetFile)
+            return
         }
 
         if (expectedSize != null && totalBytesWritten != expectedSize) {
