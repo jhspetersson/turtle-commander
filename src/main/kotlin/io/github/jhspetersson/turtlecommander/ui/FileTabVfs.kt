@@ -166,7 +166,7 @@ fun FileTab.getDisplayPath(): String {
         }
     }
     if (!vfs.isRoot(currentPath)) {
-        val relativePath = currentPath.toString()
+        val relativePath = vfsRelativePath(vfs, currentPath)
         sb.append(separator).append(relativePath.removePrefix("/").replace("/", separator))
     }
     return sb.toString()
