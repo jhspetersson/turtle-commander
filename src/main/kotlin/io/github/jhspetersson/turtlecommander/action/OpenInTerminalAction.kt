@@ -28,7 +28,7 @@ class OpenInTerminalAction : AnAction() {
         val entry = FileContextMenuState.clickedEntry ?: return
         if (tab.currentVfs != null) return
 
-        val dir = if (entry.isDirectory) entry.path else entry.path.parent
+        val dir = if (entry.isDirectory) entry.path else entry.path.parent ?: return
         openTerminal(project, dir.toString())
     }
 }
