@@ -53,7 +53,7 @@ class ArchiveService {
                         Files.walkFileTree(source, object : SimpleFileVisitor<Path>() {
                             override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
                                 if (isCancelled()) return FileVisitResult.TERMINATE
-                                val relativePath = source.parent.relativize(dir).toString().replace("\\", "/")
+                                val relativePath = (source.parent ?: source).relativize(dir).toString().replace("\\", "/")
                                 val zipDir = zipFs.getPath(relativePath)
                                 try { Files.createDirectories(zipDir) } catch (_: FileAlreadyExistsException) {}
                                 packedCount++
@@ -64,7 +64,7 @@ class ArchiveService {
                             override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                                 if (isCancelled()) return FileVisitResult.TERMINATE
                                 try {
-                                    val relativePath = source.parent.relativize(file).toString().replace("\\", "/")
+                                    val relativePath = (source.parent ?: source).relativize(file).toString().replace("\\", "/")
                                     val zipEntry = zipFs.getPath(relativePath)
                                     Files.copy(file, zipEntry, StandardCopyOption.REPLACE_EXISTING)
                                     successCount++
@@ -118,7 +118,7 @@ class ArchiveService {
                                 Files.walkFileTree(source, object : SimpleFileVisitor<Path>() {
                                     override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
                                         if (isCancelled()) return FileVisitResult.TERMINATE
-                                        val relativePath = source.parent.relativize(dir).toString().replace("\\", "/")
+                                        val relativePath = (source.parent ?: source).relativize(dir).toString().replace("\\", "/")
                                         if (relativePath.isNotEmpty()) {
                                             tarOs.putDirectoryEntry("$relativePath/", attrs.lastModifiedTime().toMillis())
                                         }
@@ -130,7 +130,7 @@ class ArchiveService {
                                     override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                                         if (isCancelled()) return FileVisitResult.TERMINATE
                                         try {
-                                            val relativePath = source.parent.relativize(file).toString().replace("\\", "/")
+                                            val relativePath = (source.parent ?: source).relativize(file).toString().replace("\\", "/")
                                             tarOs.putFileEntry(relativePath, file, attrs.size(), attrs.lastModifiedTime().toMillis())
                                             successCount++
                                         } catch (e: Exception) {
