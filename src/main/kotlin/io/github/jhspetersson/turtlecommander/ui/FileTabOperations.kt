@@ -696,6 +696,8 @@ private fun FileTab.openVfsFileEditable(entry: FileEntry) {
             withContext(Dispatchers.IO) {
                 Files.copy(entry.path, tempPath)
             }
+            tempPath.toFile().deleteOnExit()
+            tempDir.toFile().deleteOnExit()
             val virtualFile = withContext(Dispatchers.IO) {
                 val vf = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(tempPath)
                 vf?.fileType
