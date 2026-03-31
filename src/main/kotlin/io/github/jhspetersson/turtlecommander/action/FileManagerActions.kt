@@ -5,6 +5,7 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.components.service
+import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.wm.ToolWindowManager
 import io.github.jhspetersson.turtlecommander.dialog.FileSearchDialog
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
@@ -25,7 +26,7 @@ internal fun isToolWindowActive(e: AnActionEvent): Boolean {
     return toolWindow.isVisible
 }
 
-abstract class FileManagerAction : AnAction() {
+abstract class FileManagerAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -96,7 +97,7 @@ class DeleteFilesAction : FileManagerAction() {
     }
 }
 
-class SwitchPanelAction : AnAction() {
+class SwitchPanelAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -171,7 +172,7 @@ class RefreshAction : FileManagerAction() {
     }
 }
 
-class LeftDriveSelectorAction : AnAction() {
+class LeftDriveSelectorAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -185,7 +186,7 @@ class LeftDriveSelectorAction : AnAction() {
     }
 }
 
-class RightDriveSelectorAction : AnAction() {
+class RightDriveSelectorAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -235,7 +236,7 @@ class PreviousTabAction : FileManagerAction() {
     }
 }
 
-class QuickAccessFavoriteAction : AnAction() {
+class QuickAccessFavoriteAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -268,7 +269,7 @@ class QuickAccessFavoriteAction : AnAction() {
     }
 }
 
-class OpenInTurtleCommanderAction : AnAction() {
+class OpenInTurtleCommanderAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
     override fun update(e: AnActionEvent) {

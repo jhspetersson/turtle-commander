@@ -8,6 +8,7 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.keymap.Keymap
 import com.intellij.openapi.keymap.KeymapManagerListener
 import com.intellij.openapi.keymap.KeymapUtil
+import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
@@ -25,7 +26,7 @@ import java.awt.event.KeyEvent
 import java.nio.file.Path
 import javax.swing.*
 
-class FileManagerToolWindowFactory : ToolWindowFactory {
+class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
         val initialPath = project.basePath?.let { Path.of(it) } ?: Path.of(System.getProperty("user.home"))
@@ -307,7 +308,7 @@ private class FavoriteAction(
     index: Int,
     colorHex: String,
     private val project: Project,
-) : AnAction() {
+) : AnAction(), DumbAware {
     init {
         val path = Path.of(favPath)
         val name = path.fileName?.toString() ?: favPath
@@ -330,7 +331,7 @@ private class FavoriteAction(
 private class RemoveFavoriteAction(
     private val favPath: String,
     private val project: Project,
-) : AnAction() {
+) : AnAction(), DumbAware {
     init {
         val name = Path.of(favPath).fileName?.toString() ?: favPath
         templatePresentation.text = "Remove $name from favorites"
@@ -349,7 +350,7 @@ private class FavoriteOverflowAction(
     private val overflowEntries: List<FileManagerStateService.FavoriteEntry>,
     private val startIndex: Int,
     private val project: Project,
-) : AnAction("More Favorites...", "Show more favorites", AllIcons.General.ChevronDown) {
+) : AnAction("More Favorites...", "Show more favorites", AllIcons.General.ChevronDown), DumbAware {
 
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 

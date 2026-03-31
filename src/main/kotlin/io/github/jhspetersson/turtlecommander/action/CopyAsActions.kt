@@ -3,6 +3,7 @@ package io.github.jhspetersson.turtlecommander.action
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.project.DumbAware
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.ui.FileTab
 import io.github.jhspetersson.turtlecommander.ui.getDisplayPath
@@ -21,7 +22,7 @@ private fun resolveTab(e: AnActionEvent): FileTab? =
 
 // --- File/directory context menu actions ---
 
-class CopyAsNameAction : AnAction() {
+class CopyAsNameAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -36,7 +37,7 @@ class CopyAsNameAction : AnAction() {
     }
 }
 
-class CopyAsFullPathAction : AnAction("Full Path") {
+class CopyAsFullPathAction : AnAction("Full Path"), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -58,7 +59,7 @@ class CopyAsFullPathAction : AnAction("Full Path") {
     }
 }
 
-class CopyAsParentPathAction : AnAction("Parent Path") {
+class CopyAsParentPathAction : AnAction("Parent Path"), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -132,7 +133,7 @@ class TabCopyAsParentPathAction : TabContextAction() {
 
 // --- Search results context menu actions ---
 
-class SearchCopyAsNameAction : AnAction() {
+class SearchCopyAsNameAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -147,7 +148,7 @@ class SearchCopyAsNameAction : AnAction() {
     }
 }
 
-class SearchCopyAsFullPathAction : AnAction("Full Path") {
+class SearchCopyAsFullPathAction : AnAction("Full Path"), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -160,7 +161,7 @@ class SearchCopyAsFullPathAction : AnAction("Full Path") {
     }
 }
 
-class SearchCopyAsParentPathAction : AnAction("Parent Path") {
+class SearchCopyAsParentPathAction : AnAction("Parent Path"), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
