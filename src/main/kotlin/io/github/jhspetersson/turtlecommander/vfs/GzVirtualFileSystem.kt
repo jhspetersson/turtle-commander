@@ -141,7 +141,8 @@ class CompressedSingleFileVirtualFileSystem(
     }
 
     override suspend fun renameFile(source: Path, newName: String): Path = withContext(Dispatchers.IO) {
-        val target = source.parent.resolve(newName)
+        val parent = source.parent ?: throw IllegalArgumentException("Cannot rename a root path")
+        val target = parent.resolve(newName)
         Files.move(source, target)
     }
 
