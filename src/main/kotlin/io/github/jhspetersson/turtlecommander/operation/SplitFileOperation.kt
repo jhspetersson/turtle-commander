@@ -27,6 +27,13 @@ object SplitFileOperation {
         var chunkIndex = 0
 
         BufferedInputStream(Files.newInputStream(sourceFile), BUFFER_SIZE).use { input ->
+            if (fileSize == 0L) {
+                // Create a single empty chunk file for zero-byte files
+                val ext = "1".padStart(extensionWidth, '0')
+                val chunkPath = targetDirectory.resolve("$fileName.$ext")
+                Files.createFile(chunkPath)
+                onProgress(1, 1, 0L, 0L)
+            }
             while (totalBytesRead < fileSize) {
                 if (isCancelled()) return
 
