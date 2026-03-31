@@ -665,6 +665,8 @@ private fun FileTab.openVfsFileReadOnly(entry: FileEntry) {
                 withContext(Dispatchers.IO) {
                     Files.copy(entry.path, tempPath)
                 }
+                tempPath.toFile().deleteOnExit()
+                tempDir.toFile().deleteOnExit()
                 tempPath
             }
             val virtualFile = withContext(Dispatchers.IO) {
@@ -734,6 +736,8 @@ internal fun FileTab.openSelectedInAssociatedApp() {
                     val tempDir = withContext(Dispatchers.IO) { Files.createTempDirectory("turtle-vfs-app-") }
                     val tempPath = tempDir.resolve(entry.path.fileName.toString())
                     withContext(Dispatchers.IO) { Files.copy(entry.path, tempPath) }
+                    tempPath.toFile().deleteOnExit()
+                    tempDir.toFile().deleteOnExit()
                     tempPath
                 } else {
                     entry.path
