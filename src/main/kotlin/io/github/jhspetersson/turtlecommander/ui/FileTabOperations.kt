@@ -62,7 +62,7 @@ internal fun FileTab.performCopyEntries(selected: List<FileEntry>, destination: 
                     destination = destination,
                     overwriteAll = overwriteAll,
                     onProgress = { count, name ->
-                        indicator.fraction = count.toDouble() / totalFiles
+                        indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
                         indicator.text = "Copying $count / $totalFiles"
                         indicator.text2 = name
                     },
@@ -119,7 +119,7 @@ internal fun FileTab.performMoveEntries(selected: List<FileEntry>, destination: 
                     destination = destination,
                     overwriteAll = overwriteAll,
                     onProgress = { count, name ->
-                        indicator.fraction = count.toDouble() / totalFiles
+                        indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
                         indicator.text = "Moving $count / $totalFiles"
                         indicator.text2 = name
                     },
@@ -161,7 +161,7 @@ internal fun FileTab.performDelete() {
                 fileOps.deleteFilesWithProgress(
                     paths = sourcePaths,
                     onProgress = { count, name ->
-                        indicator.fraction = count.toDouble() / totalFiles
+                        indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
                         indicator.text = "Deleting $count / $totalFiles"
                         indicator.text2 = name
                     },
@@ -470,7 +470,7 @@ internal fun FileTab.performPack() {
                         ArchiveFormat.ZIP -> archiveService.packZip(
                             finalArchivePath, sourcePaths, appendToExisting, archiveExists,
                             onProgress = { count, name ->
-                                indicator.fraction = count.toDouble() / totalFiles
+                                indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
                                 indicator.text = "Packing $count / $totalFiles"
                                 indicator.text2 = name
                             },
@@ -482,7 +482,7 @@ internal fun FileTab.performPack() {
                         ArchiveFormat.TAR_GZ -> archiveService.packTarGz(
                             finalArchivePath, sourcePaths,
                             onProgress = { count, name ->
-                                indicator.fraction = count.toDouble() / totalFiles
+                                indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
                                 indicator.text = "Packing $count / $totalFiles"
                                 indicator.text2 = name
                             },
@@ -505,7 +505,7 @@ internal fun FileTab.performPack() {
                         fileOps.deleteFilesWithProgress(
                             paths = sourcePaths,
                             onProgress = { count, name ->
-                                indicator.fraction = count.toDouble() / totalFiles
+                                indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
                                 indicator.text = "Deleting $count / $totalFiles"
                                 indicator.text2 = name
                             },
@@ -590,7 +590,7 @@ internal fun FileTab.extractArchives(archivePaths: List<Path>, destination: Path
                         destination = destination,
                         overwriteAll = overwriteAll,
                         onProgress = { count, name ->
-                            indicator.fraction = count.toDouble() / totalEntries
+                            indicator.fraction = if (totalEntries > 0) count.toDouble() / totalEntries else 1.0
                             indicator.text = "Extracting $count / $totalEntries"
                             indicator.text2 = name
                         },
