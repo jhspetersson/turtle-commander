@@ -1033,7 +1033,7 @@ class FileTab(
                         sb.append(separator).append(nestedPath)
                     }
                 }
-                val relativePath = path.toString()
+                val relativePath = vfsRelativePath(vfs, path)
                 if (!vfs.isRoot(path)) {
                     sb.append(separator).append(relativePath.removePrefix("/").replace("/", separator))
                 }
