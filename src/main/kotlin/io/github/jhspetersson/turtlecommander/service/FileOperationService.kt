@@ -123,19 +123,19 @@ class FileOperationService(
                         { autoSkip = true },
                     )
                 } else {
-                    copyFileWithOverwrite(
+                    val copied = copyFileWithOverwrite(
                         source, target, autoOverwrite, autoSkip, onOverwriteConfirm,
                         { autoOverwrite = true },
                         { autoSkip = true },
                     )
-                    copiedCount++
-                    onProgress(copiedCount, source.name)
+                    if (copied) {
+                        copiedCount++
+                        onProgress(copiedCount, source.name)
+                    }
                 }
             } catch (e: Exception) {
                 thisLogger().warn("Failed to copy $source to $destination: ${e.message}")
                 onError(source, e)
-                copiedCount++
-                onProgress(copiedCount, source.name)
             }
         }
     }
@@ -148,29 +148,30 @@ class FileOperationService(
         onOverwriteConfirm: suspend (Path) -> OverwriteResponse,
         setAutoOverwrite: () -> Unit,
         setAutoSkip: () -> Unit,
-    ) {
+    ): Boolean {
         if (target.exists()) {
             if (autoOverwrite) {
                 Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING)
-                return
+                return true
             }
-            if (autoSkip) return
+            if (autoSkip) return false
 
             when (onOverwriteConfirm(target)) {
                 OverwriteResponse.YES -> Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING)
-                OverwriteResponse.NO -> return
+                OverwriteResponse.NO -> return false
                 OverwriteResponse.YES_TO_ALL -> {
                     setAutoOverwrite()
                     Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING)
                 }
                 OverwriteResponse.NO_TO_ALL -> {
                     setAutoSkip()
-                    return
+                    return false
                 }
             }
         } else {
             Files.copy(source, target)
         }
+        return true
     }
 
     private suspend fun copyDirectoryWithProgress(
@@ -214,19 +215,20 @@ class FileOperationService(
                         )
                     } else {
                         try {
-                            copyFileWithOverwrite(
+                            val copied = copyFileWithOverwrite(
                                 entry, entryTarget,
                                 currentAutoOverwrite, currentAutoSkip,
                                 onOverwriteConfirm,
                                 { currentAutoOverwrite = true; setAutoOverwrite() },
                                 { currentAutoSkip = true; setAutoSkip() },
                             )
+                            if (copied) {
+                                copiedCount++
+                                onProgress(copiedCount, entry.name)
+                            }
                         } catch (e: Exception) {
                             thisLogger().warn("Failed to copy $entry: ${e.message}")
                             onError(entry, e)
-                        }
-                        copiedCount++
-                        onProgress(copiedCount, entry.name)
                     }
                 }
             }
