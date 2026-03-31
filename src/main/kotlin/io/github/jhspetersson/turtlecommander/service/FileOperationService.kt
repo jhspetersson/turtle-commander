@@ -498,7 +498,14 @@ class FileOperationService(
             }
 
             override fun postVisitDirectory(dir: Path, exc: IOException?): FileVisitResult {
-                Files.delete(dir)
+                if (exc != null) {
+                    thisLogger().warn("Failed to fully iterate $dir: ${exc.message}")
+                }
+                try {
+                    Files.delete(dir)
+                } catch (e: Exception) {
+                    thisLogger().warn("Failed to delete directory $dir: ${e.message}")
+                }
                 return FileVisitResult.CONTINUE
             }
         })
