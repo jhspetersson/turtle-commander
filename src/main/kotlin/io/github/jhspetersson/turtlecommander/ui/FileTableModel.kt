@@ -48,7 +48,7 @@ class FileTableModel : AbstractTableModel() {
     }
 
     override fun getValueAt(rowIndex: Int, columnIndex: Int): Any {
-        val entry = entries[rowIndex]
+        val entry = entries.getOrNull(rowIndex) ?: return ""
         return when (columnIndex) {
             COL_NAME -> when {
                 entry.isParentLink -> ".."
@@ -73,7 +73,7 @@ class FileTableModel : AbstractTableModel() {
     }
 
     fun getDisplayValue(rowIndex: Int, columnIndex: Int): String {
-        val entry = entries[rowIndex]
+        val entry = entries.getOrNull(rowIndex) ?: return ""
         return when {
             entry.isParentLink && columnIndex == COL_NAME -> ".."
             entry.isParentLink -> ""
