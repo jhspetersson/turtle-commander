@@ -109,6 +109,11 @@ class CompressedSingleFileVirtualFileSystemTest {
     }
 
     @Test
+    fun `isReadOnly returns true`() {
+        assertTrue("CompressedSingleFileVirtualFileSystem should be read-only", vfs.isReadOnly)
+    }
+
+    @Test
     fun `inner file name strips mixed-case compression suffix`() = runBlocking {
         val mixedCasePath = Files.createTempFile("test-mixed-", ".FakeGz")
         Files.write(mixedCasePath, "content".toByteArray())

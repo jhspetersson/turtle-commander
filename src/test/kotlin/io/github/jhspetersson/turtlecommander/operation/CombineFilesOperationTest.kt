@@ -241,7 +241,7 @@ class CombineFilesOperationTest {
     }
 
     @Test
-    fun `combine can be cancelled`() {
+    fun `combine can be cancelled and cleans up partial file`() {
         val dir = createTempDir()
         for (i in 1..10) {
             Files.write(dir.resolve("file.dat.${i.toString().padStart(3, '0')}"), ByteArray(100))
@@ -255,8 +255,8 @@ class CombineFilesOperationTest {
             chunksSeen = chunkIndex
         }, { chunksSeen >= 2 })
 
-        // File should be smaller than full 1000 bytes
-        assertTrue(Files.size(target) < 1000)
+        // Partial file should be deleted on cancellation
+        assertFalse("Partial file should be deleted on cancel", Files.exists(target))
     }
 
     @Test
