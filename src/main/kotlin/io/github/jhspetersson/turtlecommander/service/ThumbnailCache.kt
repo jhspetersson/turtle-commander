@@ -211,7 +211,9 @@ object ThumbnailCache {
     private fun getCachePath(sourcePath: Path): Path? {
         return try {
             // Use a hash of the absolute path to avoid filesystem issues with long paths
-            val hash = sourcePath.toAbsolutePath().toString().hashCode().toUInt().toString(16)
+            val bytes = sourcePath.toAbsolutePath().toString().toByteArray()
+            val digest = java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
+            val hash = digest.take(16).joinToString("") { "%02x".format(it) }
             val name = sourcePath.fileName?.toString() ?: return null
             cacheDir.resolve("$hash-$name.png")
         } catch (_: Exception) {
