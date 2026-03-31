@@ -256,23 +256,17 @@ class FileOperationService(
             try {
                 if (target.exists()) {
                     if (autoSkip) {
-                        movedCount++
-                        onProgress(movedCount, source.name)
                         continue
                     }
                     if (!autoOverwrite) {
                         when (onOverwriteConfirm(target)) {
                             OverwriteResponse.YES -> {}
                             OverwriteResponse.NO -> {
-                                movedCount++
-                                onProgress(movedCount, source.name)
                                 continue
                             }
                             OverwriteResponse.YES_TO_ALL -> { autoOverwrite = true }
                             OverwriteResponse.NO_TO_ALL -> {
                                 autoSkip = true
-                                movedCount++
-                                onProgress(movedCount, source.name)
                                 continue
                             }
                         }
@@ -281,12 +275,12 @@ class FileOperationService(
                 } else {
                     crossFileSystemMove(source, target)
                 }
+                movedCount++
+                onProgress(movedCount, source.name)
             } catch (e: Exception) {
                 thisLogger().warn("Failed to move $source to $destination: ${e.message}")
                 onError(source, e)
             }
-            movedCount++
-            onProgress(movedCount, source.name)
         }
     }
 
