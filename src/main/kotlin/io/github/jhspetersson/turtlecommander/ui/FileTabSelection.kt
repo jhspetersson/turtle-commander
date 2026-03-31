@@ -93,8 +93,8 @@ fun FileTab.showContextMenu() {
         }
         ViewMode.TREE -> {
             val row = tree.leadSelectionRow
-            if (row >= 0) {
-                val rect = tree.getRowBounds(row)
+            val rect = if (row >= 0) tree.getRowBounds(row) else null
+            if (rect != null) {
                 popupMenu.component.show(tree, rect.x, rect.y + rect.height)
             } else {
                 popupMenu.component.show(tree, 0, 0)
