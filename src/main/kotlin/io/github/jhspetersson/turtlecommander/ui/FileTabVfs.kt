@@ -18,8 +18,9 @@ internal fun FileTab.enterVfs(archivePath: Path) {
             fileOps.launch { navigateTo(vfs.root) }
         } else {
             fileOps.launch {
+                var tempFile: java.io.File? = null
                 try {
-                    val tempFile = withContext(Dispatchers.IO) {
+                    tempFile = withContext(Dispatchers.IO) {
                         val tempDir = Files.createTempDirectory("turtle-vfs-")
                         val fileName = archivePath.fileName.toString()
                         val tempPath = tempDir.resolve(fileName)
@@ -30,6 +31,9 @@ internal fun FileTab.enterVfs(archivePath: Path) {
                     vfsStack.add(VfsStackEntry(vfs, archivePath, tempFile))
                     navigateTo(vfs.root)
                 } catch (e: Exception) {
+                    tempFile?.let {
+                        try { it.delete(); it.parentFile?.delete() } catch (_: Exception) {}
+                    }
                     fileErrorNotification("Cannot open nested archive: ${fileErrorMessage(e)}")
                 }
             }
