@@ -510,13 +510,15 @@ class FileManagerPanel(
 
     fun closeAllTabs() {
         val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
+        val firstRealIndex = (0 until tabbedPane.tabCount).firstOrNull { it != plusIndex } ?: return
         val indicesToRemove = (0 until tabbedPane.tabCount)
-            .filter { it != plusIndex }
+            .filter { it != firstRealIndex && it != plusIndex }
             .sortedDescending()
-        // Keep at least one tab
-        if (indicesToRemove.size <= 1) return
-        for (idx in indicesToRemove.drop(1)) {
-            (tabbedPane.getComponentAt(idx) as? FileTab)?.dispose()
+        if (indicesToRemove.isEmpty()) return
+        for (idx in indicesToRemove) {
+            val component = tabbedPane.getComponentAt(idx)
+            (component as? FileTab)?.dispose()
+            (component as? SearchResultsPanel)?.dispose()
             tabbedPane.removeTabAt(idx)
         }
     }
