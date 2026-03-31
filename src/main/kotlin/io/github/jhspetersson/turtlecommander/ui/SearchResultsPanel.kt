@@ -46,6 +46,7 @@ class SearchResultsPanel(
 
     private var searchService: FileSearchService? = null
     private var currentIndicator: ProgressIndicator? = null
+    @Volatile
     private var disposed = false
 
     private val editButton = JButton("Edit Search", AllIcons.Actions.Edit)
@@ -243,11 +244,11 @@ class SearchResultsPanel(
             batch = pendingResults.toList()
             pendingResults.clear()
         }
-        val wasEmpty = resultEntries.isEmpty()
-        resultEntries.addAll(batch)
-        val snapshot = resultEntries.toList()
         if (!disposed) {
             SwingUtilities.invokeLater {
+                val wasEmpty = resultEntries.isEmpty()
+                resultEntries.addAll(batch)
+                val snapshot = resultEntries.toList()
                 val selectedRow = table.selectedRow
                 tableModel.setEntries(snapshot)
                 if (wasEmpty && table.rowCount > 0) {
