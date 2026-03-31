@@ -69,7 +69,6 @@ class TabDragDropRegressionTest : BasePlatformTestCase() {
         val panel = createPanelWithTabs(dir1, dir2)
 
         val tab = panel.getTabAt(0)!!
-        val borderBefore = tab.border
         val insetsBefore = tab.insets
 
         panel.reorderTab(0, 1)

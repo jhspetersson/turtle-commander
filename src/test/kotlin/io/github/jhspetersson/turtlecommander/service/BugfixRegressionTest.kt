@@ -2,7 +2,6 @@ package io.github.jhspetersson.turtlecommander.service
 
 import org.junit.Assert.*
 import org.junit.Test
-import java.nio.file.Files
 import java.nio.file.Path
 
 /**

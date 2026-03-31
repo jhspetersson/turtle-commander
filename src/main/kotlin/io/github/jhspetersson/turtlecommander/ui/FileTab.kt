@@ -1306,7 +1306,7 @@ class FileTab(
         }
         val sortKeys = table.rowSorter?.sortKeys
         val sortCol = sortKeys?.firstOrNull()?.column ?: -1
-        val sortAsc = sortKeys?.firstOrNull()?.sortOrder != javax.swing.SortOrder.DESCENDING
+        val sortAsc = sortKeys?.firstOrNull()?.sortOrder != SortOrder.DESCENDING
 
         return FileManagerStateService.TabState(
             path = currentPath.toString(),
@@ -1325,8 +1325,8 @@ class FileTab(
             applyColumnState(widths, order)
         }
         if (state.sortColumn >= 0) {
-            val sortOrder = if (state.sortAscending) javax.swing.SortOrder.ASCENDING else javax.swing.SortOrder.DESCENDING
-            table.rowSorter?.sortKeys = listOf(javax.swing.RowSorter.SortKey(state.sortColumn, sortOrder))
+            val sortOrder = if (state.sortAscending) SortOrder.ASCENDING else SortOrder.DESCENDING
+            table.rowSorter?.sortKeys = listOf(RowSorter.SortKey(state.sortColumn, sortOrder))
         }
     }
 
