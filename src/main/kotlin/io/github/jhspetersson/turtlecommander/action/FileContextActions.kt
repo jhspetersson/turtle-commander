@@ -307,7 +307,6 @@ class CompareFilesAction : AnAction("Compare Files", "Compare two files", AllIco
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
-        val (_, _) = resolveFiles(e)
         e.presentation.isEnabledAndVisible = resolveFiles(e).let { it.first != null && it.second != null }
     }
 
