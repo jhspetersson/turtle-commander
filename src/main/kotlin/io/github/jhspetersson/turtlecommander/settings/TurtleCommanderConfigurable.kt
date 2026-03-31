@@ -390,6 +390,10 @@ class TurtleCommanderConfigurable : Configurable {
 
     private fun renameSelectedTheme() {
         val current = themeCombo?.selectedItem as? Theme ?: return
+        if (current.name == Theme.DEFAULT.name) {
+            Messages.showWarningDialog("The Default theme cannot be renamed.", "Rename Theme")
+            return
+        }
         val newName = Messages.showInputDialog(
             "Enter new name for \"${current.name}\":", "Rename Theme", null, current.name, null
         ) ?: return
@@ -417,6 +421,10 @@ class TurtleCommanderConfigurable : Configurable {
 
     private fun deleteSelectedTheme() {
         val current = themeCombo?.selectedItem as? Theme ?: return
+        if (current.name == Theme.DEFAULT.name) {
+            Messages.showWarningDialog("The Default theme cannot be deleted.", "Delete Theme")
+            return
+        }
         val confirm = Messages.showYesNoDialog(
             "Delete theme \"${current.name}\"?", "Delete Theme", null
         )
