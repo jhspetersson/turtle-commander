@@ -229,6 +229,7 @@ class FileOperationService(
                         } catch (e: Exception) {
                             thisLogger().warn("Failed to copy $entry: ${e.message}")
                             onError(entry, e)
+                        }
                     }
                 }
             }

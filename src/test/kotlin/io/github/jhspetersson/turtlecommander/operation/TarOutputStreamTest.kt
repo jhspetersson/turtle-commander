@@ -171,6 +171,49 @@ class TarOutputStreamTest {
     }
 
     @Test
+    fun `long name truncation uses first 100 chars not last`() {
+        val dir = Files.createTempDirectory("tar-test-")
+        tempFiles.add(dir)
+        val file = dir.resolve("test.txt")
+        Files.writeString(file, "data")
+
+        // Name where first 100 and last 100 chars are different
+        val prefix = "START_"
+        val suffix = "_END.txt"
+        val longName = prefix + "x".repeat(150 - prefix.length - suffix.length) + suffix
+
+        val baos = ByteArrayOutputStream()
+        TarOutputStream(baos).use { tar ->
+            tar.putFileEntry(longName, file, 4, 0)
+            tar.finish()
+        }
+        val data = baos.toByteArray()
+
+        // Skip the @LongLink header (512) + padded name data (512) to reach the actual file header
+        val actualHeaderOffset = 512 + 512
+        val truncatedName = String(data, actualHeaderOffset, 6, StandardCharsets.UTF_8)
+        assertEquals("START_", truncatedName)
+    }
+
+    @Test
+    fun `long directory name truncation uses first 100 chars`() {
+        val prefix = "START_"
+        val longName = prefix + "d".repeat(100 - prefix.length) + "/"
+
+        val baos = ByteArrayOutputStream()
+        TarOutputStream(baos).use { tar ->
+            tar.putDirectoryEntry(longName, 0)
+            tar.finish()
+        }
+        val data = baos.toByteArray()
+
+        // Skip the @LongLink header (512) + padded name data (512)
+        val actualHeaderOffset = 512 + 512
+        val truncatedName = String(data, actualHeaderOffset, 6, StandardCharsets.UTF_8)
+        assertEquals("START_", truncatedName)
+    }
+
+    @Test
     fun `finish writes two zero blocks`() {
         val baos = ByteArrayOutputStream()
         TarOutputStream(baos).use { tar ->

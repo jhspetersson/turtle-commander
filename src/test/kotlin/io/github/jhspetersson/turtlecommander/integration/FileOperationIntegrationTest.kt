@@ -497,4 +497,44 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         )
         assertEquals("No progress for empty list", 0, progressCount)
     }
+
+    fun testCopyProgressDoesNotCountSkipped() = runBlocking {
+        val src = Files.writeString(tempDir.resolve("file.txt"), "source")
+        val dest = Files.createDirectory(tempDir.resolve("dest"))
+        Files.writeString(dest.resolve("file.txt"), "existing")
+
+        var progressCount = 0
+        fileOps.copyFilesWithProgress(
+            sources = listOf(src),
+            destination = dest,
+            overwriteAll = false,
+            onProgress = { count, _ -> progressCount = count },
+            onOverwriteConfirm = { OverwriteResponse.NO },
+            onError = { _, e -> fail("Unexpected error: $e") },
+            isCancelled = { false },
+        )
+        assertEquals("Skipped file should not count as copied", 0, progressCount)
+        assertEquals("Original file should be preserved", "existing", Files.readString(dest.resolve("file.txt")))
+    }
+
+    fun testCopyProgressDoesNotCountAutoSkipped() = runBlocking {
+        val src1 = Files.writeString(tempDir.resolve("a.txt"), "source1")
+        val src2 = Files.writeString(tempDir.resolve("b.txt"), "source2")
+        val dest = Files.createDirectory(tempDir.resolve("dest"))
+        Files.writeString(dest.resolve("a.txt"), "existing1")
+        Files.writeString(dest.resolve("b.txt"), "existing2")
+
+        var progressCount = 0
+        fileOps.copyFilesWithProgress(
+            sources = listOf(src1, src2),
+            destination = dest,
+            overwriteAll = false,
+            onProgress = { count, _ -> progressCount = count },
+            onOverwriteConfirm = { OverwriteResponse.NO_TO_ALL },
+            onError = { _, e -> fail("Unexpected error: $e") },
+            isCancelled = { false },
+        )
+        assertEquals("Auto-skipped files should not count as copied", 0, progressCount)
+    }
+
 }
