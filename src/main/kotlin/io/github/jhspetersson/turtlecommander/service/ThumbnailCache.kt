@@ -75,14 +75,15 @@ object ThumbnailCache {
 
     fun evictDirectory(directory: Path) {
         val evicted = mutableListOf<Path>()
-        memoryCache.keys().asIterator().let { iter ->
-            while (iter.hasNext()) {
-                val key = iter.next()
-                if (key.startsWith(directory)) {
-                    memoryCache.remove(key)
-                    evicted.add(key)
-                }
+        val iter = memoryCache.keys().asIterator()
+        while (iter.hasNext()) {
+            val key = iter.next()
+            if (key.startsWith(directory)) {
+                evicted.add(key)
             }
+        }
+        for (key in evicted) {
+            memoryCache.remove(key)
         }
         if (evicted.isNotEmpty()) {
             Thread.startVirtualThread {
