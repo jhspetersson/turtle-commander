@@ -143,7 +143,7 @@ class StateAndFavoritesIntegrationTest : BasePlatformTestCase() {
         val state = FileManagerStateService.FileManagerState()
         assertNotNull(state.leftPanel)
         assertNotNull(state.rightPanel)
-        assertTrue("Default tab paths should be empty", state.leftPanel.tabPaths.isEmpty())
+        assertTrue("Default tabs should be empty", state.leftPanel.tabs.isEmpty())
         assertEquals(0, state.leftPanel.selectedTabIndex)
     }
 
@@ -170,9 +170,9 @@ class StateAndFavoritesIntegrationTest : BasePlatformTestCase() {
 
         val savedState = panel.saveState()
 
-        assertTrue("Saved state should have at least one tab path", savedState.tabPaths.isNotEmpty())
-        assertTrue("Tab paths should contain the initial path", savedState.tabPaths.any {
-            try { Files.isSameFile(Path.of(it), projectPath) } catch (_: Exception) { false }
+        assertTrue("Saved state should have at least one tab", savedState.tabs.isNotEmpty())
+        assertTrue("Tabs should contain the initial path", savedState.tabs.any {
+            try { Files.isSameFile(Path.of(it.path), projectPath) } catch (_: Exception) { false }
         })
         assertEquals(0, savedState.selectedTabIndex)
     }
@@ -185,8 +185,8 @@ class StateAndFavoritesIntegrationTest : BasePlatformTestCase() {
 
         try {
             val panelState = FileManagerStateService.PanelState().apply {
-                tabPaths.add(tempDir1.toString())
-                tabPaths.add(tempDir2.toString())
+                tabs.add(FileManagerStateService.TabState(path = tempDir1.toString()))
+                tabs.add(FileManagerStateService.TabState(path = tempDir2.toString()))
                 selectedTabIndex = 1
             }
 
@@ -199,7 +199,7 @@ class StateAndFavoritesIntegrationTest : BasePlatformTestCase() {
             com.intellij.testFramework.PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
             val saved = panel.saveState()
-            assertEquals("Should restore 2 tabs", 2, saved.tabPaths.size)
+            assertEquals("Should restore 2 tabs", 2, saved.tabs.size)
         } finally {
             tempDir1.toFile().deleteRecursively()
             tempDir2.toFile().deleteRecursively()
@@ -211,7 +211,7 @@ class StateAndFavoritesIntegrationTest : BasePlatformTestCase() {
         val projectPath = Path.of(project.basePath!!)
 
         val panelState = FileManagerStateService.PanelState().apply {
-            tabPaths.add("/nonexistent/path/that/does/not/exist")
+            tabs.add(FileManagerStateService.TabState(path = "/nonexistent/path/that/does/not/exist"))
         }
 
         val panel = io.github.jhspetersson.turtlecommander.ui.FileManagerPanel(
@@ -232,8 +232,7 @@ class StateAndFavoritesIntegrationTest : BasePlatformTestCase() {
         val tempDir = Files.createTempDirectory("turtle-viewmode-")
         try {
             val panelState = FileManagerStateService.PanelState().apply {
-                tabPaths.add(tempDir.toString())
-                tabViewModes.add("LIST")
+                tabs.add(FileManagerStateService.TabState(path = tempDir.toString(), viewMode = "LIST"))
             }
 
             val panel = io.github.jhspetersson.turtlecommander.ui.FileManagerPanel(
@@ -249,7 +248,7 @@ class StateAndFavoritesIntegrationTest : BasePlatformTestCase() {
             assertEquals(
                 "View mode should be persisted in state",
                 "LIST",
-                saved.tabViewModes.firstOrNull()
+                saved.tabs.firstOrNull()?.viewMode
             )
         } finally {
             tempDir.toFile().deleteRecursively()

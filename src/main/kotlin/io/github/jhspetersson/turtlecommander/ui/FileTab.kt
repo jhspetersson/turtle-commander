@@ -48,7 +48,6 @@ class FileTab(
     initialPath: Path,
     internal var otherPanelPathProvider: () -> Path?,
     private var onDirectoryChanged: (FileTab) -> Unit,
-    private var onSwitchToOtherPanel: () -> Unit = {},
     internal var onRefreshOtherPanel: () -> Unit = {},
 ) : JPanel(BorderLayout()) {
 
@@ -99,6 +98,7 @@ class FileTab(
     private val cursorPositions = mutableMapOf<Path, Int>()
     internal var stateService: FileManagerStateService? = null
     private var initialized = false
+    internal var pendingTabState: FileManagerStateService.TabState? = null
     internal var enableFileNameHighlighting = TurtleCommanderSettings.getInstance().state.enableFileNameHighlighting
     private var nameEditor: DefaultCellEditor? = null
 
@@ -206,19 +206,65 @@ class FileTab(
     }
 
     private fun reapplyColumnConfig() {
-        // Rebuild column model from scratch: add back all model columns, then apply config
         val cm = table.columnModel
-        // Remove all view columns
+        // Save current column order and widths before rebuilding
+        val savedOrder = mutableListOf<Int>()
+        val savedWidths = mutableMapOf<Int, Int>()
+        for (i in 0 until cm.columnCount) {
+            val col = cm.getColumn(i)
+            savedOrder.add(col.modelIndex)
+            savedWidths[col.modelIndex] = col.width
+        }
+
+        // Rebuild column model from scratch: add back all model columns, then apply config
         while (cm.columnCount > 0) {
             table.removeColumn(cm.getColumn(0))
         }
-        // Re-add all model columns
         for (i in 0 until tableModel.columnCount) {
             val tc = TableColumn(i)
             tc.headerValue = tableModel.getColumnName(i)
             table.addColumn(tc)
         }
         applyColumnConfig(this)
+
+        // Restore previous column order (only for columns that are still visible)
+        if (savedOrder.isNotEmpty()) {
+            val visibleModelIndices = mutableSetOf<Int>()
+            for (i in 0 until cm.columnCount) {
+                visibleModelIndices.add(cm.getColumn(i).modelIndex)
+            }
+            // Filter saved order to only include still-visible columns
+            val filteredOrder = savedOrder.filter { it in visibleModelIndices }
+            // Add any newly visible columns not in saved order at the end
+            val newColumns = visibleModelIndices.filter { it !in savedOrder }
+            val targetOrder = filteredOrder + newColumns
+
+            if (targetOrder.size == cm.columnCount) {
+                for (targetIdx in targetOrder.indices) {
+                    val wantedModelIdx = targetOrder[targetIdx]
+                    var currentViewIdx = -1
+                    for (viewIdx in 0 until cm.columnCount) {
+                        if (cm.getColumn(viewIdx).modelIndex == wantedModelIdx) {
+                            currentViewIdx = viewIdx
+                            break
+                        }
+                    }
+                    if (currentViewIdx >= 0 && currentViewIdx != targetIdx) {
+                        cm.moveColumn(currentViewIdx, targetIdx)
+                    }
+                }
+            }
+            // Restore widths for columns that existed before
+            for (i in 0 until cm.columnCount) {
+                val col = cm.getColumn(i)
+                val savedWidth = savedWidths[col.modelIndex]
+                if (savedWidth != null) {
+                    col.preferredWidth = savedWidth
+                    col.width = savedWidth
+                }
+            }
+        }
+
         assignNameEditor()
     }
 
@@ -1031,7 +1077,11 @@ class FileTab(
             onDirectoryChanged(this@FileTab)
 
             // Restore column state for this path
-            if (initialized) {
+            val pending = pendingTabState
+            if (pending != null) {
+                restoreTabState(pending)
+                pendingTabState = null
+            } else if (initialized) {
                 restoreColumnState(path)
             }
 
@@ -1198,12 +1248,10 @@ class FileTab(
     fun updatePanelCallbacks(
         otherPanelPathProvider: () -> Path?,
         onDirectoryChanged: (FileTab) -> Unit,
-        onSwitchToOtherPanel: () -> Unit,
         onRefreshOtherPanel: () -> Unit,
     ) {
         this.otherPanelPathProvider = otherPanelPathProvider
         this.onDirectoryChanged = onDirectoryChanged
-        this.onSwitchToOtherPanel = onSwitchToOtherPanel
         this.onRefreshOtherPanel = onRefreshOtherPanel
     }
 
@@ -1245,6 +1293,41 @@ class FileTab(
             col.preferredWidth = col.width
         }
         svc.putColumnState(currentPath.toString(), widths, order)
+    }
+
+    fun saveTabState(): FileManagerStateService.TabState {
+        val cm = table.columnModel
+        val widths = mutableListOf<Int>()
+        val order = mutableListOf<Int>()
+        for (i in 0 until cm.columnCount) {
+            val col = cm.getColumn(i)
+            widths.add(col.width)
+            order.add(col.modelIndex)
+        }
+        val sortKeys = table.rowSorter?.sortKeys
+        val sortCol = sortKeys?.firstOrNull()?.column ?: -1
+        val sortAsc = sortKeys?.firstOrNull()?.sortOrder != javax.swing.SortOrder.DESCENDING
+
+        return FileManagerStateService.TabState(
+            path = currentPath.toString(),
+            viewMode = viewMode.name,
+            columnWidths = widths.joinToString(","),
+            columnOrder = order.joinToString(","),
+            sortColumn = sortCol,
+            sortAscending = sortAsc,
+        )
+    }
+
+    fun restoreTabState(state: FileManagerStateService.TabState) {
+        val widths = state.columnWidths.split(",").mapNotNull { it.trim().toIntOrNull() }
+        val order = state.columnOrder.split(",").mapNotNull { it.trim().toIntOrNull() }
+        if (widths.isNotEmpty() && order.isNotEmpty()) {
+            applyColumnState(widths, order)
+        }
+        if (state.sortColumn >= 0) {
+            val sortOrder = if (state.sortAscending) javax.swing.SortOrder.ASCENDING else javax.swing.SortOrder.DESCENDING
+            table.rowSorter?.sortKeys = listOf(javax.swing.RowSorter.SortKey(state.sortColumn, sortOrder))
+        }
     }
 
     private fun restoreColumnState(path: Path) {

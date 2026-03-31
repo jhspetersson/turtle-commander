@@ -297,7 +297,6 @@ class FileManagerPanel(
         fileTab.updatePanelCallbacks(
             otherPanelPathProvider = { target.otherPanel?.getActiveTab()?.realFilesystemPath },
             onDirectoryChanged = { tab -> target.updateTabTitle(tab); target.syncViewToggle() },
-            onSwitchToOtherPanel = { target.otherPanel?.focusActiveTab() },
             onRefreshOtherPanel = { target.otherPanel?.refreshActiveTab() },
         )
     }
@@ -310,27 +309,17 @@ class FileManagerPanel(
 
     fun restoreState(panelState: FileManagerStateService.PanelState, stateService: FileManagerStateService) {
         this.stateService = stateService
-        val paths = panelState.tabPaths.mapNotNull { path ->
+        panelState.migrateIfNeeded()
+        val validTabs = panelState.tabs.filter { tabState ->
             try {
-                val p = Path.of(path)
-                if (p.toFile().isDirectory) p else null
-            } catch (_: Exception) { null }
+                Path.of(tabState.path).toFile().isDirectory
+            } catch (_: Exception) { false }
         }
-        if (paths.isEmpty()) {
+        if (validTabs.isEmpty()) {
             addNewTab(initialPath)
         } else {
-            paths.forEach { addNewTab(it) }
-            // Restore view modes
-            val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
-            var tabIdx = 0
-            for (i in 0 until tabbedPane.tabCount) {
-                if (i == plusIndex) continue
-                val tab = tabbedPane.getComponentAt(i) as? FileTab ?: continue
-                val modeName = panelState.tabViewModes.getOrNull(tabIdx)
-                if (modeName != null && modeName != ViewMode.TABLE.name) {
-                    try { tab.setViewMode(ViewMode.valueOf(modeName)) } catch (_: Exception) {}
-                }
-                tabIdx++
+            for (tabState in validTabs) {
+                addNewTab(Path.of(tabState.path), tabState = tabState)
             }
             val idx = panelState.selectedTabIndex.coerceIn(0, (tabbedPane.tabCount - 2).coerceAtLeast(0))
             tabbedPane.selectedIndex = idx
@@ -344,9 +333,7 @@ class FileManagerPanel(
         for (i in 0 until tabbedPane.tabCount) {
             if (i == plusIndex) continue
             val tab = tabbedPane.getComponentAt(i) as? FileTab ?: continue
-            state.tabPaths.add(tab.currentPath.toString())
-            state.tabViewModes.add(tab.viewMode.name)
-            tab.saveColumnState()
+            state.tabs.add(tab.saveTabState())
         }
         state.selectedTabIndex = tabbedPane.selectedIndex
         return state
@@ -391,13 +378,12 @@ class FileManagerPanel(
         return panel
     }
 
-    private fun addNewTab(path: Path, selectName: String? = null) {
+    private fun addNewTab(path: Path, selectName: String? = null, tabState: FileManagerStateService.TabState? = null) {
         val fileTab = FileTab(
             project = project,
             initialPath = path,
             otherPanelPathProvider = { otherPanel?.getActiveTab()?.realFilesystemPath ?: otherPanelPathProvider() },
             onDirectoryChanged = { tab -> updateTabTitle(tab); syncViewToggle() },
-            onSwitchToOtherPanel = { otherPanel?.focusActiveTab() },
             onRefreshOtherPanel = { otherPanel?.refreshActiveTab() },
         )
 
@@ -410,9 +396,17 @@ class FileManagerPanel(
 
         stateService?.let { svc ->
             fileTab.setStateService(svc)
-            val entry = svc.getColumnState(path.toString())
-            if (entry != null) {
-                fileTab.applyColumnState(svc.parseWidths(entry), svc.parseOrder(entry))
+            if (tabState != null) {
+                fileTab.pendingTabState = tabState
+                val modeName = tabState.viewMode
+                if (modeName != ViewMode.TABLE.name) {
+                    try { fileTab.setViewMode(ViewMode.valueOf(modeName)) } catch (_: Exception) {}
+                }
+            } else {
+                val entry = svc.getColumnState(path.toString())
+                if (entry != null) {
+                    fileTab.applyColumnState(svc.parseWidths(entry), svc.parseOrder(entry))
+                }
             }
         }
 

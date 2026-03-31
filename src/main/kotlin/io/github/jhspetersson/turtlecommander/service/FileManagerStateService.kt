@@ -49,6 +49,24 @@ class FileManagerStateService(
 
     override fun loadState(state: FileManagerState) {
         myState = state
+        myState.leftPanel.migrateIfNeeded()
+        myState.rightPanel.migrateIfNeeded()
+        migrateColumnStateToTabs()
+    }
+
+    private fun migrateColumnStateToTabs() {
+        if (myState.pathColumns.isEmpty()) return
+        for (panel in listOf(myState.leftPanel, myState.rightPanel)) {
+            for (tab in panel.tabs) {
+                if (tab.columnWidths.isEmpty() && tab.columnOrder.isEmpty()) {
+                    val entry = myState.pathColumns.find { it.path == tab.path }
+                    if (entry != null) {
+                        tab.columnWidths = entry.columnWidths
+                        tab.columnOrder = entry.columnOrder
+                    }
+                }
+            }
+        }
     }
 
     class FileManagerState {
@@ -87,20 +105,63 @@ class FileManagerStateService(
         }
     }
 
+    @Tag("tab")
+    class TabState {
+        @Attribute var path: String = ""
+        @Attribute var viewMode: String = "TABLE"
+        var columnWidths: String = ""
+        var columnOrder: String = ""
+        var sortColumn: Int = -1
+        var sortAscending: Boolean = true
+
+        constructor()
+
+        constructor(
+            path: String,
+            viewMode: String = "TABLE",
+            columnWidths: String = "",
+            columnOrder: String = "",
+            sortColumn: Int = -1,
+            sortAscending: Boolean = true,
+        ) {
+            this.path = path
+            this.viewMode = viewMode
+            this.columnWidths = columnWidths
+            this.columnOrder = columnOrder
+            this.sortColumn = sortColumn
+            this.sortAscending = sortAscending
+        }
+    }
+
     @Tag("panel")
     class PanelState {
+        @XCollection
+        var tabs: MutableList<TabState> = mutableListOf()
+        var selectedTabIndex: Int = 0
+
+        // Legacy fields for backward compatibility
         @XCollection(elementTypes = [String::class])
         var tabPaths: MutableList<String> = mutableListOf()
         @XCollection(elementTypes = [String::class])
         var tabViewModes: MutableList<String> = mutableListOf()
-        var selectedTabIndex: Int = 0
+
+        fun migrateIfNeeded() {
+            if (tabs.isEmpty() && tabPaths.isNotEmpty()) {
+                for ((i, path) in tabPaths.withIndex()) {
+                    val mode = tabViewModes.getOrElse(i) { "TABLE" }
+                    tabs.add(TabState(path = path, viewMode = mode))
+                }
+                tabPaths.clear()
+                tabViewModes.clear()
+            }
+        }
     }
 
     @Tag("path-columns")
     class PathColumnEntry {
         var path: String = ""
-        var columnWidths: String = ""   // comma-separated, e.g. "200,50,80,130,80"
-        var columnOrder: String = ""    // comma-separated, e.g. "0,1,2,3,4"
+        var columnWidths: String = ""
+        var columnOrder: String = ""
     }
 
     // Helper methods to work with path column entries as a map-like structure

@@ -141,14 +141,14 @@ class TabDragDropRegressionTest : BasePlatformTestCase() {
         // Tab order: [project, l1, l2, l3, +]
         // Reorder tab 0 to the last real position (index 4 = plusIndex)
         val state0 = panel.saveState()
-        val firstPath = state0.tabPaths[0]
+        val firstPath = state0.tabs[0].path
 
         panel.reorderTab(0, 4) // plusIndex = 4
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
         val stateAfter = panel.saveState()
-        assertEquals("Tab count should be unchanged", 4, stateAfter.tabPaths.size)
-        assertEquals("First tab should now be at last position", firstPath, stateAfter.tabPaths[3])
+        assertEquals("Tab count should be unchanged", 4, stateAfter.tabs.size)
+        assertEquals("First tab should now be at last position", firstPath, stateAfter.tabs[3].path)
     }
 
     fun testReorderTabToLastPositionPreservesContent() {
@@ -158,12 +158,12 @@ class TabDragDropRegressionTest : BasePlatformTestCase() {
         val panel = createPanelWithTabs(dir1, dir2)
 
         // [project, c1, c2, +] — move tab 0 to end
-        val pathsBefore = panel.saveState().tabPaths.toList()
+        val pathsBefore = panel.saveState().tabs.map { it.path }.toList()
 
         panel.reorderTab(0, 3) // plusIndex = 3
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
-        val pathsAfter = panel.saveState().tabPaths
+        val pathsAfter = panel.saveState().tabs.map { it.path }
         assertEquals("Tab count unchanged", 3, pathsAfter.size)
         // First tab moved to end: [c1, c2, project]
         assertEquals(pathsBefore[1], pathsAfter[0])
@@ -180,17 +180,16 @@ class TabDragDropRegressionTest : BasePlatformTestCase() {
         left.otherPanel = right
         right.otherPanel = left
 
-        val rightTabCount = right.saveState().tabPaths.size
-        val leftTab = left.getTabAt(0)!!
-        val movingPath = left.saveState().tabPaths[0]
+        val rightTabCount = right.saveState().tabs.size
+        val movingPath = left.saveState().tabs[0].path
 
         // Move to plusIndex of right panel (last position)
-        val rightPlusIndex = right.saveState().tabPaths.size // = 1 real tab, plusIndex = 1
+        val rightPlusIndex = right.saveState().tabs.size // = 1 real tab, plusIndex = 1
         left.moveTabToOtherPanel(0, right, rightPlusIndex)
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
         val rightState = right.saveState()
-        assertEquals("Right panel should have one more tab", rightTabCount + 1, rightState.tabPaths.size)
-        assertEquals("Moved tab should be at end", movingPath, rightState.tabPaths.last())
+        assertEquals("Right panel should have one more tab", rightTabCount + 1, rightState.tabs.size)
+        assertEquals("Moved tab should be at end", movingPath, rightState.tabs.last().path)
     }
 }

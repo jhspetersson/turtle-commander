@@ -55,7 +55,7 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
 
         assertNotNull("Should have an active tab", panel.getActiveTab())
         val state = panel.saveState()
-        assertEquals("Should have exactly 1 tab", 1, state.tabPaths.size)
+        assertEquals("Should have exactly 1 tab", 1, state.tabs.size)
     }
 
     fun testOpenDirectoryInNewTab() {
@@ -67,7 +67,7 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
         val state = panel.saveState()
-        assertEquals("Should have 2 tabs", 2, state.tabPaths.size)
+        assertEquals("Should have 2 tabs", 2, state.tabs.size)
     }
 
     fun testOpenMultipleTabs() {
@@ -83,7 +83,7 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
         val state = panel.saveState()
-        assertEquals("Should have 4 tabs", 4, state.tabPaths.size)
+        assertEquals("Should have 4 tabs", 4, state.tabs.size)
     }
 
     fun testCloseTab() {
@@ -93,12 +93,12 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
         panel.openDirectoryInNewTab(dir)
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
-        assertEquals(2, panel.saveState().tabPaths.size)
+        assertEquals(2, panel.saveState().tabs.size)
 
         panel.closeTab(1)
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
-        assertEquals("Should have 1 tab after close", 1, panel.saveState().tabPaths.size)
+        assertEquals("Should have 1 tab after close", 1, panel.saveState().tabs.size)
     }
 
     fun testCloseLastTabKeepsOne() {
@@ -118,12 +118,12 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
         panel.openDirectoryInNewTab(Files.createDirectory(tempDir.resolve("b")))
         panel.openDirectoryInNewTab(Files.createDirectory(tempDir.resolve("c")))
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
-        assertEquals(4, panel.saveState().tabPaths.size)
+        assertEquals(4, panel.saveState().tabs.size)
 
         panel.closeOtherTabs(0)
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
-        assertEquals("Should have 1 tab after closing others", 1, panel.saveState().tabPaths.size)
+        assertEquals("Should have 1 tab after closing others", 1, panel.saveState().tabs.size)
     }
 
     fun testCloseAllTabs() {
@@ -146,12 +146,12 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
         panel.openDirectoryInNewTab(Files.createDirectory(tempDir.resolve("r2")))
         panel.openDirectoryInNewTab(Files.createDirectory(tempDir.resolve("r3")))
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
-        assertEquals(4, panel.saveState().tabPaths.size)
+        assertEquals(4, panel.saveState().tabs.size)
 
         panel.closeTabsToTheRight(1)
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
-        assertEquals("Should have 2 tabs (0 and 1)", 2, panel.saveState().tabPaths.size)
+        assertEquals("Should have 2 tabs (0 and 1)", 2, panel.saveState().tabs.size)
     }
 
     fun testCloseTabsToTheLeft() {
@@ -161,12 +161,12 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
         panel.openDirectoryInNewTab(Files.createDirectory(tempDir.resolve("l2")))
         panel.openDirectoryInNewTab(Files.createDirectory(tempDir.resolve("l3")))
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
-        assertEquals(4, panel.saveState().tabPaths.size)
+        assertEquals(4, panel.saveState().tabs.size)
 
         panel.closeTabsToTheLeft(3)
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
-        assertEquals("Should have 1 tab left", 1, panel.saveState().tabPaths.size)
+        assertEquals("Should have 1 tab left", 1, panel.saveState().tabs.size)
     }
 
     // --- View mode persistence ---
@@ -175,8 +175,7 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
         if (skipIfHeadless()) return
         val dir = Files.createDirectory(tempDir.resolve("vms"))
         val panelState = FileManagerStateService.PanelState().apply {
-            tabPaths.add(dir.toString())
-            tabViewModes.add("LIST")
+            tabs.add(FileManagerStateService.TabState(path = dir.toString(), viewMode = "LIST"))
         }
 
         val panel = FileManagerPanel(
@@ -188,15 +187,14 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
         val state = panel.saveState()
-        assertEquals("LIST", state.tabViewModes[0])
+        assertEquals("LIST", state.tabs[0].viewMode)
     }
 
     fun testViewModeRestoredFromState() {
         if (skipIfHeadless()) return
         val dir = Files.createDirectory(tempDir.resolve("vmr"))
         val panelState = FileManagerStateService.PanelState().apply {
-            tabPaths.add(dir.toString())
-            tabViewModes.add("THUMBNAIL")
+            tabs.add(FileManagerStateService.TabState(path = dir.toString(), viewMode = "THUMBNAIL"))
         }
 
         val panel = FileManagerPanel(
@@ -208,7 +206,7 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
         val saved = panel.saveState()
-        assertEquals("THUMBNAIL", saved.tabViewModes.firstOrNull())
+        assertEquals("THUMBNAIL", saved.tabs.firstOrNull()?.viewMode)
     }
 
     fun testMultipleTabsPreserveViewModes() {
@@ -216,10 +214,8 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
         val dir1 = Files.createDirectory(tempDir.resolve("vm1"))
         val dir2 = Files.createDirectory(tempDir.resolve("vm2"))
         val panelState = FileManagerStateService.PanelState().apply {
-            tabPaths.add(dir1.toString())
-            tabPaths.add(dir2.toString())
-            tabViewModes.add("TABLE")
-            tabViewModes.add("TREE")
+            tabs.add(FileManagerStateService.TabState(path = dir1.toString(), viewMode = "TABLE"))
+            tabs.add(FileManagerStateService.TabState(path = dir2.toString(), viewMode = "TREE"))
         }
 
         val panel = FileManagerPanel(
@@ -231,9 +227,9 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
         val state = panel.saveState()
-        assertEquals(2, state.tabViewModes.size)
-        assertEquals("TABLE", state.tabViewModes[0])
-        assertEquals("TREE", state.tabViewModes[1])
+        assertEquals(2, state.tabs.size)
+        assertEquals("TABLE", state.tabs[0].viewMode)
+        assertEquals("TREE", state.tabs[1].viewMode)
     }
 
     // --- Tab navigation ---
