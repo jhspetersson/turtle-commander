@@ -267,7 +267,7 @@ internal fun FileTab.performSplitFile() {
                     targetDirectory = targetDir,
                     chunkSize = chunkSize,
                     onProgress = { chunkIndex, totalChunks, bytesWritten, totalBytes ->
-                        indicator.fraction = bytesWritten.toDouble() / totalBytes
+                        indicator.fraction = if (totalBytes > 0) bytesWritten.toDouble() / totalBytes else 1.0
                         indicator.text = "Writing chunk $chunkIndex of $totalChunks"
                         indicator.text2 = "${formatSize(bytesWritten)} / ${formatSize(totalBytes)}"
                     },
@@ -365,7 +365,7 @@ internal fun FileTab.performCombineFiles() {
                     expectedSize = crcInfo?.size,
                     expectedCrc32 = crcInfo?.crc32,
                     onProgress = { chunkIndex, totalChunks, bytesWritten, totalBytes ->
-                        indicator.fraction = bytesWritten.toDouble() / totalBytes
+                        indicator.fraction = if (totalBytes > 0) bytesWritten.toDouble() / totalBytes else 1.0
                         indicator.text = "Reading chunk $chunkIndex of $totalChunks"
                         indicator.text2 = "${formatSize(bytesWritten)} / ${formatSize(totalBytes)}"
                     },
