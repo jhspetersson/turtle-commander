@@ -92,3 +92,54 @@ class ThumbnailCacheEvictTest {
         cache.remove(Path.of("/other/file.png"))
     }
 }
+
+/**
+ * Regression test for vfsRelativePath correctly stripping temp dir prefix.
+ */
+class VfsRelativePathTest {
+
+    @Test
+    fun `vfsRelativePath strips temp dir prefix`() {
+        val tempDir = java.nio.file.Files.createTempDirectory("turtle-test-vfs-")
+        try {
+            val fakePath = tempDir.resolve("subdir").resolve("file.txt")
+            val fakeVfs = object : io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem {
+                override val root: Path get() = tempDir
+                override val isReadOnly: Boolean get() = true
+                override val archivePath: Path get() = Path.of("/fake.tar")
+                override fun isRoot(path: Path) = path.normalize() == tempDir.normalize()
+                override fun getPath(path: String) = tempDir.resolve(path)
+                override suspend fun listFiles(directory: Path) = emptyList<io.github.jhspetersson.turtlecommander.model.FileEntry>()
+                override fun flush() {}
+                override suspend fun renameFile(source: Path, newName: String): Path = throw UnsupportedOperationException()
+                override fun close() {}
+            }
+            val result = io.github.jhspetersson.turtlecommander.ui.vfsRelativePath(fakeVfs, fakePath)
+            assertEquals("subdir/file.txt", result.replace("\\", "/"))
+        } finally {
+            tempDir.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `vfsRelativePath returns empty for root`() {
+        val tempDir = java.nio.file.Files.createTempDirectory("turtle-test-vfs-")
+        try {
+            val fakeVfs = object : io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem {
+                override val root: Path get() = tempDir
+                override val isReadOnly: Boolean get() = true
+                override val archivePath: Path get() = Path.of("/fake.tar")
+                override fun isRoot(path: Path) = path.normalize() == tempDir.normalize()
+                override fun getPath(path: String) = tempDir.resolve(path)
+                override suspend fun listFiles(directory: Path) = emptyList<io.github.jhspetersson.turtlecommander.model.FileEntry>()
+                override fun flush() {}
+                override suspend fun renameFile(source: Path, newName: String): Path = throw UnsupportedOperationException()
+                override fun close() {}
+            }
+            val result = io.github.jhspetersson.turtlecommander.ui.vfsRelativePath(fakeVfs, tempDir)
+            assertEquals("", result)
+        } finally {
+            tempDir.toFile().deleteRecursively()
+        }
+    }
+}

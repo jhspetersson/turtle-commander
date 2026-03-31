@@ -98,6 +98,24 @@ class SplitFileOperationTest {
     }
 
     @Test
+    fun `split empty file progress does not produce NaN`() {
+        val source = createTempFile(ByteArray(0))
+        val targetDir = createTempDir()
+        val fractions = mutableListOf<Double>()
+
+        SplitFileOperation.split(source, targetDir, 100, { _, _, bytesWritten, totalBytes ->
+            val fraction = if (totalBytes > 0) bytesWritten.toDouble() / totalBytes else 1.0
+            fractions.add(fraction)
+        }, { false })
+
+        assertTrue("Should have progress callbacks", fractions.isNotEmpty())
+        for (f in fractions) {
+            assertFalse("Fraction should not be NaN", f.isNaN())
+            assertFalse("Fraction should not be infinite", f.isInfinite())
+        }
+    }
+
+    @Test
     fun `split empty file creates one empty chunk and CRC file`() {
         val source = createTempFile(ByteArray(0))
         val targetDir = createTempDir()
