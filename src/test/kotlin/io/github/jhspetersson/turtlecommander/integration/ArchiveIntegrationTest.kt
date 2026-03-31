@@ -311,4 +311,43 @@ class ArchiveIntegrationTest : BasePlatformTestCase() {
 
         assertEquals("existing", Files.readString(extractDir.resolve("x.txt")))
     }
+
+    // --- Bugfix regressions ---
+
+    fun testPackZipEmptySourceListDoesNotCrash() = runBlocking {
+        val archivePath = tempDir.resolve("empty.zip")
+
+        val count = archiveService.packZip(
+            archivePath = archivePath,
+            sourcePaths = emptyList(),
+            appendToExisting = false,
+            archiveExists = false,
+            onProgress = { _, _ -> },
+            onError = { _, e -> fail("Pack error: $e") },
+            isCancelled = { false },
+        )
+
+        assertEquals("Should pack 0 files", 0, count)
+    }
+
+    fun testExtractEmptyArchiveDoesNotCrash() = runBlocking {
+        // Create an empty zip archive
+        val archivePath = tempDir.resolve("empty.zip")
+        java.util.zip.ZipOutputStream(Files.newOutputStream(archivePath)).use { /* empty */ }
+        val extractDir = Files.createDirectory(tempDir.resolve("extract"))
+
+        val entryCount = archiveService.countArchiveEntries(archivePath)
+        assertEquals("Empty archive should have 0 entries", 0, entryCount)
+
+        // Extract should not crash even with 0 entries
+        archiveService.extractArchiveWithProgress(
+            archivePath = archivePath,
+            destination = extractDir,
+            overwriteAll = false,
+            onProgress = { _, _ -> },
+            onOverwriteConfirm = { OverwriteResponse.YES },
+            onError = { _, e -> fail("Extract error: $e") },
+            isCancelled = { false },
+        )
+    }
 }

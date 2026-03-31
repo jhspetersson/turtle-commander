@@ -5,6 +5,7 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import io.github.jhspetersson.turtlecommander.service.FileOperationService
 import io.github.jhspetersson.turtlecommander.service.OverwriteResponse
 import kotlinx.coroutines.runBlocking
+import io.github.jhspetersson.turtlecommander.util.countFiles
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -442,5 +443,58 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         } catch (e: IllegalArgumentException) {
             assertTrue(e.message!!.contains("root"))
         }
+    }
+
+    fun testCountFilesEmptyListReturnsZero() = runBlocking {
+        val count = countFiles(emptyList())
+        assertEquals("Empty source list should count 0", 0, count)
+    }
+
+    fun testCountFilesEmptyDirectoryReturnsOne() = runBlocking {
+        val emptyDir = Files.createDirectory(tempDir.resolve("emptycount"))
+        val count = countFiles(listOf(emptyDir))
+        // Directory itself is counted (preVisitDirectory)
+        assertEquals("Empty directory should count as 1", 1, count)
+    }
+
+    fun testDeleteEmptyListDoesNotCrash() = runBlocking {
+        var progressCount = 0
+        fileOps.deleteFilesWithProgress(
+            paths = emptyList(),
+            onProgress = { count, _ -> progressCount = count },
+            onError = { _, e -> fail("Unexpected error: $e") },
+            isCancelled = { false },
+        )
+        assertEquals("No progress for empty list", 0, progressCount)
+    }
+
+    fun testMoveEmptyListDoesNotCrash() = runBlocking {
+        val dest = Files.createDirectory(tempDir.resolve("dest"))
+        var progressCount = 0
+        fileOps.moveFilesWithProgress(
+            sources = emptyList(),
+            destination = dest,
+            overwriteAll = false,
+            onProgress = { count, _ -> progressCount = count },
+            onOverwriteConfirm = { OverwriteResponse.NO },
+            onError = { _, e -> fail("Unexpected error: $e") },
+            isCancelled = { false },
+        )
+        assertEquals("No progress for empty list", 0, progressCount)
+    }
+
+    fun testCopyEmptyListDoesNotCrash() = runBlocking {
+        val dest = Files.createDirectory(tempDir.resolve("dest"))
+        var progressCount = 0
+        fileOps.copyFilesWithProgress(
+            sources = emptyList(),
+            destination = dest,
+            overwriteAll = false,
+            onProgress = { count, _ -> progressCount = count },
+            onOverwriteConfirm = { OverwriteResponse.NO },
+            onError = { _, e -> fail("Unexpected error: $e") },
+            isCancelled = { false },
+        )
+        assertEquals("No progress for empty list", 0, progressCount)
     }
 }
