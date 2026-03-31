@@ -335,7 +335,8 @@ class FileManagerPanel(
             val tab = tabbedPane.getComponentAt(i) as? FileTab ?: continue
             state.tabs.add(tab.saveTabState())
         }
-        state.selectedTabIndex = tabbedPane.selectedIndex
+        val selected = tabbedPane.selectedIndex
+        state.selectedTabIndex = if (selected >= state.tabs.size) state.tabs.size - 1 else selected
         return state
     }
 
