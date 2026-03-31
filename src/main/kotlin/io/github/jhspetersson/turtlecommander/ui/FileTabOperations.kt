@@ -787,7 +787,8 @@ internal fun FileTab.performRename(entry: FileEntry, newName: String) {
             if (vfs != null) {
                 vfs.renameFile(entry.path, newName)
                 val relativePath = vfsRelativePath(vfs, currentPath)
-                navigateTo(vfs.getPath(relativePath), selectName = newName)
+                val newPath = if (relativePath.isEmpty()) vfs.root else vfs.root.resolve(relativePath)
+                navigateTo(newPath, selectName = newName)
             } else {
                 // Rename via IntelliJ VFS if possible, so open editors track the rename
                 val vFile = LocalFileSystem.getInstance().findFileByNioFile(entry.path)
