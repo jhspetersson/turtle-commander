@@ -235,6 +235,30 @@ class FileTableModelTest {
     }
 
     @Test
+    fun testGetValueAtOutOfBoundsReturnsEmpty() {
+        model.setEntries(listOf(fileEntry("file.txt", size = 100)))
+        assertEquals("", model.getValueAt(5, FileTableModel.COL_NAME))
+        assertEquals("", model.getValueAt(-1, FileTableModel.COL_NAME))
+    }
+
+    @Test
+    fun testGetDisplayValueOutOfBoundsReturnsEmpty() {
+        model.setEntries(listOf(fileEntry("file.txt", size = 100)))
+        assertEquals("", model.getDisplayValue(5, FileTableModel.COL_NAME))
+        assertEquals("", model.getDisplayValue(-1, FileTableModel.COL_SIZE))
+    }
+
+    @Test
+    fun testGetValueAtEmptyModelReturnsEmpty() {
+        assertEquals("", model.getValueAt(0, FileTableModel.COL_NAME))
+    }
+
+    @Test
+    fun testGetDisplayValueEmptyModelReturnsEmpty() {
+        assertEquals("", model.getDisplayValue(0, FileTableModel.COL_NAME))
+    }
+
+    @Test
     fun testRowCount() {
         model.setEntries(listOf(
             fileEntry("a.txt", size = 10),
