@@ -789,6 +789,10 @@ internal fun FileTab.performRename(entry: FileEntry, newName: String) {
         try {
             val vfs = currentVfs
             if (vfs != null) {
+                if (vfs.isReadOnly) {
+                    fileErrorNotification("Cannot rename in a read-only archive")
+                    return@launch
+                }
                 vfs.renameFile(entry.path, newName)
                 val relativePath = vfsRelativePath(vfs, currentPath)
                 val newPath = if (relativePath.isEmpty()) vfs.root else vfs.root.resolve(relativePath)
