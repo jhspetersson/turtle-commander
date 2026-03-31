@@ -164,7 +164,7 @@ private fun <T : JList<FileEntry>> FileTab.toggleListSelectionAndMoveDown(
     jList: T, model: DefaultListModel<FileEntry>,
 ) {
     val index = jList.selectionModel.leadSelectionIndex
-    if (index < 0) return
+    if (index < 0 || index >= model.size()) return
     val entry = model.getElementAt(index)
     val selectedSet = jList.selectedIndices.toMutableSet()
     if (entry != null && !entry.isParentLink) {
