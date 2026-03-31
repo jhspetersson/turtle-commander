@@ -82,7 +82,10 @@ class CompressedSingleFileVirtualFileSystem(
     private fun extractFile(): Path {
         val dir = Files.createTempDirectory("turtle-decompress-")
         val originalName = archivePath.fileName?.toString() ?: "file"
-        val innerName = originalName.removeSuffix(compressionSuffix).removeSuffix(compressionSuffix.uppercase())
+        val innerName = if (originalName.endsWith(compressionSuffix, ignoreCase = true))
+            originalName.dropLast(compressionSuffix.length)
+        else
+            originalName
         val destPath = dir.resolve(innerName)
         decompressorFactory(Files.newInputStream(archivePath)).use { stream ->
             Files.copy(stream, destPath)
