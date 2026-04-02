@@ -165,7 +165,7 @@ class FileSearchService(
 
     private fun waitWhilePaused(isCancelled: () -> Boolean) {
         while (paused && !isCancelled()) {
-            Thread.sleep(100)
+            java.util.concurrent.locks.LockSupport.parkNanos(10_000_000L) // 10ms
         }
     }
 }
