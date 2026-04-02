@@ -211,16 +211,21 @@ class BreadcrumbPathField : JPanel() {
             add(editFieldAction("Cut", AllIcons.Actions.MenuCut, hasSelection) { editField.cut() })
             add(editFieldAction("Copy", AllIcons.Actions.Copy, hasSelection) { editField.copy() })
             add(editFieldAction("Paste", AllIcons.Actions.MenuPaste, hasClipboard) { editField.paste() })
+            addSeparator()
             add(editFieldAction("Delete", AllIcons.Actions.GC, hasSelection) { editField.replaceSelection("") })
             addSeparator()
-            add(editFieldAction("Select All", AllIcons.Actions.Selectall, editField.text.isNotEmpty()) { editField.selectAll() })
+            add(editFieldAction("Select All", null, editField.text.isNotEmpty()) { editField.selectAll() })
         }
 
         val popupMenu = ActionManager.getInstance().createActionPopupMenu("BreadcrumbPathField.EditPopup", group)
+        popupMenu.component.preferredSize = Dimension(
+            maxOf(popupMenu.component.preferredSize.width, JBUI.scale(180)),
+            popupMenu.component.preferredSize.height,
+        )
         popupMenu.component.show(e.component, e.x, e.y)
     }
 
-    private fun editFieldAction(text: String, icon: Icon, enabled: Boolean, action: () -> Unit): AnAction {
+    private fun editFieldAction(text: String, icon: Icon?, enabled: Boolean, action: () -> Unit): AnAction {
         return object : AnAction(text, null, icon), DumbAware {
             override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
             override fun update(e: AnActionEvent) {
