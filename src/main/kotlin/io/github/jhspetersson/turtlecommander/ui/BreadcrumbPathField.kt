@@ -7,6 +7,7 @@ import io.github.jhspetersson.turtlecommander.settings.ComponentStyle
 import java.awt.*
 import java.awt.event.*
 import javax.swing.*
+import javax.swing.event.PopupMenuEvent
 
 class BreadcrumbPathField : JPanel() {
     private val cardLayout = CardLayout()
@@ -79,6 +80,8 @@ class BreadcrumbPathField : JPanel() {
                 switchToBreadcrumbMode()
             }
         })
+
+        editField.componentPopupMenu = createEditFieldPopupMenu()
 
         editField.registerKeyboardAction(
             { switchToBreadcrumbMode() },
@@ -182,6 +185,51 @@ class BreadcrumbPathField : JPanel() {
         }
 
         return segments
+    }
+
+    private fun createEditFieldPopupMenu(): JPopupMenu {
+        val menu = JPopupMenu()
+
+        menu.add(JMenuItem("Cut").apply {
+            addActionListener { editField.cut() }
+        })
+        menu.add(JMenuItem("Copy").apply {
+            addActionListener { editField.copy() }
+        })
+        menu.add(JMenuItem("Paste").apply {
+            addActionListener { editField.paste() }
+        })
+        menu.add(JMenuItem("Delete").apply {
+            addActionListener { editField.replaceSelection("") }
+        })
+        menu.addSeparator()
+        menu.add(JMenuItem("Select All").apply {
+            addActionListener { editField.selectAll() }
+        })
+
+        menu.addPopupMenuListener(object : javax.swing.event.PopupMenuListener {
+            override fun popupMenuWillBecomeVisible(e: PopupMenuEvent) {
+                val hasSelection = editField.selectedText != null
+                val hasClipboard = try {
+                    Toolkit.getDefaultToolkit().systemClipboard.getContents(null) != null
+                } catch (_: Exception) {
+                    false
+                }
+                menu.components.filterIsInstance<JMenuItem>().forEach { item ->
+                    when (item.text) {
+                        "Cut", "Delete" -> item.isEnabled = hasSelection
+                        "Copy" -> item.isEnabled = hasSelection
+                        "Paste" -> item.isEnabled = hasClipboard
+                        "Select All" -> item.isEnabled = editField.text.isNotEmpty()
+                    }
+                }
+            }
+
+            override fun popupMenuWillBecomeInvisible(e: PopupMenuEvent) {}
+            override fun popupMenuCanceled(e: PopupMenuEvent) {}
+        })
+
+        return menu
     }
 
     fun applyStyle(style: ComponentStyle) {
