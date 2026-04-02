@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- `ar` and `xz` archives support (including `.deb` files)
+
+### Fixed
+
+- some `.zip` archives failed to open
+
 ## [0.4.1] - 2026-04-02
 
 ### Added
