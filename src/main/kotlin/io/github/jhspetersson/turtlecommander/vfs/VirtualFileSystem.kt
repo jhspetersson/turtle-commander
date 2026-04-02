@@ -2,6 +2,7 @@ package io.github.jhspetersson.turtlecommander.vfs
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 
 import java.io.Closeable
+import java.nio.file.InvalidPathException
 import java.nio.file.Path
 
 interface VirtualFileSystem : Closeable {
@@ -19,6 +20,35 @@ interface VirtualFileSystemProvider {
     fun supports(path: Path): Boolean
     fun supportsExtension(ext: String): Boolean
     fun create(archivePath: Path): VirtualFileSystem
+}
+
+private val ILLEGAL_FILENAME_CHARS = charArrayOf('<', '>', ':', '"', '|', '?', '*')
+
+/**
+ * Resolves an archive entry name against a base directory, sanitizing characters
+ * that are illegal in file names on the host OS (e.g. ?, *, < on Windows).
+ * Returns null if the resolved path escapes the base directory (zip-slip).
+ */
+internal fun resolveEntryPath(baseDir: Path, entryName: String): Path? {
+    val cleanName = entryName.removeSuffix("/")
+    return try {
+        val resolved = baseDir.resolve(cleanName)
+        if (!resolved.normalize().startsWith(baseDir.normalize())) null else resolved
+    } catch (_: InvalidPathException) {
+        val sanitized = buildString(cleanName.length) {
+            for (ch in cleanName) {
+                append(
+                    when {
+                        ch == '/' || ch == '\\' -> ch
+                        ch < ' ' || ch in ILLEGAL_FILENAME_CHARS -> '_'
+                        else -> ch
+                    }
+                )
+            }
+        }
+        val resolved = baseDir.resolve(sanitized)
+        if (!resolved.normalize().startsWith(baseDir.normalize())) null else resolved
+    }
 }
 
 object VirtualFileSystemRegistry {

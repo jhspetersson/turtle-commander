@@ -157,8 +157,7 @@ class ZipExtractVirtualFileSystem(
             val entries = zip.entries
             while (entries.hasMoreElements()) {
                 val entry = entries.nextElement()
-                val entryPath = dir.resolve(entry.name.removeSuffix("/"))
-                if (!entryPath.normalize().startsWith(dir.normalize())) continue
+                val entryPath = resolveEntryPath(dir, entry.name) ?: continue
                 try {
                     if (entry.isDirectory) {
                         Files.createDirectories(entryPath)

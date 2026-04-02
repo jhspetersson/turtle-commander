@@ -6,7 +6,6 @@ import kotlinx.coroutines.withContext
 import org.apache.commons.compress.archivers.ar.ArArchiveEntry
 import org.apache.commons.compress.archivers.ar.ArArchiveInputStream
 import org.apache.commons.compress.archivers.ar.ArArchiveOutputStream
-import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
@@ -45,10 +44,10 @@ class ArVirtualFileSystem(
             ArArchiveInputStream(raw).use { ar ->
                 var entry = ar.nextEntry
                 while (entry != null) {
-                    val entryName = entry.name.removeSuffix("/")
-                    val entryPath = dir.resolve(entryName)
-                    if (!entryPath.normalize().startsWith(dir.normalize())) {
-                        throw IOException("AR entry outside target dir: ${entry.name}")
+                    val entryPath = resolveEntryPath(dir, entry.name)
+                    if (entryPath == null) {
+                        entry = ar.nextEntry
+                        continue
                     }
                     Files.createDirectories(entryPath.parent)
                     Files.copy(ar, entryPath)

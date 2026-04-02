@@ -6,7 +6,6 @@ import kotlinx.coroutines.withContext
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry
 import org.apache.commons.compress.archivers.sevenz.SevenZFile
 import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile
-import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
@@ -45,9 +44,10 @@ class SevenZipVirtualFileSystem(
         SevenZFile.builder().setPath(archivePath).get().use { sevenZ ->
             var entry = sevenZ.nextEntry
             while (entry != null) {
-                val entryPath = dir.resolve(entry.name.removeSuffix("/"))
-                if (!entryPath.normalize().startsWith(dir.normalize())) {
-                    throw IOException("7z entry outside target dir: ${entry.name}")
+                val entryPath = resolveEntryPath(dir, entry.name)
+                if (entryPath == null) {
+                    entry = sevenZ.nextEntry
+                    continue
                 }
                 if (entry.isDirectory) {
                     Files.createDirectories(entryPath)

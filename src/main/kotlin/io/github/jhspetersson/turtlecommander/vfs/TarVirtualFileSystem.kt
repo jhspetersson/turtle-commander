@@ -53,8 +53,8 @@ class TarVirtualFileSystem(
             TarArchiveInputStream(raw).use { tar ->
                 var entry = tar.nextEntry
                 while (entry != null) {
-                    val entryPath = dir.resolve(entry.name.removeSuffix("/"))
-                    if (!entryPath.normalize().startsWith(dir.normalize())) {
+                    val entryPath = resolveEntryPath(dir, entry.name)
+                    if (entryPath == null) {
                         entry = tar.nextEntry
                         continue
                     }
