@@ -835,6 +835,8 @@ class FileTab(
             }
         }
 
+        val selectedName = getSelectedEntry()?.name
+
         tableModel.setEntries(filtered)
 
         listModel.clear()
@@ -855,9 +857,10 @@ class FileTab(
             treeModel.nodeStructureChanged(treeRootNode)
         }
 
-        if (table.rowCount > 0) table.setRowSelectionInterval(0, 0)
-        if (listModel.size() > 0) list.selectedIndex = 0
-        if (thumbnailListModel.size() > 0) thumbnailList.selectedIndex = 0
+        val selIdx = findPreservedSelectionIndex(filtered, selectedName)
+        if (selIdx >= 0 && table.rowCount > 0) table.setRowSelectionInterval(selIdx.coerceAtMost(table.rowCount - 1), selIdx.coerceAtMost(table.rowCount - 1))
+        if (selIdx >= 0 && listModel.size() > 0) list.selectedIndex = selIdx.coerceAtMost(listModel.size() - 1)
+        if (selIdx >= 0 && thumbnailListModel.size() > 0) thumbnailList.selectedIndex = selIdx.coerceAtMost(thumbnailListModel.size() - 1)
 
         updateStatusBar()
     }

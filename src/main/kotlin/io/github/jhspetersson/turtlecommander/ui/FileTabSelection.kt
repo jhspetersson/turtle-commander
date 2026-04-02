@@ -242,3 +242,10 @@ internal fun FileTab.calculateDirectorySize(entry: FileEntry) {
         }
     }
 }
+
+internal fun findPreservedSelectionIndex(entries: List<FileEntry>, selectedName: String?): Int {
+    if (entries.isEmpty()) return -1
+    if (selectedName == null) return 0
+    val idx = entries.indexOfFirst { it.name == selectedName }
+    return if (idx >= 0) idx else 0
+}
