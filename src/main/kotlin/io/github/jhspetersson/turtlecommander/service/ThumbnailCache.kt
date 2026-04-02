@@ -56,10 +56,11 @@ object ThumbnailCache {
             try {
                 loadSemaphore.acquire()
                 try {
+                    if (memoryCache.containsKey(path)) return@startVirtualThread
                     if (!isStillVisible()) return@startVirtualThread
                     val icon = loadOrCreateThumbnail(path, lastModified)
                     if (icon != null) {
-                        memoryCache[path] = icon
+                        memoryCache.putIfAbsent(path, icon)
                         onReady()
                     }
                 } finally {
