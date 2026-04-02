@@ -10,6 +10,7 @@ import com.intellij.openapi.vfs.newvfs.events.VFileContentChangeEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -97,14 +98,17 @@ class VfsEditService(
     }
 
     override fun dispose() {
-        synchronized(activeEdits) {
-            for (entry in activeEdits.values) {
-                try {
-                    entry.tempFilePath.toFile().delete()
-                    entry.tempFilePath.parent?.toFile()?.delete()
-                } catch (_: Exception) {}
-            }
+        cs.cancel()
+        val snapshot = synchronized(activeEdits) {
+            val copy = activeEdits.values.toList()
             activeEdits.clear()
+            copy
+        }
+        for (entry in snapshot) {
+            try {
+                entry.tempFilePath.toFile().delete()
+                entry.tempFilePath.parent?.toFile()?.delete()
+            } catch (_: Exception) {}
         }
     }
 }
