@@ -37,7 +37,7 @@ class CopyAsNameAction : AnAction(), DumbAware {
     }
 }
 
-class CopyAsFullPathAction : AnAction("Full Path"), DumbAware {
+class CopyAsFullPathAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -59,7 +59,7 @@ class CopyAsFullPathAction : AnAction("Full Path"), DumbAware {
     }
 }
 
-class CopyAsParentPathAction : AnAction("Parent Path"), DumbAware {
+class CopyAsParentPathAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -84,10 +84,6 @@ class CopyAsParentPathAction : AnAction("Parent Path"), DumbAware {
 // --- Tab context menu actions ---
 
 class TabCopyAsNameAction : TabContextAction() {
-    init {
-        templatePresentation.text = "Directory Name"
-    }
-
     override fun actionPerformed(e: AnActionEvent) {
         val (panel, tabIndex) = resolveTabContext(e)
         val tab = panel?.getTabAt(tabIndex) ?: return
@@ -97,10 +93,6 @@ class TabCopyAsNameAction : TabContextAction() {
 }
 
 class TabCopyAsFullPathAction : TabContextAction() {
-    init {
-        templatePresentation.text = "Full Path"
-    }
-
     override fun actionPerformed(e: AnActionEvent) {
         val (panel, tabIndex) = resolveTabContext(e)
         val tab = panel?.getTabAt(tabIndex) ?: return
@@ -113,10 +105,6 @@ class TabCopyAsFullPathAction : TabContextAction() {
 }
 
 class TabCopyAsParentPathAction : TabContextAction() {
-    init {
-        templatePresentation.text = "Parent Path"
-    }
-
     override fun actionPerformed(e: AnActionEvent) {
         val (panel, tabIndex) = resolveTabContext(e)
         val tab = panel?.getTabAt(tabIndex) ?: return
@@ -148,7 +136,7 @@ class SearchCopyAsNameAction : AnAction(), DumbAware {
     }
 }
 
-class SearchCopyAsFullPathAction : AnAction("Full Path"), DumbAware {
+class SearchCopyAsFullPathAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -161,7 +149,7 @@ class SearchCopyAsFullPathAction : AnAction("Full Path"), DumbAware {
     }
 }
 
-class SearchCopyAsParentPathAction : AnAction("Parent Path"), DumbAware {
+class SearchCopyAsParentPathAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {

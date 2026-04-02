@@ -1,6 +1,5 @@
 package io.github.jhspetersson.turtlecommander.action
 
-import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -96,11 +95,6 @@ class CloseTabsToTheRightAction : TabContextAction() {
 }
 
 class TabSearchInDirectoryAction : TabContextAction() {
-    init {
-        templatePresentation.text = "Search in Directory..."
-        templatePresentation.icon = AllIcons.Actions.Find
-    }
-
     override fun update(e: AnActionEvent) {
         val (panel, tabIndex) = resolveTabContext(e)
         val tab = panel?.getTabAt(tabIndex)
@@ -119,11 +113,6 @@ class TabSearchInDirectoryAction : TabContextAction() {
 }
 
 class TabAddToFavoritesAction : TabContextAction() {
-    init {
-        templatePresentation.text = "Add to Favorites"
-        templatePresentation.icon = AllIcons.Nodes.Favorite
-    }
-
     override fun update(e: AnActionEvent) {
         val (panel, tabIndex) = resolveTabContext(e)
         val tab = panel?.getTabAt(tabIndex)

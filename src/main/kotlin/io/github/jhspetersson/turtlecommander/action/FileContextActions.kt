@@ -3,7 +3,6 @@ package io.github.jhspetersson.turtlecommander.action
 import com.intellij.diff.DiffContentFactory
 import com.intellij.diff.DiffManager
 import com.intellij.diff.requests.SimpleDiffRequest
-import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -35,7 +34,7 @@ object FileCopyBuffer {
     }
 }
 
-class ContextSearchInDirectoryAction : AnAction("Search in Directory...", "Search for files in the selected directory", AllIcons.Actions.Find), DumbAware {
+class ContextSearchInDirectoryAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -54,7 +53,7 @@ class ContextSearchInDirectoryAction : AnAction("Search in Directory...", "Searc
     }
 }
 
-class OpenInNewTabAction : AnAction("Open in New Tab", "Open directory in a new tab", AllIcons.Actions.OpenNewTab), DumbAware {
+class OpenInNewTabAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -70,7 +69,7 @@ class OpenInNewTabAction : AnAction("Open in New Tab", "Open directory in a new 
     }
 }
 
-class OpenFileAction : AnAction("Open", "Open file in editor", AllIcons.Actions.MenuOpen), DumbAware {
+class OpenFileAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -83,7 +82,7 @@ class OpenFileAction : AnAction("Open", "Open file in editor", AllIcons.Actions.
     }
 }
 
-class OpenInAssociatedAppAction : AnAction("Open in Associated Application", "Open file with system default application", AllIcons.Actions.Execute), DumbAware {
+class OpenInAssociatedAppAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -99,20 +98,15 @@ class OpenInAssociatedAppAction : AnAction("Open in Associated Application", "Op
 class OpenInExplorerAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
-    init {
+    override fun update(e: AnActionEvent) {
+        val entry = FileContextMenuState.clickedEntry
+        e.presentation.isEnabled = entry != null && !entry.isParentLink
         val os = System.getProperty("os.name").lowercase()
-        val name = when {
+        e.presentation.text = when {
             os.contains("win") -> "Open in Explorer"
             os.contains("mac") -> "Reveal in Finder"
             else -> "Open in File Manager"
         }
-        templatePresentation.text = name
-        templatePresentation.icon = AllIcons.Actions.MenuOpen
-    }
-
-    override fun update(e: AnActionEvent) {
-        val entry = FileContextMenuState.clickedEntry
-        e.presentation.isEnabled = entry != null && !entry.isParentLink
     }
 
     override fun actionPerformed(e: AnActionEvent) {
@@ -121,7 +115,7 @@ class OpenInExplorerAction : AnAction(), DumbAware {
     }
 }
 
-class ContextCopyAction : AnAction("Copy", "Copy selected files to buffer", AllIcons.Actions.Copy), DumbAware {
+class ContextCopyAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -136,7 +130,7 @@ class ContextCopyAction : AnAction("Copy", "Copy selected files to buffer", AllI
     }
 }
 
-class ContextCutAction : AnAction("Cut", "Cut selected files to buffer", AllIcons.Actions.MenuCut), DumbAware {
+class ContextCutAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -151,7 +145,7 @@ class ContextCutAction : AnAction("Cut", "Cut selected files to buffer", AllIcon
     }
 }
 
-class ContextPasteAction : AnAction("Paste", "Paste files from buffer into current directory", AllIcons.Actions.MenuPaste), DumbAware {
+class ContextPasteAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -176,7 +170,7 @@ class ContextPasteAction : AnAction("Paste", "Paste files from buffer into curre
     }
 }
 
-class ContextPasteIntoAction : AnAction("Paste Into", "Paste files from buffer into selected directory", AllIcons.Actions.MenuPaste), DumbAware {
+class ContextPasteIntoAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -202,7 +196,7 @@ class ContextPasteIntoAction : AnAction("Paste Into", "Paste files from buffer i
     }
 }
 
-class ContextRenameAction : AnAction("Rename", "Rename selected file or directory", AllIcons.Actions.Edit), DumbAware {
+class ContextRenameAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -215,7 +209,7 @@ class ContextRenameAction : AnAction("Rename", "Rename selected file or director
     }
 }
 
-class ContextDeleteAction : AnAction("Delete", "Delete selected files", AllIcons.Actions.GC), DumbAware {
+class ContextDeleteAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -228,7 +222,7 @@ class ContextDeleteAction : AnAction("Delete", "Delete selected files", AllIcons
     }
 }
 
-class PackFilesAction : AnAction("Pack Files", "Pack selected files into a zip archive", AllIcons.FileTypes.Archive), DumbAware {
+class PackFilesAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -241,7 +235,7 @@ class PackFilesAction : AnAction("Pack Files", "Pack selected files into a zip a
     }
 }
 
-class ExtractFilesAction : AnAction("Extract Files...", "Extract archive to a directory", AllIcons.Actions.Uninstall), DumbAware {
+class ExtractFilesAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -254,7 +248,7 @@ class ExtractFilesAction : AnAction("Extract Files...", "Extract archive to a di
     }
 }
 
-class ExtractHereAction : AnAction("Extract Here", "Extract archive into current directory", AllIcons.Actions.Uninstall), DumbAware {
+class ExtractHereAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -267,7 +261,7 @@ class ExtractHereAction : AnAction("Extract Here", "Extract archive into current
     }
 }
 
-class SplitFileAction : AnAction("Split File...", "Split file into smaller parts", AllIcons.Actions.SplitHorizontally), DumbAware {
+class SplitFileAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -282,7 +276,7 @@ class SplitFileAction : AnAction("Split File...", "Split file into smaller parts
     }
 }
 
-class CombineFilesAction : AnAction("Combine Files...", "Combine split file parts back into original file", AllIcons.Actions.Collapseall), DumbAware {
+class CombineFilesAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -304,7 +298,7 @@ class CombineFilesAction : AnAction("Combine Files...", "Combine split file part
     }
 }
 
-class CompareFilesAction : AnAction("Compare Files", "Compare two files", AllIcons.Actions.Diff), DumbAware {
+class CompareFilesAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
@@ -364,7 +358,7 @@ class CompareFilesAction : AnAction("Compare Files", "Compare two files", AllIco
     }
 }
 
-class AddToFavoritesAction : AnAction("Add to Favorites", "Add directory to favorites", AllIcons.Nodes.Favorite), DumbAware {
+class AddToFavoritesAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
