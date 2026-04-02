@@ -73,10 +73,7 @@ class CopyAsParentPathAction : AnAction(), DumbAware {
         if (tab != null && tab.isInsideArchive) {
             copyToClipboard(tab.getDisplayPath())
         } else {
-            val parent = entry.path.parent
-            if (parent != null) {
-                copyToClipboard(parent.toString())
-            }
+            copyToClipboard(entry.path.parent?.toString() ?: "")
         }
     }
 }
@@ -111,10 +108,7 @@ class TabCopyAsParentPathAction : TabContextAction() {
         if (tab.isInsideArchive) {
             copyToClipboard(tab.realFilesystemPath.toString())
         } else {
-            val parent = tab.currentPath.parent
-            if (parent != null) {
-                copyToClipboard(parent.toString())
-            }
+            copyToClipboard(tab.currentPath.parent?.toString() ?: "")
         }
     }
 }
@@ -158,10 +152,7 @@ class SearchCopyAsParentPathAction : AnAction(), DumbAware {
 
     override fun actionPerformed(e: AnActionEvent) {
         val entry = SearchContextMenuState.clickedEntry ?: return
-        val parent = entry.path.parent
-        if (parent != null) {
-            copyToClipboard(parent.toString())
-        }
+        copyToClipboard(entry.path.parent?.toString() ?: "")
     }
 }
 
