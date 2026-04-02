@@ -1,6 +1,8 @@
 package io.github.jhspetersson.turtlecommander.ui
 
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.actionSystem.*
+import com.intellij.openapi.project.DumbAware
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
@@ -8,7 +10,6 @@ import io.github.jhspetersson.turtlecommander.settings.ComponentStyle
 import java.awt.*
 import java.awt.event.*
 import javax.swing.*
-import javax.swing.event.PopupMenuEvent
 
 class BreadcrumbPathField : JPanel() {
     private val cardLayout = CardLayout()
@@ -85,7 +86,14 @@ class BreadcrumbPathField : JPanel() {
             }
         })
 
-        editField.componentPopupMenu = createEditFieldPopupMenu()
+        editField.addMouseListener(object : MouseAdapter() {
+            override fun mousePressed(e: MouseEvent) {
+                if (e.isPopupTrigger) showEditFieldPopup(e)
+            }
+            override fun mouseReleased(e: MouseEvent) {
+                if (e.isPopupTrigger) showEditFieldPopup(e)
+            }
+        })
 
         editField.registerKeyboardAction(
             { switchToBreadcrumbMode() },
@@ -191,49 +199,37 @@ class BreadcrumbPathField : JPanel() {
         return segments
     }
 
-    private fun createEditFieldPopupMenu(): JPopupMenu {
-        val menu = JPopupMenu()
+    private fun showEditFieldPopup(e: MouseEvent) {
+        val hasSelection = editField.selectedText != null
+        val hasClipboard = try {
+            Toolkit.getDefaultToolkit().systemClipboard.getContents(null) != null
+        } catch (_: Exception) {
+            false
+        }
 
-        menu.add(JMenuItem("Cut", AllIcons.Actions.MenuCut).apply {
-            addActionListener { editField.cut() }
-        })
-        menu.add(JMenuItem("Copy", AllIcons.Actions.Copy).apply {
-            addActionListener { editField.copy() }
-        })
-        menu.add(JMenuItem("Paste", AllIcons.Actions.MenuPaste).apply {
-            addActionListener { editField.paste() }
-        })
-        menu.add(JMenuItem("Delete", AllIcons.Actions.GC).apply {
-            addActionListener { editField.replaceSelection("") }
-        })
-        menu.addSeparator()
-        menu.add(JMenuItem("Select All", AllIcons.Actions.Selectall).apply {
-            addActionListener { editField.selectAll() }
-        })
+        val group = DefaultActionGroup().apply {
+            add(editFieldAction("Cut", AllIcons.Actions.MenuCut, hasSelection) { editField.cut() })
+            add(editFieldAction("Copy", AllIcons.Actions.Copy, hasSelection) { editField.copy() })
+            add(editFieldAction("Paste", AllIcons.Actions.MenuPaste, hasClipboard) { editField.paste() })
+            add(editFieldAction("Delete", AllIcons.Actions.GC, hasSelection) { editField.replaceSelection("") })
+            addSeparator()
+            add(editFieldAction("Select All", AllIcons.Actions.Selectall, editField.text.isNotEmpty()) { editField.selectAll() })
+        }
 
-        menu.addPopupMenuListener(object : javax.swing.event.PopupMenuListener {
-            override fun popupMenuWillBecomeVisible(e: PopupMenuEvent) {
-                val hasSelection = editField.selectedText != null
-                val hasClipboard = try {
-                    Toolkit.getDefaultToolkit().systemClipboard.getContents(null) != null
-                } catch (_: Exception) {
-                    false
-                }
-                menu.components.filterIsInstance<JMenuItem>().forEach { item ->
-                    when (item.text) {
-                        "Cut", "Delete" -> item.isEnabled = hasSelection
-                        "Copy" -> item.isEnabled = hasSelection
-                        "Paste" -> item.isEnabled = hasClipboard
-                        "Select All" -> item.isEnabled = editField.text.isNotEmpty()
-                    }
-                }
+        val popupMenu = ActionManager.getInstance().createActionPopupMenu("BreadcrumbPathField.EditPopup", group)
+        popupMenu.component.show(e.component, e.x, e.y)
+    }
+
+    private fun editFieldAction(text: String, icon: Icon, enabled: Boolean, action: () -> Unit): AnAction {
+        return object : AnAction(text, null, icon), DumbAware {
+            override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+            override fun update(e: AnActionEvent) {
+                e.presentation.isEnabled = enabled
             }
-
-            override fun popupMenuWillBecomeInvisible(e: PopupMenuEvent) {}
-            override fun popupMenuCanceled(e: PopupMenuEvent) {}
-        })
-
-        return menu
+            override fun actionPerformed(e: AnActionEvent) {
+                action()
+            }
+        }
     }
 
     fun applyStyle(style: ComponentStyle) {
