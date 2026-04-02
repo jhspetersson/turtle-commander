@@ -77,6 +77,9 @@ class BreadcrumbPathField : JPanel() {
 
         editField.addFocusListener(object : FocusAdapter() {
             override fun focusLost(e: FocusEvent) {
+                if (e.isTemporary) return
+                val opposite = e.oppositeComponent
+                if (opposite != null && SwingUtilities.isDescendingFrom(opposite, editField.componentPopupMenu)) return
                 switchToBreadcrumbMode()
             }
         })
