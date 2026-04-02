@@ -45,6 +45,7 @@ class SearchResultsPanel(
     private val statusLabel = JLabel("Ready")
 
     private var searchService: FileSearchService? = null
+    @Volatile
     private var currentIndicator: ProgressIndicator? = null
     @Volatile
     private var disposed = false
