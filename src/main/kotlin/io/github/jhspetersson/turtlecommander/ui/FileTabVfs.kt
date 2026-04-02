@@ -157,13 +157,7 @@ internal suspend fun FileTab.refreshAfterVfsChange(selectName: String? = null) {
 }
 
 internal fun vfsRelativePath(vfs: VirtualFileSystem, path: Path): String {
-    val rootStr = vfs.root.toString().trimEnd('/').trimEnd('\\')
-    val pathStr = path.toString()
-    return if (pathStr.startsWith(rootStr)) {
-        pathStr.removePrefix(rootStr).removePrefix("/").removePrefix("\\")
-    } else {
-        pathStr
-    }
+    return io.github.jhspetersson.turtlecommander.vfs.vfsRelativePath(vfs.root, path)
 }
 
 fun FileTab.getDisplayPath(): String {

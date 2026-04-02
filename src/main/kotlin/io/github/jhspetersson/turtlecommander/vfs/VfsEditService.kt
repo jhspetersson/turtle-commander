@@ -93,13 +93,7 @@ class VfsEditService(
     }
 
     private fun vfsRelativePath(vfs: VirtualFileSystem, path: Path): String {
-        val rootStr = vfs.root.toString().trimEnd('/').trimEnd('\\')
-        val pathStr = path.toString()
-        return if (pathStr.startsWith(rootStr)) {
-            pathStr.removePrefix(rootStr).removePrefix("/").removePrefix("\\")
-        } else {
-            pathStr
-        }
+        return io.github.jhspetersson.turtlecommander.vfs.vfsRelativePath(vfs.root, path)
     }
 
     override fun dispose() {

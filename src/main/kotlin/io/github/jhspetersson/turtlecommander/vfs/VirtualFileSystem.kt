@@ -51,6 +51,15 @@ internal fun resolveEntryPath(baseDir: Path, entryName: String): Path? {
     }
 }
 
+internal fun vfsRelativePath(root: Path, path: Path): String {
+    return try {
+        root.relativize(path).toString()
+    } catch (_: IllegalArgumentException) {
+        // Fallback if paths have different roots (e.g. different drives on Windows)
+        path.toString()
+    }
+}
+
 object VirtualFileSystemRegistry {
     private val providers = mutableListOf<VirtualFileSystemProvider>()
 
