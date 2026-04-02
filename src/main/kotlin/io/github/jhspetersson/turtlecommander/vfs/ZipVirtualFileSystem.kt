@@ -1,5 +1,6 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
+import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.progress.ProgressManager
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import kotlinx.coroutines.Dispatchers
@@ -180,7 +181,9 @@ class ZipExtractVirtualFileSystem(
                                 java.nio.file.attribute.FileTime.fromMillis(entry.lastModifiedDate.time),
                             )
                         }
-                    } catch (_: Exception) {}
+                    } catch (e: Exception) {
+                        thisLogger().debug("Failed to extract zip entry: ${entry.name}", e)
+                    }
                 }
             }
         } catch (e: Exception) {

@@ -1,5 +1,6 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
+import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.progress.ProgressManager
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import kotlinx.coroutines.Dispatchers
@@ -93,7 +94,9 @@ class TarVirtualFileSystem(
                             if (entry.lastModifiedDate != null) {
                                 Files.setLastModifiedTime(entryPath, FileTime.fromMillis(entry.lastModifiedDate.time))
                             }
-                        } catch (_: Exception) {}
+                        } catch (e: Exception) {
+                            thisLogger().debug("Failed to extract tar entry: ${entry.name}", e)
+                        }
                         entry = tar.nextEntry
                     }
                 }
