@@ -4,6 +4,21 @@
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-04-02
+
+### Added
+
+- Panel path input now has a context menu
+- About dialog
+
+### Changed
+
+- Don't restart the IDE after plugin installation/update
+
+### Fixed
+
+- Focus bugs
+
 ## [0.4.0] - 2026-04-01
 
 ### Added
