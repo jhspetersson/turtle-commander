@@ -10,8 +10,8 @@ import com.intellij.openapi.options.SearchableConfigurable
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.ui.DialogWrapper
-import com.intellij.ui.treeStructure.Tree
 import com.intellij.openapi.util.IconLoader
+import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.IconUtil
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
@@ -161,7 +161,6 @@ private class AboutDialog(project: com.intellij.openapi.project.Project?) : Dial
         val plugin = PluginManagerCore.getPlugin(PluginId.getId("io.github.jhspetersson.turtlecommander"))
         val version = plugin?.version ?: "unknown"
         val vendor = plugin?.vendorEmail ?: ""
-        val description = plugin?.description ?: ""
 
         val panel = JPanel(BorderLayout(JBUI.scale(12), 0))
         panel.border = JBUI.Borders.empty(10)
