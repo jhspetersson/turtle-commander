@@ -1,4 +1,4 @@
-<idea-plugin>
+<idea-plugin require-restart="false">
     <id>io.github.jhspetersson.turtlecommander</id>
     <name>Turtle Commander</name>
     <vendor>jhspetersson@gmail.com</vendor>
