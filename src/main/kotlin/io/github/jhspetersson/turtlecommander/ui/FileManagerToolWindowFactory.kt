@@ -171,6 +171,7 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
             "TurtleCommander.NewTab",
             "TurtleCommander.ShowContextMenu",
             "TurtleCommander.SearchFiles",
+            "TurtleCommander.Quit",
             "TurtleCommander.ContextCopy",
             "TurtleCommander.ContextCut",
             "TurtleCommander.ContextPaste",
@@ -250,6 +251,7 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
             Triple("TurtleCommander.DeleteFiles", "Delete") { activePanel().getActiveTab()?.performDelete() },
             Triple("TurtleCommander.CreateFile", "New File") { activePanel().getActiveTab()?.performCreateFile() },
             Triple("TurtleCommander.Rename", "Rename") { activePanel().getActiveTab()?.startRename() },
+            Triple("TurtleCommander.Quit", "Quit") { toolWindow.hide() },
         )
 
         val barButtons = buttonDefs.mapIndexed { index, (actionId, label, action) ->

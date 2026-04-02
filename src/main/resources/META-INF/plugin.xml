@@ -120,6 +120,12 @@
                 <keyboard-shortcut first-keystroke="SPACE" keymap="$default"/>
                 <keyboard-shortcut first-keystroke="INSERT" keymap="$default"/>
             </action>
+            <action id="TurtleCommander.Quit"
+                    class="io.github.jhspetersson.turtlecommander.action.QuitAction"
+                    text="Quit"
+                    description="Close the Turtle Commander tool window">
+                <keyboard-shortcut first-keystroke="F10" keymap="$default"/>
+            </action>
             <action id="TurtleCommander.ShowContextMenu"
                     class="io.github.jhspetersson.turtlecommander.action.ShowContextMenuAction"
                     text="Show Context Menu"

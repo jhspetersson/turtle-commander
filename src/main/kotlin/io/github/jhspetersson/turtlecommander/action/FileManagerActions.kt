@@ -269,6 +269,20 @@ class QuickAccessFavoriteAction : AnAction(), DumbAware {
     }
 }
 
+class QuitAction : AnAction(), DumbAware {
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+
+    override fun update(e: AnActionEvent) {
+        e.presentation.isEnabled = isToolWindowActive(e)
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project ?: return
+        val toolWindow = ToolWindowManager.getInstance(project).getToolWindow("Turtle Commander") ?: return
+        toolWindow.hide()
+    }
+}
+
 class OpenInTurtleCommanderAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
