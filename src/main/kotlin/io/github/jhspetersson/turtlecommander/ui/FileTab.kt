@@ -407,14 +407,19 @@ class FileTab(
                     table.requestFocusInWindow()
                     return@addActionListener
                 }
-                var path = try { Path.of(text) } catch (_: Exception) { currentPath }
+                var path = try {
+                    val p = Path.of(text)
+                    if (p.isAbsolute) p else currentPath
+                } catch (_: Exception) { currentPath }
                 while (!path.toFile().isDirectory) {
                     path = path.parent ?: break
                 }
-                if (path.toFile().isDirectory) {
-                    fileOps.launch {
-                        navigateTo(path)
-                    }
+                if (!path.toFile().isDirectory) {
+                    path = currentPath
+                }
+                pathField.text = path.toString()
+                fileOps.launch {
+                    navigateTo(path)
                 }
                 table.requestFocusInWindow()
             }
