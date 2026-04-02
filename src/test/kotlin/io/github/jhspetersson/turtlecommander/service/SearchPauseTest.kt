@@ -1,12 +1,11 @@
 package io.github.jhspetersson.turtlecommander.service
 
 import io.github.jhspetersson.turtlecommander.dialog.FileSearchCriteria
-import org.junit.Assert.*
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.file.Files
-import java.nio.file.Path
 import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 class SearchPauseTest {

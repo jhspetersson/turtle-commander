@@ -8,11 +8,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileContentChangeEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
@@ -94,7 +90,7 @@ class VfsEditService(
     }
 
     private fun vfsRelativePath(vfs: VirtualFileSystem, path: Path): String {
-        return io.github.jhspetersson.turtlecommander.vfs.vfsRelativePath(vfs.root, path)
+        return vfsRelativePath(vfs.root, path)
     }
 
     override fun dispose() {
