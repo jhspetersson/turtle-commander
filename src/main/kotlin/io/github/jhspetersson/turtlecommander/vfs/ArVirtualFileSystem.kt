@@ -42,27 +42,32 @@ class ArVirtualFileSystem(
     private fun extractArchive(): Path {
         val indicator = ProgressManager.getGlobalProgressIndicator()
         val dir = Files.createTempDirectory("turtle-ar-")
-        Files.newInputStream(archivePath).use { raw ->
-            ArArchiveInputStream(raw).use { ar ->
-                var entry = ar.nextEntry
-                while (entry != null) {
-                    if (indicator?.isCanceled == true) break
-                    indicator?.text2 = entry.name
-                    val entryPath = resolveEntryPath(dir, entry.name)
-                    if (entryPath == null) {
-                        entry = ar.nextEntry
-                        continue
-                    }
-                    Files.createDirectories(entryPath.parent)
-                    Files.copy(ar, entryPath)
-                    try {
-                        if (entry.lastModifiedDate != null) {
-                            Files.setLastModifiedTime(entryPath, FileTime.fromMillis(entry.lastModifiedDate.time))
+        try {
+            Files.newInputStream(archivePath).use { raw ->
+                ArArchiveInputStream(raw).use { ar ->
+                    var entry = ar.nextEntry
+                    while (entry != null) {
+                        if (indicator?.isCanceled == true) break
+                        indicator?.text2 = entry.name
+                        val entryPath = resolveEntryPath(dir, entry.name)
+                        if (entryPath == null) {
+                            entry = ar.nextEntry
+                            continue
                         }
-                    } catch (_: Exception) {}
-                    entry = ar.nextEntry
+                        Files.createDirectories(entryPath.parent)
+                        Files.copy(ar, entryPath)
+                        try {
+                            if (entry.lastModifiedDate != null) {
+                                Files.setLastModifiedTime(entryPath, FileTime.fromMillis(entry.lastModifiedDate.time))
+                            }
+                        } catch (_: Exception) {}
+                        entry = ar.nextEntry
+                    }
                 }
             }
+        } catch (e: Exception) {
+            dir.toFile().deleteRecursively()
+            throw e
         }
         return dir
     }

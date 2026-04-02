@@ -51,51 +51,56 @@ class TarVirtualFileSystem(
     private fun extractArchive(): Path {
         val indicator = ProgressManager.getGlobalProgressIndicator()
         val dir = Files.createTempDirectory("turtle-tar-")
-        inputStreamFactory(archivePath).use { raw ->
-            TarArchiveInputStream(raw).use { tar ->
-                var entry = tar.nextEntry
-                while (entry != null) {
-                    if (indicator?.isCanceled == true) break
-                    indicator?.text2 = entry.name
-                    val entryPath = resolveEntryPath(dir, entry.name)
-                    if (entryPath == null) {
-                        entry = tar.nextEntry
-                        continue
-                    }
-                    try {
-                        if (entry.isSymbolicLink) {
-                            val linkTarget = entry.linkName
-                            Files.createDirectories(entryPath.parent)
-                            try {
-                                Files.createSymbolicLink(entryPath, java.nio.file.Paths.get(linkTarget))
-                            } catch (_: Exception) {
-                                // Symlink creation may fail (e.g. Windows without privileges), skip
-                            }
-                        } else if (entry.isDirectory) {
-                            Files.createDirectories(entryPath)
-                        } else if (entry.isLink) {
-                            // Hard link
-                            val linkTarget = dir.resolve(entry.linkName)
-                            Files.createDirectories(entryPath.parent)
-                            try {
-                                Files.createLink(entryPath, linkTarget)
-                            } catch (_: Exception) {
-                                // Hard link may fail, try copying the target instead
-                                if (Files.exists(linkTarget)) {
-                                    Files.copy(linkTarget, entryPath)
+        try {
+            inputStreamFactory(archivePath).use { raw ->
+                TarArchiveInputStream(raw).use { tar ->
+                    var entry = tar.nextEntry
+                    while (entry != null) {
+                        if (indicator?.isCanceled == true) break
+                        indicator?.text2 = entry.name
+                        val entryPath = resolveEntryPath(dir, entry.name)
+                        if (entryPath == null) {
+                            entry = tar.nextEntry
+                            continue
+                        }
+                        try {
+                            if (entry.isSymbolicLink) {
+                                val linkTarget = entry.linkName
+                                Files.createDirectories(entryPath.parent)
+                                try {
+                                    Files.createSymbolicLink(entryPath, java.nio.file.Paths.get(linkTarget))
+                                } catch (_: Exception) {
+                                    // Symlink creation may fail (e.g. Windows without privileges), skip
                                 }
+                            } else if (entry.isDirectory) {
+                                Files.createDirectories(entryPath)
+                            } else if (entry.isLink) {
+                                // Hard link
+                                val linkTarget = dir.resolve(entry.linkName)
+                                Files.createDirectories(entryPath.parent)
+                                try {
+                                    Files.createLink(entryPath, linkTarget)
+                                } catch (_: Exception) {
+                                    // Hard link may fail, try copying the target instead
+                                    if (Files.exists(linkTarget)) {
+                                        Files.copy(linkTarget, entryPath)
+                                    }
+                                }
+                            } else {
+                                Files.createDirectories(entryPath.parent)
+                                Files.copy(tar, entryPath)
                             }
-                        } else {
-                            Files.createDirectories(entryPath.parent)
-                            Files.copy(tar, entryPath)
-                        }
-                        if (entry.lastModifiedDate != null) {
-                            Files.setLastModifiedTime(entryPath, FileTime.fromMillis(entry.lastModifiedDate.time))
-                        }
-                    } catch (_: Exception) {}
-                    entry = tar.nextEntry
+                            if (entry.lastModifiedDate != null) {
+                                Files.setLastModifiedTime(entryPath, FileTime.fromMillis(entry.lastModifiedDate.time))
+                            }
+                        } catch (_: Exception) {}
+                        entry = tar.nextEntry
+                    }
                 }
             }
+        } catch (e: Exception) {
+            dir.toFile().deleteRecursively()
+            throw e
         }
         return dir
     }

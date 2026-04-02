@@ -155,32 +155,37 @@ class ZipExtractVirtualFileSystem(
     private fun extractArchive(): Path {
         val indicator = ProgressManager.getGlobalProgressIndicator()
         val dir = Files.createTempDirectory("turtle-zip-")
-        ZipFile.builder().setPath(archivePath).get().use { zip ->
-            val allEntries = zip.entries.toList()
-            val total = allEntries.size
-            if (total > 0) indicator?.isIndeterminate = false
-            for ((index, entry) in allEntries.withIndex()) {
-                if (indicator?.isCanceled == true) break
-                indicator?.fraction = (index + 1).toDouble() / total
-                indicator?.text2 = entry.name
-                val entryPath = resolveEntryPath(dir, entry.name) ?: continue
-                try {
-                    if (entry.isDirectory) {
-                        Files.createDirectories(entryPath)
-                    } else {
-                        Files.createDirectories(entryPath.parent)
-                        zip.getInputStream(entry).use { input ->
-                            Files.copy(input, entryPath)
+        try {
+            ZipFile.builder().setPath(archivePath).get().use { zip ->
+                val allEntries = zip.entries.toList()
+                val total = allEntries.size
+                if (total > 0) indicator?.isIndeterminate = false
+                for ((index, entry) in allEntries.withIndex()) {
+                    if (indicator?.isCanceled == true) break
+                    indicator?.fraction = (index + 1).toDouble() / total
+                    indicator?.text2 = entry.name
+                    val entryPath = resolveEntryPath(dir, entry.name) ?: continue
+                    try {
+                        if (entry.isDirectory) {
+                            Files.createDirectories(entryPath)
+                        } else {
+                            Files.createDirectories(entryPath.parent)
+                            zip.getInputStream(entry).use { input ->
+                                Files.copy(input, entryPath)
+                            }
                         }
-                    }
-                    if (entry.lastModifiedDate != null) {
-                        Files.setLastModifiedTime(
-                            entryPath,
-                            java.nio.file.attribute.FileTime.fromMillis(entry.lastModifiedDate.time),
-                        )
-                    }
-                } catch (_: Exception) {}
+                        if (entry.lastModifiedDate != null) {
+                            Files.setLastModifiedTime(
+                                entryPath,
+                                java.nio.file.attribute.FileTime.fromMillis(entry.lastModifiedDate.time),
+                            )
+                        }
+                    } catch (_: Exception) {}
+                }
             }
+        } catch (e: Exception) {
+            dir.toFile().deleteRecursively()
+            throw e
         }
         return dir
     }

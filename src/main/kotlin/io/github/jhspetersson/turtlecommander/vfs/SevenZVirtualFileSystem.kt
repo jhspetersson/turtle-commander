@@ -43,35 +43,40 @@ class SevenZipVirtualFileSystem(
     private fun extractArchive(): Path {
         val indicator = ProgressManager.getGlobalProgressIndicator()
         val dir = Files.createTempDirectory("turtle-7z-")
-        SevenZFile.builder().setPath(archivePath).get().use { sevenZ ->
-            var entry = sevenZ.nextEntry
-            while (entry != null) {
-                if (indicator?.isCanceled == true) break
-                indicator?.text2 = entry.name
-                val entryPath = resolveEntryPath(dir, entry.name)
-                if (entryPath == null) {
-                    entry = sevenZ.nextEntry
-                    continue
-                }
-                if (entry.isDirectory) {
-                    Files.createDirectories(entryPath)
-                } else {
-                    Files.createDirectories(entryPath.parent)
-                    Files.newOutputStream(entryPath).use { out ->
-                        val buf = ByteArray(8192)
-                        var len: Int
-                        while (sevenZ.read(buf).also { len = it } != -1) {
-                            out.write(buf, 0, len)
+        try {
+            SevenZFile.builder().setPath(archivePath).get().use { sevenZ ->
+                var entry = sevenZ.nextEntry
+                while (entry != null) {
+                    if (indicator?.isCanceled == true) break
+                    indicator?.text2 = entry.name
+                    val entryPath = resolveEntryPath(dir, entry.name)
+                    if (entryPath == null) {
+                        entry = sevenZ.nextEntry
+                        continue
+                    }
+                    if (entry.isDirectory) {
+                        Files.createDirectories(entryPath)
+                    } else {
+                        Files.createDirectories(entryPath.parent)
+                        Files.newOutputStream(entryPath).use { out ->
+                            val buf = ByteArray(8192)
+                            var len: Int
+                            while (sevenZ.read(buf).also { len = it } != -1) {
+                                out.write(buf, 0, len)
+                            }
                         }
                     }
+                    try {
+                        if (entry.hasLastModifiedDate) {
+                            Files.setLastModifiedTime(entryPath, FileTime.fromMillis(entry.lastModifiedDate.time))
+                        }
+                    } catch (_: Exception) {}
+                    entry = sevenZ.nextEntry
                 }
-                try {
-                    if (entry.hasLastModifiedDate) {
-                        Files.setLastModifiedTime(entryPath, FileTime.fromMillis(entry.lastModifiedDate.time))
-                    }
-                } catch (_: Exception) {}
-                entry = sevenZ.nextEntry
             }
+        } catch (e: Exception) {
+            dir.toFile().deleteRecursively()
+            throw e
         }
         return dir
     }
