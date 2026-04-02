@@ -1150,6 +1150,13 @@ class FileTab(
             }
 
             initialized = true
+
+            when (viewMode) {
+                ViewMode.TABLE -> table.requestFocusInWindow()
+                ViewMode.LIST -> list.requestFocusInWindow()
+                ViewMode.THUMBNAIL -> thumbnailList.requestFocusInWindow()
+                ViewMode.TREE -> tree.requestFocusInWindow()
+            }
         }
     }
 
