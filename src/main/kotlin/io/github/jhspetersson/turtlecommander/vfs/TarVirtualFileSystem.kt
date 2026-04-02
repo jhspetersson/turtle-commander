@@ -56,15 +56,36 @@ class TarVirtualFileSystem(
                 while (entry != null) {
                     val entryPath = dir.resolve(entry.name.removeSuffix("/"))
                     if (!entryPath.normalize().startsWith(dir.normalize())) {
-                        throw IOException("Tar entry outside target dir: ${entry.name}")
-                    }
-                    if (entry.isDirectory) {
-                        Files.createDirectories(entryPath)
-                    } else {
-                        Files.createDirectories(entryPath.parent)
-                        Files.copy(tar, entryPath)
+                        entry = tar.nextEntry
+                        continue
                     }
                     try {
+                        if (entry.isSymbolicLink) {
+                            val linkTarget = entry.linkName
+                            Files.createDirectories(entryPath.parent)
+                            try {
+                                Files.createSymbolicLink(entryPath, java.nio.file.Paths.get(linkTarget))
+                            } catch (_: Exception) {
+                                // Symlink creation may fail (e.g. Windows without privileges), skip
+                            }
+                        } else if (entry.isDirectory) {
+                            Files.createDirectories(entryPath)
+                        } else if (entry.isLink) {
+                            // Hard link
+                            val linkTarget = dir.resolve(entry.linkName)
+                            Files.createDirectories(entryPath.parent)
+                            try {
+                                Files.createLink(entryPath, linkTarget)
+                            } catch (_: Exception) {
+                                // Hard link may fail, try copying the target instead
+                                if (Files.exists(linkTarget)) {
+                                    Files.copy(linkTarget, entryPath)
+                                }
+                            }
+                        } else {
+                            Files.createDirectories(entryPath.parent)
+                            Files.copy(tar, entryPath)
+                        }
                         if (entry.lastModifiedDate != null) {
                             Files.setLastModifiedTime(entryPath, FileTime.fromMillis(entry.lastModifiedDate.time))
                         }
@@ -165,16 +186,28 @@ class TarVirtualFileSystem(
                 Files.walk(tempDir).use { stream ->
                     stream.forEach { path ->
                         if (path == tempDir) return@forEach
-                        val relativeName = tempDir.relativize(path).toString().replace('\\', '/')
-                        val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
-                        val entry = TarArchiveEntry(path, relativeName)
-                        entry.size = if (attrs.isDirectory) 0 else attrs.size()
-                        entry.modTime = Date(attrs.lastModifiedTime().toMillis())
-                        tar.putArchiveEntry(entry)
-                        if (!attrs.isDirectory) {
-                            Files.copy(path, tar)
+                        try {
+                            val relativeName = tempDir.relativize(path).toString().replace('\\', '/')
+                            if (Files.isSymbolicLink(path)) {
+                                val target = Files.readSymbolicLink(path)
+                                val entry = TarArchiveEntry(relativeName, TarArchiveEntry.LF_SYMLINK)
+                                entry.linkName = target.toString().replace('\\', '/')
+                                tar.putArchiveEntry(entry)
+                                tar.closeArchiveEntry()
+                            } else {
+                                val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
+                                val entry = TarArchiveEntry(path, relativeName)
+                                entry.size = if (attrs.isDirectory) 0 else attrs.size()
+                                entry.modTime = Date(attrs.lastModifiedTime().toMillis())
+                                tar.putArchiveEntry(entry)
+                                if (!attrs.isDirectory) {
+                                    Files.copy(path, tar)
+                                }
+                                tar.closeArchiveEntry()
+                            }
+                        } catch (_: Exception) {
+                            // Skip inaccessible entries (dangling symlinks, deleted files, etc.)
                         }
-                        tar.closeArchiveEntry()
                     }
                 }
             }
