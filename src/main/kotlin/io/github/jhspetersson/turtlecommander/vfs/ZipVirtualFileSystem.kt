@@ -1,5 +1,6 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
+import com.intellij.openapi.progress.ProgressManager
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -152,11 +153,16 @@ class ZipExtractVirtualFileSystem(
     override val root: Path get() = tempDir
 
     private fun extractArchive(): Path {
+        val indicator = ProgressManager.getGlobalProgressIndicator()
         val dir = Files.createTempDirectory("turtle-zip-")
         ZipFile.builder().setPath(archivePath).get().use { zip ->
-            val entries = zip.entries
-            while (entries.hasMoreElements()) {
-                val entry = entries.nextElement()
+            val allEntries = zip.entries.toList()
+            val total = allEntries.size
+            if (total > 0) indicator?.isIndeterminate = false
+            for ((index, entry) in allEntries.withIndex()) {
+                if (indicator?.isCanceled == true) break
+                indicator?.fraction = (index + 1).toDouble() / total
+                indicator?.text2 = entry.name
                 val entryPath = resolveEntryPath(dir, entry.name) ?: continue
                 try {
                     if (entry.isDirectory) {

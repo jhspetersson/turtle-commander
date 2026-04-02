@@ -1,46 +1,57 @@
 package io.github.jhspetersson.turtlecommander.ui
 
+import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.progress.Task
 import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
 import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 
 internal fun FileTab.enterVfs(archivePath: Path) {
-    try {
-        if (vfsStack.isEmpty()) {
-            val vfs = VirtualFileSystemRegistry.create(archivePath)
-            vfsStack.add(VfsStackEntry(vfs, archivePath))
-            fileOps.launch { navigateTo(vfs.root) }
-        } else {
-            fileOps.launch {
-                var tempFile: java.io.File? = null
-                try {
-                    tempFile = withContext(Dispatchers.IO) {
+    val fileName = archivePath.fileName?.toString() ?: "archive"
+    ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Opening $fileName\u2026", true) {
+        override fun run(indicator: ProgressIndicator) {
+            indicator.isIndeterminate = true
+            try {
+                if (vfsStack.isEmpty()) {
+                    val vfs = VirtualFileSystemRegistry.create(archivePath)
+                    if (indicator.isCanceled) { vfs.close(); return }
+                    vfsStack.add(VfsStackEntry(vfs, archivePath))
+                    runBlocking { navigateTo(vfs.root) }
+                } else {
+                    var tempFile: java.io.File? = null
+                    try {
                         val tempDir = Files.createTempDirectory("turtle-vfs-")
-                        val fileName = archivePath.fileName.toString()
                         val tempPath = tempDir.resolve(fileName)
                         Files.copy(archivePath, tempPath)
-                        tempPath.toFile()
+                        tempFile = tempPath.toFile()
+                        val vfs = VirtualFileSystemRegistry.create(tempFile.toPath())
+                        if (indicator.isCanceled) {
+                            vfs.close()
+                            tempFile.delete(); tempFile.parentFile?.delete()
+                            return
+                        }
+                        vfsStack.add(VfsStackEntry(vfs, archivePath, tempFile))
+                        runBlocking { navigateTo(vfs.root) }
+                    } catch (e: Exception) {
+                        tempFile?.let {
+                            try { it.delete(); it.parentFile?.delete() } catch (_: Exception) {}
+                        }
+                        fileErrorNotification("Cannot open nested archive: ${fileErrorMessage(e)}")
                     }
-                    val vfs = VirtualFileSystemRegistry.create(tempFile.toPath())
-                    vfsStack.add(VfsStackEntry(vfs, archivePath, tempFile))
-                    navigateTo(vfs.root)
-                } catch (e: Exception) {
-                    tempFile?.let {
-                        try { it.delete(); it.parentFile?.delete() } catch (_: Exception) {}
-                    }
-                    fileErrorNotification("Cannot open nested archive: ${fileErrorMessage(e)}")
                 }
+            } catch (e: Exception) {
+                fileErrorNotification("Cannot open archive: ${fileErrorMessage(e)}")
             }
         }
-    } catch (e: Exception) {
-        fileErrorNotification("Cannot open archive: ${fileErrorMessage(e)}")
-    }
+    })
 }
 
 internal fun FileTab.exitVfs() {

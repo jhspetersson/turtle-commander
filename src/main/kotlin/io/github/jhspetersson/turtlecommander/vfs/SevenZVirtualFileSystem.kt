@@ -1,6 +1,7 @@
 package io.github.jhspetersson.turtlecommander.vfs
-import io.github.jhspetersson.turtlecommander.model.FileEntry
 
+import com.intellij.openapi.progress.ProgressManager
+import io.github.jhspetersson.turtlecommander.model.FileEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry
@@ -40,10 +41,13 @@ class SevenZipVirtualFileSystem(
     override val root: Path get() = tempDir
 
     private fun extractArchive(): Path {
+        val indicator = ProgressManager.getGlobalProgressIndicator()
         val dir = Files.createTempDirectory("turtle-7z-")
         SevenZFile.builder().setPath(archivePath).get().use { sevenZ ->
             var entry = sevenZ.nextEntry
             while (entry != null) {
+                if (indicator?.isCanceled == true) break
+                indicator?.text2 = entry.name
                 val entryPath = resolveEntryPath(dir, entry.name)
                 if (entryPath == null) {
                     entry = sevenZ.nextEntry

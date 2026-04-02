@@ -1,5 +1,6 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
+import com.intellij.openapi.progress.ProgressManager
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -48,11 +49,14 @@ class TarVirtualFileSystem(
     override val root: Path get() = tempDir
 
     private fun extractArchive(): Path {
+        val indicator = ProgressManager.getGlobalProgressIndicator()
         val dir = Files.createTempDirectory("turtle-tar-")
         inputStreamFactory(archivePath).use { raw ->
             TarArchiveInputStream(raw).use { tar ->
                 var entry = tar.nextEntry
                 while (entry != null) {
+                    if (indicator?.isCanceled == true) break
+                    indicator?.text2 = entry.name
                     val entryPath = resolveEntryPath(dir, entry.name)
                     if (entryPath == null) {
                         entry = tar.nextEntry
