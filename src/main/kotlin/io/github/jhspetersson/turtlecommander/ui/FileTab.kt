@@ -21,6 +21,7 @@ import io.github.jhspetersson.turtlecommander.service.FileOperationService
 import io.github.jhspetersson.turtlecommander.service.ThumbnailCache
 import io.github.jhspetersson.turtlecommander.settings.ColumnConfig
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
+import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
 import io.github.jhspetersson.turtlecommander.util.formatSize
 import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
@@ -1006,7 +1007,14 @@ class FileTab(
 
     suspend fun navigateTo(path: Path, selectName: String? = null) {
         val vfs = currentVfs
-        val entries = vfs?.listFiles(path) ?: fileOps.listFiles(path)
+        val entries = try {
+            vfs?.listFiles(path) ?: fileOps.listFiles(path)
+        } catch (e: Exception) {
+            withContext(Dispatchers.EDT) {
+                fileErrorNotification("Cannot list directory: ${fileErrorMessage(e)}")
+            }
+            return
+        }
         withContext(Dispatchers.EDT) {
             // Save cursor position and column state for the current directory
             val selectedRow = table.selectedRow

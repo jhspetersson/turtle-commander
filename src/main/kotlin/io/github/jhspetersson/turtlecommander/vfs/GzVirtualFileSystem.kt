@@ -147,27 +147,24 @@ class CompressedSingleFileVirtualFileSystem(
             )
         )
 
-        try {
-            Files.newDirectoryStream(directory).use { stream ->
-                for (entry in stream) {
-                    try {
-                        val attrs = Files.readAttributes(entry, BasicFileAttributes::class.java)
-                        result.add(
-                            FileEntry(
-                                name = entry.fileName.toString(),
-                                path = entry,
-                                isDirectory = attrs.isDirectory,
-                                size = if (attrs.isDirectory) 0 else attrs.size(),
-                                creationTime = attrs.creationTime(),
-                                lastModified = attrs.lastModifiedTime(),
-                                permissions = "",
-                            )
+        Files.newDirectoryStream(directory).use { stream ->
+            for (entry in stream) {
+                try {
+                    val attrs = Files.readAttributes(entry, BasicFileAttributes::class.java)
+                    result.add(
+                        FileEntry(
+                            name = entry.fileName.toString(),
+                            path = entry,
+                            isDirectory = attrs.isDirectory,
+                            size = if (attrs.isDirectory) 0 else attrs.size(),
+                            creationTime = attrs.creationTime(),
+                            lastModified = attrs.lastModifiedTime(),
+                            permissions = "",
                         )
-                    } catch (_: Exception) {
-                    }
+                    )
+                } catch (_: Exception) {
                 }
             }
-        } catch (_: Exception) {
         }
 
         result

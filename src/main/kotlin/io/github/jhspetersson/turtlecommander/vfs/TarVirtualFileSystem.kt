@@ -1,19 +1,18 @@
 package io.github.jhspetersson.turtlecommander.vfs
-import io.github.jhspetersson.turtlecommander.model.FileEntry
 
+import io.github.jhspetersson.turtlecommander.model.FileEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
-import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.FileTime
-import java.util.Date
+import java.util.*
 
 class TarFileSystemProvider : VirtualFileSystemProvider {
     companion object {
@@ -136,34 +135,31 @@ class TarVirtualFileSystem(
             )
         }
 
-        try {
-            Files.newDirectoryStream(directory).use { stream ->
-                val dirs = mutableListOf<FileEntry>()
-                val files = mutableListOf<FileEntry>()
+        Files.newDirectoryStream(directory).use { stream ->
+            val dirs = mutableListOf<FileEntry>()
+            val files = mutableListOf<FileEntry>()
 
-                for (entry in stream) {
-                    try {
-                        val attrs = Files.readAttributes(entry, BasicFileAttributes::class.java)
-                        val fileEntry = FileEntry(
-                            name = entry.fileName.toString(),
-                            path = entry,
-                            isDirectory = attrs.isDirectory,
-                            size = if (attrs.isDirectory) 0 else attrs.size(),
-                            creationTime = attrs.creationTime(),
-                            lastModified = attrs.lastModifiedTime(),
-                            permissions = "",
-                        )
-                        if (attrs.isDirectory) dirs.add(fileEntry) else files.add(fileEntry)
-                    } catch (_: Exception) {
-                    }
+            for (entry in stream) {
+                try {
+                    val attrs = Files.readAttributes(entry, BasicFileAttributes::class.java)
+                    val fileEntry = FileEntry(
+                        name = entry.fileName.toString(),
+                        path = entry,
+                        isDirectory = attrs.isDirectory,
+                        size = if (attrs.isDirectory) 0 else attrs.size(),
+                        creationTime = attrs.creationTime(),
+                        lastModified = attrs.lastModifiedTime(),
+                        permissions = "",
+                    )
+                    if (attrs.isDirectory) dirs.add(fileEntry) else files.add(fileEntry)
+                } catch (_: Exception) {
                 }
-
-                dirs.sortBy { it.name.lowercase() }
-                files.sortBy { it.name.lowercase() }
-                result.addAll(dirs)
-                result.addAll(files)
             }
-        } catch (_: Exception) {
+
+            dirs.sortBy { it.name.lowercase() }
+            files.sortBy { it.name.lowercase() }
+            result.addAll(dirs)
+            result.addAll(files)
         }
 
         result

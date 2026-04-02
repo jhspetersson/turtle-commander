@@ -122,35 +122,29 @@ class XzVirtualFileSystemTest {
     @Test
     fun `plain xz creates read-only single file VFS`() {
         val vfs = provider.create(xzPath)
-        try {
+        vfs.use { vfs ->
             assertTrue(vfs.isReadOnly)
-        } finally {
-            vfs.close()
         }
     }
 
     @Test
     fun `plain xz lists decompressed file`() = runBlocking {
         val vfs = provider.create(xzPath)
-        try {
+        vfs.use { vfs ->
             val entries = vfs.listFiles(vfs.root)
             val files = entries.filter { !it.isParentLink }
             assertEquals(1, files.size)
             assertFalse(files[0].name.endsWith(".xz"))
-        } finally {
-            vfs.close()
         }
     }
 
     @Test
     fun `plain xz decompressed file has correct content`() = runBlocking {
         val vfs = provider.create(xzPath)
-        try {
+        vfs.use { vfs ->
             val entries = vfs.listFiles(vfs.root).filter { !it.isParentLink }
             val content = String(Files.readAllBytes(entries[0].path))
             assertEquals("hello xz", content)
-        } finally {
-            vfs.close()
         }
     }
 
@@ -159,49 +153,41 @@ class XzVirtualFileSystemTest {
     @Test
     fun `txz creates writable tar VFS`() {
         val vfs = provider.create(txzPath)
-        try {
+        vfs.use { vfs ->
             assertFalse(vfs.isReadOnly)
             assertTrue(vfs is TarVirtualFileSystem)
-        } finally {
-            vfs.close()
         }
     }
 
     @Test
     fun `txz lists tar contents`() = runBlocking {
         val vfs = provider.create(txzPath)
-        try {
+        vfs.use { vfs ->
             val entries = vfs.listFiles(vfs.root)
             val names = entries.filter { !it.isParentLink }.map { it.name }.toSet()
             assertTrue("hello.txt" in names)
             assertTrue("subdir" in names)
-        } finally {
-            vfs.close()
         }
     }
 
     @Test
     fun `txz can navigate into subdirectory`() = runBlocking {
         val vfs = provider.create(txzPath)
-        try {
+        vfs.use { vfs ->
             val subdir = vfs.root.resolve("subdir")
             val entries = vfs.listFiles(subdir)
             val names = entries.filter { !it.isParentLink }.map { it.name }
             assertTrue("nested.txt" in names)
-        } finally {
-            vfs.close()
         }
     }
 
     @Test
     fun `txz file content is correct`() = runBlocking {
         val vfs = provider.create(txzPath)
-        try {
+        vfs.use { vfs ->
             val filePath = vfs.root.resolve("hello.txt")
             val content = String(Files.readAllBytes(filePath))
             assertEquals("file content", content)
-        } finally {
-            vfs.close()
         }
     }
 
@@ -210,24 +196,20 @@ class XzVirtualFileSystemTest {
     @Test
     fun `tar xz creates writable tar VFS`() {
         val vfs = provider.create(tarXzPath)
-        try {
+        vfs.use { vfs ->
             assertFalse(vfs.isReadOnly)
             assertTrue(vfs is TarVirtualFileSystem)
-        } finally {
-            vfs.close()
         }
     }
 
     @Test
     fun `tar xz lists tar contents`() = runBlocking {
         val vfs = provider.create(tarXzPath)
-        try {
+        vfs.use { vfs ->
             val entries = vfs.listFiles(vfs.root)
             val names = entries.filter { !it.isParentLink }.map { it.name }.toSet()
             assertTrue("hello.txt" in names)
             assertTrue("subdir" in names)
-        } finally {
-            vfs.close()
         }
     }
 
