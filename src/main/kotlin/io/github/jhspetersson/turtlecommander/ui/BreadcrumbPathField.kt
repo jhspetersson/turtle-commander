@@ -1,5 +1,6 @@
 package io.github.jhspetersson.turtlecommander.ui
 
+import com.intellij.icons.AllIcons
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
@@ -193,20 +194,20 @@ class BreadcrumbPathField : JPanel() {
     private fun createEditFieldPopupMenu(): JPopupMenu {
         val menu = JPopupMenu()
 
-        menu.add(JMenuItem("Cut").apply {
+        menu.add(JMenuItem("Cut", AllIcons.Actions.MenuCut).apply {
             addActionListener { editField.cut() }
         })
-        menu.add(JMenuItem("Copy").apply {
+        menu.add(JMenuItem("Copy", AllIcons.Actions.Copy).apply {
             addActionListener { editField.copy() }
         })
-        menu.add(JMenuItem("Paste").apply {
+        menu.add(JMenuItem("Paste", AllIcons.Actions.MenuPaste).apply {
             addActionListener { editField.paste() }
         })
-        menu.add(JMenuItem("Delete").apply {
+        menu.add(JMenuItem("Delete", AllIcons.Actions.GC).apply {
             addActionListener { editField.replaceSelection("") }
         })
         menu.addSeparator()
-        menu.add(JMenuItem("Select All").apply {
+        menu.add(JMenuItem("Select All", AllIcons.Actions.Selectall).apply {
             addActionListener { editField.selectAll() }
         })
 
