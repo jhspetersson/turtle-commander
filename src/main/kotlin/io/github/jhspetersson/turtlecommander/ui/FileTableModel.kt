@@ -4,8 +4,9 @@ import io.github.jhspetersson.turtlecommander.model.FileEntry
 
 import java.nio.file.Path
 import javax.swing.table.AbstractTableModel
-import java.text.SimpleDateFormat
-import java.util.Date
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 class FileTableModel : AbstractTableModel() {
 
@@ -21,6 +22,7 @@ class FileTableModel : AbstractTableModel() {
         const val DIR_NUMERIC = -1L
     }
 
+    private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault())
     private val columns = arrayOf("Name", "Ext", "Size", "Date Created", "Date Modified", "Permissions")
     private var entries: List<FileEntry> = emptyList()
     var directorySizeProvider: ((Path) -> Long?)? = null
@@ -82,10 +84,10 @@ class FileTableModel : AbstractTableModel() {
                 if (calcSize != null) formatSize(calcSize) else "<DIR>"
             } else formatSize(entry.size)
             columnIndex == COL_CREATED -> entry.creationTime?.let {
-                SimpleDateFormat("yyyy-MM-dd HH:mm").format(Date(it.toMillis()))
+                dateFormatter.format(Instant.ofEpochMilli(it.toMillis()))
             } ?: ""
             columnIndex == COL_DATE -> entry.lastModified?.let {
-                SimpleDateFormat("yyyy-MM-dd HH:mm").format(Date(it.toMillis()))
+                dateFormatter.format(Instant.ofEpochMilli(it.toMillis()))
             } ?: ""
             else -> getValueAt(rowIndex, columnIndex).toString()
         }
