@@ -7,6 +7,8 @@ import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream
+import org.apache.commons.compress.compressors.xz.XZCompressorInputStream
+import org.apache.commons.compress.compressors.xz.XZCompressorOutputStream
 import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Path
@@ -64,6 +66,34 @@ class Bz2FileSystemProvider : VirtualFileSystemProvider {
             )
         } else {
             CompressedSingleFileVirtualFileSystem(archivePath, ".bz2") { BZip2CompressorInputStream(it) }
+        }
+    }
+}
+
+class XzFileSystemProvider : VirtualFileSystemProvider {
+    companion object {
+        val ARCHIVE_EXTENSIONS = setOf("xz", "txz")
+    }
+
+    override fun supports(path: Path): Boolean {
+        val ext = path.fileName?.toString()?.substringAfterLast('.', "")?.lowercase() ?: ""
+        return ext in ARCHIVE_EXTENSIONS && Files.isRegularFile(path)
+    }
+
+    override fun supportsExtension(ext: String): Boolean {
+        return ext in ARCHIVE_EXTENSIONS
+    }
+
+    override fun create(archivePath: Path): VirtualFileSystem {
+        val name = archivePath.fileName?.toString()?.lowercase() ?: ""
+        return if (name.endsWith(".tar.xz") || name.endsWith(".txz")) {
+            TarVirtualFileSystem(
+                archivePath,
+                inputStreamFactory = { XZCompressorInputStream(Files.newInputStream(it)) },
+                outputStreamFactory = { XZCompressorOutputStream(Files.newOutputStream(it)) },
+            )
+        } else {
+            CompressedSingleFileVirtualFileSystem(archivePath, ".xz") { XZCompressorInputStream(it) }
         }
     }
 }

@@ -150,6 +150,64 @@ class VfsProviderTest {
         assertFalse(sevenZipProvider.supportsExtension("gz"))
     }
 
+    // --- ArFileSystemProvider ---
+
+    private val arProvider = ArFileSystemProvider()
+
+    @Test
+    fun `ar provider supports ar extension`() {
+        assertTrue(arProvider.supportsExtension("ar"))
+    }
+
+    @Test
+    fun `ar provider supports a extension`() {
+        assertTrue(arProvider.supportsExtension("a"))
+    }
+
+    @Test
+    fun `ar provider supports deb extension`() {
+        assertTrue(arProvider.supportsExtension("deb"))
+    }
+
+    @Test
+    fun `ar provider does not support zip`() {
+        assertFalse(arProvider.supportsExtension("zip"))
+    }
+
+    @Test
+    fun `ar provider does not support tar`() {
+        assertFalse(arProvider.supportsExtension("tar"))
+    }
+
+    // --- XzFileSystemProvider ---
+
+    private val xzProvider = XzFileSystemProvider()
+
+    @Test
+    fun `xz provider supports xz extension`() {
+        assertTrue(xzProvider.supportsExtension("xz"))
+    }
+
+    @Test
+    fun `xz provider supports txz extension`() {
+        assertTrue(xzProvider.supportsExtension("txz"))
+    }
+
+    @Test
+    fun `xz provider does not support gz`() {
+        assertFalse(xzProvider.supportsExtension("gz"))
+    }
+
+    @Test
+    fun `xz provider does not support tar`() {
+        assertFalse(xzProvider.supportsExtension("tar"))
+    }
+
+    @Test
+    fun `xz provider does not support zip`() {
+        assertFalse(xzProvider.supportsExtension("zip"))
+    }
+
     // --- ARCHIVE_EXTENSIONS constants ---
 
     @Test
@@ -175,5 +233,15 @@ class VfsProviderTest {
     @Test
     fun `7zip archive extensions set has correct count`() {
         assertEquals(1, SevenZipFileSystemProvider.ARCHIVE_EXTENSIONS.size)
+    }
+
+    @Test
+    fun `ar archive extensions set has correct count`() {
+        assertEquals(3, ArFileSystemProvider.ARCHIVE_EXTENSIONS.size)
+    }
+
+    @Test
+    fun `xz archive extensions set has correct count`() {
+        assertEquals(2, XzFileSystemProvider.ARCHIVE_EXTENSIONS.size)
     }
 }

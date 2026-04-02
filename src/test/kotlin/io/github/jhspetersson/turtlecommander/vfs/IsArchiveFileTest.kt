@@ -73,6 +73,31 @@ class IsArchiveFileTest {
     }
 
     @Test
+    fun `ar file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("lib.ar")))
+    }
+
+    @Test
+    fun `a file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("libfoo.a")))
+    }
+
+    @Test
+    fun `deb file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("package.deb")))
+    }
+
+    @Test
+    fun `xz file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("data.xz")))
+    }
+
+    @Test
+    fun `txz file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("data.txz")))
+    }
+
+    @Test
     fun `txt file is not archive`() {
         assertFalse(isArchiveFile(fileEntry("readme.txt")))
     }

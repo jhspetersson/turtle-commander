@@ -77,11 +77,13 @@ internal fun FileTab.handleVfsBreadcrumbClick(segmentPath: String) {
 
     val prefixes = mutableListOf<String>()
     val sb = StringBuilder()
-    for (stackEntry in vfsStack) {
-        if (sb.isEmpty()) {
+    for ((i, stackEntry) in vfsStack.withIndex()) {
+        if (i == 0) {
             sb.append(stackEntry.parentPath.toString())
         } else {
-            val nestedPath = stackEntry.parentPath.toString().removePrefix("/").replace("/", separator)
+            val parentVfs = vfsStack[i - 1].vfs
+            val nestedPath = vfsRelativePath(parentVfs, stackEntry.parentPath)
+                .removePrefix("/").replace("/", separator)
             sb.append(separator).append(nestedPath)
         }
         prefixes.add(sb.toString())
@@ -157,11 +159,13 @@ fun FileTab.getDisplayPath(): String {
     val vfs = currentVfs ?: return currentPath.toString()
     val separator = if (vfsStack.first().parentPath.toString().contains("\\")) "\\" else "/"
     val sb = StringBuilder()
-    for (stackEntry in vfsStack) {
-        if (sb.isEmpty()) {
+    for ((i, stackEntry) in vfsStack.withIndex()) {
+        if (i == 0) {
             sb.append(stackEntry.parentPath.toString())
         } else {
-            val nestedPath = stackEntry.parentPath.toString().removePrefix("/").replace("/", separator)
+            val parentVfs = vfsStack[i - 1].vfs
+            val nestedPath = vfsRelativePath(parentVfs, stackEntry.parentPath)
+                .removePrefix("/").replace("/", separator)
             sb.append(separator).append(nestedPath)
         }
     }

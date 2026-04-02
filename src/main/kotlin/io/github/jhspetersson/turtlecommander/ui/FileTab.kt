@@ -1024,12 +1024,14 @@ class FileTab(
                 val separator = if (vfsStack.first().parentPath.toString().contains("\\")) "\\" else "/"
                 val sb = StringBuilder()
                 // Build path showing entire VFS stack chain
-                for (stackEntry in vfsStack) {
-                    if (sb.isEmpty()) {
+                for ((i, stackEntry) in vfsStack.withIndex()) {
+                    if (i == 0) {
                         sb.append(stackEntry.parentPath.toString())
                     } else {
-                        // For nested archives, show the path within the parent VFS
-                        val nestedPath = stackEntry.parentPath.toString().removePrefix("/").replace("/", separator)
+                        // For nested archives, show relative path within the parent VFS
+                        val parentVfs = vfsStack[i - 1].vfs
+                        val nestedPath = vfsRelativePath(parentVfs, stackEntry.parentPath)
+                            .removePrefix("/").replace("/", separator)
                         sb.append(separator).append(nestedPath)
                     }
                 }
@@ -1315,8 +1317,15 @@ class FileTab(
         val sortCol = sortKeys?.firstOrNull()?.column ?: -1
         val sortAsc = sortKeys?.firstOrNull()?.sortOrder != SortOrder.DESCENDING
 
+        val persistPath = if (vfsStack.isNotEmpty()) {
+            val archivePath = vfsStack.first().parentPath
+            (archivePath.parent ?: archivePath).toString()
+        } else {
+            currentPath.toString()
+        }
+
         return FileManagerStateService.TabState(
-            path = currentPath.toString(),
+            path = persistPath,
             viewMode = viewMode.name,
             columnWidths = widths.joinToString(","),
             columnOrder = order.joinToString(","),
