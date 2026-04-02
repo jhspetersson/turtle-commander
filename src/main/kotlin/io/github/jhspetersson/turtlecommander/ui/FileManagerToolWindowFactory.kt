@@ -75,6 +75,8 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
         val gearActions = DefaultActionGroup()
         am.getAction("TurtleCommander.OpenPluginSettings")?.let { gearActions.add(it) }
         am.getAction("TurtleCommander.OpenKeymapSettings")?.let { gearActions.add(it) }
+        gearActions.addSeparator()
+        am.getAction("TurtleCommander.About")?.let { gearActions.add(it) }
         toolWindow.setAdditionalGearActions(gearActions)
 
         val bufferAction = object : AnAction() {

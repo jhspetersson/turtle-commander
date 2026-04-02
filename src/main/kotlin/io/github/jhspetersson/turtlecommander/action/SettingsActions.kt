@@ -1,17 +1,23 @@
 package io.github.jhspetersson.turtlecommander.action
 
+import com.intellij.ide.plugins.PluginManagerCore
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.options.SearchableConfigurable
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.DumbAware
+import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.treeStructure.Tree
+import com.intellij.openapi.util.IconLoader
+import com.intellij.util.IconUtil
+import com.intellij.util.ui.JBUI
+import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Container
-import javax.swing.JTree
-import javax.swing.Timer
+import javax.swing.*
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.TreeModel
 import javax.swing.tree.TreePath
@@ -134,4 +140,69 @@ class OpenPluginSettingsAction : AnAction(), DumbAware {
             "Turtle Commander",
         )
     }
+}
+
+class AboutAction : AnAction(), DumbAware {
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
+
+    override fun actionPerformed(e: AnActionEvent) {
+        AboutDialog(e.project).show()
+    }
+}
+
+private class AboutDialog(project: com.intellij.openapi.project.Project?) : DialogWrapper(project, false) {
+    init {
+        title = "About Turtle Commander"
+        setOKButtonText("Close")
+        init()
+    }
+
+    override fun createCenterPanel(): JComponent {
+        val plugin = PluginManagerCore.getPlugin(PluginId.getId("io.github.jhspetersson.turtlecommander"))
+        val version = plugin?.version ?: "unknown"
+        val vendor = plugin?.vendorEmail ?: ""
+        val description = plugin?.description ?: ""
+
+        val panel = JPanel(BorderLayout(JBUI.scale(12), 0))
+        panel.border = JBUI.Borders.empty(10)
+
+        val icon = IconLoader.getIcon("/META-INF/pluginIcon.svg", javaClass)
+        val scaledIcon = IconUtil.scale(icon, null, 2.0f)
+        val iconLabel = JLabel(scaledIcon)
+        iconLabel.verticalAlignment = SwingConstants.TOP
+        panel.add(iconLabel, BorderLayout.WEST)
+
+        val infoPanel = JPanel()
+        infoPanel.layout = BoxLayout(infoPanel, BoxLayout.Y_AXIS)
+
+        val nameLabel = JLabel("Turtle Commander")
+        nameLabel.font = nameLabel.font.deriveFont(nameLabel.font.size2D + 4f)
+        nameLabel.alignmentX = Component.LEFT_ALIGNMENT
+        infoPanel.add(nameLabel)
+
+        infoPanel.add(Box.createVerticalStrut(JBUI.scale(4)))
+
+        val versionLabel = JLabel("Version: $version")
+        versionLabel.alignmentX = Component.LEFT_ALIGNMENT
+        infoPanel.add(versionLabel)
+
+        if (vendor.isNotEmpty()) {
+            infoPanel.add(Box.createVerticalStrut(JBUI.scale(4)))
+            val vendorLabel = JLabel("Author: $vendor")
+            vendorLabel.alignmentX = Component.LEFT_ALIGNMENT
+            infoPanel.add(vendorLabel)
+        }
+
+        infoPanel.add(Box.createVerticalStrut(JBUI.scale(8)))
+
+        val descLabel = JLabel("<html><body style='width:260px'>A dual-panel file manager for IntelliJ-based IDEs</body></html>")
+        descLabel.alignmentX = Component.LEFT_ALIGNMENT
+        infoPanel.add(descLabel)
+
+        panel.add(infoPanel, BorderLayout.CENTER)
+
+        return panel
+    }
+
+    override fun createActions(): Array<Action> = arrayOf(okAction)
 }

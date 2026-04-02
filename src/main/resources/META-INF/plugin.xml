@@ -443,5 +443,9 @@
                 icon="AllIcons.General.GearPlain"
                 text="Settings..."
                 description="Open Turtle Commander settings"/>
+        <action id="TurtleCommander.About"
+                class="io.github.jhspetersson.turtlecommander.action.AboutAction"
+                text="About..."
+                description="About Turtle Commander"/>
     </actions>
 </idea-plugin>
