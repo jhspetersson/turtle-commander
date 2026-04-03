@@ -1089,8 +1089,11 @@ class FileTab(
             thumbnailListModel.clear()
             entries.forEach { thumbnailListModel.addElement(it) }
 
-            // Update tree model (only when not in full tree mode, which manages its own structure)
-            if (viewMode != ViewMode.TREE) {
+            // Update tree model
+            if (viewMode == ViewMode.TREE) {
+                // In full tree mode, rebuild the tree to reflect the new location
+                rebuildFullTree()
+            } else {
                 treeRootNode.removeAllChildren()
                 for (entry in entries) {
                     val node = DefaultMutableTreeNode(entry)

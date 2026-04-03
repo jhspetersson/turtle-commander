@@ -16,8 +16,10 @@ fun FileTab.setViewMode(mode: ViewMode) {
     val selectedEntries = getSelectedEntries()
     val selectedNames = selectedEntries.map { it.name }.toSet()
 
-    // For tree -> flat: navigate to the parent directory of the selected entries and select them
-    val treeNavigation = if (previousMode == ViewMode.TREE && selectedEntries.isNotEmpty()) {
+    // For tree -> flat: navigate to the parent directory of the selected entries and select them.
+    // Skip tree-based navigation when inside a VFS — the tree may show stale entries from
+    // the real filesystem, and navigating to those paths would corrupt the VFS state.
+    val treeNavigation = if (previousMode == ViewMode.TREE && selectedEntries.isNotEmpty() && !isInsideArchive) {
         val lastEntry = selectedEntries.last()
         val targetDir = lastEntry.path.parent ?: currentPath
         val namesInDir = selectedEntries
