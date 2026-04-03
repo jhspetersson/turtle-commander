@@ -12,6 +12,8 @@ import java.nio.file.Path
 class TarOutputStream(private val out: OutputStream) : AutoCloseable {
 
     private val blockSize = 512
+    // Maximum file size representable in an 11-digit octal field (ustar format)
+    private val maxFileSize = 0x1FFFFFFFFL // 8,589,934,591 bytes (~8 GB)
 
     fun putDirectoryEntry(name: String, modTimeMillis: Long) {
         writeLongNameIfNeeded(name)
@@ -25,6 +27,11 @@ class TarOutputStream(private val out: OutputStream) : AutoCloseable {
     }
 
     fun putFileEntry(name: String, file: Path, size: Long, modTimeMillis: Long) {
+        if (size > maxFileSize) {
+            throw IllegalArgumentException(
+                "File size $size exceeds maximum for ustar tar format ($maxFileSize bytes). Use a different archive format for files larger than ~8 GB."
+            )
+        }
         writeLongNameIfNeeded(name)
         val header = createHeader(
             name = if (name.length > 100) name.substring(0, 100) else name,

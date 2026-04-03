@@ -2,6 +2,7 @@ package io.github.jhspetersson.turtlecommander.operation
 
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayOutputStream
@@ -222,6 +223,26 @@ class TarOutputStreamTest {
         val data = baos.toByteArray()
         assertEquals(1024, data.size)
         assertTrue(data.all { it == 0.toByte() })
+    }
+
+    @Test
+    fun `file entry rejects size exceeding 8GB`() {
+        val dir = Files.createTempDirectory("tar-test-")
+        tempFiles.add(dir)
+        val file = dir.resolve("test.txt")
+        Files.writeString(file, "data")
+
+        val baos = ByteArrayOutputStream()
+        var thrown: Throwable? = null
+        try {
+            val tar = TarOutputStream(baos)
+            // 8GB + 1 byte exceeds the ustar 11-digit octal size field
+            tar.putFileEntry("test.txt", file, 8L * 1024 * 1024 * 1024 + 1, 0)
+            tar.close()
+        } catch (e: Throwable) {
+            thrown = e
+        }
+        assertTrue("Should throw for >8GB files but got: $thrown", thrown is IllegalArgumentException)
     }
 
     @Test
