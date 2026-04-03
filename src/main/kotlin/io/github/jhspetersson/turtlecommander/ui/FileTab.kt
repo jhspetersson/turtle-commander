@@ -97,6 +97,8 @@ class FileTab(
     private var driveComboPopupOpen = false
     private var driveRefreshTimer: Timer? = null
     private val cursorPositions = mutableMapOf<Path, Int>()
+    private var cachedFilterGlob: String? = null
+    private var cachedFilterMatcher: java.nio.file.PathMatcher? = null
     internal var stateService: FileManagerStateService? = null
     private var initialized = false
     internal var pendingTabState: FileManagerStateService.TabState? = null
@@ -827,13 +829,22 @@ class FileTab(
     private fun applyFilter() {
         val pattern = filterField.text.trim()
         val filtered = if (pattern.isEmpty()) {
+            cachedFilterGlob = null
+            cachedFilterMatcher = null
             allEntries
         } else {
             val glob = if (pattern.contains('*') || pattern.contains('?') || pattern.contains('[')) pattern else "*$pattern*"
-            val matcher = try {
-                FileSystems.getDefault().getPathMatcher("glob:$glob")
-            } catch (_: Exception) {
-                return
+            val matcher = if (glob == cachedFilterGlob && cachedFilterMatcher != null) {
+                cachedFilterMatcher!!
+            } else {
+                val m = try {
+                    FileSystems.getDefault().getPathMatcher("glob:$glob")
+                } catch (_: Exception) {
+                    return
+                }
+                cachedFilterGlob = glob
+                cachedFilterMatcher = m
+                m
             }
             allEntries.filter { entry ->
                 entry.isParentLink || matcher.matches(Path.of(entry.name))
