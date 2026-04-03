@@ -25,33 +25,39 @@ class FileSearchService(
     @Volatile
     var paused = false
 
+    class InvalidPatternException(message: String, cause: Throwable) : Exception(message, cause)
+
     fun search(
         onResult: (FileEntry) -> Unit,
         isCancelled: () -> Boolean,
         onProgress: (scannedCount: Int, currentDir: String) -> Unit,
     ) {
         val nameMatcher: ((String) -> Boolean)? = criteria.namePattern?.let { pattern ->
-            try {
-                when (criteria.namePatternMode) {
-                    NamePatternMode.GLOB -> {
-                        val wrappedPattern = if ('.' !in pattern && '*' !in pattern) "*$pattern*" else pattern
-                        val effectivePattern = if (criteria.caseSensitive) wrappedPattern else wrappedPattern.lowercase()
-                        val pathMatcher = FileSystems.getDefault().getPathMatcher("glob:$effectivePattern")
-                        val fn: (String) -> Boolean = { name ->
-                            val effectiveName = if (criteria.caseSensitive) name else name.lowercase()
-                            pathMatcher.matches(Path.of(effectiveName))
-                        }
-                        fn
+            when (criteria.namePatternMode) {
+                NamePatternMode.GLOB -> {
+                    val wrappedPattern = if ('.' !in pattern && '*' !in pattern) "*$pattern*" else pattern
+                    val effectivePattern = if (criteria.caseSensitive) wrappedPattern else wrappedPattern.lowercase()
+                    val pathMatcher = try {
+                        FileSystems.getDefault().getPathMatcher("glob:$effectivePattern")
+                    } catch (e: Exception) {
+                        throw InvalidPatternException("Invalid glob pattern: $pattern", e)
                     }
-                    NamePatternMode.REGEXP -> {
-                        val options = if (criteria.caseSensitive) emptySet() else setOf(RegexOption.IGNORE_CASE)
-                        val re = pattern.toRegex(options)
-                        val fn: (String) -> Boolean = { name -> re.containsMatchIn(name) }
-                        fn
+                    val fn: (String) -> Boolean = { name ->
+                        val effectiveName = if (criteria.caseSensitive) name else name.lowercase()
+                        pathMatcher.matches(Path.of(effectiveName))
                     }
+                    fn
                 }
-            } catch (_: Exception) {
-                null
+                NamePatternMode.REGEXP -> {
+                    val options = if (criteria.caseSensitive) emptySet() else setOf(RegexOption.IGNORE_CASE)
+                    val re = try {
+                        pattern.toRegex(options)
+                    } catch (e: Exception) {
+                        throw InvalidPatternException("Invalid regex pattern: $pattern", e)
+                    }
+                    val fn: (String) -> Boolean = { name -> re.containsMatchIn(name) }
+                    fn
+                }
             }
         }
 

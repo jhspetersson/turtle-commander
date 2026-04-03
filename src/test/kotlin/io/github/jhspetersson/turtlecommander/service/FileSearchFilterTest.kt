@@ -329,8 +329,8 @@ class FileSearchFilterTest {
         assertEquals("report.txt", results[0].name)
     }
 
-    @Test
-    fun `invalid glob pattern returns no results`() {
+    @Test(expected = FileSearchService.InvalidPatternException::class)
+    fun `invalid glob pattern throws InvalidPatternException`() {
         val dir = createTempDir()
         Files.write(dir.resolve("file.txt"), ByteArray(0))
 
@@ -343,9 +343,24 @@ class FileSearchFilterTest {
             modificationDateFilter = null,
         )
 
-        val results = search(criteria)
-        // Invalid pattern compiles to null matcher, so all files match
-        assertTrue(results.isNotEmpty())
+        search(criteria)
+    }
+
+    @Test(expected = FileSearchService.InvalidPatternException::class)
+    fun `invalid regex pattern throws InvalidPatternException`() {
+        val dir = createTempDir()
+        Files.write(dir.resolve("file.txt"), ByteArray(0))
+
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = "(unclosed",
+            namePatternMode = NamePatternMode.REGEXP,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+        )
+
+        search(criteria)
     }
 
     // --- Date filter ---

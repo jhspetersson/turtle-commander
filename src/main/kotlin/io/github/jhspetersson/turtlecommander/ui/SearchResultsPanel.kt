@@ -198,28 +198,41 @@ class SearchResultsPanel(
                 val pendingResults = mutableListOf<FileEntry>()
                 var lastFlush = System.currentTimeMillis()
 
-                service.search(
-                    onResult = { entry ->
-                        synchronized(pendingResults) {
-                            pendingResults.add(entry)
-                        }
-                        val now = System.currentTimeMillis()
-                        if (now - lastFlush > 200 || pendingResults.size >= 50) {
-                            flushResults(pendingResults)
-                            lastFlush = now
-                        }
-                    },
-                    isCancelled = { indicator.isCanceled || disposed },
-                    onProgress = { scannedCount, currentDir ->
-                        indicator.text = "Scanned $scannedCount entries..."
-                        indicator.text2 = currentDir
-                        if (!disposed) {
-                            SwingUtilities.invokeLater {
-                                statusLabel.text = "Searching... ${resultEntries.size} files found, scanned $scannedCount entries"
+                try {
+                    service.search(
+                        onResult = { entry ->
+                            synchronized(pendingResults) {
+                                pendingResults.add(entry)
                             }
+                            val now = System.currentTimeMillis()
+                            if (now - lastFlush > 200 || pendingResults.size >= 50) {
+                                flushResults(pendingResults)
+                                lastFlush = now
+                            }
+                        },
+                        isCancelled = { indicator.isCanceled || disposed },
+                        onProgress = { scannedCount, currentDir ->
+                            indicator.text = "Scanned $scannedCount entries..."
+                            indicator.text2 = currentDir
+                            if (!disposed) {
+                                SwingUtilities.invokeLater {
+                                    statusLabel.text = "Searching... ${resultEntries.size} files found, scanned $scannedCount entries"
+                                }
+                            }
+                        },
+                    )
+                } catch (e: FileSearchService.InvalidPatternException) {
+                    if (!disposed) {
+                        SwingUtilities.invokeLater {
+                            statusLabel.text = e.message ?: "Invalid search pattern"
+                            stopButton.isEnabled = false
+                            pauseResumeButton.isEnabled = false
+                            editButton.isEnabled = true
                         }
-                    },
-                )
+                    }
+                    currentIndicator = null
+                    return
+                }
 
                 // Flush remaining
                 flushResults(pendingResults)
