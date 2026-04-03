@@ -104,6 +104,7 @@ object CombineFilesOperation {
                         onProgress(idx + 1, chunkFiles.size, totalBytesWritten, totalBytes)
                     }
                 }
+                if (cancelled) break
             }
         }
 

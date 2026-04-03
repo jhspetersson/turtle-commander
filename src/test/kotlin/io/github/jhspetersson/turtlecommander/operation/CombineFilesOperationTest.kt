@@ -260,6 +260,27 @@ class CombineFilesOperationTest {
     }
 
     @Test
+    fun `combine cancellation does not process extra chunks after cancel`() {
+        val dir = createTempDir()
+        for (i in 1..10) {
+            Files.write(dir.resolve("file.dat.${i.toString().padStart(3, '0')}"), ByteArray(100))
+        }
+
+        val chunks = CombineFilesOperation.findChunkFiles(dir, "file.dat")
+        val target = dir.resolve("file.dat")
+        var maxChunkSeen = 0
+        val cancelAfterChunk = 3
+
+        CombineFilesOperation.combine(chunks, target, null, null, { chunkIndex, _, _, _ ->
+            maxChunkSeen = chunkIndex
+        }, { maxChunkSeen >= cancelAfterChunk })
+
+        // Should stop at or very near the cancel point, not process further chunks
+        assertTrue("Should not process chunks far beyond cancel point, but saw $maxChunkSeen",
+            maxChunkSeen <= cancelAfterChunk + 1)
+    }
+
+    @Test
     fun `combine passes CRC validation with correct value`() {
         val dir = createTempDir()
         val data = byteArrayOf(10, 20, 30, 40, 50)
