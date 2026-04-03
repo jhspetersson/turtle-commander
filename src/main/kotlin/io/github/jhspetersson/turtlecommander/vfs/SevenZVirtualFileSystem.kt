@@ -201,7 +201,8 @@ class SevenZipVirtualFileSystem(
     override fun close() {
         try {
             tempDir.toFile().deleteRecursively()
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            thisLogger().debug("Failed to clean up temp dir $tempDir: ${e.message}")
         }
     }
 }

@@ -1,6 +1,7 @@
 package io.github.jhspetersson.turtlecommander.vfs
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 
+import com.intellij.openapi.diagnostic.thisLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
@@ -189,7 +190,8 @@ class CompressedSingleFileVirtualFileSystem(
     override fun close() {
         try {
             tempDir.toFile().deleteRecursively()
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            thisLogger().debug("Failed to clean up temp dir $tempDir: ${e.message}")
         }
     }
 }

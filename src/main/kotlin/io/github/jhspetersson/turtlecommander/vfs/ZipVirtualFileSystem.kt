@@ -135,7 +135,8 @@ class ZipVirtualFileSystem(override val archivePath: Path) : VirtualFileSystem {
     override fun close() {
         try {
             fileSystem.close()
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            thisLogger().debug("Failed to close zip filesystem for $archivePath: ${e.message}")
         }
     }
 }
@@ -304,7 +305,8 @@ class ZipExtractVirtualFileSystem(
     override fun close() {
         try {
             tempDir.toFile().deleteRecursively()
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            thisLogger().debug("Failed to clean up temp dir $tempDir: ${e.message}")
         }
     }
 }
