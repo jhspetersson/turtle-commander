@@ -1,25 +1,16 @@
 package io.github.jhspetersson.turtlecommander.service
-import io.github.jhspetersson.turtlecommander.util.readFilePermissions
-import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
-import io.github.jhspetersson.turtlecommander.model.DirectoryType
-import io.github.jhspetersson.turtlecommander.model.FileEntry
 
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import io.github.jhspetersson.turtlecommander.model.DirectoryType
+import io.github.jhspetersson.turtlecommander.model.FileEntry
+import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
+import io.github.jhspetersson.turtlecommander.util.readFilePermissions
+import kotlinx.coroutines.*
 import java.io.File
 import java.io.IOException
-import java.nio.file.CopyOption
-import java.nio.file.FileVisitResult
-import java.nio.file.Files
+import java.nio.file.*
 import java.nio.file.Files.walkFileTree
-import java.nio.file.Path
-import java.nio.file.SimpleFileVisitor
-import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.BasicFileAttributes
 import kotlin.io.path.exists
 import kotlin.io.path.isDirectory
@@ -453,8 +444,6 @@ class FileOperationService(
             when {
                 // IntelliJ IDEA / JetBrains project
                 Files.isDirectory(dir.resolve(".idea")) -> DirectoryType.IDEA_PROJECT
-                // Git repository
-                Files.isDirectory(dir.resolve(".git")) -> DirectoryType.GIT
                 // Gradle project
                 Files.exists(dir.resolve("build.gradle.kts"))
                     || Files.exists(dir.resolve("build.gradle"))
@@ -478,6 +467,8 @@ class FileOperationService(
                 dir.toFile().list()?.any {
                     it.endsWith(".sln") || it.endsWith(".csproj") || it.endsWith(".fsproj")
                 } == true -> DirectoryType.DOTNET
+                // Git repository
+                Files.isDirectory(dir.resolve(".git")) -> DirectoryType.GIT
                 else -> DirectoryType.NONE
             }
         } catch (_: Exception) {
