@@ -6,6 +6,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
@@ -243,6 +244,26 @@ class TarOutputStreamTest {
             thrown = e
         }
         assertTrue("Should throw for >8GB files but got: $thrown", thrown is IllegalArgumentException)
+    }
+
+    @Test
+    fun `file entry detects size mismatch when file is shorter than declared`() {
+        val dir = Files.createTempDirectory("tar-test-")
+        tempFiles.add(dir)
+        val file = dir.resolve("test.txt")
+        Files.writeString(file, "hi") // 2 bytes
+
+        val baos = ByteArrayOutputStream()
+        var thrown: Throwable? = null
+        try {
+            val tar = TarOutputStream(baos)
+            // Declare 100 bytes but file only has 2
+            tar.putFileEntry("test.txt", file, 100, 0)
+            tar.close()
+        } catch (e: Throwable) {
+            thrown = e
+        }
+        assertTrue("Should throw on size mismatch but got: $thrown", thrown is IOException)
     }
 
     @Test

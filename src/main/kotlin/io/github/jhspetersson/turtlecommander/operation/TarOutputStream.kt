@@ -1,5 +1,6 @@
 package io.github.jhspetersson.turtlecommander.operation
 
+import java.io.IOException
 import java.io.OutputStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -49,6 +50,9 @@ class TarOutputStream(private val out: OutputStream) : AutoCloseable {
                 if (read <= 0) break
                 out.write(buf, 0, read)
                 remaining -= read
+            }
+            if (remaining > 0) {
+                throw IOException("File $file is shorter than declared size $size (missing $remaining bytes)")
             }
         }
         // Pad to block boundary
