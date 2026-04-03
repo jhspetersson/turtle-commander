@@ -13,6 +13,7 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.util.concurrent.ConcurrentHashMap
 
 class VfsStackEntry(
     val vfs: VirtualFileSystem,
@@ -33,19 +34,17 @@ class VfsEditService(
     private val cs: CoroutineScope,
 ) : Disposable {
 
-    private val activeEdits = mutableMapOf<String, VfsEditEntry>()
+    private val activeEdits = ConcurrentHashMap<String, VfsEditEntry>()
 
     private fun normalizeKey(path: String): String = path.replace('\\', '/')
     private fun normalizeKey(path: Path): String = normalizeKey(path.toString())
 
     fun trackEdit(entry: VfsEditEntry) {
-        synchronized(activeEdits) {
-            activeEdits[normalizeKey(entry.tempFilePath)] = entry
-        }
+        activeEdits[normalizeKey(entry.tempFilePath)] = entry
     }
 
     fun onFileSaved(filePath: String) {
-        val entry = synchronized(activeEdits) { activeEdits[normalizeKey(filePath)] } ?: return
+        val entry = activeEdits[normalizeKey(filePath)] ?: return
         cs.launch {
             writeBack(entry)
         }
@@ -81,9 +80,7 @@ class VfsEditService(
 
             entry.onAfterFlush?.invoke(currentPathRel)
 
-            synchronized(activeEdits) {
-                activeEdits.remove(normalizeKey(entry.tempFilePath))
-            }
+            activeEdits.remove(normalizeKey(entry.tempFilePath))
         } catch (e: Exception) {
             thisLogger().warn("VFS edit write-back failed: ${e.message}")
         }
@@ -95,11 +92,8 @@ class VfsEditService(
 
     override fun dispose() {
         cs.cancel()
-        val snapshot = synchronized(activeEdits) {
-            val copy = activeEdits.values.toList()
-            activeEdits.clear()
-            copy
-        }
+        val snapshot = activeEdits.values.toList()
+        activeEdits.clear()
         for (entry in snapshot) {
             try {
                 entry.tempFilePath.toFile().delete()
