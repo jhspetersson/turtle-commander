@@ -181,6 +181,22 @@ class SplitFileOperationTest {
     }
 
     @Test
+    fun `split cancellation cleans up partial chunk files`() {
+        val data = ByteArray(10000) { it.toByte() }
+        val source = createTempFile(data)
+        val targetDir = createTempDir()
+        var chunksSeen = 0
+
+        SplitFileOperation.split(source, targetDir, 100, { chunkIndex, _, _, _ ->
+            chunksSeen = chunkIndex
+        }, { chunksSeen >= 2 })
+
+        // All chunk files and CRC file should be cleaned up on cancellation
+        val remainingFiles = Files.list(targetDir).use { it.toList() }
+        assertEquals("Cancelled split should clean up partial files", 0, remainingFiles.size)
+    }
+
+    @Test
     fun `split uses 4-digit extensions for more than 999 chunks`() {
         val data = ByteArray(1001) { it.toByte() }
         val source = createTempFile(data)

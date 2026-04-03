@@ -25,6 +25,8 @@ object SplitFileOperation {
         val crc32 = CRC32()
         var totalBytesRead = 0L
         var chunkIndex = 0
+        val writtenFiles = mutableListOf<Path>()
+        var cancelled = false
 
         BufferedInputStream(Files.newInputStream(sourceFile), BUFFER_SIZE).use { input ->
             if (fileSize == 0L) {
@@ -32,10 +34,11 @@ object SplitFileOperation {
                 val ext = "1".padStart(extensionWidth, '0')
                 val chunkPath = targetDirectory.resolve("$fileName.$ext")
                 Files.createFile(chunkPath)
+                writtenFiles.add(chunkPath)
                 onProgress(1, 1, 0L, 0L)
             }
             while (totalBytesRead < fileSize) {
-                if (isCancelled()) return
+                if (isCancelled()) { cancelled = true; break }
 
                 chunkIndex++
                 val ext = chunkIndex.toString().padStart(extensionWidth, '0')
@@ -45,7 +48,7 @@ object SplitFileOperation {
                 BufferedOutputStream(Files.newOutputStream(chunkPath), BUFFER_SIZE).use { output ->
                     val buffer = ByteArray(BUFFER_SIZE)
                     while (chunkBytesWritten < chunkSize) {
-                        if (isCancelled()) return
+                        if (isCancelled()) { cancelled = true; return@use }
 
                         val toRead = minOf(BUFFER_SIZE.toLong(), chunkSize - chunkBytesWritten).toInt()
                         val bytesRead = input.read(buffer, 0, toRead)
@@ -59,7 +62,15 @@ object SplitFileOperation {
                         onProgress(chunkIndex, totalChunks, totalBytesRead, fileSize)
                     }
                 }
+                writtenFiles.add(chunkPath)
             }
+        }
+
+        if (cancelled) {
+            for (file in writtenFiles) {
+                Files.deleteIfExists(file)
+            }
+            return
         }
 
         writeCrcFile(targetDirectory, fileName, fileSize, crc32.value)
