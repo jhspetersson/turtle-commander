@@ -7,6 +7,7 @@
 ### Added
 
 - `ar` and `xz` archives support (including `.deb` files)
+- open `.apk` files as archives
 
 ### Fixed
 

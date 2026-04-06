@@ -16,7 +16,7 @@ import java.nio.file.attribute.BasicFileAttributes
 
 class ZipFileSystemProvider : VirtualFileSystemProvider {
     companion object {
-        val ARCHIVE_EXTENSIONS = setOf("zip", "jar", "war", "ear")
+        val ARCHIVE_EXTENSIONS = setOf("zip", "jar", "war", "ear", "apk")
     }
 
     override fun supports(path: Path): Boolean {
