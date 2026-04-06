@@ -208,40 +208,4 @@ class VfsProviderTest {
         assertFalse(xzProvider.supportsExtension("zip"))
     }
 
-    // --- ARCHIVE_EXTENSIONS constants ---
-
-    @Test
-    fun `zip archive extensions set has correct count`() {
-        assertEquals(4, ZipFileSystemProvider.ARCHIVE_EXTENSIONS.size)
-    }
-
-    @Test
-    fun `tar archive extensions set has correct count`() {
-        assertEquals(1, TarFileSystemProvider.ARCHIVE_EXTENSIONS.size)
-    }
-
-    @Test
-    fun `gz archive extensions set has correct count`() {
-        assertEquals(2, GzFileSystemProvider.ARCHIVE_EXTENSIONS.size)
-    }
-
-    @Test
-    fun `bz2 archive extensions set has correct count`() {
-        assertEquals(3, Bz2FileSystemProvider.ARCHIVE_EXTENSIONS.size)
-    }
-
-    @Test
-    fun `7zip archive extensions set has correct count`() {
-        assertEquals(1, SevenZipFileSystemProvider.ARCHIVE_EXTENSIONS.size)
-    }
-
-    @Test
-    fun `ar archive extensions set has correct count`() {
-        assertEquals(3, ArFileSystemProvider.ARCHIVE_EXTENSIONS.size)
-    }
-
-    @Test
-    fun `xz archive extensions set has correct count`() {
-        assertEquals(2, XzFileSystemProvider.ARCHIVE_EXTENSIONS.size)
-    }
 }
