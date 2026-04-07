@@ -7,6 +7,7 @@ import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService.*
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
+import io.github.jhspetersson.turtlecommander.ui.FileTableModel
 import io.github.jhspetersson.turtlecommander.ui.ViewMode
 import io.github.jhspetersson.turtlecommander.ui.setViewMode
 import java.awt.GraphicsEnvironment
@@ -502,7 +503,7 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
 
         // Verify that the remaining columns kept their relative order
         val orderAfter = (0 until cm.columnCount).map { cm.getColumn(it).modelIndex }
-        val expectedOrder = orderBefore.filter { it != 5 } // remove Permissions
+        val expectedOrder = orderBefore.filter { it != FileTableModel.COL_PERMS } // remove Permissions
         assertEquals("Column order should be preserved after hiding a column", expectedOrder, orderAfter)
 
         // Restore all columns visible for other tests
@@ -660,9 +661,9 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
         val order2After = (0 until cm2.columnCount).map { cm2.getColumn(it).modelIndex }
 
         assertEquals("Tab1 order should be preserved minus hidden column",
-            order1Before.filter { it != 5 }, order1After)
+            order1Before.filter { it != FileTableModel.COL_PERMS }, order1After)
         assertEquals("Tab2 order should be preserved minus hidden column",
-            order2Before.filter { it != 5 }, order2After)
+            order2Before.filter { it != FileTableModel.COL_PERMS }, order2After)
 
         // They should still be different
         assertFalse("Tabs should still have different orders after visibility change",
@@ -739,9 +740,9 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
         val orderRAfter = (0 until cmR.columnCount).map { cmR.getColumn(it).modelIndex }
 
         assertEquals("Left panel order should be preserved minus hidden column",
-            orderLBefore.filter { it != 5 }, orderLAfter)
+            orderLBefore.filter { it != FileTableModel.COL_PERMS }, orderLAfter)
         assertEquals("Right panel order should be preserved minus hidden column",
-            orderRBefore.filter { it != 5 }, orderRAfter)
+            orderRBefore.filter { it != FileTableModel.COL_PERMS }, orderRAfter)
         assertFalse("Panels should still have different orders",
             orderLAfter == orderRAfter)
 

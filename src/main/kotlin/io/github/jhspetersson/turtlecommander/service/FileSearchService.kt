@@ -1,4 +1,6 @@
 package io.github.jhspetersson.turtlecommander.service
+import io.github.jhspetersson.turtlecommander.util.readFileGroup
+import io.github.jhspetersson.turtlecommander.util.readFileOwner
 import io.github.jhspetersson.turtlecommander.util.readFilePermissions
 import io.github.jhspetersson.turtlecommander.dialog.DateFilterMode
 import io.github.jhspetersson.turtlecommander.dialog.DateFilter
@@ -125,6 +127,8 @@ class FileSearchService(
             if (!matchesDate(attrs.lastModifiedTime().toMillis(), criteria.modificationDateFilter)) return
         }
 
+        val owner = readFileOwner(path)
+        val group = readFileGroup(path)
         val permissions = readPermissions(path)
         val entry = FileEntry(
             name = name,
@@ -133,6 +137,8 @@ class FileSearchService(
             size = attrs.size(),
             creationTime = attrs.creationTime(),
             lastModified = attrs.lastModifiedTime(),
+            owner = owner,
+            group = group,
             permissions = permissions,
         )
         onResult(entry)

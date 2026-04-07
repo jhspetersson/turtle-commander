@@ -31,10 +31,18 @@ class ColumnConfig {
     }
 
     companion object {
-        val ALL_COLUMN_IDS = listOf("Name", "Ext", "Size", "Date Created", "Date Modified", "Permissions")
+        val ALL_COLUMN_IDS = listOf("Name", "Ext", "Size", "Date Created", "Date Modified", "User", "Group", "Permissions")
 
-        fun defaults(): List<ColumnConfig> = ALL_COLUMN_IDS.map { id ->
-            ColumnConfig().apply { this.id = id }
+        private val UNIX_ONLY_COLUMNS = setOf("User", "Group")
+
+        fun defaults(): List<ColumnConfig> {
+            val isWindows = System.getProperty("os.name").lowercase().contains("win")
+            return ALL_COLUMN_IDS.map { id ->
+                ColumnConfig().apply {
+                    this.id = id
+                    this.visible = !(isWindows && id in UNIX_ONLY_COLUMNS)
+                }
+            }
         }
     }
 }

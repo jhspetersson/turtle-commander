@@ -106,14 +106,15 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
 
         val columns = settings.getEffectiveColumns()
 
-        assertEquals("Should have all 6 default columns", 6, columns.size)
+        assertEquals("Should have all 8 default columns", 8, columns.size)
         assertEquals("Name", columns[0].id)
         assertEquals("Ext", columns[1].id)
         assertEquals("Size", columns[2].id)
         assertEquals("Date Created", columns[3].id)
         assertEquals("Date Modified", columns[4].id)
-        assertEquals("Permissions", columns[5].id)
-        assertTrue("All columns visible by default", columns.all { it.visible })
+        assertEquals("User", columns[5].id)
+        assertEquals("Group", columns[6].id)
+        assertEquals("Permissions", columns[7].id)
     }
 
     fun testEffectiveColumnsPreservesCustomization() {
@@ -123,8 +124,8 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
 
         val columns = settings.getEffectiveColumns()
 
-        // Should include the 2 saved columns + fill in the 4 missing ones
-        assertTrue("Should have at least 6 columns", columns.size >= 6)
+        // Should include the 2 saved columns + fill in the 6 missing ones
+        assertTrue("Should have at least 8 columns", columns.size >= 8)
         val sizeCol = columns.find { it.id == "Size" }
         assertNotNull(sizeCol)
         assertFalse("Size column should be hidden", sizeCol!!.visible)
@@ -139,18 +140,28 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
 
         val columns = settings.getEffectiveColumns()
 
-        // Missing columns (Ext, Date Created, Permissions) should be appended
+        // Missing columns (Ext, Date Created, User, Group, Permissions) should be appended
         val ids = columns.map { it.id }.toSet()
         assertTrue("Should include Ext", "Ext" in ids)
         assertTrue("Should include Date Created", "Date Created" in ids)
+        assertTrue("Should include User", "User" in ids)
+        assertTrue("Should include Group", "Group" in ids)
         assertTrue("Should include Permissions", "Permissions" in ids)
     }
 
     fun testColumnConfigDefaults() {
         val defaults = ColumnConfig.defaults()
-        assertEquals(6, defaults.size)
+        assertEquals(8, defaults.size)
         assertEquals(ColumnConfig.ALL_COLUMN_IDS, defaults.map { it.id })
-        assertTrue(defaults.all { it.visible })
+        val isWindows = System.getProperty("os.name").lowercase().contains("win")
+        if (isWindows) {
+            val userCol = defaults.find { it.id == "User" }!!
+            val groupCol = defaults.find { it.id == "Group" }!!
+            assertFalse("User column should be hidden on Windows", userCol.visible)
+            assertFalse("Group column should be hidden on Windows", groupCol.visible)
+        } else {
+            assertTrue("All columns visible on Unix", defaults.all { it.visible })
+        }
         assertTrue("All default styles should be default", defaults.all { it.style.isDefault() })
     }
 

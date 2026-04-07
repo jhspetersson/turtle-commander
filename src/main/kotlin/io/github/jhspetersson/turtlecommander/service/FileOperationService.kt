@@ -5,6 +5,8 @@ import com.intellij.openapi.diagnostic.thisLogger
 import io.github.jhspetersson.turtlecommander.model.DirectoryType
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
+import io.github.jhspetersson.turtlecommander.util.readFileGroup
+import io.github.jhspetersson.turtlecommander.util.readFileOwner
 import io.github.jhspetersson.turtlecommander.util.readFilePermissions
 import kotlinx.coroutines.*
 import java.io.File
@@ -52,6 +54,8 @@ class FileOperationService(
                 for (entry in stream) {
                     try {
                         val attrs = Files.readAttributes(entry, BasicFileAttributes::class.java)
+                        val owner = readOwner(entry)
+                        val group = readGroup(entry)
                         val permissions = readPermissions(entry)
                         val dirType = if (attrs.isDirectory) detectDirectoryType(entry) else DirectoryType.NONE
                         val fileEntry = FileEntry(
@@ -61,6 +65,8 @@ class FileOperationService(
                             size = attrs.size(),
                             creationTime = attrs.creationTime(),
                             lastModified = attrs.lastModifiedTime(),
+                            owner = owner,
+                            group = group,
                             permissions = permissions,
                             directoryType = dirType,
                         )
@@ -396,6 +402,8 @@ class FileOperationService(
         }
     }
 
+    private fun readOwner(path: Path): String = readFileOwner(path)
+    private fun readGroup(path: Path): String = readFileGroup(path)
     private fun readPermissions(path: Path): String = readFilePermissions(path, isWindows)
 
     private fun copyDirectoryRecursive(source: Path, target: Path) {

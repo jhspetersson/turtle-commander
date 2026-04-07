@@ -21,6 +21,8 @@ private val DEFAULT_COLUMN_WIDTHS = mapOf(
     "Size" to 80,
     "Date Created" to 130,
     "Date Modified" to 130,
+    "User" to 80,
+    "Group" to 80,
     "Permissions" to 80,
 )
 
@@ -30,6 +32,8 @@ internal val COLUMN_NAME_TO_MODEL_INDEX = mapOf(
     "Size" to FileTableModel.COL_SIZE,
     "Date Created" to FileTableModel.COL_CREATED,
     "Date Modified" to FileTableModel.COL_DATE,
+    "User" to FileTableModel.COL_OWNER,
+    "Group" to FileTableModel.COL_GROUP,
     "Permissions" to FileTableModel.COL_PERMS,
 )
 

@@ -16,14 +16,16 @@ class FileTableModel : AbstractTableModel() {
         const val COL_SIZE = 2
         const val COL_CREATED = 3
         const val COL_DATE = 4
-        const val COL_PERMS = 5
+        const val COL_OWNER = 5
+        const val COL_GROUP = 6
+        const val COL_PERMS = 7
         const val PARENT_MARKER = ".."
         const val PARENT_NUMERIC = Long.MIN_VALUE
         const val DIR_NUMERIC = -1L
     }
 
     private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault())
-    private val columns = arrayOf("Name", "Ext", "Size", "Date Created", "Date Modified", "Permissions")
+    private val columns = arrayOf("Name", "Ext", "Size", "Date Created", "Date Modified", "User", "Group", "Permissions")
     private var entries: List<FileEntry> = emptyList()
     var directorySizeProvider: ((Path) -> Long?)? = null
 
@@ -69,6 +71,8 @@ class FileTableModel : AbstractTableModel() {
             } else entry.size
             COL_CREATED -> if (entry.isParentLink) PARENT_NUMERIC else entry.creationTime?.toMillis() ?: 0L
             COL_DATE -> if (entry.isParentLink) PARENT_NUMERIC else entry.lastModified?.toMillis() ?: 0L
+            COL_OWNER -> if (entry.isParentLink) PARENT_MARKER else entry.owner
+            COL_GROUP -> if (entry.isParentLink) PARENT_MARKER else entry.group
             COL_PERMS -> if (entry.isParentLink) PARENT_MARKER else entry.permissions
             else -> ""
         }

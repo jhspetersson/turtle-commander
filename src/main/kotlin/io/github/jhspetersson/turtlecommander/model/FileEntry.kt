@@ -10,6 +10,8 @@ data class FileEntry(
     val size: Long,
     val creationTime: FileTime? = null,
     val lastModified: FileTime?,
+    val owner: String = "",
+    val group: String = "",
     val permissions: String,
     val isParentLink: Boolean = false,
     val directoryType: DirectoryType = DirectoryType.NONE,

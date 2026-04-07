@@ -37,7 +37,7 @@ class FileTableModelTest {
     @Test
     fun testEmptyModel() {
         assertEquals(0, model.rowCount)
-        assertEquals(6, model.columnCount)
+        assertEquals(8, model.columnCount)
     }
 
     @Test
@@ -47,7 +47,9 @@ class FileTableModelTest {
         assertEquals("Size", model.getColumnName(2))
         assertEquals("Date Created", model.getColumnName(3))
         assertEquals("Date Modified", model.getColumnName(4))
-        assertEquals("Permissions", model.getColumnName(5))
+        assertEquals("User", model.getColumnName(5))
+        assertEquals("Group", model.getColumnName(6))
+        assertEquals("Permissions", model.getColumnName(7))
     }
 
     @Test

@@ -3,13 +3,10 @@ package io.github.jhspetersson.turtlecommander.util
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
-import java.nio.file.AccessDeniedException
-import java.nio.file.FileVisitResult
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.SimpleFileVisitor
+import java.nio.file.*
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.DosFileAttributes
+import java.nio.file.attribute.PosixFileAttributeView
 import java.nio.file.attribute.PosixFilePermissions
 
 suspend fun countFiles(sources: List<Path>): Int = withContext(Dispatchers.IO) {
@@ -53,6 +50,23 @@ fun formatSize(bytes: Long): String {
     if (gb < 1024) return "%.1f GB".format(gb)
     val tb = gb / 1024.0
     return "%.1f TB".format(tb)
+}
+
+fun readFileOwner(path: Path): String {
+    return try {
+        Files.getOwner(path).name ?: ""
+    } catch (_: Exception) {
+        ""
+    }
+}
+
+fun readFileGroup(path: Path): String {
+    return try {
+        val posixView = Files.getFileAttributeView(path, PosixFileAttributeView::class.java)
+        posixView?.readAttributes()?.group()?.name ?: ""
+    } catch (_: Exception) {
+        ""
+    }
 }
 
 fun readFilePermissions(path: Path, isWindows: Boolean): String {
