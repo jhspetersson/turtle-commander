@@ -5,6 +5,7 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
+import io.github.jhspetersson.turtlecommander.ui.installStandardContextMenu
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.awt.Dimension
@@ -118,6 +119,12 @@ class FileSearchDialog(
     init {
         title = "Search Files"
         setOKButtonText("Search")
+
+        listOf(
+            rootField, nameField, sizeField1, sizeField2,
+            creationDateField1, creationDateField2,
+            modificationDateField1, modificationDateField2,
+        ).forEach { it.installStandardContextMenu() }
 
         init()
 

@@ -1,6 +1,5 @@
 package io.github.jhspetersson.turtlecommander.ui
 
-import com.intellij.icons.AllIcons
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
@@ -8,7 +7,6 @@ import io.github.jhspetersson.turtlecommander.settings.ComponentStyle
 import java.awt.*
 import java.awt.event.*
 import javax.swing.*
-import javax.swing.event.PopupMenuEvent
 
 class BreadcrumbPathField : JPanel() {
     private val cardLayout = CardLayout()
@@ -85,7 +83,7 @@ class BreadcrumbPathField : JPanel() {
             }
         })
 
-        editField.componentPopupMenu = createEditFieldPopupMenu()
+        editField.installStandardContextMenu()
 
         editField.registerKeyboardAction(
             { switchToBreadcrumbMode() },
@@ -189,62 +187,6 @@ class BreadcrumbPathField : JPanel() {
         }
 
         return segments
-    }
-
-    private fun createEditFieldPopupMenu(): JPopupMenu {
-        val menu = JPopupMenu()
-
-        val itemBorder = JBUI.Borders.empty(3, 6, 3, 0)
-        menu.add(JMenuItem("Cut", AllIcons.Actions.MenuCut).apply {
-            border = itemBorder
-            addActionListener { editField.cut() }
-        })
-        menu.add(JMenuItem("Copy", AllIcons.Actions.Copy).apply {
-            border = itemBorder
-            addActionListener { editField.copy() }
-        })
-        menu.add(JMenuItem("Paste", AllIcons.Actions.MenuPaste).apply {
-            border = itemBorder
-            addActionListener { editField.paste() }
-        })
-        menu.addSeparator()
-        menu.add(JMenuItem("Delete", AllIcons.Actions.GC).apply {
-            border = itemBorder
-            addActionListener { editField.replaceSelection("") }
-        })
-        menu.addSeparator()
-        menu.add(JMenuItem("Select All").apply {
-            border = itemBorder
-            addActionListener { editField.selectAll() }
-        })
-
-        menu.addPopupMenuListener(object : javax.swing.event.PopupMenuListener {
-            override fun popupMenuWillBecomeVisible(e: PopupMenuEvent) {
-                val hasSelection = editField.selectedText != null
-                val hasClipboard = try {
-                    Toolkit.getDefaultToolkit().systemClipboard.getContents(null) != null
-                } catch (_: Exception) {
-                    false
-                }
-                menu.components.filterIsInstance<JMenuItem>().forEach { item ->
-                    when (item.text) {
-                        "Cut", "Delete" -> item.isEnabled = hasSelection
-                        "Copy" -> item.isEnabled = hasSelection
-                        "Paste" -> item.isEnabled = hasClipboard
-                        "Select All" -> item.isEnabled = editField.text.isNotEmpty()
-                    }
-                }
-                menu.preferredSize = Dimension(
-                    maxOf(menu.preferredSize.width, JBUI.scale(180)),
-                    menu.preferredSize.height,
-                )
-            }
-
-            override fun popupMenuWillBecomeInvisible(e: PopupMenuEvent) {}
-            override fun popupMenuCanceled(e: PopupMenuEvent) {}
-        })
-
-        return menu
     }
 
     fun applyStyle(style: ComponentStyle) {

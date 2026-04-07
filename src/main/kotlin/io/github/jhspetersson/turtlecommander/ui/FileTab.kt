@@ -446,7 +446,7 @@ class FileTab(
             rowSorter = ParentPinningRowSorter(tableModel)
 
             var editingEntry: FileEntry? = null
-            nameEditor = object : DefaultCellEditor(JTextField()) {
+            nameEditor = object : DefaultCellEditor(JTextField().apply { installStandardContextMenu() }) {
                 init {
                     clickCountToStart = Int.MAX_VALUE
                 }
@@ -733,6 +733,7 @@ class FileTab(
     private fun setupFilterPanel() {
         filterPanel.border = BorderFactory.createEmptyBorder(2, 4, 2, 4)
         filterPanel.isVisible = false
+        filterField.installStandardContextMenu()
 
         val iconLabel = JLabel(AllIcons.Actions.Find)
         filterPanel.add(iconLabel, BorderLayout.WEST)

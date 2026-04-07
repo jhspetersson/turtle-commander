@@ -10,6 +10,7 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.ui.Messages
+import io.github.jhspetersson.turtlecommander.dialog.InputDialog
 import com.intellij.openapi.vfs.LocalFileSystem
 import io.github.jhspetersson.turtlecommander.dialog.*
 import io.github.jhspetersson.turtlecommander.model.FileEntry
@@ -179,13 +180,10 @@ internal fun FileTab.performDelete() {
 }
 
 internal fun FileTab.performCreateDirectory() {
-    val name = Messages.showInputDialog(
-        project,
-        "Enter directory name:",
-        "New Directory",
-        Messages.getQuestionIcon(),
-    )
-    if (name.isNullOrBlank()) return
+    val dialog = InputDialog(project, "New Directory", "Enter directory name:")
+    if (!dialog.showAndGet()) return
+    val name = dialog.inputValue
+    if (name.isBlank()) return
 
     fileOps.launch {
         try {
@@ -202,13 +200,10 @@ internal fun FileTab.performCreateDirectory() {
 }
 
 internal fun FileTab.performCreateFile() {
-    val name = Messages.showInputDialog(
-        project,
-        "Enter file name:",
-        "New File",
-        Messages.getQuestionIcon(),
-    )
-    if (name.isNullOrBlank()) return
+    val dialog = InputDialog(project, "New File", "Enter file name:")
+    if (!dialog.showAndGet()) return
+    val name = dialog.inputValue
+    if (name.isBlank()) return
 
     fileOps.launch {
         try {
@@ -773,15 +768,10 @@ internal fun FileTab.startRename() {
             table.editCellAt(row, nameViewCol)
         }
     } else {
-        val newName = Messages.showInputDialog(
-            project,
-            "Enter new name:",
-            "Rename",
-            Messages.getQuestionIcon(),
-            entry.name,
-            null,
-        )
-        if (!newName.isNullOrBlank() && newName != entry.name) {
+        val renameDialog = InputDialog(project, "Rename", "Enter new name:", entry.name)
+        if (!renameDialog.showAndGet()) return
+        val newName = renameDialog.inputValue
+        if (newName.isNotBlank() && newName != entry.name) {
             performRename(entry, newName)
         }
     }

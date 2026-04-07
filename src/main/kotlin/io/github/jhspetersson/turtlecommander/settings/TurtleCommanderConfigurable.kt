@@ -10,6 +10,7 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
+import io.github.jhspetersson.turtlecommander.dialog.InputDialog
 import io.github.jhspetersson.turtlecommander.service.ThumbnailCache
 import io.github.jhspetersson.turtlecommander.util.formatSize
 import java.awt.*
@@ -374,9 +375,9 @@ class TurtleCommanderConfigurable : Configurable {
     // --- Theme actions ---
 
     private fun saveCurrentTheme() {
-        val name = Messages.showInputDialog(
-            "Enter theme name:", "Save Theme", null
-        ) ?: return
+        val dialog = InputDialog(title = "Save Theme", message = "Enter theme name:")
+        if (!dialog.showAndGet()) return
+        val name = dialog.inputValue
         if (name.isBlank()) {
             Messages.showWarningDialog("Theme name cannot be empty.", "Save Theme")
             return
@@ -394,9 +395,9 @@ class TurtleCommanderConfigurable : Configurable {
             Messages.showWarningDialog("The Default theme cannot be renamed.", "Rename Theme")
             return
         }
-        val newName = Messages.showInputDialog(
-            "Enter new name for \"${current.name}\":", "Rename Theme", null, current.name, null
-        ) ?: return
+        val renameDialog = InputDialog(title = "Rename Theme", message = "Enter new name for \"${current.name}\":", initialValue = current.name)
+        if (!renameDialog.showAndGet()) return
+        val newName = renameDialog.inputValue
         if (newName.isBlank()) {
             Messages.showWarningDialog("Theme name cannot be empty.", "Rename Theme")
             return

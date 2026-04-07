@@ -6,6 +6,7 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
+import io.github.jhspetersson.turtlecommander.ui.installStandardContextMenu
 import java.awt.BorderLayout
 import java.awt.Dimension
 import javax.swing.BorderFactory
@@ -58,6 +59,7 @@ class PackDialog(
     init {
         title = "Pack Files"
         setOKButtonText("Pack")
+        archiveField.installStandardContextMenu()
         init()
 
         formatCombo.addActionListener {

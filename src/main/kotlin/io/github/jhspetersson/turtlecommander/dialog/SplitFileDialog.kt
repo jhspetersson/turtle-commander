@@ -8,6 +8,7 @@ import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBRadioButton
 import com.intellij.ui.components.JBTextField
+import io.github.jhspetersson.turtlecommander.ui.installStandardContextMenu
 import com.intellij.util.ui.JBUI
 import java.awt.Dimension
 import java.awt.GridBagConstraints
@@ -57,6 +58,7 @@ class SplitFileDialog(
     init {
         title = "Split File"
         setOKButtonText("Split")
+        targetDirField.installStandardContextMenu()
         init()
 
         val group = ButtonGroup()

@@ -6,6 +6,7 @@ import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
+import io.github.jhspetersson.turtlecommander.ui.installStandardContextMenu
 import com.intellij.util.ui.JBUI
 import java.awt.Dimension
 import javax.swing.BoxLayout
@@ -30,6 +31,8 @@ class CombineFilesDialog(
     init {
         title = "Combine Files"
         setOKButtonText("Combine")
+        targetDirField.installStandardContextMenu()
+        targetFileField.installStandardContextMenu()
         init()
     }
 
