@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- User and Group columns (hidden on Windows by default)
+- drive free space dialog
+
 ## [0.4.2] - 2026-04-07
 
 ### Added
