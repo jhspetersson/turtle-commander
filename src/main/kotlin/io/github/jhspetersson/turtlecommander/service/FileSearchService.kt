@@ -127,8 +127,8 @@ class FileSearchService(
             if (!matchesDate(attrs.lastModifiedTime().toMillis(), criteria.modificationDateFilter)) return
         }
 
-        val owner = readFileOwner(path)
-        val group = readFileGroup(path)
+        val owner = if (!isWindows) readFileOwner(path) else ""
+        val group = if (!isWindows) readFileGroup(path) else ""
         val permissions = readPermissions(path)
         val entry = FileEntry(
             name = name,
