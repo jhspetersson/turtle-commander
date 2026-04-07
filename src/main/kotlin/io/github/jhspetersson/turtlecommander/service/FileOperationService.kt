@@ -45,7 +45,7 @@ class FileOperationService(
                 for (entry in stream) {
                     try {
                         val attrs = Files.readAttributes(entry, BasicFileAttributes::class.java)
-                        val owner = if (!isWindows) readOwner(entry) else ""
+                        val owner = readOwner(entry)
                         val group = if (!isWindows) readGroup(entry) else ""
                         val permissions = readPermissions(entry)
                         val dirType = if (attrs.isDirectory) detectDirectoryType(entry) else DirectoryType.NONE
