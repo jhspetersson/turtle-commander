@@ -4,6 +4,7 @@ import com.intellij.icons.AllIcons
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.*
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileTypes.FileTypeManager
@@ -15,6 +16,8 @@ import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
 import com.intellij.ui.treeStructure.Tree
 import io.github.jhspetersson.turtlecommander.action.FileContextMenuState
+import io.github.jhspetersson.turtlecommander.dialog.DriveSpaceDialog
+import io.github.jhspetersson.turtlecommander.dialog.collectDriveInfo
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.service.FileOperationService
@@ -28,10 +31,7 @@ import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.awt.BorderLayout
-import java.awt.CardLayout
-import java.awt.Component
-import java.awt.Dimension
+import java.awt.*
 import java.awt.datatransfer.DataFlavor
 import java.awt.event.*
 import java.nio.file.FileSystems
@@ -935,6 +935,18 @@ class FileTab(
 
         statusLabel.border = BorderFactory.createEmptyBorder(2, 4, 2, 4)
         freeSpaceLabel.border = BorderFactory.createEmptyBorder(2, 4, 2, 4)
+        freeSpaceLabel.cursor = Cursor(Cursor.HAND_CURSOR)
+        freeSpaceLabel.toolTipText = "Click to view drive space"
+        freeSpaceLabel.addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                ApplicationManager.getApplication().executeOnPooledThread {
+                    val drives = collectDriveInfo()
+                    ApplicationManager.getApplication().invokeLater {
+                        DriveSpaceDialog(project, drives).show()
+                    }
+                }
+            }
+        })
         statusPanel.add(statusLabel, BorderLayout.WEST)
         statusPanel.add(freeSpaceLabel, BorderLayout.EAST)
 
