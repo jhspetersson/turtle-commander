@@ -22,6 +22,16 @@ interface VirtualFileSystemProvider {
     fun create(archivePath: Path): VirtualFileSystem
 }
 
+internal fun parentEntry(path: Path) = FileEntry(
+    name = "..",
+    path = path,
+    isDirectory = true,
+    size = 0,
+    lastModified = null,
+    permissions = "",
+    isParentLink = true,
+)
+
 private val ILLEGAL_FILENAME_CHARS = charArrayOf('<', '>', ':', '"', '|', '?', '*')
 
 /**

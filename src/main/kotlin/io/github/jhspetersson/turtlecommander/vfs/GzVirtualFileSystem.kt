@@ -141,17 +141,7 @@ class CompressedSingleFileVirtualFileSystem(
     override suspend fun listFiles(directory: Path): List<FileEntry> = withContext(Dispatchers.IO) {
         val result = mutableListOf<FileEntry>()
 
-        result.add(
-            FileEntry(
-                name = "..",
-                path = archivePath.parent ?: archivePath,
-                isDirectory = true,
-                size = 0,
-                lastModified = null,
-                permissions = "",
-                isParentLink = true,
-            )
-        )
+        result.add(parentEntry(archivePath.parent ?: archivePath))
 
         Files.newDirectoryStream(directory).use { stream ->
             for (entry in stream) {

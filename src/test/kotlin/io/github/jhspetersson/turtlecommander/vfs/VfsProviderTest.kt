@@ -208,4 +208,19 @@ class VfsProviderTest {
         assertFalse(xzProvider.supportsExtension("zip"))
     }
 
+    // --- parentEntry ---
+
+    @Test
+    fun `parentEntry creates correct entry`() {
+        val path = java.nio.file.Path.of("/some/dir")
+        val entry = parentEntry(path)
+        assertEquals("..", entry.name)
+        assertEquals(path, entry.path)
+        assertTrue(entry.isDirectory)
+        assertEquals(0L, entry.size)
+        assertNull(entry.lastModified)
+        assertEquals("", entry.permissions)
+        assertTrue(entry.isParentLink)
+    }
+
 }

@@ -121,30 +121,9 @@ class TarVirtualFileSystem(
         val result = mutableListOf<FileEntry>()
 
         if (!isRoot(directory)) {
-            val parent = directory.parent ?: tempDir
-            result.add(
-                FileEntry(
-                    name = "..",
-                    path = parent,
-                    isDirectory = true,
-                    size = 0,
-                    lastModified = null,
-                    permissions = "",
-                    isParentLink = true,
-                )
-            )
+            result.add(parentEntry(directory.parent ?: tempDir))
         } else {
-            result.add(
-                FileEntry(
-                    name = "..",
-                    path = archivePath.parent ?: archivePath,
-                    isDirectory = true,
-                    size = 0,
-                    lastModified = null,
-                    permissions = "",
-                    isParentLink = true,
-                )
-            )
+            result.add(parentEntry(archivePath.parent ?: archivePath))
         }
 
         Files.newDirectoryStream(directory).use { stream ->

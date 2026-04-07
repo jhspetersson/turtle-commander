@@ -6,6 +6,7 @@ import io.github.jhspetersson.turtlecommander.model.DirectoryType
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.util.readFileGroup
+import io.github.jhspetersson.turtlecommander.vfs.parentEntry
 import io.github.jhspetersson.turtlecommander.util.readFileOwner
 import io.github.jhspetersson.turtlecommander.util.readFilePermissions
 import kotlinx.coroutines.*
@@ -33,17 +34,7 @@ class FileOperationService(
 
         val parent = directory.parent
         if (parent != null) {
-            result.add(
-                FileEntry(
-                    name = "..",
-                    path = parent,
-                    isDirectory = true,
-                    size = 0,
-                    lastModified = null,
-                    permissions = "",
-                    isParentLink = true,
-                )
-            )
+            result.add(parentEntry(parent))
         }
 
         try {
