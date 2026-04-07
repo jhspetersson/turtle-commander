@@ -2,8 +2,10 @@ package io.github.jhspetersson.turtlecommander.vfs
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 
 import java.io.Closeable
+import java.nio.file.Files
 import java.nio.file.InvalidPathException
 import java.nio.file.Path
+import java.nio.file.attribute.BasicFileAttributes
 
 interface VirtualFileSystem : Closeable {
     val archivePath: Path
@@ -31,6 +33,34 @@ internal fun parentEntry(path: Path) = FileEntry(
     permissions = "",
     isParentLink = true,
 )
+
+internal fun readDirectoryEntries(directory: Path): List<FileEntry> {
+    val dirs = mutableListOf<FileEntry>()
+    val files = mutableListOf<FileEntry>()
+
+    Files.newDirectoryStream(directory).use { stream ->
+        for (entry in stream) {
+            try {
+                val attrs = Files.readAttributes(entry, BasicFileAttributes::class.java)
+                val fileEntry = FileEntry(
+                    name = entry.fileName.toString(),
+                    path = entry,
+                    isDirectory = attrs.isDirectory,
+                    size = if (attrs.isDirectory) 0 else attrs.size(),
+                    creationTime = attrs.creationTime(),
+                    lastModified = attrs.lastModifiedTime(),
+                    permissions = "",
+                )
+                if (attrs.isDirectory) dirs.add(fileEntry) else files.add(fileEntry)
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    dirs.sortBy { it.name.lowercase() }
+    files.sortBy { it.name.lowercase() }
+    return dirs + files
+}
 
 private val ILLEGAL_FILENAME_CHARS = charArrayOf('<', '>', ':', '"', '|', '?', '*')
 

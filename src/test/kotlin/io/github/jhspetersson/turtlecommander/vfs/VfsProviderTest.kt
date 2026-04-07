@@ -208,6 +208,45 @@ class VfsProviderTest {
         assertFalse(xzProvider.supportsExtension("zip"))
     }
 
+    // --- readDirectoryEntries ---
+
+    @Test
+    fun `readDirectoryEntries returns dirs before files sorted by name`() {
+        val dir = java.nio.file.Files.createTempDirectory("vfs-test-")
+        try {
+            java.nio.file.Files.createFile(dir.resolve("banana.txt"))
+            java.nio.file.Files.createFile(dir.resolve("apple.txt"))
+            java.nio.file.Files.createDirectories(dir.resolve("zebra"))
+            java.nio.file.Files.createDirectories(dir.resolve("alpha"))
+
+            val entries = readDirectoryEntries(dir)
+            assertEquals(4, entries.size)
+            // dirs first, sorted
+            assertEquals("alpha", entries[0].name)
+            assertTrue(entries[0].isDirectory)
+            assertEquals("zebra", entries[1].name)
+            assertTrue(entries[1].isDirectory)
+            // files next, sorted
+            assertEquals("apple.txt", entries[2].name)
+            assertFalse(entries[2].isDirectory)
+            assertEquals("banana.txt", entries[3].name)
+            assertFalse(entries[3].isDirectory)
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `readDirectoryEntries returns empty list for empty directory`() {
+        val dir = java.nio.file.Files.createTempDirectory("vfs-test-")
+        try {
+            val entries = readDirectoryEntries(dir)
+            assertTrue(entries.isEmpty())
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
     // --- parentEntry ---
 
     @Test

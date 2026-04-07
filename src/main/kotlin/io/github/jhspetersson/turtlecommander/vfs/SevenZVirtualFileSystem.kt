@@ -102,32 +102,7 @@ class SevenZipVirtualFileSystem(
             result.add(parentEntry(archivePath.parent ?: archivePath))
         }
 
-        Files.newDirectoryStream(directory).use { stream ->
-            val dirs = mutableListOf<FileEntry>()
-            val files = mutableListOf<FileEntry>()
-
-            for (entry in stream) {
-                try {
-                    val attrs = Files.readAttributes(entry, BasicFileAttributes::class.java)
-                    val fileEntry = FileEntry(
-                        name = entry.fileName.toString(),
-                        path = entry,
-                        isDirectory = attrs.isDirectory,
-                        size = if (attrs.isDirectory) 0 else attrs.size(),
-                        creationTime = attrs.creationTime(),
-                        lastModified = attrs.lastModifiedTime(),
-                        permissions = "",
-                    )
-                    if (attrs.isDirectory) dirs.add(fileEntry) else files.add(fileEntry)
-                } catch (_: Exception) {
-                }
-            }
-
-            dirs.sortBy { it.name.lowercase() }
-            files.sortBy { it.name.lowercase() }
-            result.addAll(dirs)
-            result.addAll(files)
-        }
+        result.addAll(readDirectoryEntries(directory))
 
         result
     }
