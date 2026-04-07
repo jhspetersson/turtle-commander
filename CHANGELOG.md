@@ -4,10 +4,12 @@
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-04-07
+
 ### Added
 
-- `ar` and `xz` archives support (including `.deb` files)
-- open `.apk` files as archives
+- open and modify `.deb` files (thanks to `ar` and `xz` archives support)
+- open and modify `.apk` files as archives
 
 ### Fixed
 
