@@ -117,31 +117,27 @@ class SevenZipVirtualFileSystem(
 
     private fun repackArchive() {
         SevenZOutputFile(archivePath.toFile()).use { out ->
-            Files.walk(tempDir).use { stream ->
-                stream.forEach { path ->
-                    if (path == tempDir) return@forEach
-                    val relativeName = tempDir.relativize(path).toString().replace('\\', '/')
-                    val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
-                    val entry = SevenZArchiveEntry().apply {
-                        name = relativeName + if (attrs.isDirectory) "/" else ""
-                        isDirectory = attrs.isDirectory
-                        if (!attrs.isDirectory) size = attrs.size()
-                        if (attrs.lastModifiedTime() != null) {
-                            lastModifiedDate = Date(attrs.lastModifiedTime().toMillis())
-                        }
+            forEachArchiveEntry(tempDir) { path, relativeName ->
+                val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
+                val entry = SevenZArchiveEntry().apply {
+                    name = relativeName + if (attrs.isDirectory) "/" else ""
+                    isDirectory = attrs.isDirectory
+                    if (!attrs.isDirectory) size = attrs.size()
+                    if (attrs.lastModifiedTime() != null) {
+                        lastModifiedDate = Date(attrs.lastModifiedTime().toMillis())
                     }
-                    out.putArchiveEntry(entry)
-                    if (!attrs.isDirectory) {
-                        Files.newInputStream(path).use { input ->
-                            val buf = ByteArray(8192)
-                            var len: Int
-                            while (input.read(buf).also { len = it } != -1) {
-                                out.write(buf, 0, len)
-                            }
-                        }
-                    }
-                    out.closeArchiveEntry()
                 }
+                out.putArchiveEntry(entry)
+                if (!attrs.isDirectory) {
+                    Files.newInputStream(path).use { input ->
+                        val buf = ByteArray(8192)
+                        var len: Int
+                        while (input.read(buf).also { len = it } != -1) {
+                            out.write(buf, 0, len)
+                        }
+                    }
+                }
+                out.closeArchiveEntry()
             }
         }
     }

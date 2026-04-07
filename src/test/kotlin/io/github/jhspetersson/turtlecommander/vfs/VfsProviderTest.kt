@@ -208,6 +208,43 @@ class VfsProviderTest {
         assertFalse(xzProvider.supportsExtension("zip"))
     }
 
+    // --- forEachArchiveEntry ---
+
+    @Test
+    fun `forEachArchiveEntry visits all entries with relative names`() {
+        val dir = java.nio.file.Files.createTempDirectory("vfs-test-")
+        try {
+            java.nio.file.Files.createDirectories(dir.resolve("sub"))
+            java.nio.file.Files.createFile(dir.resolve("file.txt"))
+            java.nio.file.Files.createFile(dir.resolve("sub/nested.txt"))
+
+            val visited = mutableListOf<String>()
+            forEachArchiveEntry(dir) { _, relativeName ->
+                visited.add(relativeName)
+            }
+            assertTrue("should visit sub", visited.contains("sub"))
+            assertTrue("should visit file.txt", visited.contains("file.txt"))
+            assertTrue("should visit sub/nested.txt", visited.contains("sub/nested.txt"))
+            assertEquals(3, visited.size)
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `forEachArchiveEntry skips root directory itself`() {
+        val dir = java.nio.file.Files.createTempDirectory("vfs-test-")
+        try {
+            val visited = mutableListOf<String>()
+            forEachArchiveEntry(dir) { _, relativeName ->
+                visited.add(relativeName)
+            }
+            assertTrue(visited.isEmpty())
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
     // --- readDirectoryEntries ---
 
     @Test

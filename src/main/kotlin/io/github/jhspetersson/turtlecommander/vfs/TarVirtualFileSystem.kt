@@ -145,31 +145,23 @@ class TarVirtualFileSystem(
             TarArchiveOutputStream(raw).use { tar ->
                 tar.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX)
                 tar.setBigNumberMode(TarArchiveOutputStream.BIGNUMBER_POSIX)
-                Files.walk(tempDir).use { stream ->
-                    stream.forEach { path ->
-                        if (path == tempDir) return@forEach
-                        try {
-                            val relativeName = tempDir.relativize(path).toString().replace('\\', '/')
-                            if (Files.isSymbolicLink(path)) {
-                                val target = Files.readSymbolicLink(path)
-                                val entry = TarArchiveEntry(relativeName, TarArchiveEntry.LF_SYMLINK)
-                                entry.linkName = target.toString().replace('\\', '/')
-                                tar.putArchiveEntry(entry)
-                                tar.closeArchiveEntry()
-                            } else {
-                                val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
-                                val entry = TarArchiveEntry(path, relativeName)
-                                entry.size = if (attrs.isDirectory) 0 else attrs.size()
-                                entry.modTime = Date(attrs.lastModifiedTime().toMillis())
-                                tar.putArchiveEntry(entry)
-                                if (!attrs.isDirectory) {
-                                    Files.copy(path, tar)
-                                }
-                                tar.closeArchiveEntry()
-                            }
-                        } catch (_: Exception) {
-                            // Skip inaccessible entries (dangling symlinks, deleted files, etc.)
+                forEachArchiveEntry(tempDir) { path, relativeName ->
+                    if (Files.isSymbolicLink(path)) {
+                        val target = Files.readSymbolicLink(path)
+                        val entry = TarArchiveEntry(relativeName, TarArchiveEntry.LF_SYMLINK)
+                        entry.linkName = target.toString().replace('\\', '/')
+                        tar.putArchiveEntry(entry)
+                        tar.closeArchiveEntry()
+                    } else {
+                        val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
+                        val entry = TarArchiveEntry(path, relativeName)
+                        entry.size = if (attrs.isDirectory) 0 else attrs.size()
+                        entry.modTime = Date(attrs.lastModifiedTime().toMillis())
+                        tar.putArchiveEntry(entry)
+                        if (!attrs.isDirectory) {
+                            Files.copy(path, tar)
                         }
+                        tar.closeArchiveEntry()
                     }
                 }
             }

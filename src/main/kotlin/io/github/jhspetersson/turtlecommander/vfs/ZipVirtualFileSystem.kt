@@ -181,25 +181,19 @@ class ZipExtractVirtualFileSystem(
 
     private fun repackArchive() {
         ZipArchiveOutputStream(Files.newOutputStream(archivePath)).use { zip ->
-            Files.walk(tempDir).use { stream ->
-                stream.forEach { path ->
-                    if (path == tempDir) return@forEach
-                    try {
-                        val relativeName = tempDir.relativize(path).toString().replace('\\', '/')
-                        val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
-                        val entryName = if (attrs.isDirectory) "$relativeName/" else relativeName
-                        val entry = ZipArchiveEntry(entryName)
-                        entry.time = attrs.lastModifiedTime().toMillis()
-                        if (!attrs.isDirectory) {
-                            entry.size = attrs.size()
-                        }
-                        zip.putArchiveEntry(entry)
-                        if (!attrs.isDirectory) {
-                            Files.copy(path, zip)
-                        }
-                        zip.closeArchiveEntry()
-                    } catch (_: Exception) {}
+            forEachArchiveEntry(tempDir) { path, relativeName ->
+                val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
+                val entryName = if (attrs.isDirectory) "$relativeName/" else relativeName
+                val entry = ZipArchiveEntry(entryName)
+                entry.time = attrs.lastModifiedTime().toMillis()
+                if (!attrs.isDirectory) {
+                    entry.size = attrs.size()
                 }
+                zip.putArchiveEntry(entry)
+                if (!attrs.isDirectory) {
+                    Files.copy(path, zip)
+                }
+                zip.closeArchiveEntry()
             }
         }
     }

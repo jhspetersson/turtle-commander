@@ -109,24 +109,20 @@ class ArVirtualFileSystem(
     private fun repackArchive() {
         Files.newOutputStream(archivePath).use { raw ->
             ArArchiveOutputStream(raw).use { ar ->
-                Files.walk(tempDir).use { stream ->
-                    stream.forEach { path ->
-                        if (path == tempDir) return@forEach
-                        val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
-                        if (attrs.isDirectory) return@forEach // AR format is flat, skip directories
-                        val relativeName = tempDir.relativize(path).toString().replace('\\', '/')
-                        val entry = ArArchiveEntry(
-                            relativeName,
-                            attrs.size(),
-                            0,
-                            0,
-                            0x81A4.toInt(), // rw-r--r--
-                            attrs.lastModifiedTime().toMillis() / 1000,
-                        )
-                        ar.putArchiveEntry(entry)
-                        Files.copy(path, ar)
-                        ar.closeArchiveEntry()
-                    }
+                forEachArchiveEntry(tempDir) { path, relativeName ->
+                    val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
+                    if (attrs.isDirectory) return@forEachArchiveEntry // AR format is flat, skip directories
+                    val entry = ArArchiveEntry(
+                        relativeName,
+                        attrs.size(),
+                        0,
+                        0,
+                        0x81A4.toInt(), // rw-r--r--
+                        attrs.lastModifiedTime().toMillis() / 1000,
+                    )
+                    ar.putArchiveEntry(entry)
+                    Files.copy(path, ar)
+                    ar.closeArchiveEntry()
                 }
             }
         }

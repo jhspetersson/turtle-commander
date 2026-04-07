@@ -1,6 +1,7 @@
 package io.github.jhspetersson.turtlecommander.vfs
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 
+import com.intellij.openapi.diagnostic.Logger
 import java.io.Closeable
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
@@ -60,6 +61,25 @@ internal fun readDirectoryEntries(directory: Path): List<FileEntry> {
     dirs.sortBy { it.name.lowercase() }
     files.sortBy { it.name.lowercase() }
     return dirs + files
+}
+
+private val LOG = Logger.getInstance("VirtualFileSystem")
+
+internal inline fun forEachArchiveEntry(
+    tempDir: Path,
+    crossinline visitor: (path: Path, relativeName: String) -> Unit,
+) {
+    Files.walk(tempDir).use { stream ->
+        stream.forEach { path ->
+            if (path == tempDir) return@forEach
+            try {
+                val relativeName = tempDir.relativize(path).toString().replace('\\', '/')
+                visitor(path, relativeName)
+            } catch (e: Exception) {
+                LOG.warn("Failed to repack entry: ${tempDir.relativize(path)}", e)
+            }
+        }
+    }
 }
 
 private val ILLEGAL_FILENAME_CHARS = charArrayOf('<', '>', ':', '"', '|', '?', '*')
