@@ -201,13 +201,15 @@ class SearchResultsPanel(
                 try {
                     service.search(
                         onResult = { entry ->
+                            val shouldFlush: Boolean
                             synchronized(pendingResults) {
                                 pendingResults.add(entry)
+                                val now = System.currentTimeMillis()
+                                shouldFlush = now - lastFlush > 200 || pendingResults.size >= 50
+                                if (shouldFlush) lastFlush = now
                             }
-                            val now = System.currentTimeMillis()
-                            if (now - lastFlush > 200 || pendingResults.size >= 50) {
+                            if (shouldFlush) {
                                 flushResults(pendingResults)
-                                lastFlush = now
                             }
                         },
                         isCancelled = { indicator.isCanceled || disposed },
