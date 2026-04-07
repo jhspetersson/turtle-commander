@@ -53,7 +53,8 @@ internal fun readDirectoryEntries(directory: Path): List<FileEntry> {
                     permissions = "",
                 )
                 if (attrs.isDirectory) dirs.add(fileEntry) else files.add(fileEntry)
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                LOG.debug("Failed to read directory entry: ${entry.fileName}", e)
             }
         }
     }

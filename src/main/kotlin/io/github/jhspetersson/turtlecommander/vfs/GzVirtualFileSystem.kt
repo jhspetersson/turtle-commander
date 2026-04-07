@@ -158,7 +158,8 @@ class CompressedSingleFileVirtualFileSystem(
                             permissions = "",
                         )
                     )
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    thisLogger().debug("Failed to read directory entry: ${entry.fileName}", e)
                 }
             }
         }

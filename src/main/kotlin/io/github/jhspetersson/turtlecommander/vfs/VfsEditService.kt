@@ -98,7 +98,9 @@ class VfsEditService(
             try {
                 entry.tempFilePath.toFile().delete()
                 entry.tempFilePath.parent?.toFile()?.delete()
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                thisLogger().debug("Failed to clean up temp file: ${entry.tempFilePath}", e)
+            }
         }
     }
 }
