@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-04-08
+
 ### Added
 
 - User and Group columns (hidden on Windows by default)
