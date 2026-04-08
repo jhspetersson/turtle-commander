@@ -417,6 +417,205 @@ class FileSearchFilterTest {
         assertTrue(results.isEmpty())
     }
 
+    // --- Owner filter ---
+
+    @Test
+    fun `owner filter matches current user`() {
+        val dir = createTempDir()
+        val file = Files.write(dir.resolve("owned.txt"), ByteArray(0))
+
+        // Get the actual owner of the file we just created
+        val actualOwner = Files.getOwner(file).name
+
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = null,
+            namePatternMode = NamePatternMode.GLOB,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+            ownerPattern = actualOwner,
+        )
+
+        val results = search(criteria)
+        assertEquals(1, results.size)
+        assertEquals("owned.txt", results[0].name)
+    }
+
+    @Test
+    fun `owner filter partial match`() {
+        val dir = createTempDir()
+        val file = Files.write(dir.resolve("owned.txt"), ByteArray(0))
+
+        val actualOwner = Files.getOwner(file).name
+        // Use just the last few characters as a substring match
+        val partial = actualOwner.takeLast((actualOwner.length / 2).coerceAtLeast(2))
+
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = null,
+            namePatternMode = NamePatternMode.GLOB,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+            ownerPattern = partial,
+        )
+
+        val results = search(criteria)
+        assertEquals(1, results.size)
+    }
+
+    @Test
+    fun `owner filter case-insensitive`() {
+        val dir = createTempDir()
+        val file = Files.write(dir.resolve("owned.txt"), ByteArray(0))
+
+        val actualOwner = Files.getOwner(file).name
+
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = null,
+            namePatternMode = NamePatternMode.GLOB,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+            ownerPattern = actualOwner.uppercase(),
+        )
+
+        val results = search(criteria)
+        assertEquals(1, results.size)
+    }
+
+    @Test
+    fun `owner filter excludes non-matching`() {
+        val dir = createTempDir()
+        Files.write(dir.resolve("file.txt"), ByteArray(0))
+
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = null,
+            namePatternMode = NamePatternMode.GLOB,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+            ownerPattern = "nonexistent_user_xyz_12345",
+        )
+
+        val results = search(criteria)
+        assertTrue(results.isEmpty())
+    }
+
+    @Test
+    fun `null owner pattern matches all files`() {
+        val dir = createTempDir()
+        Files.write(dir.resolve("a.txt"), ByteArray(0))
+        Files.write(dir.resolve("b.txt"), ByteArray(0))
+
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = null,
+            namePatternMode = NamePatternMode.GLOB,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+            ownerPattern = null,
+        )
+
+        val results = search(criteria)
+        assertEquals(2, results.size)
+    }
+
+    // --- Group filter ---
+
+    @Test
+    fun `group filter excludes when no match`() {
+        val dir = createTempDir()
+        Files.write(dir.resolve("file.txt"), ByteArray(0))
+
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = null,
+            namePatternMode = NamePatternMode.GLOB,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+            groupPattern = "nonexistent_group_xyz_12345",
+        )
+
+        // FileSearchService uses isWindows flag; on Windows group is "" so nothing matches
+        // On Linux/macOS, group is set but won't match this fake name
+        val results = search(criteria)
+        assertTrue(results.isEmpty())
+    }
+
+    @Test
+    fun `null group pattern matches all files`() {
+        val dir = createTempDir()
+        Files.write(dir.resolve("a.txt"), ByteArray(0))
+        Files.write(dir.resolve("b.txt"), ByteArray(0))
+
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = null,
+            namePatternMode = NamePatternMode.GLOB,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+            groupPattern = null,
+        )
+
+        val results = search(criteria)
+        assertEquals(2, results.size)
+    }
+
+    // --- Combined owner + other filters ---
+
+    @Test
+    fun `owner filter combined with name pattern`() {
+        val dir = createTempDir()
+        val file = Files.write(dir.resolve("match.txt"), ByteArray(0))
+        Files.write(dir.resolve("match.csv"), ByteArray(0))
+
+        val actualOwner = Files.getOwner(file).name
+
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = "*.txt",
+            namePatternMode = NamePatternMode.GLOB,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+            ownerPattern = actualOwner,
+        )
+
+        val results = search(criteria)
+        assertEquals(1, results.size)
+        assertEquals("match.txt", results[0].name)
+    }
+
+    @Test
+    fun `owner filter combined with size filter`() {
+        val dir = createTempDir()
+        val file = Files.write(dir.resolve("big.txt"), ByteArray(1000))
+        Files.write(dir.resolve("small.txt"), ByteArray(10))
+
+        val actualOwner = Files.getOwner(file).name
+
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = null,
+            namePatternMode = NamePatternMode.GLOB,
+            sizeFilter = SizeFilter(SizeFilterMode.MORE_THAN, 500, null),
+            creationDateFilter = null,
+            modificationDateFilter = null,
+            ownerPattern = actualOwner,
+        )
+
+        val results = search(criteria)
+        assertEquals(1, results.size)
+        assertEquals("big.txt", results[0].name)
+    }
+
     // --- Cancellation ---
 
     @Test

@@ -24,6 +24,8 @@ data class FileSearchCriteria(
     val sizeFilter: SizeFilter?,
     val creationDateFilter: DateFilter?,
     val modificationDateFilter: DateFilter?,
+    val ownerPattern: String? = null,
+    val groupPattern: String? = null,
 )
 
 enum class NamePatternMode { GLOB, REGEXP }
@@ -116,6 +118,12 @@ class FileSearchDialog(
     }
     private val modificationDateField2Label = JBLabel("and")
 
+    private val ownerCheckBox = JCheckBox("Search by owner", initialCriteria?.ownerPattern != null)
+    private val ownerField = JBTextField(initialCriteria?.ownerPattern ?: "")
+
+    private val groupCheckBox = JCheckBox("Search by group", initialCriteria?.groupPattern != null)
+    private val groupField = JBTextField(initialCriteria?.groupPattern ?: "")
+
     init {
         title = "Search Files"
         setOKButtonText("Search")
@@ -124,6 +132,7 @@ class FileSearchDialog(
             rootField, nameField, sizeField1, sizeField2,
             creationDateField1, creationDateField2,
             modificationDateField1, modificationDateField2,
+            ownerField, groupField,
         ).forEach { it.installStandardContextMenu() }
 
         init()
@@ -164,15 +173,22 @@ class FileSearchDialog(
             modificationDateField2.isEnabled = enabled
         }
 
-        nameCheckBox.addActionListener { updateNameEnabled() }
-        sizeCheckBox.addActionListener { updateSizeEnabled() }
-        creationDateCheckBox.addActionListener { updateCreationDateEnabled() }
-        modificationDateCheckBox.addActionListener { updateModificationDateEnabled() }
+        fun updateOwnerEnabled() { ownerField.isEnabled = ownerCheckBox.isSelected }
+        fun updateGroupEnabled() { groupField.isEnabled = groupCheckBox.isSelected }
+
+        nameCheckBox.addActionListener { updateNameEnabled(); if (nameCheckBox.isSelected) nameField.requestFocusInWindow() }
+        sizeCheckBox.addActionListener { updateSizeEnabled(); if (sizeCheckBox.isSelected) sizeField1.requestFocusInWindow() }
+        creationDateCheckBox.addActionListener { updateCreationDateEnabled(); if (creationDateCheckBox.isSelected) creationDateField1.requestFocusInWindow() }
+        modificationDateCheckBox.addActionListener { updateModificationDateEnabled(); if (modificationDateCheckBox.isSelected) modificationDateField1.requestFocusInWindow() }
+        ownerCheckBox.addActionListener { updateOwnerEnabled(); if (ownerCheckBox.isSelected) ownerField.requestFocusInWindow() }
+        groupCheckBox.addActionListener { updateGroupEnabled(); if (groupCheckBox.isSelected) groupField.requestFocusInWindow() }
 
         updateNameEnabled()
         updateSizeEnabled()
         updateCreationDateEnabled()
         updateModificationDateEnabled()
+        updateOwnerEnabled()
+        updateGroupEnabled()
     }
 
     private fun setupSizeInBetween() {
@@ -206,7 +222,7 @@ class FileSearchDialog(
         val panel = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             minimumSize = Dimension(550, 300)
-            preferredSize = Dimension(550, 400)
+            preferredSize = Dimension(550, 430)
         }
 
         // Search root
@@ -239,6 +255,26 @@ class FileSearchDialog(
         // Modification date filter
         panel.add(modificationDateCheckBox.apply { alignmentX = JComponent.LEFT_ALIGNMENT })
         panel.add(createDatePanel(modificationDateModeCombo, modificationDateField1, modificationDateField2, modificationDateField2Label))
+
+        panel.add(Box.createVerticalStrut(8))
+
+        // Owner & Group filters
+        panel.add(JPanel(GridBagLayout()).apply {
+            alignmentX = JComponent.LEFT_ALIGNMENT
+            val gbc = GridBagConstraints().apply {
+                anchor = GridBagConstraints.WEST
+                insets = JBUI.insets(2, 4)
+            }
+            gbc.gridx = 0; gbc.gridy = 0
+            add(ownerCheckBox, gbc)
+            gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0
+            add(ownerField, gbc)
+            gbc.gridx = 2; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0.0
+            add(groupCheckBox, gbc)
+            gbc.gridx = 3; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0
+            add(groupField, gbc)
+            maximumSize = Dimension(Int.MAX_VALUE, preferredSize.height)
+        })
 
         return panel
     }
@@ -338,6 +374,9 @@ class FileSearchDialog(
         val creationDate = parseDateFilter(creationDateCheckBox, creationDateModeCombo, creationDateField1, creationDateField2)
         val modificationDate = parseDateFilter(modificationDateCheckBox, modificationDateModeCombo, modificationDateField1, modificationDateField2)
 
+        val owner = if (ownerCheckBox.isSelected && ownerField.text.isNotBlank()) ownerField.text.trim() else null
+        val group = if (groupCheckBox.isSelected && groupField.text.isNotBlank()) groupField.text.trim() else null
+
         return FileSearchCriteria(
             rootPath = Path.of(rootField.text.trim()),
             namePattern = namePattern,
@@ -346,6 +385,8 @@ class FileSearchDialog(
             sizeFilter = sizeFilter,
             creationDateFilter = creationDate,
             modificationDateFilter = modificationDate,
+            ownerPattern = owner,
+            groupPattern = group,
         )
     }
 

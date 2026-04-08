@@ -129,6 +129,14 @@ class FileSearchService(
 
         val owner = readFileOwner(path)
         val group = if (!isWindows) readFileGroup(path) else ""
+
+        if (criteria.ownerPattern != null) {
+            if (!owner.contains(criteria.ownerPattern, ignoreCase = true)) return
+        }
+        if (criteria.groupPattern != null) {
+            if (!group.contains(criteria.groupPattern, ignoreCase = true)) return
+        }
+
         val permissions = readPermissions(path)
         val entry = FileEntry(
             name = name,
