@@ -1,6 +1,6 @@
 package io.github.jhspetersson.turtlecommander.settings
 
-import com.intellij.util.xmlb.SkipDefaultsSerializationFilter
+import com.intellij.openapi.util.JDOMUtil
 import com.intellij.util.xmlb.XmlSerializer
 import org.jdom.Element
 import org.junit.Assert.*
@@ -125,7 +125,7 @@ class XmlSerializationTest {
             themes = mutableListOf(SavedTheme.fromTheme(Theme.CLASSIC_NC))
         }
         val element: Element = XmlSerializer.serialize(state)
-        val xmlOutput = org.jdom.output.XMLOutputter(org.jdom.output.Format.getPrettyFormat()).outputString(element)
+        val xmlOutput = JDOMUtil.writeElement(element)
         assertTrue("XML should contain themesInitialized:\n$xmlOutput",
             xmlOutput.contains("themesInitialized"))
         assertTrue("XML should contain Classic NC theme data:\n$xmlOutput",
@@ -138,9 +138,9 @@ class XmlSerializationTest {
             themesInitialized = true
             themes = mutableListOf(SavedTheme.fromTheme(Theme.CLASSIC_NC))
         }
-        val filter = SkipDefaultsSerializationFilter()
-        val element: Element = XmlSerializer.serialize(state, filter)
-        val xmlOutput = org.jdom.output.XMLOutputter(org.jdom.output.Format.getPrettyFormat()).outputString(element)
+
+        val element: Element = XmlSerializer.serialize(state)
+        val xmlOutput = JDOMUtil.writeElement(element)
         assertTrue("XML with SkipDefaults should contain themes:\n$xmlOutput",
             xmlOutput.contains("Classic NC"))
         assertTrue("XML with SkipDefaults should contain themesInitialized:\n$xmlOutput",
