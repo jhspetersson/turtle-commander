@@ -16,14 +16,14 @@ import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeCellRenderer
 
 private val DEFAULT_COLUMN_WIDTHS = mapOf(
-    "Name" to 200,
-    "Ext" to 50,
-    "Size" to 80,
-    "Date Created" to 130,
-    "Date Modified" to 130,
-    "User" to 80,
-    "Group" to 80,
-    "Permissions" to 80,
+    "Name" to 275,
+    "Ext" to 80,
+    "Size" to 100,
+    "Date Created" to 150,
+    "Date Modified" to 150,
+    "User" to 100,
+    "Group" to 100,
+    "Permissions" to 100,
 )
 
 internal val COLUMN_NAME_TO_MODEL_INDEX = mapOf(
@@ -65,9 +65,11 @@ internal fun applyColumnConfig(tab: FileTab) {
         } else {
             tc.cellRenderer = StyledDisplayValueRenderer(tab, style)
         }
-        tc.preferredWidth = DEFAULT_COLUMN_WIDTHS[
+        val width = DEFAULT_COLUMN_WIDTHS[
             COLUMN_NAME_TO_MODEL_INDEX.entries.find { it.value == modelIdx }?.key
         ] ?: 80
+        tc.preferredWidth = width
+        tc.width = width
     }
 
     // Remove hidden columns
