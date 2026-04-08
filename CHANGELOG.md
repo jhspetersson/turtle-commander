@@ -4,6 +4,18 @@
 
 ## [Unreleased]
 
+### Added
+
+- Search by user and group
+
+### Changed
+
+- Improved search UI
+
+### Fixed
+
+- Default column width now is applied correctly
+
 ## [0.4.3] - 2026-04-08
 
 ### Added
