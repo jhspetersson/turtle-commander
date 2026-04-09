@@ -44,9 +44,11 @@ class ArchiveService {
 
         val uri = URI.create("jar:" + archivePath.toUri())
         return withContext(Dispatchers.IO) {
+            // Single counter: the progress UI and the method's return value must agree on what
+            // "packed" means. We count files only — directory entries are created implicitly by
+            // walkFileTree and are not interesting to the user as progress ticks.
             var successCount = 0
             FileSystems.newFileSystem(uri, env).use { zipFs ->
-                var packedCount = 0
                 for (source in sourcePaths) {
                     if (isCancelled()) break
                     if (source.toFile().isDirectory) {
@@ -56,8 +58,10 @@ class ArchiveService {
                                 val relativePath = (source.parent ?: source).relativize(dir).toString().replace("\\", "/")
                                 val zipDir = zipFs.getPath(relativePath)
                                 try { Files.createDirectories(zipDir) } catch (_: FileAlreadyExistsException) {}
-                                packedCount++
-                                onProgress(packedCount, dir.fileName.toString())
+                                // Report the directory name for UX but do not tick the counter —
+                                // otherwise the final count exceeds the number of files actually
+                                // written, which is what the method returns.
+                                onProgress(successCount, dir.fileName.toString())
                                 return FileVisitResult.CONTINUE
                             }
 
@@ -68,11 +72,10 @@ class ArchiveService {
                                     val zipEntry = zipFs.getPath(relativePath)
                                     Files.copy(file, zipEntry, StandardCopyOption.REPLACE_EXISTING)
                                     successCount++
+                                    onProgress(successCount, file.fileName.toString())
                                 } catch (e: Exception) {
                                     onError(file, e)
                                 }
-                                packedCount++
-                                onProgress(packedCount, file.fileName.toString())
                                 return FileVisitResult.CONTINUE
                             }
 
@@ -87,11 +90,10 @@ class ArchiveService {
                             val zipEntry = zipFs.getPath(source.fileName.toString())
                             Files.copy(source, zipEntry, StandardCopyOption.REPLACE_EXISTING)
                             successCount++
+                            onProgress(successCount, source.fileName.toString())
                         } catch (e: Exception) {
                             onError(source, e)
                         }
-                        packedCount++
-                        onProgress(packedCount, source.fileName.toString())
                     }
                 }
             }

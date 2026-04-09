@@ -237,6 +237,35 @@ class PackZipErrorHandlingTest {
     }
 
     @Test
+    fun `packZip final progress count matches return value`() = runBlocking {
+        // Regression: the progress indicator previously counted directories, so it reported a
+        // higher number than the "N files packed" summary at the end.
+        val dir = Files.createTempDirectory("pack-test-")
+        tempDirs(dir)
+        Files.createDirectories(dir.resolve("sub"))
+        Files.createDirectories(dir.resolve("sub/nested"))
+        Files.writeString(dir.resolve("root.txt"), "r")
+        Files.writeString(dir.resolve("sub/one.txt"), "1")
+        Files.writeString(dir.resolve("sub/nested/two.txt"), "2")
+
+        val archivePath = Files.createTempFile("pack-test-", ".zip")
+        tempDirs(archivePath)
+        Files.delete(archivePath)
+
+        var lastProgressCount = -1
+        val service = ArchiveService()
+        val returned = service.packZip(
+            archivePath, listOf(dir), appendToExisting = false, archiveExists = false,
+            onProgress = { count, _ -> lastProgressCount = count },
+            onError = { _, _ -> fail("should not error") },
+            isCancelled = { false },
+        )
+
+        assertEquals(3, returned)
+        assertEquals("last progress tick must match returned count", returned, lastProgressCount)
+    }
+
+    @Test
     fun `packZip cancellation stops early`() = runBlocking {
         val dir = Files.createTempDirectory("pack-test-")
         tempDirs(dir)
