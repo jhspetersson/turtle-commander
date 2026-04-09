@@ -66,19 +66,46 @@ internal fun readDirectoryEntries(directory: Path): List<FileEntry> {
 
 private val LOG = Logger.getInstance("VirtualFileSystem")
 
+/**
+ * Walks [tempDir] and invokes [visitor] for every descendant in a deterministic order:
+ * parents are visited before their children (so archive entries with implicit directory
+ * entries are well-formed), and siblings are sorted by name. Deterministic traversal also
+ * makes repack output byte-stable across filesystems, which matters for checksums and CI.
+ */
 internal inline fun forEachArchiveEntry(
     tempDir: Path,
     crossinline visitor: (path: Path, relativeName: String) -> Unit,
 ) {
-    Files.walk(tempDir).use { stream ->
-        stream.forEach { path ->
-            if (path == tempDir) return@forEach
-            try {
-                val relativeName = tempDir.relativize(path).toString().replace('\\', '/')
-                visitor(path, relativeName)
-            } catch (e: Exception) {
-                LOG.warn("Failed to repack entry: ${tempDir.relativize(path)}", e)
+    val collected = mutableListOf<Path>()
+    Files.walkFileTree(
+        tempDir,
+        object : java.nio.file.SimpleFileVisitor<Path>() {
+            override fun preVisitDirectory(
+                dir: Path,
+                attrs: java.nio.file.attribute.BasicFileAttributes,
+            ): java.nio.file.FileVisitResult {
+                if (dir != tempDir) collected.add(dir)
+                return java.nio.file.FileVisitResult.CONTINUE
             }
+
+            override fun visitFile(
+                file: Path,
+                attrs: java.nio.file.attribute.BasicFileAttributes,
+            ): java.nio.file.FileVisitResult {
+                collected.add(file)
+                return java.nio.file.FileVisitResult.CONTINUE
+            }
+        },
+    )
+    // Sort by the repack-relative name so iteration order is locale- and filesystem-independent.
+    val sorted = collected
+        .map { it to tempDir.relativize(it).toString().replace('\\', '/') }
+        .sortedBy { it.second }
+    for ((path, relativeName) in sorted) {
+        try {
+            visitor(path, relativeName)
+        } catch (e: Exception) {
+            LOG.warn("Failed to repack entry: $relativeName", e)
         }
     }
 }

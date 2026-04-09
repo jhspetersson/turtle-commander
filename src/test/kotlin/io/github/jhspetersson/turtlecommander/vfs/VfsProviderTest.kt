@@ -245,6 +245,62 @@ class VfsProviderTest {
         }
     }
 
+    @Test
+    fun `forEachArchiveEntry visits parents before their children`() {
+        val dir = java.nio.file.Files.createTempDirectory("vfs-test-")
+        try {
+            java.nio.file.Files.createDirectories(dir.resolve("a/b/c"))
+            java.nio.file.Files.createFile(dir.resolve("a/b/c/deep.txt"))
+            java.nio.file.Files.createFile(dir.resolve("a/b/mid.txt"))
+            java.nio.file.Files.createFile(dir.resolve("a/top.txt"))
+
+            val visited = mutableListOf<String>()
+            forEachArchiveEntry(dir) { _, relativeName ->
+                visited.add(relativeName)
+            }
+            // Every directory must appear before any of its descendants.
+            for ((i, name) in visited.withIndex()) {
+                if (name.contains('/')) {
+                    val parent = name.substringBeforeLast('/')
+                    val parentIdx = visited.indexOf(parent)
+                    assertTrue(
+                        "$parent must precede $name (parent=$parentIdx, child=$i)",
+                        parentIdx in 0 until i,
+                    )
+                }
+            }
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `forEachArchiveEntry iteration order is stable across runs`() {
+        val dir = java.nio.file.Files.createTempDirectory("vfs-test-")
+        try {
+            // Create in a deliberately scrambled order; the traversal should still be sorted.
+            java.nio.file.Files.createFile(dir.resolve("zebra.txt"))
+            java.nio.file.Files.createFile(dir.resolve("apple.txt"))
+            java.nio.file.Files.createDirectories(dir.resolve("mango"))
+            java.nio.file.Files.createFile(dir.resolve("mango/inner.txt"))
+            java.nio.file.Files.createFile(dir.resolve("banana.txt"))
+
+            val first = mutableListOf<String>()
+            forEachArchiveEntry(dir) { _, relativeName -> first.add(relativeName) }
+            val second = mutableListOf<String>()
+            forEachArchiveEntry(dir) { _, relativeName -> second.add(relativeName) }
+
+            assertEquals("iteration must be deterministic across runs", first, second)
+            assertEquals(
+                "iteration must be sorted",
+                first.sorted(),
+                first,
+            )
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
     // --- readDirectoryEntries ---
 
     @Test
