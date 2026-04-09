@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- Save filename search history
+
+### Fixed
+
+- Improved directory listing times
+
 ## [0.4.4] - 2026-04-09
 
 ### Added
