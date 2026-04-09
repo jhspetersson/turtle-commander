@@ -43,6 +43,9 @@ class VfsEditService(
         activeEdits[normalizeKey(entry.tempFilePath)] = entry
     }
 
+    /** Test-only: checks whether a tracking entry still exists for the given normalized key. */
+    internal fun isTrackedForTest(normalizedKey: String): Boolean = activeEdits.containsKey(normalizedKey)
+
     fun onFileSaved(filePath: String) {
         val entry = activeEdits[normalizeKey(filePath)] ?: return
         cs.launch {
@@ -79,10 +82,13 @@ class VfsEditService(
             }
 
             entry.onAfterFlush?.invoke(currentPathRel)
-
-            activeEdits.remove(normalizeKey(entry.tempFilePath))
         } catch (e: Exception) {
             thisLogger().warn("VFS edit write-back failed: ${e.message}")
+        } finally {
+            // Always release the tracking entry; otherwise a single failure leaves the edit
+            // stuck in activeEdits forever and further saves to the same file become no-ops
+            // until the IDE is restarted.
+            activeEdits.remove(normalizeKey(entry.tempFilePath))
         }
     }
 

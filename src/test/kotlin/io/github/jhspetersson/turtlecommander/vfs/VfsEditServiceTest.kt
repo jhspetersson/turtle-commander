@@ -1,7 +1,13 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.*
 import org.junit.Test
+import java.nio.file.Files
 import java.nio.file.Path
 
 /**
@@ -83,6 +89,52 @@ class VfsEditServiceActiveEditsTest {
         }
         assertEquals(0, activeEdits.size)
         assertNull(activeEdits[key])
+    }
+
+    /**
+     * Verifies that a write-back failure does not leave the edit entry stuck in activeEdits.
+     * Regression: a previous version only removed the entry on success, so a single IOException
+     * would block every subsequent save to the same file until the IDE restart.
+     */
+    @Test
+    fun `writeBack releases tracking entry even when copy fails`() {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val service = VfsEditService(scope)
+        val tempDir = Files.createTempDirectory("vfs-edit-failure-test-")
+        try {
+            val tempFile = tempDir.resolve("edited.txt")
+            Files.writeString(tempFile, "new content")
+
+            // vfsFilePath points into a directory that doesn't exist: Files.copy will throw
+            // and writeBack must still clean up the tracking entry.
+            val vfsTarget = tempDir.resolve("does/not/exist/edited.txt")
+
+            val entry = VfsEditEntry(
+                vfsFilePath = vfsTarget,
+                tempFilePath = tempFile,
+                vfsStack = mutableListOf(),
+            )
+
+            service.trackEdit(entry)
+
+            val key = tempFile.toString().replace('\\', '/')
+            assertTrue("entry should be tracked", service.isTrackedForTest(key))
+
+            service.onFileSaved(tempFile.toString())
+
+            // Wait for the background write-back to finish (it will fail internally).
+            runBlocking {
+                withTimeout(5_000) {
+                    while (service.isTrackedForTest(key)) {
+                        kotlinx.coroutines.delay(20)
+                    }
+                }
+            }
+            assertFalse("entry must be released after failure", service.isTrackedForTest(key))
+        } finally {
+            service.dispose()
+            tempDir.toFile().deleteRecursively()
+        }
     }
 
     /**
