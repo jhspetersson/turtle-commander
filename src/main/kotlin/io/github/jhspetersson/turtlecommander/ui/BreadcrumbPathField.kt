@@ -129,9 +129,10 @@ class BreadcrumbPathField : JPanel() {
                 breadcrumbContent.add(sep)
             }
 
-            val label = JLabel(segment.name).apply {
+            val label = JLabel(shortenMiddle(segment.name, 30)).apply {
                 if (customFont != null) font = customFont
                 if (customFg != null) foreground = customFg
+                toolTipText = segment.name
                 cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
                 val defaultFg = foreground
                 addMouseListener(object : MouseAdapter() {
@@ -154,6 +155,15 @@ class BreadcrumbPathField : JPanel() {
 
         breadcrumbContent.revalidate()
         breadcrumbContent.repaint()
+    }
+
+    private fun shortenMiddle(s: String, maxLen: Int): String {
+        if (s.length <= maxLen) return s
+        val ellipsis = "\u2026"
+        val keep = maxLen - 1
+        val left = (keep + 1) / 2
+        val right = keep - left
+        return s.substring(0, left) + ellipsis + s.substring(s.length - right)
     }
 
     private data class PathSegment(val name: String, val fullPath: String)
