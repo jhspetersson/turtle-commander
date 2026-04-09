@@ -485,30 +485,11 @@ class FileTab(
                 }
 
                 override fun mousePressed(e: MouseEvent) {
-                    handleContextMenu(e)
+                    handleTableContextMenu(e)
                 }
 
                 override fun mouseReleased(e: MouseEvent) {
-                    handleContextMenu(e)
-                }
-
-                private fun handleContextMenu(e: MouseEvent) {
-                    if (!e.isPopupTrigger) return
-                    val row = table.rowAtPoint(e.point)
-                    if (row >= 0 && !table.isRowSelected(row)) {
-                        table.setRowSelectionInterval(row, row)
-                    }
-                    val entry = if (row >= 0) {
-                        val modelRow = table.convertRowIndexToModel(row)
-                        tableModel.getEntryAt(modelRow)
-                    } else null
-                    FileContextMenuState.clickedEntry = entry
-                    FileContextMenuState.clickedTab = this@FileTab
-
-                    val am = ActionManager.getInstance()
-                    val group = am.getAction("TurtleCommander.FileContextMenu") as? ActionGroup ?: return
-                    val popupMenu = am.createActionPopupMenu("TurtleCommander.FileContextMenu", group)
-                    popupMenu.component.show(table, e.x, e.y)
+                    handleTableContextMenu(e)
                 }
             })
 
@@ -558,20 +539,24 @@ class FileTab(
         }
     }
 
-    private fun handleListContextMenu(e: MouseEvent) {
-        if (!e.isPopupTrigger) return
-        val index = list.locationToIndex(e.point)
-        if (index >= 0 && !list.isSelectedIndex(index)) {
-            list.selectedIndex = index
+    private fun handleTableContextMenu(e: MouseEvent) {
+        showContextMenu(table, e) {
+            val row = table.rowAtPoint(e.point)
+            if (row >= 0 && !table.isRowSelected(row)) {
+                table.setRowSelectionInterval(row, row)
+            }
+            if (row >= 0) tableModel.getEntryAt(table.convertRowIndexToModel(row)) else null
         }
-        val entry = if (index >= 0) listModel.getElementAt(index) else null
-        FileContextMenuState.clickedEntry = entry
-        FileContextMenuState.clickedTab = this
+    }
 
-        val am = ActionManager.getInstance()
-        val group = am.getAction("TurtleCommander.FileContextMenu") as? ActionGroup ?: return
-        val popupMenu = am.createActionPopupMenu("TurtleCommander.FileContextMenu", group)
-        popupMenu.component.show(list, e.x, e.y)
+    private fun handleListContextMenu(e: MouseEvent) {
+        showContextMenu(list, e) {
+            val index = list.locationToIndex(e.point)
+            if (index >= 0 && !list.isSelectedIndex(index)) {
+                list.selectedIndex = index
+            }
+            if (index >= 0) listModel.getElementAt(index) else null
+        }
     }
 
     private fun setupThumbnailList() {
@@ -604,19 +589,13 @@ class FileTab(
     }
 
     private fun handleThumbnailContextMenu(e: MouseEvent) {
-        if (!e.isPopupTrigger) return
-        val index = thumbnailList.locationToIndex(e.point)
-        if (index >= 0 && !thumbnailList.isSelectedIndex(index)) {
-            thumbnailList.selectedIndex = index
+        showContextMenu(thumbnailList, e) {
+            val index = thumbnailList.locationToIndex(e.point)
+            if (index >= 0 && !thumbnailList.isSelectedIndex(index)) {
+                thumbnailList.selectedIndex = index
+            }
+            if (index >= 0) thumbnailListModel.getElementAt(index) else null
         }
-        val entry = if (index >= 0) thumbnailListModel.getElementAt(index) else null
-        FileContextMenuState.clickedEntry = entry
-        FileContextMenuState.clickedTab = this
-
-        val am = ActionManager.getInstance()
-        val group = am.getAction("TurtleCommander.FileContextMenu") as? ActionGroup ?: return
-        val popupMenu = am.createActionPopupMenu("TurtleCommander.FileContextMenu", group)
-        popupMenu.component.show(thumbnailList, e.x, e.y)
     }
 
     private fun setupTree() {
@@ -714,20 +693,24 @@ class FileTab(
     }
 
     private fun handleTreeContextMenu(e: MouseEvent) {
-        if (!e.isPopupTrigger) return
-        val treePath = tree.getPathForLocation(e.x, e.y)
-        if (treePath != null && !tree.isPathSelected(treePath)) {
-            tree.selectionPath = treePath
+        showContextMenu(tree, e) {
+            val treePath = tree.getPathForLocation(e.x, e.y)
+            if (treePath != null && !tree.isPathSelected(treePath)) {
+                tree.selectionPath = treePath
+            }
+            (tree.lastSelectedPathComponent as? DefaultMutableTreeNode)?.userObject as? FileEntry
         }
-        val node = tree.lastSelectedPathComponent as? DefaultMutableTreeNode
-        val entry = node?.userObject as? FileEntry
-        FileContextMenuState.clickedEntry = entry
+    }
+
+    private inline fun showContextMenu(component: JComponent, e: MouseEvent, resolveEntry: () -> FileEntry?) {
+        if (!e.isPopupTrigger) return
+        FileContextMenuState.clickedEntry = resolveEntry()
         FileContextMenuState.clickedTab = this
 
         val am = ActionManager.getInstance()
         val group = am.getAction("TurtleCommander.FileContextMenu") as? ActionGroup ?: return
         val popupMenu = am.createActionPopupMenu("TurtleCommander.FileContextMenu", group)
-        popupMenu.component.show(tree, e.x, e.y)
+        popupMenu.component.show(component, e.x, e.y)
     }
 
     private fun setupFilterPanel() {
