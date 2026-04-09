@@ -1,14 +1,11 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.*
 import org.junit.Assert.*
 import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Tests for VfsEditService entry tracking and cleanup.
@@ -21,10 +18,10 @@ class VfsEditServiceActiveEditsTest {
      */
     @Test
     fun `trackEdit adds entry and dispose clears it`() {
-        val tempDir = java.nio.file.Files.createTempDirectory("vfs-edit-test-")
+        val tempDir = Files.createTempDirectory("vfs-edit-test-")
         try {
             val tempFile = tempDir.resolve("test.txt")
-            java.nio.file.Files.writeString(tempFile, "content")
+            Files.writeString(tempFile, "content")
 
             val entry = VfsEditEntry(
                 vfsFilePath = tempFile,
@@ -124,9 +121,9 @@ class VfsEditServiceActiveEditsTest {
 
             // Wait for the background write-back to finish (it will fail internally).
             runBlocking {
-                withTimeout(5_000) {
+                withTimeout(5_000.milliseconds) {
                     while (service.isTrackedForTest(key)) {
-                        kotlinx.coroutines.delay(20)
+                        delay(20.milliseconds)
                     }
                 }
             }

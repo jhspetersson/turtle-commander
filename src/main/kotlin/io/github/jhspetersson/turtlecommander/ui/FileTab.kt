@@ -11,6 +11,7 @@ import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
+import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
@@ -95,6 +96,12 @@ class FileTab(
     private val statusPanel = JPanel(BorderLayout())
     private var allEntries: List<FileEntry> = emptyList()
     private val filterField = JTextField()
+    // Captured eagerly at construction so a later error-state toggle has a real default to
+    // restore to. A `by lazy` here would capture whatever color was active the first time the
+    // field left the error state — which in the bad-first-then-good sequence is the error
+    // color itself, leaving the field permanently tinted.
+    private val defaultFilterFieldForeground: Color? = filterField.foreground
+    private val defaultFilterFieldBackground: Color? = filterField.background
     private val filterPanel = JPanel(BorderLayout(4, 0))
     private var updatingDriveCombo = false
     private var driveComboPopupOpen = false
@@ -823,28 +830,60 @@ class FileTab(
         (table.rowSorter as? ParentPinningRowSorter)?.sort()
     }
 
+    private fun setFilterFieldError(error: Boolean) {
+        val fg: Color? = if (error) JBColor.RED else defaultFilterFieldForeground
+        // IntelliJ LAFs can override setForeground during paint for focused text fields, so
+        // also tint the background to guarantee the error state is visible.
+        val bg: Color? = if (error) ERROR_FIELD_BACKGROUND else defaultFilterFieldBackground
+        var changed = false
+        if (filterField.foreground != fg) {
+            filterField.foreground = fg
+            changed = true
+        }
+        if (filterField.background != bg) {
+            filterField.background = bg
+            changed = true
+        }
+        if (changed) filterField.repaint()
+    }
+
     private fun applyFilter() {
         val pattern = filterField.text.trim()
         val filtered = if (pattern.isEmpty()) {
             cachedFilterGlob = null
             cachedFilterMatcher = null
+            setFilterFieldError(false)
             allEntries
         } else {
             val glob = if (pattern.contains('*') || pattern.contains('?') || pattern.contains('[')) pattern else "*$pattern*"
             val matcher = if (glob == cachedFilterGlob && cachedFilterMatcher != null) {
+                setFilterFieldError(false)
                 cachedFilterMatcher!!
             } else {
                 val m = try {
                     FileSystems.getDefault().getPathMatcher("glob:$glob")
                 } catch (_: Exception) {
-                    return
+                    // Invalid glob: flag the field so the user knows something is wrong,
+                    // drop the stale matcher cache, and fall back to showing everything
+                    // instead of freezing the view on the previous filter's output.
+                    cachedFilterGlob = null
+                    cachedFilterMatcher = null
+                    setFilterFieldError(true)
+                    null
                 }
-                cachedFilterGlob = glob
-                cachedFilterMatcher = m
+                if (m != null) {
+                    cachedFilterGlob = glob
+                    cachedFilterMatcher = m
+                    setFilterFieldError(false)
+                }
                 m
             }
-            allEntries.filter { entry ->
-                entry.isParentLink || matcher.matches(Path.of(entry.name))
+            if (matcher == null) {
+                allEntries
+            } else {
+                allEntries.filter { entry ->
+                    entry.isParentLink || matcher.matches(Path.of(entry.name))
+                }
             }
         }
 
@@ -1416,6 +1455,9 @@ class FileTab(
         internal const val VIEW_LIST = "list"
         internal const val VIEW_THUMBNAIL = "thumbnail"
         internal const val VIEW_TREE = "tree"
+
+        /** Background tint applied to the quick-filter field when the typed glob is invalid. */
+        internal val ERROR_FIELD_BACKGROUND: JBColor = JBColor(Color(0xFF, 0xD0, 0xD0), Color(0x5A, 0x2C, 0x2C))
 
         /**
          * Resolves the target path for a drive selector selection.

@@ -1,11 +1,9 @@
 package io.github.jhspetersson.turtlecommander.vfs
-import io.github.jhspetersson.turtlecommander.model.FileEntry
 
 import com.intellij.openapi.diagnostic.Logger
+import io.github.jhspetersson.turtlecommander.model.FileEntry
 import java.io.Closeable
-import java.nio.file.Files
-import java.nio.file.InvalidPathException
-import java.nio.file.Path
+import java.nio.file.*
 import java.nio.file.attribute.BasicFileAttributes
 
 interface VirtualFileSystem : Closeable {
@@ -88,21 +86,21 @@ internal inline fun forEachArchiveEntry(
     val collected = mutableListOf<Path>()
     Files.walkFileTree(
         tempDir,
-        object : java.nio.file.SimpleFileVisitor<Path>() {
+        object : SimpleFileVisitor<Path>() {
             override fun preVisitDirectory(
                 dir: Path,
-                attrs: java.nio.file.attribute.BasicFileAttributes,
-            ): java.nio.file.FileVisitResult {
+                attrs: BasicFileAttributes,
+            ): FileVisitResult {
                 if (dir != tempDir) collected.add(dir)
-                return java.nio.file.FileVisitResult.CONTINUE
+                return FileVisitResult.CONTINUE
             }
 
             override fun visitFile(
                 file: Path,
-                attrs: java.nio.file.attribute.BasicFileAttributes,
-            ): java.nio.file.FileVisitResult {
+                attrs: BasicFileAttributes,
+            ): FileVisitResult {
                 collected.add(file)
-                return java.nio.file.FileVisitResult.CONTINUE
+                return FileVisitResult.CONTINUE
             }
         },
     )

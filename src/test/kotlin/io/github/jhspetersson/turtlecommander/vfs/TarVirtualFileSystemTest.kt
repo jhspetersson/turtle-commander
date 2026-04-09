@@ -193,7 +193,7 @@ class TarVirtualFileSystemTest {
                 inputStreamFactory = { Files.newInputStream(it) },
                 outputStreamFactory = { Files.newOutputStream(it) },
             )
-            try {
+            innerFs.use { innerFs ->
                 // Force the "failed to materialize symlink" code path by clearing any that did
                 // succeed, and re-injecting via the extract side effect. On Linux/macOS the
                 // symlink *will* have been created; rename still works. We directly verify the
@@ -207,8 +207,6 @@ class TarVirtualFileSystemTest {
 
                 // Rename the regular file to trigger a repack.
                 innerFs.renameFile(innerFs.root.resolve("regular.txt"), "renamed.txt")
-            } finally {
-                innerFs.close()
             }
 
             // Re-read the archive and assert the symlink entry is present with the original target.

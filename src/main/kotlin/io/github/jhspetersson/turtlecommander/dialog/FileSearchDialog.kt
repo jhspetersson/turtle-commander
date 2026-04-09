@@ -3,15 +3,17 @@ package io.github.jhspetersson.turtlecommander.dialog
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
+import com.intellij.util.ui.JBUI
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.ui.installStandardContextMenu
-import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
+import java.nio.file.FileSystems
 import java.nio.file.Path
 import java.text.SimpleDateFormat
 import java.util.*
@@ -73,8 +75,9 @@ class FileSearchDialog(
     private val nameCheckBox = JCheckBox("Search by name", initialCriteria == null || initialCriteria.namePattern != null)
     private val nameCombo = ComboBox<String>().apply {
         isEditable = true
-        val history = TurtleCommanderSettings.getInstance().state.nameSearchHistory
-        val initialPattern = initialCriteria?.namePattern ?: "*"
+        val regexp = initialCriteria?.namePatternMode == NamePatternMode.REGEXP
+        val history = TurtleCommanderSettings.getInstance().getNameSearchHistory(regexp)
+        val initialPattern = initialCriteria?.namePattern ?: if (regexp) ".*" else "*"
         val items = linkedSetOf(initialPattern)
         items.addAll(history)
         model = DefaultComboBoxModel(items.toTypedArray())
@@ -152,6 +155,31 @@ class FileSearchDialog(
         setupEnabling()
         setupSizeInBetween()
         setupDateInBetween()
+        setupNameHistorySwap()
+    }
+
+    /**
+     * Glob and regex patterns live in separate MRU histories, so when the user toggles the
+     * Glob/Regexp radio we rebuild [nameCombo]'s dropdown from the matching history. The
+     * currently typed text is preserved so the user doesn't lose in-progress edits when they
+     * realise they picked the wrong mode.
+     */
+    private fun setupNameHistorySwap() {
+        fun swap() {
+            val current = nameText
+            val regexp = regexpRadio.isSelected
+            val history = TurtleCommanderSettings.getInstance().getNameSearchHistory(regexp)
+            val items = linkedSetOf<String>()
+            if (current.isNotEmpty()) items.add(current)
+            items.addAll(history)
+            if (items.isEmpty()) items.add(if (regexp) ".*" else "*")
+            nameCombo.model = DefaultComboBoxModel(items.toTypedArray())
+            // Restore the editor text rather than letting the new model's first item win.
+            nameCombo.selectedItem = current.ifEmpty { items.first() }
+        }
+        globRadio.addActionListener { swap(); nameEditor.requestFocusInWindow() }
+        regexpRadio.addActionListener { swap(); nameEditor.requestFocusInWindow() }
+        caseSensitiveCheckBox.addActionListener { nameEditor.requestFocusInWindow() }
     }
 
     private fun setupEnabling() {
@@ -364,11 +392,48 @@ class FileSearchDialog(
         }
     }
 
-    fun getCriteria(): FileSearchCriteria {
+    /**
+     * Validates the name pattern before the dialog closes. Called by [DialogWrapper] when the
+     * user clicks Search (and continuously by [startTrackingValidation]). A non-null return keeps
+     * the dialog open, highlights the returned component with a tooltip, and focuses it — so an
+     * invalid glob/regex is caught immediately instead of surfacing later in the search results
+     * tab, by which time the input form is already gone.
+     */
+    override fun doValidate(): ValidationInfo? {
+        if (!nameCheckBox.isSelected) return null
+        val pattern = nameText
+        if (pattern.isBlank()) return null
+        return if (regexpRadio.isSelected) {
+            try {
+                pattern.toRegex()
+                null
+            } catch (e: Exception) {
+                ValidationInfo("Invalid regex: ${e.message ?: pattern}", nameEditor)
+            }
+        } else {
+            try {
+                FileSystems.getDefault().getPathMatcher("glob:$pattern")
+                null
+            } catch (e: Exception) {
+                ValidationInfo("Invalid glob: ${e.message ?: pattern}", nameEditor)
+            }
+        }
+    }
+
+    override fun doOKAction() {
+        // Only persist to the MRU history once validation has passed, so invalid patterns the
+        // user fat-fingered never leak into the history dropdown. Glob and regex have separate
+        // histories so the dropdown always matches the selected mode.
         val namePattern = if (nameCheckBox.isSelected && nameText.isNotBlank()) nameText else null
         if (namePattern != null) {
-            TurtleCommanderSettings.getInstance().addNameSearchHistory(namePattern)
+            TurtleCommanderSettings.getInstance()
+                .addNameSearchHistory(namePattern, regexp = regexpRadio.isSelected)
         }
+        super.doOKAction()
+    }
+
+    fun getCriteria(): FileSearchCriteria {
+        val namePattern = if (nameCheckBox.isSelected && nameText.isNotBlank()) nameText else null
         val nameMode = if (regexpRadio.isSelected) NamePatternMode.REGEXP else NamePatternMode.GLOB
 
         val sizeFilter = if (sizeCheckBox.isSelected) {

@@ -189,11 +189,15 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
         var columns: MutableList<ColumnConfig> = mutableListOf()
 
         var nameSearchHistory: MutableList<String> = mutableListOf()
+        var regexpSearchHistory: MutableList<String> = mutableListOf()
     }
 
-    fun addNameSearchHistory(pattern: String) {
+    fun getNameSearchHistory(regexp: Boolean): MutableList<String> =
+        if (regexp) myState.regexpSearchHistory else myState.nameSearchHistory
+
+    fun addNameSearchHistory(pattern: String, regexp: Boolean = false) {
         if (pattern.isBlank()) return
-        val list = myState.nameSearchHistory
+        val list = getNameSearchHistory(regexp)
         list.remove(pattern)
         list.add(0, pattern)
         while (list.size > 10) list.removeAt(list.size - 1)
