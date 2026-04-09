@@ -9,6 +9,8 @@ import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileContentChangeEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
@@ -25,6 +27,13 @@ class VfsEditEntry(
     var vfsFilePath: Path,
     val tempFilePath: Path,
     val vfsStack: MutableList<VfsStackEntry>,
+    /**
+     * Mutex owned by the originating [io.github.jhspetersson.turtlecommander.ui.FileTab] that
+     * serializes all write-back work against the shared [vfsStack]. Must be held while flushing
+     * or copying into any VFS in the stack; otherwise a concurrent refresh can close a parent
+     * ZipFileSystem mid-`Files.copy` and raise `ClosedFileSystemException`.
+     */
+    val vfsWriteMutex: Mutex? = null,
     val onBeforeFlush: (() -> String)? = null,
     val onAfterFlush: ((String) -> Unit)? = null,
 )
@@ -55,33 +64,12 @@ class VfsEditService(
 
     private suspend fun writeBack(entry: VfsEditEntry) = withContext(Dispatchers.IO) {
         try {
-            // Copy temp file content back to VFS path
-            Files.copy(entry.tempFilePath, entry.vfsFilePath, StandardCopyOption.REPLACE_EXISTING)
-
-            // Capture the relative path of currentPath BEFORE any flush invalidates it
-            val currentPathRel = entry.onBeforeFlush?.invoke() ?: ""
-
-            // Flush the innermost VFS and reconstruct the file path
-            val stack = entry.vfsStack
-            if (stack.isNotEmpty()) {
-                val innermostVfs = stack.last().vfs
-                val relPath = vfsRelativePath(innermostVfs, entry.vfsFilePath)
-                innermostVfs.flush()
-                entry.vfsFilePath = if (relPath.isEmpty()) innermostVfs.root else innermostVfs.root.resolve(relPath)
+            val mutex = entry.vfsWriteMutex
+            if (mutex != null) {
+                mutex.withLock { writeBackLocked(entry) }
+            } else {
+                writeBackLocked(entry)
             }
-
-            // Write-back through the VFS stack (innermost to outermost)
-            for (i in stack.indices.reversed()) {
-                val stackEntry = stack[i]
-                if (stackEntry.tempFile == null || i == 0) continue
-                val parentStackEntry = stack[i - 1]
-                Files.copy(stackEntry.tempFile.toPath(), stackEntry.parentPath, StandardCopyOption.REPLACE_EXISTING)
-                val relPath = vfsRelativePath(parentStackEntry.vfs, stackEntry.parentPath)
-                parentStackEntry.vfs.flush()
-                stackEntry.parentPath = if (relPath.isEmpty()) parentStackEntry.vfs.root else parentStackEntry.vfs.root.resolve(relPath)
-            }
-
-            entry.onAfterFlush?.invoke(currentPathRel)
         } catch (e: Exception) {
             thisLogger().warn("VFS edit write-back failed: ${e.message}")
         } finally {
@@ -90,6 +78,41 @@ class VfsEditService(
             // until the IDE is restarted.
             activeEdits.remove(normalizeKey(entry.tempFilePath))
         }
+    }
+
+    /**
+     * Core write-back body. Must be called with [VfsEditEntry.vfsWriteMutex] held (if one is
+     * set) so that no concurrent refresh closes a parent ZipFileSystem while this loop is
+     * mid-`Files.copy` into one of its ZipPaths.
+     */
+    private fun writeBackLocked(entry: VfsEditEntry) {
+        // Copy temp file content back to VFS path
+        Files.copy(entry.tempFilePath, entry.vfsFilePath, StandardCopyOption.REPLACE_EXISTING)
+
+        // Capture the relative path of currentPath BEFORE any flush invalidates it
+        val currentPathRel = entry.onBeforeFlush?.invoke() ?: ""
+
+        // Flush the innermost VFS and reconstruct the file path
+        val stack = entry.vfsStack
+        if (stack.isNotEmpty()) {
+            val innermostVfs = stack.last().vfs
+            val relPath = vfsRelativePath(innermostVfs, entry.vfsFilePath)
+            innermostVfs.flush()
+            entry.vfsFilePath = if (relPath.isEmpty()) innermostVfs.root else innermostVfs.root.resolve(relPath)
+        }
+
+        // Write-back through the VFS stack (innermost to outermost)
+        for (i in stack.indices.reversed()) {
+            val stackEntry = stack[i]
+            if (stackEntry.tempFile == null || i == 0) continue
+            val parentStackEntry = stack[i - 1]
+            Files.copy(stackEntry.tempFile.toPath(), stackEntry.parentPath, StandardCopyOption.REPLACE_EXISTING)
+            val relPath = vfsRelativePath(parentStackEntry.vfs, stackEntry.parentPath)
+            parentStackEntry.vfs.flush()
+            stackEntry.parentPath = if (relPath.isEmpty()) parentStackEntry.vfs.root else parentStackEntry.vfs.root.resolve(relPath)
+        }
+
+        entry.onAfterFlush?.invoke(currentPathRel)
     }
 
     private fun vfsRelativePath(vfs: VirtualFileSystem, path: Path): String {

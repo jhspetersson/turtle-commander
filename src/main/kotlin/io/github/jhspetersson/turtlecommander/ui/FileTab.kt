@@ -30,6 +30,8 @@ import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.awt.*
 import java.awt.datatransfer.DataFlavor
@@ -110,6 +112,16 @@ class FileTab(
         private set
 
     internal val vfsStack = mutableListOf<VfsStackEntry>()
+
+    /**
+     * Serializes VFS write-back work across [refresh], [refreshAfterVfsChange],
+     * [writeBackNestedArchives] and [io.github.jhspetersson.turtlecommander.vfs.VfsEditService.writeBack]
+     * (the edited-file save path). All of these walk [vfsStack] calling `vfs.flush()` on parent
+     * ZipFileSystems and copying temp files into ZipPaths; running any two concurrently would
+     * close a parent fs underneath the other's in-flight `Files.copy`, producing
+     * `ClosedFileSystemException`.
+     */
+    internal val vfsWriteMutex = Mutex()
 
     var currentVfs: VirtualFileSystem?
         get() = vfsStack.lastOrNull()?.vfs
@@ -1197,8 +1209,12 @@ class FileTab(
         if (vfs != null) {
             val relativePath = vfsRelativePath(vfs, currentPath)
             fileOps.launch {
-                withContext(Dispatchers.IO) { vfs.flush() }
-                writeBackNestedArchives()
+                withContext(Dispatchers.IO) {
+                    vfsWriteMutex.withLock {
+                        vfs.flush()
+                        writeBackNestedArchivesLocked()
+                    }
+                }
                 val newPath = if (relativePath.isEmpty()) vfs.root else vfs.root.resolve(relativePath)
                 navigateTo(newPath)
             }

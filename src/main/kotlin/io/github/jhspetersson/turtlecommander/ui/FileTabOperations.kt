@@ -702,6 +702,7 @@ private fun FileTab.openVfsFileEditable(entry: FileEntry) {
 
             val editService = project.service<VfsEditService>()
             editService.trackEdit(VfsEditEntry(vfsFilePath, tempPath, stackRef,
+                vfsWriteMutex = vfsWriteMutex,
                 onBeforeFlush = {
                     val innerVfs = currentVfs ?: return@VfsEditEntry ""
                     vfsRelativePath(innerVfs, currentPath)

@@ -9,6 +9,7 @@ import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.nio.file.Files
 import java.nio.file.Path
@@ -130,7 +131,13 @@ internal fun FileTab.handleVfsBreadcrumbClick(segmentPath: String) {
     fileOps.launch { navigateTo(vfsPath) }
 }
 
-internal suspend fun FileTab.writeBackNestedArchives() = withContext(Dispatchers.IO) {
+/**
+ * Body of the nested-archive write-back loop. The caller is responsible for holding
+ * [FileTab.vfsWriteMutex] and for being on [Dispatchers.IO]. Split out so callers that
+ * also need to flush the innermost VFS atomically (e.g. [refreshAfterVfsChange]) can
+ * do so under the same lock without re-entering the mutex.
+ */
+internal fun FileTab.writeBackNestedArchivesLocked() {
     for (i in vfsStack.indices.reversed()) {
         val entry = vfsStack[i]
         if (entry.tempFile == null || i == 0) continue
@@ -143,12 +150,22 @@ internal suspend fun FileTab.writeBackNestedArchives() = withContext(Dispatchers
     }
 }
 
+internal suspend fun FileTab.writeBackNestedArchives() = withContext(Dispatchers.IO) {
+    vfsWriteMutex.withLock {
+        writeBackNestedArchivesLocked()
+    }
+}
+
 internal suspend fun FileTab.refreshAfterVfsChange(selectName: String? = null) {
     val vfs = currentVfs
     if (vfs != null) {
         val relativePath = vfsRelativePath(vfs, currentPath)
-        vfs.flush()
-        writeBackNestedArchives()
+        withContext(Dispatchers.IO) {
+            vfsWriteMutex.withLock {
+                vfs.flush()
+                writeBackNestedArchivesLocked()
+            }
+        }
         val newPath = if (relativePath.isEmpty()) vfs.root else vfs.root.resolve(relativePath)
         navigateTo(newPath, selectName = selectName)
     } else {
