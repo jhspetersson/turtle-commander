@@ -37,52 +37,69 @@ class FileOperationService(
             result.add(parentEntry(parent))
         }
 
-        try {
-            Files.newDirectoryStream(directory).use { stream ->
-                val dirs = mutableListOf<FileEntry>()
-                val files = mutableListOf<FileEntry>()
+        val effectiveDirectory = try {
+            resolveReparsePoint(directory)
+        } catch (_: Exception) {
+            directory
+        }
 
-                for (entry in stream) {
-                    try {
-                        val attrs = Files.readAttributes(entry, BasicFileAttributes::class.java)
-                        val owner = readOwner(entry)
-                        val group = if (!isWindows) readGroup(entry) else ""
-                        val permissions = readPermissions(entry)
-                        val dirType = if (attrs.isDirectory) detectDirectoryType(entry) else DirectoryType.NONE
-                        val fileEntry = FileEntry(
-                            name = entry.name,
-                            path = entry,
-                            isDirectory = attrs.isDirectory,
-                            size = attrs.size(),
-                            creationTime = attrs.creationTime(),
-                            lastModified = attrs.lastModifiedTime(),
-                            owner = owner,
-                            group = group,
-                            permissions = permissions,
-                            directoryType = dirType,
-                        )
-                        if (attrs.isDirectory) dirs.add(fileEntry) else files.add(fileEntry)
-                    } catch (e: Exception) {
-                        thisLogger().debug("Cannot read attributes for $entry: ${e.message}")
-                    }
-                }
+        Files.newDirectoryStream(effectiveDirectory).use { stream ->
+            val dirs = mutableListOf<FileEntry>()
+            val files = mutableListOf<FileEntry>()
 
-                val sortWithDirs = TurtleCommanderSettings.getInstance().state.sortWithDirectories
-                if (sortWithDirs) {
-                    val all = (dirs + files).sortedBy { it.name.lowercase() }
-                    result.addAll(all)
-                } else {
-                    dirs.sortBy { it.name.lowercase() }
-                    files.sortBy { it.name.lowercase() }
-                    result.addAll(dirs)
-                    result.addAll(files)
+            for (entry in stream) {
+                try {
+                    val attrs = Files.readAttributes(entry, BasicFileAttributes::class.java)
+                    val owner = readOwner(entry)
+                    val group = if (!isWindows) readGroup(entry) else ""
+                    val permissions = readPermissions(entry)
+                    val dirType = if (attrs.isDirectory) detectDirectoryType(entry) else DirectoryType.NONE
+                    val fileEntry = FileEntry(
+                        name = entry.name,
+                        path = entry,
+                        isDirectory = attrs.isDirectory,
+                        size = attrs.size(),
+                        creationTime = attrs.creationTime(),
+                        lastModified = attrs.lastModifiedTime(),
+                        owner = owner,
+                        group = group,
+                        permissions = permissions,
+                        directoryType = dirType,
+                    )
+                    if (attrs.isDirectory) dirs.add(fileEntry) else files.add(fileEntry)
+                } catch (e: Exception) {
+                    thisLogger().debug("Cannot read attributes for $entry: ${e.message}")
                 }
             }
-        } catch (e: Exception) {
-            thisLogger().warn("Cannot list directory $directory: ${e.message}")
+
+            val sortWithDirs = TurtleCommanderSettings.getInstance().state.sortWithDirectories
+            if (sortWithDirs) {
+                val all = (dirs + files).sortedBy { it.name.lowercase() }
+                result.addAll(all)
+            } else {
+                dirs.sortBy { it.name.lowercase() }
+                files.sortBy { it.name.lowercase() }
+                result.addAll(dirs)
+                result.addAll(files)
+            }
         }
 
         result
+    }
+
+    /**
+     * On Windows some system junctions like `C:\Documents and Settings` have an ACL that denies
+     * listing, but they are reparse points pointing at an accessible target (`C:\Users`). Follow
+     * the reparse point to the real target in that case so the user can still enter them.
+     */
+    private fun resolveReparsePoint(directory: Path): Path {
+        if (!isWindows) return directory
+        return try {
+            val real = directory.toRealPath()
+            if (real != directory) real else directory
+        } catch (_: Exception) {
+            directory
+        }
     }
 
     suspend fun copyFilesWithProgress(
