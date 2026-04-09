@@ -11,6 +11,7 @@
 ### Fixed
 
 - Improved directory listing times
+- Show an error notification when a directory cannot be listed (e.g., access denied)
 
 ## [0.4.4] - 2026-04-09
 

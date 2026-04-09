@@ -10,9 +10,25 @@ import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
 import io.github.jhspetersson.turtlecommander.ui.FileManagerToolWindowFactory
 import kotlinx.coroutines.runBlocking
 import java.awt.GraphicsEnvironment
+import java.nio.file.Files
 import java.nio.file.Path
 
 class FileManagerToolWindowTest : BasePlatformTestCase() {
+
+    private lateinit var tempDir: Path
+
+    override fun setUp() {
+        super.setUp()
+        tempDir = Files.createTempDirectory("turtle-test-toolwindow-")
+    }
+
+    override fun tearDown() {
+        try {
+            tempDir.toFile().deleteRecursively()
+        } finally {
+            super.tearDown()
+        }
+    }
 
     fun testToolWindowFactoryCreatesContentViaDirectInvocation() {
         if (GraphicsEnvironment.isHeadless()) return
@@ -34,12 +50,13 @@ class FileManagerToolWindowTest : BasePlatformTestCase() {
     }
 
     fun testFileOperationServiceListsProjectFiles() {
-        val projectPath = Path.of(project.basePath!!)
+        Files.writeString(tempDir.resolve("a.txt"), "x")
+        Files.createDirectory(tempDir.resolve("sub"))
         val fileOps = project.service<FileOperationService>()
 
-        val entries = runBlocking { fileOps.listFiles(projectPath) }
+        val entries = runBlocking { fileOps.listFiles(tempDir) }
 
-        assertTrue("File listing should return entries for the project directory", entries.isNotEmpty())
+        assertTrue("File listing should return entries for the directory", entries.isNotEmpty())
 
         for (entry in entries) {
             assertTrue("Entry name must not be blank", entry.name.isNotBlank())
@@ -51,23 +68,39 @@ class FileManagerToolWindowTest : BasePlatformTestCase() {
     }
 
     fun testFileOperationServiceListsFilesWithCorrectAttributes() {
-        val projectPath = Path.of(project.basePath!!)
+        Files.writeString(tempDir.resolve("a.txt"), "x")
+        Files.createDirectory(tempDir.resolve("sub"))
         val fileOps = project.service<FileOperationService>()
 
-        val entries = runBlocking { fileOps.listFiles(projectPath) }
+        val entries = runBlocking { fileOps.listFiles(tempDir) }
 
         val realEntries = entries.filter { !it.isParentLink }
+        assertTrue("Should list the created entries", realEntries.isNotEmpty())
 
         for (entry in realEntries) {
             assertTrue(
-                "Entry path ${entry.path} should be under project path $projectPath",
-                entry.path.startsWith(projectPath)
+                "Entry path ${entry.path} should be under temp dir $tempDir",
+                entry.path.startsWith(tempDir)
             )
             assertEquals(
                 "Entry name should match path file name",
                 entry.path.fileName.toString(),
                 entry.name
             )
+        }
+    }
+
+    fun testFileOperationServiceThrowsOnUnlistableDirectory() {
+        val fileOps = project.service<FileOperationService>()
+        val missing = tempDir.resolve("does-not-exist")
+
+        try {
+            runBlocking { fileOps.listFiles(missing) }
+            fail("listFiles should propagate an exception for an unlistable directory")
+        } catch (_: java.nio.file.NoSuchFileException) {
+            // expected
+        } catch (_: java.io.IOException) {
+            // some platforms throw a different IOException subtype
         }
     }
 

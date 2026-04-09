@@ -89,48 +89,49 @@ class FileOperationService(
         val needGroup = !isWindows && "Group" in visibleColumnIds
         val needPermissions = "Permissions" in visibleColumnIds
 
-        try {
-            Files.newDirectoryStream(effectiveDirectory).use { stream ->
-                for (entry in stream) {
-                    try {
-                        // On Windows, read DosFileAttributes directly (extends BasicFileAttributes)
-                        // so the permission flags come from the same syscall as size/time.
-                        val attrs = if (isWindows && needPermissions) {
-                            Files.readAttributes(entry, DosFileAttributes::class.java)
-                        } else {
-                            Files.readAttributes(entry, BasicFileAttributes::class.java)
-                        }
-                        val owner = if (needOwner) readOwner(entry) else ""
-                        val group = if (needGroup) readGroup(entry) else ""
-                        val permissions = when {
-                            !needPermissions -> ""
-                            isWindows && attrs is DosFileAttributes -> dosAttrsToString(attrs)
-                            else -> readPermissions(entry)
-                        }
-                        val dirType = if (attrs.isDirectory) cachedDetectDirectoryType(entry, forceRefresh) else DirectoryType.NONE
-                        val fileEntry = FileEntry(
-                            name = entry.name,
-                            path = entry,
-                            isDirectory = attrs.isDirectory,
-                            size = attrs.size(),
-                            creationTime = attrs.creationTime(),
-                            lastModified = attrs.lastModifiedTime(),
-                            owner = owner,
-                            group = group,
-                            permissions = permissions,
-                            directoryType = dirType,
-                        )
-                        if (attrs.isDirectory) dirs.add(fileEntry) else files.add(fileEntry)
-                    } catch (e: Exception) {
-                        thisLogger().debug("Cannot read attributes for $entry: ${e.message}")
+        // An IOException from Files.newDirectoryStream (e.g. access denied on
+        // C:\$Recycle.Bin\S-1-5-18) is allowed to propagate so the UI can show it to the user.
+        // Per-entry attribute read failures are still swallowed as debug logs since those are
+        // usually transient (a file disappearing mid-iteration) and shouldn't abort the whole
+        // listing.
+        Files.newDirectoryStream(effectiveDirectory).use { stream ->
+            for (entry in stream) {
+                try {
+                    // On Windows, read DosFileAttributes directly (extends BasicFileAttributes)
+                    // so the permission flags come from the same syscall as size/time.
+                    val attrs = if (isWindows && needPermissions) {
+                        Files.readAttributes(entry, DosFileAttributes::class.java)
+                    } else {
+                        Files.readAttributes(entry, BasicFileAttributes::class.java)
                     }
+                    val owner = if (needOwner) readOwner(entry) else ""
+                    val group = if (needGroup) readGroup(entry) else ""
+                    val permissions = when {
+                        !needPermissions -> ""
+                        isWindows && attrs is DosFileAttributes -> dosAttrsToString(attrs)
+                        else -> readPermissions(entry)
+                    }
+                    val dirType = if (attrs.isDirectory) cachedDetectDirectoryType(entry, forceRefresh) else DirectoryType.NONE
+                    val fileEntry = FileEntry(
+                        name = entry.name,
+                        path = entry,
+                        isDirectory = attrs.isDirectory,
+                        size = attrs.size(),
+                        creationTime = attrs.creationTime(),
+                        lastModified = attrs.lastModifiedTime(),
+                        owner = owner,
+                        group = group,
+                        permissions = permissions,
+                        directoryType = dirType,
+                    )
+                    if (attrs.isDirectory) dirs.add(fileEntry) else files.add(fileEntry)
+                } catch (e: Exception) {
+                    thisLogger().debug("Cannot read attributes for $entry: ${e.message}")
                 }
             }
-            putCachedListing(directory, dirs.toList(), files.toList())
-        } catch (e: Exception) {
-            thisLogger().warn("Cannot list directory $directory: ${e.message}")
         }
 
+        putCachedListing(directory, dirs.toList(), files.toList())
         appendSortedEntries(result, dirs, files)
 
         result
