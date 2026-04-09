@@ -187,6 +187,16 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
         var preThemeStyles: StyleSet = StyleSet()
 
         var columns: MutableList<ColumnConfig> = mutableListOf()
+
+        var nameSearchHistory: MutableList<String> = mutableListOf()
+    }
+
+    fun addNameSearchHistory(pattern: String) {
+        if (pattern.isBlank()) return
+        val list = myState.nameSearchHistory
+        list.remove(pattern)
+        list.add(0, pattern)
+        while (list.size > 10) list.removeAt(list.size - 1)
     }
 
     fun getEffectiveColumns(): List<ColumnConfig> {

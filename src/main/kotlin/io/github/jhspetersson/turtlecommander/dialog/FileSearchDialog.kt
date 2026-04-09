@@ -5,6 +5,7 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
+import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.ui.installStandardContextMenu
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
@@ -70,7 +71,17 @@ class FileSearchDialog(
     private val rootField = JBTextField(initialRoot.toString())
 
     private val nameCheckBox = JCheckBox("Search by name", initialCriteria == null || initialCriteria.namePattern != null)
-    private val nameField = JBTextField(initialCriteria?.namePattern ?: "*")
+    private val nameCombo = ComboBox<String>().apply {
+        isEditable = true
+        val history = TurtleCommanderSettings.getInstance().state.nameSearchHistory
+        val initialPattern = initialCriteria?.namePattern ?: "*"
+        val items = linkedSetOf(initialPattern)
+        items.addAll(history)
+        model = DefaultComboBoxModel(items.toTypedArray())
+        selectedItem = initialPattern
+    }
+    private val nameEditor: JTextField get() = nameCombo.editor.editorComponent as JTextField
+    private val nameText: String get() = (nameCombo.editor.item as? String ?: "").trim()
     private val globRadio = JRadioButton("Glob", initialCriteria?.namePatternMode != NamePatternMode.REGEXP)
     private val regexpRadio = JRadioButton("Regexp", initialCriteria?.namePatternMode == NamePatternMode.REGEXP)
     private val caseSensitiveCheckBox = JCheckBox("Case sensitive", initialCriteria?.caseSensitive == true)
@@ -129,11 +140,12 @@ class FileSearchDialog(
         setOKButtonText("Search")
 
         listOf(
-            rootField, nameField, sizeField1, sizeField2,
+            rootField, sizeField1, sizeField2,
             creationDateField1, creationDateField2,
             modificationDateField1, modificationDateField2,
             ownerField, groupField,
         ).forEach { it.installStandardContextMenu() }
+        nameEditor.installStandardContextMenu()
 
         init()
 
@@ -145,7 +157,7 @@ class FileSearchDialog(
     private fun setupEnabling() {
         fun updateNameEnabled() {
             val enabled = nameCheckBox.isSelected
-            nameField.isEnabled = enabled
+            nameCombo.isEnabled = enabled
             globRadio.isEnabled = enabled
             regexpRadio.isEnabled = enabled
             caseSensitiveCheckBox.isEnabled = enabled
@@ -176,7 +188,7 @@ class FileSearchDialog(
         fun updateOwnerEnabled() { ownerField.isEnabled = ownerCheckBox.isSelected }
         fun updateGroupEnabled() { groupField.isEnabled = groupCheckBox.isSelected }
 
-        nameCheckBox.addActionListener { updateNameEnabled(); if (nameCheckBox.isSelected) nameField.requestFocusInWindow() }
+        nameCheckBox.addActionListener { updateNameEnabled(); if (nameCheckBox.isSelected) nameEditor.requestFocusInWindow() }
         sizeCheckBox.addActionListener { updateSizeEnabled(); if (sizeCheckBox.isSelected) sizeField1.requestFocusInWindow() }
         creationDateCheckBox.addActionListener { updateCreationDateEnabled(); if (creationDateCheckBox.isSelected) creationDateField1.requestFocusInWindow() }
         modificationDateCheckBox.addActionListener { updateModificationDateEnabled(); if (modificationDateCheckBox.isSelected) modificationDateField1.requestFocusInWindow() }
@@ -293,7 +305,7 @@ class FileSearchDialog(
             }
             gbc.gridx = 0; gbc.gridy = 0; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0
             gbc.gridwidth = 2
-            add(nameField, gbc)
+            add(nameCombo, gbc)
             gbc.gridwidth = 1; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0.0
             gbc.gridx = 0; gbc.gridy = 1
             add(globRadio, gbc)
@@ -353,7 +365,10 @@ class FileSearchDialog(
     }
 
     fun getCriteria(): FileSearchCriteria {
-        val namePattern = if (nameCheckBox.isSelected && nameField.text.isNotBlank()) nameField.text.trim() else null
+        val namePattern = if (nameCheckBox.isSelected && nameText.isNotBlank()) nameText else null
+        if (namePattern != null) {
+            TurtleCommanderSettings.getInstance().addNameSearchHistory(namePattern)
+        }
         val nameMode = if (regexpRadio.isSelected) NamePatternMode.REGEXP else NamePatternMode.GLOB
 
         val sizeFilter = if (sizeCheckBox.isSelected) {
@@ -457,5 +472,5 @@ class FileSearchDialog(
         return null
     }
 
-    override fun getPreferredFocusedComponent() = nameField
+    override fun getPreferredFocusedComponent() = nameEditor
 }
