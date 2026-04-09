@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-04-09
+
 ### Added
 
 - Search by user and group
