@@ -117,6 +117,14 @@ class SevenZipVirtualFileSystem(
 
     private fun repackArchive() {
         SevenZOutputFile(archivePath.toFile()).use { out ->
+            // SevenZOutputFile duck-types as an OutputStream (write(int)/write(byte[])/
+            // write(byte[],int,int)) but doesn't actually extend it, so we can't hand it
+            // to Files.copy directly. A thin adapter lets us replace the hand-rolled 8KB
+            // read/write loop with the JDK's tuned Files.copy → OutputStream path.
+            val sink = object : java.io.OutputStream() {
+                override fun write(b: Int) = out.write(b)
+                override fun write(b: ByteArray, off: Int, len: Int) = out.write(b, off, len)
+            }
             forEachArchiveEntry(tempDir) { path, relativeName ->
                 val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
                 val entry = SevenZArchiveEntry().apply {
@@ -129,13 +137,7 @@ class SevenZipVirtualFileSystem(
                 }
                 out.putArchiveEntry(entry)
                 if (!attrs.isDirectory) {
-                    Files.newInputStream(path).use { input ->
-                        val buf = ByteArray(8192)
-                        var len: Int
-                        while (input.read(buf).also { len = it } != -1) {
-                            out.write(buf, 0, len)
-                        }
-                    }
+                    Files.copy(path, sink)
                 }
                 out.closeArchiveEntry()
             }

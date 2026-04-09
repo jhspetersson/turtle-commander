@@ -622,6 +622,34 @@ class SevenZRenameTest {
         val renamed = after.find { it.name == "renamed.txt" }!!
         assertEquals("important", Files.readString(renamed.path))
     }
+
+    @Test
+    fun `repack preserves content larger than internal buffer`() = runBlocking {
+        // Regression: the 7z repack used to read files with a hand-rolled 8 KiB loop.
+        // After switching to Files.copy(Path, OutputStream) via a SevenZOutputFile
+        // adapter, make sure the content is still preserved byte-for-byte across
+        // buffer-boundary sizes (smaller than, equal to, and larger than 8 KiB).
+        val small = "a".repeat(100)
+        val exact = "b".repeat(8192)
+        val large = buildString(50_000) { repeat(50_000) { append(('a' + (it % 26))) } }
+
+        createSevenZ(
+            Triple("small.txt", false, small),
+            Triple("exact.txt", false, exact),
+            Triple("large.txt", false, large),
+        )
+
+        val entries = vfs.listFiles(vfs.root)
+        vfs.renameFile(entries.find { it.name == "small.txt" }!!.path, "renamed.txt")
+        vfs.close()
+
+        vfs = SevenZipVirtualFileSystem(szPath)
+        val after = vfs.listFiles(vfs.root).filter { !it.isParentLink }
+        assertEquals(3, after.size)
+        assertEquals(small, Files.readString(after.find { it.name == "renamed.txt" }!!.path))
+        assertEquals(exact, Files.readString(after.find { it.name == "exact.txt" }!!.path))
+        assertEquals(large, Files.readString(after.find { it.name == "large.txt" }!!.path))
+    }
 }
 
 // ─── FileTableModel rename-related ──────────────────────────────────────────
