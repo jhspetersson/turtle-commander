@@ -121,12 +121,25 @@ class ZipExtractVirtualFileSystem(
         val dir = Files.createTempDirectory("turtle-zip-")
         try {
             ZipFile.builder().setPath(archivePath).get().use { zip ->
-                val allEntries = zip.entries.toList()
-                val total = allEntries.size
+                // Previously we called zip.entries.toList() just to know the total for
+                // the progress fraction, which allocated an O(n) reference list for
+                // archives that can contain millions of entries (fat JARs, etc.). The
+                // central directory is already parsed in memory, so iterating twice
+                // is cheap and lets us keep determinate progress without the extra copy.
+                var total = 0
+                val counter = zip.entries
+                while (counter.hasMoreElements()) {
+                    counter.nextElement()
+                    total++
+                }
                 if (total > 0) indicator?.isIndeterminate = false
-                for ((index, entry) in allEntries.withIndex()) {
+                val iter = zip.entries
+                var index = 0
+                while (iter.hasMoreElements()) {
+                    val entry = iter.nextElement()
                     if (indicator?.isCanceled == true) break
-                    indicator?.fraction = (index + 1).toDouble() / total
+                    index++
+                    if (total > 0) indicator?.fraction = index.toDouble() / total
                     indicator?.text2 = entry.name
                     val entryPath = resolveEntryPath(dir, entry.name) ?: continue
                     try {

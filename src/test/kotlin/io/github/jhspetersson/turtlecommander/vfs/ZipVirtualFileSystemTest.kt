@@ -138,3 +138,70 @@ class ZipVirtualFileSystemTest {
         assertEquals(entriesBefore.size, entriesAfter.size)
     }
 }
+
+/**
+ * Exercises the fallback extraction path used for zips that Java's built-in
+ * ZipFileSystem rejects (e.g. invalid CEN headers). Even though we build valid
+ * zips here, ZipExtractVirtualFileSystem can be instantiated directly and its
+ * extraction loop is the interesting thing — it previously called
+ * `zip.entries.toList()` just to know the total, which allocated an O(n)
+ * reference list for every extracted archive.
+ */
+class ZipExtractVirtualFileSystemTest {
+
+    private lateinit var zipPath: Path
+    private var vfs: ZipExtractVirtualFileSystem? = null
+
+    @After
+    fun tearDown() {
+        vfs?.close()
+        if (::zipPath.isInitialized) Files.deleteIfExists(zipPath)
+    }
+
+    private fun createZip(vararg entries: Pair<String, String?>) {
+        zipPath = Files.createTempFile("zip-extract-test-", ".zip")
+        ZipOutputStream(Files.newOutputStream(zipPath)).use { zos ->
+            for ((name, content) in entries) {
+                zos.putNextEntry(ZipEntry(name))
+                if (content != null) zos.write(content.toByteArray())
+                zos.closeEntry()
+            }
+        }
+    }
+
+    @Test
+    fun `extracts all entries without materializing a list`() = runBlocking {
+        createZip(
+            "a.txt" to "alpha",
+            "sub/" to null,
+            "sub/b.txt" to "beta",
+            "sub/c.txt" to "gamma",
+        )
+
+        val extractVfs = ZipExtractVirtualFileSystem(zipPath)
+        vfs = extractVfs
+
+        val rootEntries = extractVfs.listFiles(extractVfs.root).filter { !it.isParentLink }
+        assertNotNull(rootEntries.find { it.name == "a.txt" })
+        assertNotNull(rootEntries.find { it.name == "sub" })
+
+        val subEntries = extractVfs.listFiles(extractVfs.getPath("/sub")).filter { !it.isParentLink }
+        assertNotNull(subEntries.find { it.name == "b.txt" })
+        assertNotNull(subEntries.find { it.name == "c.txt" })
+
+        // Contents must survive the streaming iteration intact.
+        val aPath = extractVfs.getPath("/a.txt")
+        assertEquals("alpha", Files.readString(aPath))
+        val bPath = extractVfs.getPath("/sub/b.txt")
+        assertEquals("beta", Files.readString(bPath))
+    }
+
+    @Test
+    fun `handles empty archive`() = runBlocking {
+        createZip()
+        val extractVfs = ZipExtractVirtualFileSystem(zipPath)
+        vfs = extractVfs
+        val entries = extractVfs.listFiles(extractVfs.root).filter { !it.isParentLink }
+        assertTrue(entries.isEmpty())
+    }
+}
