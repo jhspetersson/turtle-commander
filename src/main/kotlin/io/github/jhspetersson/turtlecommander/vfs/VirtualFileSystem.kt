@@ -20,7 +20,16 @@ interface VirtualFileSystem : Closeable {
 }
 
 interface VirtualFileSystemProvider {
-    fun supports(path: Path): Boolean
+    /**
+     * Default `supports` implementation: extract the lowercased extension from the path's
+     * file name and delegate to [supportsExtension], confirming the path points to a
+     * regular file. Previously every provider duplicated this logic; keeping it here
+     * means extensions only need to be declared in one place per provider.
+     */
+    fun supports(path: Path): Boolean {
+        val ext = path.fileName?.toString()?.substringAfterLast('.', "")?.lowercase() ?: return false
+        return ext.isNotEmpty() && supportsExtension(ext) && Files.isRegularFile(path)
+    }
     fun supportsExtension(ext: String): Boolean
     fun create(archivePath: Path): VirtualFileSystem
 }

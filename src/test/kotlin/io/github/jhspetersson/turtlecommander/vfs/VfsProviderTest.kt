@@ -355,4 +355,25 @@ class VfsProviderTest {
         assertTrue(entry.isParentLink)
     }
 
+    // --- default VirtualFileSystemProvider.supports ---
+
+    @Test
+    fun `default supports delegates to supportsExtension for regular files`() {
+        // Concrete providers used to duplicate this logic; now the interface default
+        // handles path→extension parsing and only supportsExtension is per-provider.
+        val dir = java.nio.file.Files.createTempDirectory("supports-test-")
+        try {
+            val zipFile = java.nio.file.Files.createFile(dir.resolve("thing.ZIP"))
+            val txtFile = java.nio.file.Files.createFile(dir.resolve("thing.txt"))
+            val noExt = java.nio.file.Files.createFile(dir.resolve("plain"))
+            assertTrue("extension match should accept the file", zipProvider.supports(zipFile))
+            assertFalse("unrelated extension should be rejected", zipProvider.supports(txtFile))
+            assertFalse("missing extension should be rejected", zipProvider.supports(noExt))
+            // The path must point to a regular file — directories are not archives.
+            val subDir = java.nio.file.Files.createDirectory(dir.resolve("nested.zip"))
+            assertFalse("directories should never be treated as archives", zipProvider.supports(subDir))
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
 }

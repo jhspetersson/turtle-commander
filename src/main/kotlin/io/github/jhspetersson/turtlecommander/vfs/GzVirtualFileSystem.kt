@@ -20,11 +20,6 @@ class GzFileSystemProvider : VirtualFileSystemProvider {
         val ARCHIVE_EXTENSIONS = setOf("gz", "tgz")
     }
 
-    override fun supports(path: Path): Boolean {
-        val ext = path.fileName?.toString()?.substringAfterLast('.', "")?.lowercase() ?: ""
-        return ext in ARCHIVE_EXTENSIONS && Files.isRegularFile(path)
-    }
-
     override fun supportsExtension(ext: String): Boolean {
         return ext in ARCHIVE_EXTENSIONS
     }
@@ -48,11 +43,6 @@ class Bz2FileSystemProvider : VirtualFileSystemProvider {
         val ARCHIVE_EXTENSIONS = setOf("bz2", "tbz2", "tbz")
     }
 
-    override fun supports(path: Path): Boolean {
-        val ext = path.fileName?.toString()?.substringAfterLast('.', "")?.lowercase() ?: ""
-        return ext in ARCHIVE_EXTENSIONS && Files.isRegularFile(path)
-    }
-
     override fun supportsExtension(ext: String): Boolean {
         return ext in ARCHIVE_EXTENSIONS
     }
@@ -74,11 +64,6 @@ class Bz2FileSystemProvider : VirtualFileSystemProvider {
 class XzFileSystemProvider : VirtualFileSystemProvider {
     companion object {
         val ARCHIVE_EXTENSIONS = setOf("xz", "txz")
-    }
-
-    override fun supports(path: Path): Boolean {
-        val ext = path.fileName?.toString()?.substringAfterLast('.', "")?.lowercase() ?: ""
-        return ext in ARCHIVE_EXTENSIONS && Files.isRegularFile(path)
     }
 
     override fun supportsExtension(ext: String): Boolean {

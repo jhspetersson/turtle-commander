@@ -8,20 +8,16 @@ import kotlinx.coroutines.withContext
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry
 import org.apache.commons.compress.archivers.sevenz.SevenZFile
 import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile
+import java.io.OutputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.FileTime
-import java.util.Date
+import java.util.*
 
 class SevenZipFileSystemProvider : VirtualFileSystemProvider {
     companion object {
         val ARCHIVE_EXTENSIONS = setOf("7z")
-    }
-
-    override fun supports(path: Path): Boolean {
-        val ext = path.fileName?.toString()?.substringAfterLast('.', "")?.lowercase() ?: ""
-        return ext in ARCHIVE_EXTENSIONS && Files.isRegularFile(path)
     }
 
     override fun supportsExtension(ext: String): Boolean {
@@ -121,7 +117,7 @@ class SevenZipVirtualFileSystem(
             // write(byte[],int,int)) but doesn't actually extend it, so we can't hand it
             // to Files.copy directly. A thin adapter lets us replace the hand-rolled 8KB
             // read/write loop with the JDK's tuned Files.copy → OutputStream path.
-            val sink = object : java.io.OutputStream() {
+            val sink = object : OutputStream() {
                 override fun write(b: Int) = out.write(b)
                 override fun write(b: ByteArray, off: Int, len: Int) = out.write(b, off, len)
             }

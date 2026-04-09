@@ -20,11 +20,6 @@ class ZipFileSystemProvider : VirtualFileSystemProvider {
         val ARCHIVE_EXTENSIONS = setOf("zip", "jar", "war", "ear", "apk")
     }
 
-    override fun supports(path: Path): Boolean {
-        val ext = path.fileName?.toString()?.substringAfterLast('.', "")?.lowercase() ?: ""
-        return ext in ARCHIVE_EXTENSIONS && Files.isRegularFile(path)
-    }
-
     override fun supportsExtension(ext: String): Boolean {
         return ext in ARCHIVE_EXTENSIONS
     }

@@ -21,11 +21,6 @@ class TarFileSystemProvider : VirtualFileSystemProvider {
         val ARCHIVE_EXTENSIONS = setOf("tar")
     }
 
-    override fun supports(path: Path): Boolean {
-        val ext = path.fileName?.toString()?.substringAfterLast('.', "")?.lowercase() ?: ""
-        return ext in ARCHIVE_EXTENSIONS && Files.isRegularFile(path)
-    }
-
     override fun supportsExtension(ext: String): Boolean {
         return ext in ARCHIVE_EXTENSIONS
     }
