@@ -422,3 +422,85 @@ class PackTarGzErrorHandlingTest {
 
     private fun tempDirs(path: Path) { tempFiles.add(path) }
 }
+
+// ─── countArchiveEntries fast path ──────────────────────────────────────────
+
+class CountArchiveEntriesTest {
+
+    private val tempFiles = mutableListOf<Path>()
+
+    @After
+    fun tearDown() {
+        for (path in tempFiles.reversed()) {
+            try {
+                if (Files.isDirectory(path)) {
+                    Files.walk(path).sorted(Comparator.reverseOrder()).forEach {
+                        try { Files.deleteIfExists(it) } catch (_: Exception) {}
+                    }
+                } else {
+                    Files.deleteIfExists(path)
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    @Test
+    fun `counts tar gz entries without extracting`() = runBlocking {
+        // Regression: countArchiveEntries used to create a VFS, which for tar archives
+        // meant extracting the entire payload to a temp directory before the subsequent
+        // extractArchiveWithProgress call did the same work again. Verify the fast path
+        // returns the correct count and does not leave behind a `turtle-tar-` temp dir.
+        val archivePath = Files.createTempFile("count-test-", ".tar.gz")
+        tempFiles.add(archivePath)
+        java.util.zip.GZIPOutputStream(Files.newOutputStream(archivePath)).use { gz ->
+            org.apache.commons.compress.archivers.tar.TarArchiveOutputStream(gz).use { tar ->
+                val payload = "hello".toByteArray()
+                for (name in listOf("a.txt", "sub/b.txt", "sub/c.txt")) {
+                    val entry = org.apache.commons.compress.archivers.tar.TarArchiveEntry(name)
+                    entry.size = payload.size.toLong()
+                    tar.putArchiveEntry(entry)
+                    tar.write(payload)
+                    tar.closeArchiveEntry()
+                }
+            }
+        }
+
+        val tempRoot = System.getProperty("java.io.tmpdir")
+        val beforeCount = java.io.File(tempRoot).list { _, name -> name.startsWith("turtle-tar-") }?.size ?: 0
+
+        val service = ArchiveService()
+        val count = service.countArchiveEntries(archivePath)
+
+        // Three file entries were written; the header-only scan should see all three.
+        assertEquals(3, count)
+
+        val afterCount = java.io.File(tempRoot).list { _, name -> name.startsWith("turtle-tar-") }?.size ?: 0
+        assertEquals("header-only count must not create a tar extraction temp dir", beforeCount, afterCount)
+    }
+
+    @Test
+    fun `counts zip entries`() = runBlocking {
+        val archivePath = Files.createTempFile("count-test-", ".zip")
+        tempFiles.add(archivePath)
+        java.util.zip.ZipOutputStream(Files.newOutputStream(archivePath)).use { zos ->
+            for (name in listOf("one.txt", "two.txt", "sub/three.txt")) {
+                zos.putNextEntry(java.util.zip.ZipEntry(name))
+                zos.write("x".toByteArray())
+                zos.closeEntry()
+            }
+        }
+
+        val service = ArchiveService()
+        assertEquals(3, service.countArchiveEntries(archivePath))
+    }
+
+    @Test
+    fun `counts standalone gz as single entry`() = runBlocking {
+        val archivePath = Files.createTempFile("count-test-", ".gz")
+        tempFiles.add(archivePath)
+        java.util.zip.GZIPOutputStream(Files.newOutputStream(archivePath)).use { it.write("payload".toByteArray()) }
+
+        val service = ArchiveService()
+        assertEquals(1, service.countArchiveEntries(archivePath))
+    }
+}

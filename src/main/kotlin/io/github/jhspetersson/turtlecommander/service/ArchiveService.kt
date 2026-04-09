@@ -6,8 +6,16 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.apache.commons.compress.archivers.ar.ArArchiveInputStream
+import org.apache.commons.compress.archivers.sevenz.SevenZFile
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
+import org.apache.commons.compress.archivers.zip.ZipFile
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
+import org.apache.commons.compress.compressors.xz.XZCompressorInputStream
 import java.io.BufferedOutputStream
 import java.io.IOException
+import java.io.InputStream
 import java.net.URI
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.FileSystems
@@ -170,6 +178,75 @@ class ArchiveService {
     }
 
     suspend fun countArchiveEntries(archivePath: Path): Int = withContext(Dispatchers.IO) {
+        // Prefer a header-only scan: the previous VFS-based count extracted the archive
+        // to a temp directory, which doubled the work of a subsequent
+        // extractArchiveWithProgress call. For known formats we can enumerate entries
+        // without decompressing file bodies.
+        try {
+            val fast = countArchiveEntriesFast(archivePath)
+            if (fast >= 0) return@withContext fast
+        } catch (e: Exception) {
+            thisLogger().debug("Header-only count failed for $archivePath, falling back to VFS walk", e)
+        }
+        countArchiveEntriesViaVfs(archivePath)
+    }
+
+    /** Returns entry count via header-only scan, or -1 if the format isn't recognized. */
+    private fun countArchiveEntriesFast(archivePath: Path): Int {
+        val name = archivePath.fileName?.toString()?.lowercase() ?: return -1
+        return when {
+            name.endsWith(".zip") || name.endsWith(".jar") || name.endsWith(".war") ||
+                name.endsWith(".ear") || name.endsWith(".apk") -> countZipEntries(archivePath)
+            name.endsWith(".7z") -> countSevenZEntries(archivePath)
+            name.endsWith(".tar.gz") || name.endsWith(".tgz") ->
+                countTarEntries(GzipCompressorInputStream(Files.newInputStream(archivePath)))
+            name.endsWith(".tar.bz2") || name.endsWith(".tbz2") || name.endsWith(".tbz") ->
+                countTarEntries(BZip2CompressorInputStream(Files.newInputStream(archivePath)))
+            name.endsWith(".tar.xz") || name.endsWith(".txz") ->
+                countTarEntries(XZCompressorInputStream(Files.newInputStream(archivePath)))
+            name.endsWith(".tar") -> countTarEntries(Files.newInputStream(archivePath))
+            name.endsWith(".ar") || name.endsWith(".deb") || name.endsWith(".a") ->
+                countArEntries(archivePath)
+            // Standalone single-file compressors wrap exactly one inner file.
+            name.endsWith(".gz") || name.endsWith(".bz2") || name.endsWith(".xz") -> 1
+            else -> -1
+        }
+    }
+
+    private fun countZipEntries(archivePath: Path): Int =
+        ZipFile.builder().setPath(archivePath).get().use { zf ->
+            var c = 0
+            val it = zf.entries
+            while (it.hasMoreElements()) { it.nextElement(); c++ }
+            c
+        }
+
+    private fun countSevenZEntries(archivePath: Path): Int =
+        SevenZFile.builder().setPath(archivePath).get().use { szf ->
+            var c = 0
+            while (szf.nextEntry != null) c++
+            c
+        }
+
+    private fun countTarEntries(raw: InputStream): Int =
+        raw.use { input ->
+            TarArchiveInputStream(input).use { tar ->
+                var c = 0
+                while (tar.nextEntry != null) c++
+                c
+            }
+        }
+
+    private fun countArEntries(archivePath: Path): Int =
+        Files.newInputStream(archivePath).use { input ->
+            ArArchiveInputStream(input).use { ar ->
+                var c = 0
+                while (ar.nextEntry != null) c++
+                c
+            }
+        }
+
+    private fun countArchiveEntriesViaVfs(archivePath: Path): Int {
         var count = 0
         try {
             VirtualFileSystemRegistry.create(archivePath).use { vfs ->
@@ -188,7 +265,7 @@ class ArchiveService {
             }
         } catch (_: Exception) {
         }
-        count
+        return count
     }
 
     suspend fun extractArchiveWithProgress(
