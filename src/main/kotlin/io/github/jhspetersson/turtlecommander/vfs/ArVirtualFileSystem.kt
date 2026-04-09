@@ -36,6 +36,20 @@ class ArVirtualFileSystem(
     override val archivePath: Path,
 ) : VirtualFileSystem {
 
+    private data class ArEntryMetadata(
+        val mode: Int,
+        val userId: Int,
+        val groupId: Int,
+        val lastModifiedSeconds: Long,
+    )
+
+    /**
+     * Metadata captured at extract time keyed by the original AR entry name. Repack uses this
+     * to preserve mode/uid/gid/mtime rather than resetting every entry to 0644/root/root.
+     * Entries that were created after extraction (not present here) fall back to sensible defaults.
+     */
+    private val entryMetadata = mutableMapOf<String, ArEntryMetadata>()
+
     private var tempDir: Path = extractArchive()
 
     override val root: Path get() = tempDir
@@ -43,6 +57,7 @@ class ArVirtualFileSystem(
     private fun extractArchive(): Path {
         val indicator = ProgressManager.getGlobalProgressIndicator()
         val dir = Files.createTempDirectory("turtle-ar-")
+        entryMetadata.clear()
         try {
             Files.newInputStream(archivePath).use { raw ->
                 ArArchiveInputStream(raw).use { ar ->
@@ -57,6 +72,12 @@ class ArVirtualFileSystem(
                         }
                         Files.createDirectories(entryPath.parent)
                         Files.copy(ar, entryPath)
+                        entryMetadata[entry.name] = ArEntryMetadata(
+                            mode = entry.mode,
+                            userId = entry.userId,
+                            groupId = entry.groupId,
+                            lastModifiedSeconds = entry.lastModified,
+                        )
                         try {
                             if (entry.lastModifiedDate != null) {
                                 Files.setLastModifiedTime(entryPath, FileTime.fromMillis(entry.lastModifiedDate.time))
@@ -102,6 +123,10 @@ class ArVirtualFileSystem(
         val parent = source.parent ?: throw IllegalArgumentException("Cannot rename a root path")
         val target = parent.resolve(newName)
         Files.move(source, target)
+        // Carry metadata over to the new name so repack keeps the original mode/uid/gid/mtime.
+        val oldName = tempDir.relativize(source).toString().replace('\\', '/')
+        val newRelativeName = tempDir.relativize(target).toString().replace('\\', '/')
+        entryMetadata.remove(oldName)?.let { entryMetadata[newRelativeName] = it }
         repackArchive()
         target
     }
@@ -112,13 +137,14 @@ class ArVirtualFileSystem(
                 forEachArchiveEntry(tempDir) { path, relativeName ->
                     val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
                     if (attrs.isDirectory) return@forEachArchiveEntry // AR format is flat, skip directories
+                    val metadata = entryMetadata[relativeName]
                     val entry = ArArchiveEntry(
                         relativeName,
                         attrs.size(),
-                        0,
-                        0,
-                        0x81A4.toInt(), // rw-r--r--
-                        attrs.lastModifiedTime().toMillis() / 1000,
+                        metadata?.userId ?: 0,
+                        metadata?.groupId ?: 0,
+                        metadata?.mode ?: DEFAULT_FILE_MODE,
+                        metadata?.lastModifiedSeconds ?: (attrs.lastModifiedTime().toMillis() / 1000),
                     )
                     ar.putArchiveEntry(entry)
                     Files.copy(path, ar)
@@ -126,6 +152,11 @@ class ArVirtualFileSystem(
                 }
             }
         }
+    }
+
+    companion object {
+        // Default mode for newly added entries that have no recorded metadata: 0100644 (rw-r--r--).
+        private const val DEFAULT_FILE_MODE = 0x81A4
     }
 
     override fun flush() {
