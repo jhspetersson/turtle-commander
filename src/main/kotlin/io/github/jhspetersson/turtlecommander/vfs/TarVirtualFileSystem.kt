@@ -45,6 +45,14 @@ class TarVirtualFileSystem(
     private val outputStreamFactory: ((Path) -> OutputStream)? = null,
 ) : VirtualFileSystem {
 
+    /**
+     * Symlink entries that could not be materialized on the local filesystem (typically because
+     * Windows requires SeCreateSymbolicLinkPrivilege). Keyed by the entry name inside the archive
+     * so repack can re-emit them even though the extracted temp dir has nothing to walk.
+     * Value is the stored linkName.
+     */
+    private val unresolvedSymlinks = linkedMapOf<String, String>()
+
     private var tempDir: Path = extractArchive()
 
     override val root: Path get() = tempDir
@@ -52,6 +60,7 @@ class TarVirtualFileSystem(
     private fun extractArchive(): Path {
         val indicator = ProgressManager.getGlobalProgressIndicator()
         val dir = Files.createTempDirectory("turtle-tar-")
+        unresolvedSymlinks.clear()
         try {
             inputStreamFactory(archivePath).use { raw ->
                 TarArchiveInputStream(raw).use { tar ->
@@ -71,7 +80,10 @@ class TarVirtualFileSystem(
                                 try {
                                     Files.createSymbolicLink(entryPath, java.nio.file.Paths.get(linkTarget))
                                 } catch (_: Exception) {
-                                    // Symlink creation may fail (e.g. Windows without privileges), skip
+                                    // Symlink creation may fail (e.g. Windows without privileges).
+                                    // Record it so repack can still re-emit the original entry and
+                                    // users don't silently lose symlinks when they edit a tar.
+                                    unresolvedSymlinks[normalizeRelativeName(dir, entryPath)] = linkTarget
                                 }
                             } else if (entry.isDirectory) {
                                 Files.createDirectories(entryPath)
@@ -164,8 +176,24 @@ class TarVirtualFileSystem(
                         tar.closeArchiveEntry()
                     }
                 }
+                // Re-emit symlink entries that we could not materialize locally. Without this,
+                // editing any file inside a tar on Windows silently strips every symlink.
+                for ((relativeName, linkTarget) in unresolvedSymlinks) {
+                    val entry = TarArchiveEntry(relativeName, TarArchiveEntry.LF_SYMLINK)
+                    entry.linkName = linkTarget
+                    tar.putArchiveEntry(entry)
+                    tar.closeArchiveEntry()
+                }
             }
         }
+    }
+
+    private fun normalizeRelativeName(base: Path, path: Path): String =
+        base.relativize(path).toString().replace('\\', '/')
+
+    /** Test-only: records a synthetic unresolved symlink so repack emits it. */
+    internal fun markUnresolvedSymlinkForTest(relativeName: String, linkTarget: String) {
+        unresolvedSymlinks[relativeName] = linkTarget
     }
 
     override fun flush() {

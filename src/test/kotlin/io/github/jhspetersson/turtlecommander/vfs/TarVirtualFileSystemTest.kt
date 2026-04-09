@@ -2,6 +2,7 @@ package io.github.jhspetersson.turtlecommander.vfs
 
 import kotlinx.coroutines.runBlocking
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
 import org.junit.After
 import org.junit.Assert.*
@@ -154,5 +155,85 @@ class TarVirtualFileSystemTest {
         assertFalse(Files.exists(oldRoot))
         // New root should exist
         assertTrue(Files.exists(newRoot))
+    }
+
+    /**
+     * Regression: when a tar contains a symlink and the host filesystem cannot create one
+     * (e.g. Windows without SeCreateSymbolicLinkPrivilege), repack must still re-emit the
+     * symlink entry so round-tripping doesn't silently strip it.
+     */
+    @Test
+    fun `symlink preserved on repack when local symlink creation fails`() = runBlocking {
+        // Close the default vfs from setUp; we rebuild from scratch with a symlink entry.
+        vfs.close()
+
+        val withSymlink = Files.createTempFile("test-symlink-archive-", ".tar")
+        try {
+            TarArchiveOutputStream(Files.newOutputStream(withSymlink)).use { tar ->
+                tar.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX)
+                tar.setBigNumberMode(TarArchiveOutputStream.BIGNUMBER_POSIX)
+
+                val content = "regular".toByteArray()
+                val fileEntry = TarArchiveEntry("regular.txt")
+                fileEntry.size = content.size.toLong()
+                tar.putArchiveEntry(fileEntry)
+                tar.write(content)
+                tar.closeArchiveEntry()
+
+                val linkEntry = TarArchiveEntry("link-to-regular", TarArchiveEntry.LF_SYMLINK)
+                linkEntry.linkName = "regular.txt"
+                tar.putArchiveEntry(linkEntry)
+                tar.closeArchiveEntry()
+            }
+
+            // Inject an extraction that skips actual symlink creation regardless of host OS —
+            // mirrors the failure path taken on Windows without privileges.
+            val innerFs = TarVirtualFileSystem(
+                withSymlink,
+                inputStreamFactory = { Files.newInputStream(it) },
+                outputStreamFactory = { Files.newOutputStream(it) },
+            )
+            try {
+                // Force the "failed to materialize symlink" code path by clearing any that did
+                // succeed, and re-injecting via the extract side effect. On Linux/macOS the
+                // symlink *will* have been created; rename still works. We directly verify the
+                // repack's unresolved-symlink fallback by removing the file and re-renaming.
+                val link = innerFs.root.resolve("link-to-regular")
+                if (Files.isSymbolicLink(link)) {
+                    Files.delete(link)
+                    // Mark as unresolved using the internal map so repack re-emits it.
+                    innerFs.markUnresolvedSymlinkForTest("link-to-regular", "regular.txt")
+                }
+
+                // Rename the regular file to trigger a repack.
+                innerFs.renameFile(innerFs.root.resolve("regular.txt"), "renamed.txt")
+            } finally {
+                innerFs.close()
+            }
+
+            // Re-read the archive and assert the symlink entry is present with the original target.
+            val entries = mutableListOf<Pair<String, String?>>()
+            Files.newInputStream(withSymlink).use { raw ->
+                TarArchiveInputStream(raw).use { tar ->
+                    var entry = tar.nextEntry
+                    while (entry != null) {
+                        entries.add(entry.name to if (entry.isSymbolicLink) entry.linkName else null)
+                        entry = tar.nextEntry
+                    }
+                }
+            }
+            val symlinkEntry = entries.find { it.first == "link-to-regular" }
+            assertNotNull("symlink must survive repack", symlinkEntry)
+            assertEquals("regular.txt", symlinkEntry!!.second)
+            assertTrue("renamed file must be present", entries.any { it.first == "renamed.txt" })
+        } finally {
+            Files.deleteIfExists(withSymlink)
+            // Re-create the original vfs so tearDown can close it safely.
+            vfs = TarVirtualFileSystem(
+                tarPath,
+                inputStreamFactory = { Files.newInputStream(it) },
+                outputStreamFactory = { Files.newOutputStream(it) },
+            )
+        }
     }
 }
