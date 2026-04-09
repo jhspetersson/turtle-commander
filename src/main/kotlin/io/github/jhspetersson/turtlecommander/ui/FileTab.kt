@@ -37,6 +37,7 @@ import java.awt.event.*
 import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.ConcurrentHashMap
 import javax.swing.*
 import javax.swing.event.*
 import javax.swing.table.TableColumn
@@ -1215,7 +1216,7 @@ class FileTab(
     internal val toggledRows = mutableSetOf<Int>()
     internal val toggledTreeRows = mutableSetOf<Int>()
     internal var insideToggle = false
-    internal val directorySizes = java.util.concurrent.ConcurrentHashMap<Path, Long>()
+    internal val directorySizes = ConcurrentHashMap<Path, Long>()
 
     fun openSelectedEntry() {
         val entry = getSelectedEntry() ?: return

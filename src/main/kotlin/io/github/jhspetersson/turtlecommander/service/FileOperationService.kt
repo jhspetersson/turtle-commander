@@ -6,9 +6,9 @@ import io.github.jhspetersson.turtlecommander.model.DirectoryType
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.util.readFileGroup
-import io.github.jhspetersson.turtlecommander.vfs.parentEntry
 import io.github.jhspetersson.turtlecommander.util.readFileOwner
 import io.github.jhspetersson.turtlecommander.util.readFilePermissions
+import io.github.jhspetersson.turtlecommander.vfs.parentEntry
 import kotlinx.coroutines.*
 import java.io.File
 import java.io.IOException
@@ -125,7 +125,7 @@ class FileOperationService(
                         directoryType = dirType,
                     )
                     if (attrs.isDirectory) dirs.add(fileEntry) else files.add(fileEntry)
-                } catch (e: Exception) {
+                } catch (e: IOException) {
                     thisLogger().debug("Cannot read attributes for $entry: ${e.message}")
                 }
             }
