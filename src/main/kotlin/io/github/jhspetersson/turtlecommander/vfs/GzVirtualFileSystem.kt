@@ -13,7 +13,6 @@ import org.apache.commons.compress.compressors.xz.XZCompressorOutputStream
 import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.attribute.BasicFileAttributes
 
 class GzFileSystemProvider : VirtualFileSystemProvider {
     companion object {
@@ -127,27 +126,7 @@ class CompressedSingleFileVirtualFileSystem(
         val result = mutableListOf<FileEntry>()
 
         result.add(parentEntry(archivePath.parent ?: archivePath))
-
-        Files.newDirectoryStream(directory).use { stream ->
-            for (entry in stream) {
-                try {
-                    val attrs = Files.readAttributes(entry, BasicFileAttributes::class.java)
-                    result.add(
-                        FileEntry(
-                            name = entry.fileName.toString(),
-                            path = entry,
-                            isDirectory = attrs.isDirectory,
-                            size = if (attrs.isDirectory) 0 else attrs.size(),
-                            creationTime = attrs.creationTime(),
-                            lastModified = attrs.lastModifiedTime(),
-                            permissions = "",
-                        )
-                    )
-                } catch (e: Exception) {
-                    thisLogger().debug("Failed to read directory entry: ${entry.fileName}", e)
-                }
-            }
-        }
+        result.addAll(readDirectoryEntries(directory))
 
         result
     }
