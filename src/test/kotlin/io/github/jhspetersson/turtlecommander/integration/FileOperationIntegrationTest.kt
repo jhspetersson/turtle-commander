@@ -584,9 +584,17 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
             FileOperationService.DIRECTORY_TYPE_CACHE_MAX_SIZE,
             fileOps.directoryTypeCacheSize(),
         )
-        // Oldest entries evicted; last one still present
-        assertFalse(fileOps.isDirectoryTypeCached(children[0]))
-        assertTrue(fileOps.isDirectoryTypeCached(children.last()))
+        // Some children must have been evicted (exactly `count - MAX` of them). Which specific
+        // ones depends on the directory-stream iteration order, which is filesystem-dependent:
+        // NTFS returns names in order; ext4 with dir_index uses hash order. So just count them
+        // instead of hard-coding which index was evicted.
+        val cachedCount = children.count { fileOps.isDirectoryTypeCached(it) }
+        val evictedCount = children.size - cachedCount
+        assertEquals(
+            "Exactly count - MAX children should have been evicted",
+            count - FileOperationService.DIRECTORY_TYPE_CACHE_MAX_SIZE,
+            evictedCount,
+        )
     }
 
     fun testDirectoryTypeCacheExpiresAfterTtl() = runBlocking {
