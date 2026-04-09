@@ -857,10 +857,10 @@ class FileTab(
         tableModel.setEntries(filtered)
 
         listModel.clear()
-        filtered.forEach { listModel.addElement(it) }
+        listModel.addAll(filtered)
 
         thumbnailListModel.clear()
-        filtered.forEach { thumbnailListModel.addElement(it) }
+        thumbnailListModel.addAll(filtered)
 
         if (viewMode != ViewMode.TREE) {
             treeRootNode.removeAllChildren()
@@ -1094,13 +1094,15 @@ class FileTab(
 
             tableModel.setEntries(entries)
 
-            // Update list model
+            // Update list model. Use addAll so only one ListDataEvent is fired for the whole
+            // batch — looping addElement fires one event per entry and becomes a significant
+            // bottleneck for large directories like Downloads.
             listModel.clear()
-            entries.forEach { listModel.addElement(it) }
+            listModel.addAll(entries)
 
             // Update thumbnail model
             thumbnailListModel.clear()
-            entries.forEach { thumbnailListModel.addElement(it) }
+            thumbnailListModel.addAll(entries)
 
             // Update tree model
             if (viewMode == ViewMode.TREE) {
@@ -1217,6 +1219,7 @@ class FileTab(
                 navigateTo(newPath)
             }
         } else {
+            fileOps.invalidateListingCache(currentPath)
             fileOps.launch { navigateTo(currentPath) }
         }
     }

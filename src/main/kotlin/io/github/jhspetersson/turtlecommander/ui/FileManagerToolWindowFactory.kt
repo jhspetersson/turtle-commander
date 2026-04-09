@@ -5,6 +5,7 @@ import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.actionSystem.ex.ActionUtil
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.service
+import io.github.jhspetersson.turtlecommander.service.FileOperationService
 import com.intellij.openapi.keymap.Keymap
 import com.intellij.openapi.keymap.KeymapManagerListener
 import com.intellij.openapi.keymap.KeymapUtil
@@ -139,6 +140,10 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
             .subscribe(TurtleCommanderSettings.TOPIC, object : TurtleCommanderSettingsListener {
                 override fun settingsChanged() {
                     val s = TurtleCommanderSettings.getInstance().state
+                    // Column visibility affects which per-file fields (owner, group, permissions)
+                    // are populated. Cached listings from before the change may have empty values
+                    // for the newly-visible columns, so drop the cache on any settings change.
+                    project.service<FileOperationService>().clearListingCache()
                     bottomBar.isVisible = s.showCommandBar
                     applyCommandBarStyle(bottomBar, s.styles.commandBarStyle, s.styles.commandButtonStyle)
                     leftPanel.applyFonts()

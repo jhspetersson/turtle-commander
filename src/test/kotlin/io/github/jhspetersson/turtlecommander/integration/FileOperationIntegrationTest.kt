@@ -332,6 +332,360 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         assertTrue(entries[0].isParentLink)
     }
 
+    // --- Listing cache ---
+
+    fun testListingCacheIsPopulatedOnFirstCall() = runBlocking {
+        val dir = Files.createDirectory(tempDir.resolve("cache-a"))
+        Files.writeString(dir.resolve("x.txt"), "x")
+
+        fileOps.clearListingCache()
+        assertFalse(fileOps.isListingCached(dir))
+
+        fileOps.listFiles(dir)
+
+        assertTrue("Directory should be cached after first call", fileOps.isListingCached(dir))
+    }
+
+    fun testListingCacheReturnsStaleResultWithoutRefresh() = runBlocking {
+        val dir = Files.createDirectory(tempDir.resolve("cache-b"))
+        Files.writeString(dir.resolve("before.txt"), "x")
+
+        fileOps.clearListingCache()
+        val first = fileOps.listFiles(dir).map { it.name }.toSet()
+        assertTrue("before.txt" in first)
+
+        // Add a new file bypassing the plugin
+        Files.writeString(dir.resolve("after.txt"), "y")
+
+        val second = fileOps.listFiles(dir).map { it.name }.toSet()
+        assertFalse("Cached result should NOT include file added outside the plugin", "after.txt" in second)
+        assertTrue("before.txt" in second)
+    }
+
+    fun testListingCacheRefreshedOnForceRefresh() = runBlocking {
+        val dir = Files.createDirectory(tempDir.resolve("cache-c"))
+        Files.writeString(dir.resolve("before.txt"), "x")
+
+        fileOps.clearListingCache()
+        fileOps.listFiles(dir)
+
+        Files.writeString(dir.resolve("after.txt"), "y")
+
+        val refreshed = fileOps.listFiles(dir, forceRefresh = true).map { it.name }.toSet()
+        assertTrue("forceRefresh=true should re-read", "after.txt" in refreshed)
+        assertTrue("before.txt" in refreshed)
+    }
+
+    fun testListingCacheInvalidatedByInvalidateListingCache() = runBlocking {
+        val dir = Files.createDirectory(tempDir.resolve("cache-d"))
+        Files.writeString(dir.resolve("before.txt"), "x")
+
+        fileOps.clearListingCache()
+        fileOps.listFiles(dir)
+        assertTrue(fileOps.isListingCached(dir))
+
+        Files.writeString(dir.resolve("after.txt"), "y")
+        fileOps.invalidateListingCache(dir)
+        assertFalse(fileOps.isListingCached(dir))
+
+        val refreshed = fileOps.listFiles(dir).map { it.name }.toSet()
+        assertTrue("after invalidation, new file should be seen", "after.txt" in refreshed)
+    }
+
+    fun testListingCacheRespectsMaxSize() = runBlocking {
+        fileOps.clearListingCache()
+
+        val dirs = mutableListOf<Path>()
+        for (i in 0 until FileOperationService.CACHE_MAX_SIZE + 5) {
+            val d = Files.createDirectory(tempDir.resolve("cache-cap-$i"))
+            dirs.add(d)
+            fileOps.listFiles(d)
+        }
+
+        assertEquals(
+            "Cache should never exceed max size",
+            FileOperationService.CACHE_MAX_SIZE,
+            fileOps.listingCacheSize(),
+        )
+
+        // The oldest entries should have been evicted (LRU); the most recently listed should still be cached.
+        assertFalse("Oldest (eldest) entry should have been evicted", fileOps.isListingCached(dirs[0]))
+        assertTrue("Most recent entry should still be cached", fileOps.isListingCached(dirs.last()))
+    }
+
+    fun testListingCacheLruOrderingKeepsRecentlyUsed() = runBlocking {
+        fileOps.clearListingCache()
+
+        val dirs = mutableListOf<Path>()
+        for (i in 0 until FileOperationService.CACHE_MAX_SIZE) {
+            val d = Files.createDirectory(tempDir.resolve("cache-lru-$i"))
+            dirs.add(d)
+            fileOps.listFiles(d)
+        }
+
+        // Touch the first entry so it becomes most-recently-used
+        fileOps.listFiles(dirs[0])
+
+        // Add one more entry — should evict index 1 (now the eldest), not index 0
+        val extra = Files.createDirectory(tempDir.resolve("cache-lru-extra"))
+        fileOps.listFiles(extra)
+
+        assertTrue("Touched entry should still be cached", fileOps.isListingCached(dirs[0]))
+        assertFalse("Untouched eldest entry should be evicted", fileOps.isListingCached(dirs[1]))
+        assertTrue("Newly added entry should be cached", fileOps.isListingCached(extra))
+    }
+
+    fun testListingCacheExpiresAfterTtl() = runBlocking {
+        val dir = Files.createDirectory(tempDir.resolve("cache-ttl"))
+        Files.writeString(dir.resolve("before.txt"), "x")
+
+        fileOps.clearListingCache()
+
+        // Control the clock: start at T=0, advance past TTL on second call
+        var now = 1_000_000L
+        fileOps.clock = { now }
+        try {
+            fileOps.listFiles(dir)
+            assertTrue(fileOps.isListingCached(dir))
+
+            // Add a file, advance clock by just under TTL — should still use cache
+            Files.writeString(dir.resolve("mid.txt"), "y")
+            now += FileOperationService.CACHE_TTL_MS - 1
+            val stillCached = fileOps.listFiles(dir).map { it.name }.toSet()
+            assertFalse("Still within TTL, cache should not include mid.txt", "mid.txt" in stillCached)
+
+            // Advance past TTL — entry should be treated as expired
+            now += 2
+            assertFalse("Entry should have expired", fileOps.isListingCached(dir))
+            val refreshed = fileOps.listFiles(dir).map { it.name }.toSet()
+            assertTrue("After TTL, re-read should include mid.txt", "mid.txt" in refreshed)
+        } finally {
+            fileOps.clock = System::currentTimeMillis
+        }
+    }
+
+    fun testListingCacheReturnsEquivalentContent() = runBlocking {
+        val dir = Files.createDirectory(tempDir.resolve("cache-eq"))
+        Files.createDirectory(dir.resolve("dir1"))
+        Files.createDirectory(dir.resolve("dir2"))
+        Files.writeString(dir.resolve("a.txt"), "a")
+        Files.writeString(dir.resolve("b.txt"), "b")
+
+        fileOps.clearListingCache()
+        val first = fileOps.listFiles(dir).map { it.name }
+        val second = fileOps.listFiles(dir).map { it.name }
+
+        assertEquals("Cached and uncached listings should match", first, second)
+        // Parent link, dir1, dir2, a.txt, b.txt
+        assertEquals(5, first.size)
+    }
+
+    // --- Directory type (colorization) cache ---
+
+    fun testDirectoryTypeCachePopulatedDuringListFiles() = runBlocking {
+        val parent = Files.createDirectory(tempDir.resolve("dtype-a"))
+        val gitRepo = Files.createDirectory(parent.resolve("repo"))
+        Files.createDirectory(gitRepo.resolve(".git"))
+        val plain = Files.createDirectory(parent.resolve("plain"))
+
+        fileOps.clearListingCache()
+        assertFalse(fileOps.isDirectoryTypeCached(gitRepo))
+        assertFalse(fileOps.isDirectoryTypeCached(plain))
+
+        val entries = fileOps.listFiles(parent)
+        val repoEntry = entries.find { it.name == "repo" }
+        val plainEntry = entries.find { it.name == "plain" }
+
+        assertNotNull(repoEntry)
+        assertNotNull(plainEntry)
+        assertEquals(io.github.jhspetersson.turtlecommander.model.DirectoryType.GIT, repoEntry!!.directoryType)
+        assertEquals(io.github.jhspetersson.turtlecommander.model.DirectoryType.NONE, plainEntry!!.directoryType)
+
+        assertTrue("Git repo type should be cached after listFiles", fileOps.isDirectoryTypeCached(gitRepo))
+        assertTrue("Plain dir type should be cached after listFiles", fileOps.isDirectoryTypeCached(plain))
+        assertEquals(
+            io.github.jhspetersson.turtlecommander.model.DirectoryType.GIT,
+            fileOps.cachedDirectoryType(gitRepo),
+        )
+        assertEquals(
+            io.github.jhspetersson.turtlecommander.model.DirectoryType.NONE,
+            fileOps.cachedDirectoryType(plain),
+        )
+    }
+
+    fun testDirectoryTypeCacheIsReusedAfterListingInvalidation() = runBlocking {
+        val parent = Files.createDirectory(tempDir.resolve("dtype-b"))
+        val gitRepo = Files.createDirectory(parent.resolve("repo"))
+        Files.createDirectory(gitRepo.resolve(".git"))
+
+        fileOps.clearListingCache()
+        fileOps.listFiles(parent)
+        assertTrue(fileOps.isDirectoryTypeCached(gitRepo))
+
+        // Remove the .git marker but keep the directory type cache — cached type should still
+        // be returned, letting re-listing skip the expensive stat calls.
+        gitRepo.resolve(".git").toFile().deleteRecursively()
+
+        // Invalidate only the listing cache (simulates Ctrl-R or automatic invalidation)
+        fileOps.invalidateListingCache(parent)
+
+        val entries = fileOps.listFiles(parent)
+        val repoEntry = entries.find { it.name == "repo" }!!
+        assertEquals(
+            "Listing re-read should reuse cached directory type (fast path)",
+            io.github.jhspetersson.turtlecommander.model.DirectoryType.GIT,
+            repoEntry.directoryType,
+        )
+    }
+
+    fun testDirectoryTypeCacheForceRefreshBypassesCache() = runBlocking {
+        val parent = Files.createDirectory(tempDir.resolve("dtype-c"))
+        val dir = Files.createDirectory(parent.resolve("sub"))
+        Files.createDirectory(dir.resolve(".git"))
+
+        fileOps.clearListingCache()
+        fileOps.listFiles(parent)
+        assertEquals(
+            io.github.jhspetersson.turtlecommander.model.DirectoryType.GIT,
+            fileOps.cachedDirectoryType(dir),
+        )
+
+        // Remove the marker — with forceRefresh, the cache must be bypassed and NONE detected.
+        dir.resolve(".git").toFile().deleteRecursively()
+
+        val entries = fileOps.listFiles(parent, forceRefresh = true)
+        val subEntry = entries.find { it.name == "sub" }!!
+        assertEquals(
+            "forceRefresh should bypass directory type cache",
+            io.github.jhspetersson.turtlecommander.model.DirectoryType.NONE,
+            subEntry.directoryType,
+        )
+        assertEquals(
+            "Cache should have been overwritten with fresh value",
+            io.github.jhspetersson.turtlecommander.model.DirectoryType.NONE,
+            fileOps.cachedDirectoryType(dir),
+        )
+    }
+
+    fun testDirectoryTypeCacheRespectsMaxSize() = runBlocking {
+        fileOps.clearListingCache()
+
+        val parent = Files.createDirectory(tempDir.resolve("dtype-cap"))
+        val count = FileOperationService.DIRECTORY_TYPE_CACHE_MAX_SIZE + 10
+        val children = mutableListOf<Path>()
+        for (i in 0 until count) {
+            children.add(Files.createDirectory(parent.resolve("c$i")))
+        }
+
+        fileOps.listFiles(parent)
+
+        assertEquals(
+            "Directory type cache should cap at its max size",
+            FileOperationService.DIRECTORY_TYPE_CACHE_MAX_SIZE,
+            fileOps.directoryTypeCacheSize(),
+        )
+        // Oldest entries evicted; last one still present
+        assertFalse(fileOps.isDirectoryTypeCached(children[0]))
+        assertTrue(fileOps.isDirectoryTypeCached(children.last()))
+    }
+
+    fun testDirectoryTypeCacheExpiresAfterTtl() = runBlocking {
+        val parent = Files.createDirectory(tempDir.resolve("dtype-ttl"))
+        val dir = Files.createDirectory(parent.resolve("sub"))
+        Files.createDirectory(dir.resolve(".git"))
+
+        fileOps.clearListingCache()
+        var now = 5_000_000L
+        fileOps.clock = { now }
+        try {
+            fileOps.listFiles(parent)
+            assertTrue(fileOps.isDirectoryTypeCached(dir))
+            assertEquals(
+                io.github.jhspetersson.turtlecommander.model.DirectoryType.GIT,
+                fileOps.cachedDirectoryType(dir),
+            )
+
+            // Within TTL — still cached
+            now += FileOperationService.CACHE_TTL_MS - 1
+            assertTrue(fileOps.isDirectoryTypeCached(dir))
+
+            // Past TTL — entry considered expired
+            now += 2
+            assertFalse(fileOps.isDirectoryTypeCached(dir))
+            assertNull(fileOps.cachedDirectoryType(dir))
+
+            // Remove marker, listing cache also expired -> forced re-detection via re-listFiles
+            dir.resolve(".git").toFile().deleteRecursively()
+            fileOps.invalidateListingCache(parent)
+            val entries = fileOps.listFiles(parent)
+            val subEntry = entries.find { it.name == "sub" }!!
+            assertEquals(
+                "After TTL, type should be re-detected fresh",
+                io.github.jhspetersson.turtlecommander.model.DirectoryType.NONE,
+                subEntry.directoryType,
+            )
+        } finally {
+            fileOps.clock = System::currentTimeMillis
+        }
+    }
+
+    fun testInvalidateDirectoryTypeCacheRemovesEntry() = runBlocking {
+        val parent = Files.createDirectory(tempDir.resolve("dtype-inv"))
+        val dir = Files.createDirectory(parent.resolve("sub"))
+        Files.createDirectory(dir.resolve(".git"))
+
+        fileOps.clearListingCache()
+        fileOps.listFiles(parent)
+        assertTrue(fileOps.isDirectoryTypeCached(dir))
+
+        fileOps.invalidateDirectoryTypeCache(dir)
+        assertFalse(fileOps.isDirectoryTypeCached(dir))
+        assertNull(fileOps.cachedDirectoryType(dir))
+    }
+
+    fun testClearListingCacheAlsoClearsDirectoryTypeCache() = runBlocking {
+        val parent = Files.createDirectory(tempDir.resolve("dtype-clear"))
+        val dir = Files.createDirectory(parent.resolve("sub"))
+        Files.createDirectory(dir.resolve(".git"))
+
+        fileOps.listFiles(parent)
+        assertTrue(fileOps.isDirectoryTypeCached(dir))
+        assertTrue(fileOps.directoryTypeCacheSize() > 0)
+
+        fileOps.clearListingCache()
+        assertEquals(0, fileOps.directoryTypeCacheSize())
+        assertFalse(fileOps.isDirectoryTypeCached(dir))
+    }
+
+    fun testDirectoryTypeCacheDetectsCommonProjectTypes() = runBlocking {
+        val parent = Files.createDirectory(tempDir.resolve("dtype-types"))
+
+        val gradleDir = Files.createDirectory(parent.resolve("gradleProj"))
+        Files.writeString(gradleDir.resolve("build.gradle.kts"), "")
+
+        val mavenDir = Files.createDirectory(parent.resolve("mavenProj"))
+        Files.writeString(mavenDir.resolve("pom.xml"), "")
+
+        val npmDir = Files.createDirectory(parent.resolve("npmProj"))
+        Files.writeString(npmDir.resolve("package.json"), "{}")
+
+        fileOps.clearListingCache()
+        fileOps.listFiles(parent)
+
+        assertEquals(
+            io.github.jhspetersson.turtlecommander.model.DirectoryType.GRADLE,
+            fileOps.cachedDirectoryType(gradleDir),
+        )
+        assertEquals(
+            io.github.jhspetersson.turtlecommander.model.DirectoryType.MAVEN,
+            fileOps.cachedDirectoryType(mavenDir),
+        )
+        assertEquals(
+            io.github.jhspetersson.turtlecommander.model.DirectoryType.NPM,
+            fileOps.cachedDirectoryType(npmDir),
+        )
+    }
+
     // --- Get Roots ---
 
     fun testGetRootsReturnsNonEmpty() {

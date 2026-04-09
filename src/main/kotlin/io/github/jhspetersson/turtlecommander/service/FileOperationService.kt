@@ -15,6 +15,7 @@ import java.io.IOException
 import java.nio.file.*
 import java.nio.file.Files.walkFileTree
 import java.nio.file.attribute.BasicFileAttributes
+import java.nio.file.attribute.DosFileAttributes
 import kotlin.io.path.exists
 import kotlin.io.path.isDirectory
 import kotlin.io.path.name
@@ -27,14 +28,44 @@ class FileOperationService(
     private val isWindows = osName.contains("win")
     private val isMac = osName.contains("mac")
 
+    /** Test-only clock override. Defaults to wall clock. */
+    internal var clock: () -> Long = System::currentTimeMillis
+
+    private data class CachedListing(
+        val dirs: List<FileEntry>,
+        val files: List<FileEntry>,
+        val timestamp: Long,
+    )
+
+    private data class CachedDirectoryType(
+        val type: DirectoryType,
+        val timestamp: Long,
+    )
+
+    private val listingCache = object : LinkedHashMap<Path, CachedListing>(CACHE_MAX_SIZE, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Path, CachedListing>): Boolean =
+            size > CACHE_MAX_SIZE
+    }
+
+    private val directoryTypeCache = object : LinkedHashMap<Path, CachedDirectoryType>(DIRECTORY_TYPE_CACHE_MAX_SIZE, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Path, CachedDirectoryType>): Boolean =
+            size > DIRECTORY_TYPE_CACHE_MAX_SIZE
+    }
+
     fun launch(block: suspend CoroutineScope.() -> Unit): Job = cs.launch(block = block)
 
-    suspend fun listFiles(directory: Path): List<FileEntry> = withContext(Dispatchers.IO) {
+    suspend fun listFiles(directory: Path, forceRefresh: Boolean = false): List<FileEntry> = withContext(Dispatchers.IO) {
         val result = mutableListOf<FileEntry>()
 
         val parent = directory.parent
         if (parent != null) {
             result.add(parentEntry(parent))
+        }
+
+        val cached = if (!forceRefresh) getCachedListing(directory) else null
+        if (cached != null) {
+            appendSortedEntries(result, cached.dirs, cached.files)
+            return@withContext result
         }
 
         val effectiveDirectory = try {
@@ -43,17 +74,39 @@ class FileOperationService(
             directory
         }
 
-        Files.newDirectoryStream(effectiveDirectory).use { stream ->
-            val dirs = mutableListOf<FileEntry>()
-            val files = mutableListOf<FileEntry>()
+        val dirs = mutableListOf<FileEntry>()
+        val files = mutableListOf<FileEntry>()
 
+        // Resolve which expensive per-entry lookups are actually displayed. On Windows the
+        // User column is hidden by default, so `Files.getOwner(...)` (a slow Win32 security
+        // descriptor + SID-to-name lookup) shouldn't run for every file in a large directory.
+        val visibleColumnIds = TurtleCommanderSettings.getInstance()
+            .getEffectiveColumns()
+            .filter { it.visible }
+            .map { it.id }
+            .toSet()
+        val needOwner = "User" in visibleColumnIds
+        val needGroup = !isWindows && "Group" in visibleColumnIds
+        val needPermissions = "Permissions" in visibleColumnIds
+
+        Files.newDirectoryStream(effectiveDirectory).use { stream ->
             for (entry in stream) {
                 try {
-                    val attrs = Files.readAttributes(entry, BasicFileAttributes::class.java)
-                    val owner = readOwner(entry)
-                    val group = if (!isWindows) readGroup(entry) else ""
-                    val permissions = readPermissions(entry)
-                    val dirType = if (attrs.isDirectory) detectDirectoryType(entry) else DirectoryType.NONE
+                    // On Windows, read DosFileAttributes directly (extends BasicFileAttributes)
+                    // so the permission flags come from the same syscall as size/time.
+                    val attrs = if (isWindows && needPermissions) {
+                        Files.readAttributes(entry, DosFileAttributes::class.java)
+                    } else {
+                        Files.readAttributes(entry, BasicFileAttributes::class.java)
+                    }
+                    val owner = if (needOwner) readOwner(entry) else ""
+                    val group = if (needGroup) readGroup(entry) else ""
+                    val permissions = when {
+                        !needPermissions -> ""
+                        isWindows && attrs is DosFileAttributes -> dosAttrsToString(attrs)
+                        else -> readPermissions(entry)
+                    }
+                    val dirType = if (attrs.isDirectory) cachedDetectDirectoryType(entry, forceRefresh) else DirectoryType.NONE
                     val fileEntry = FileEntry(
                         name = entry.name,
                         path = entry,
@@ -71,20 +124,120 @@ class FileOperationService(
                     thisLogger().debug("Cannot read attributes for $entry: ${e.message}")
                 }
             }
-
-            val sortWithDirs = TurtleCommanderSettings.getInstance().state.sortWithDirectories
-            if (sortWithDirs) {
-                val all = (dirs + files).sortedBy { it.name.lowercase() }
-                result.addAll(all)
-            } else {
-                dirs.sortBy { it.name.lowercase() }
-                files.sortBy { it.name.lowercase() }
-                result.addAll(dirs)
-                result.addAll(files)
-            }
         }
 
+        putCachedListing(directory, dirs.toList(), files.toList())
+        appendSortedEntries(result, dirs, files)
+
         result
+    }
+
+    private fun appendSortedEntries(
+        result: MutableList<FileEntry>,
+        dirs: List<FileEntry>,
+        files: List<FileEntry>,
+    ) {
+        val sortWithDirs = TurtleCommanderSettings.getInstance().state.sortWithDirectories
+        if (sortWithDirs) {
+            val all = (dirs + files).sortedBy { it.name.lowercase() }
+            result.addAll(all)
+        } else {
+            val sortedDirs = dirs.sortedBy { it.name.lowercase() }
+            val sortedFiles = files.sortedBy { it.name.lowercase() }
+            result.addAll(sortedDirs)
+            result.addAll(sortedFiles)
+        }
+    }
+
+    private fun getCachedListing(directory: Path): CachedListing? {
+        synchronized(listingCache) {
+            val entry = listingCache[directory] ?: return null
+            if (clock() - entry.timestamp > CACHE_TTL_MS) {
+                listingCache.remove(directory)
+                return null
+            }
+            return entry
+        }
+    }
+
+    private fun putCachedListing(directory: Path, dirs: List<FileEntry>, files: List<FileEntry>) {
+        synchronized(listingCache) {
+            listingCache[directory] = CachedListing(dirs, files, clock())
+        }
+    }
+
+    fun invalidateListingCache(directory: Path) {
+        synchronized(listingCache) {
+            listingCache.remove(directory)
+        }
+    }
+
+    fun clearListingCache() {
+        synchronized(listingCache) {
+            listingCache.clear()
+        }
+        clearDirectoryTypeCache()
+    }
+
+    internal fun listingCacheSize(): Int = synchronized(listingCache) { listingCache.size }
+
+    internal fun isListingCached(directory: Path): Boolean = synchronized(listingCache) {
+        val entry = listingCache[directory] ?: return@synchronized false
+        clock() - entry.timestamp <= CACHE_TTL_MS
+    }
+
+    /**
+     * Returns the [DirectoryType] of [dir], using a cached value when available. Directory
+     * colorization (detecting `.git`, `pom.xml`, `package.json`, etc.) requires several stat
+     * calls per directory; caching the result speeds up re-listing large parent directories.
+     *
+     * @param forceRefresh when true, bypasses the cache and re-detects. The freshly detected
+     *                     value is written back to the cache.
+     */
+    private fun cachedDetectDirectoryType(dir: Path, forceRefresh: Boolean = false): DirectoryType {
+        if (!forceRefresh) {
+            synchronized(directoryTypeCache) {
+                val entry = directoryTypeCache[dir]
+                if (entry != null && clock() - entry.timestamp <= CACHE_TTL_MS) {
+                    return entry.type
+                }
+            }
+        }
+        val type = detectDirectoryType(dir)
+        synchronized(directoryTypeCache) {
+            directoryTypeCache[dir] = CachedDirectoryType(type, clock())
+        }
+        return type
+    }
+
+    fun invalidateDirectoryTypeCache(directory: Path) {
+        synchronized(directoryTypeCache) {
+            directoryTypeCache.remove(directory)
+        }
+    }
+
+    fun clearDirectoryTypeCache() {
+        synchronized(directoryTypeCache) {
+            directoryTypeCache.clear()
+        }
+    }
+
+    internal fun directoryTypeCacheSize(): Int = synchronized(directoryTypeCache) { directoryTypeCache.size }
+
+    internal fun isDirectoryTypeCached(directory: Path): Boolean = synchronized(directoryTypeCache) {
+        val entry = directoryTypeCache[directory] ?: return@synchronized false
+        clock() - entry.timestamp <= CACHE_TTL_MS
+    }
+
+    internal fun cachedDirectoryType(directory: Path): DirectoryType? = synchronized(directoryTypeCache) {
+        val entry = directoryTypeCache[directory] ?: return@synchronized null
+        if (clock() - entry.timestamp > CACHE_TTL_MS) null else entry.type
+    }
+
+    companion object {
+        internal const val CACHE_MAX_SIZE = 20
+        internal const val CACHE_TTL_MS = 10L * 60 * 1000 // 10 minutes
+        internal const val DIRECTORY_TYPE_CACHE_MAX_SIZE = 500
     }
 
     /**
@@ -414,6 +567,27 @@ class FileOperationService(
     private fun readGroup(path: Path): String = readFileGroup(path)
     private fun readPermissions(path: Path): String = readFilePermissions(path, isWindows)
 
+    private fun hasDotNetMarker(dir: Path): Boolean = try {
+        Files.newDirectoryStream(dir).use { stream ->
+            for (entry in stream) {
+                val name = entry.fileName?.toString() ?: continue
+                if (name.endsWith(".sln") || name.endsWith(".csproj") || name.endsWith(".fsproj")) {
+                    return@use true
+                }
+            }
+            false
+        }
+    } catch (_: Exception) {
+        false
+    }
+
+    private fun dosAttrsToString(attrs: DosFileAttributes): String = buildString {
+        if (attrs.isReadOnly) append('R')
+        if (attrs.isHidden) append('H')
+        if (attrs.isSystem) append('S')
+        if (attrs.isArchive) append('A')
+    }
+
     private fun copyDirectoryRecursive(source: Path, target: Path) {
         walkFileTree(source, object : SimpleFileVisitor<Path>() {
             override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
@@ -479,10 +653,10 @@ class FileOperationService(
                     || Files.isDirectory(dir.resolve("venv")) -> DirectoryType.PYTHON
                 // CMake project
                 Files.exists(dir.resolve("CMakeLists.txt")) -> DirectoryType.CMAKE
-                // .NET project
-                dir.toFile().list()?.any {
-                    it.endsWith(".sln") || it.endsWith(".csproj") || it.endsWith(".fsproj")
-                } == true -> DirectoryType.DOTNET
+                // .NET project. Stream the directory entries with early termination instead of
+                // materializing the full name list up front — large subdirectories (e.g. extracted
+                // archives inside Downloads) otherwise trigger a full listing per detection call.
+                hasDotNetMarker(dir) -> DirectoryType.DOTNET
                 // Git repository
                 Files.isDirectory(dir.resolve(".git")) -> DirectoryType.GIT
                 else -> DirectoryType.NONE
