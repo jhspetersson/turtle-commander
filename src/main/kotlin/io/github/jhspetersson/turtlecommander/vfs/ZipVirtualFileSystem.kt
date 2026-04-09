@@ -8,6 +8,7 @@ import kotlinx.coroutines.withContext
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream
 import org.apache.commons.compress.archivers.zip.ZipFile
+import java.nio.file.FileAlreadyExistsException
 import java.nio.file.FileSystem
 import java.nio.file.FileSystems
 import java.nio.file.Files
@@ -73,8 +74,15 @@ class ZipVirtualFileSystem(override val archivePath: Path) : VirtualFileSystem {
 
     override suspend fun renameFile(source: Path, newName: String): Path = withContext(Dispatchers.IO) {
         val oldParent = source.parent ?: fileSystem.getPath("/")
+        val target = oldParent.resolve(newName)
+        // Pre-check: Files.move on the zip filesystem throws FileAlreadyExistsException
+        // if the target exists, which surfaces as a bare class name in the UI. Detect
+        // the collision here so we can produce a descriptive error instead.
+        if (target != source && Files.exists(target)) {
+            throw FileAlreadyExistsException("Cannot rename to \"$newName\": entry already exists in archive")
+        }
         val relativePath = if (oldParent == fileSystem.getPath("/")) "" else fileSystem.getPath("/").relativize(oldParent).toString()
-        Files.move(source, oldParent.resolve(newName))
+        Files.move(source, target)
         fileSystem.close()
         fileSystem = openZipFs()
         val newParent = if (relativePath.isEmpty()) fileSystem.getPath("/") else fileSystem.getPath(relativePath)

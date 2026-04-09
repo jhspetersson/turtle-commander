@@ -244,6 +244,29 @@ class ZipRenameTest {
         assertNotNull(entries.find { it.name == "doc.md" })
         assertNull(entries.find { it.name == "doc.txt" })
     }
+
+    @Test
+    fun `rename to existing name throws descriptive error`() = runBlocking {
+        createZip("a.txt" to "aaa", "b.txt" to "bbb")
+
+        val source = vfs.getPath("/a.txt")
+        val ex = try {
+            vfs.renameFile(source, "b.txt")
+            null
+        } catch (e: java.nio.file.FileAlreadyExistsException) {
+            e
+        }
+        assertNotNull("expected FileAlreadyExistsException", ex)
+        assertTrue(
+            "message should mention the conflicting name",
+            ex!!.message?.contains("b.txt") == true,
+        )
+        // Both entries should still be present — rename must not have damaged the archive.
+        val entries = vfs.listFiles(vfs.root).filter { !it.isParentLink }
+        assertEquals(2, entries.size)
+        assertNotNull(entries.find { it.name == "a.txt" })
+        assertNotNull(entries.find { it.name == "b.txt" })
+    }
 }
 
 // ─── TAR rename ─────────────────────────────────────────────────────────────
