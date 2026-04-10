@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-04-10
+
 ### Added
 
 - Save filename search history
