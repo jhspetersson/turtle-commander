@@ -10,7 +10,9 @@ import io.github.jhspetersson.turtlecommander.dialog.NamePatternMode
 import io.github.jhspetersson.turtlecommander.dialog.FileSearchCriteria
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 
+import java.io.BufferedReader
 import java.io.IOException
+import java.nio.charset.MalformedInputException
 import java.nio.file.FileSystems
 import java.nio.file.FileVisitResult
 import java.nio.file.FileVisitor
@@ -137,6 +139,11 @@ class FileSearchService(
             if (!group.contains(criteria.groupPattern, ignoreCase = true)) return
         }
 
+        if (criteria.contentPattern != null) {
+            if (attrs.isDirectory) return
+            if (!matchesContent(path, criteria.contentPattern, criteria.contentCaseSensitive)) return
+        }
+
         val permissions = readPermissions(path)
         val entry = FileEntry(
             name = name,
@@ -179,6 +186,24 @@ class FileSearchService(
                 millis in low..high
             }
         }
+    }
+
+    private fun matchesContent(path: Path, pattern: String, caseSensitive: Boolean): Boolean {
+        try {
+            val reader: BufferedReader = Files.newBufferedReader(path, Charsets.UTF_8)
+            reader.use { br ->
+                br.lineSequence().forEach { line ->
+                    if (line.contains(pattern, ignoreCase = !caseSensitive)) {
+                        return true
+                    }
+                }
+            }
+        } catch (_: MalformedInputException) {
+            // binary file, skip
+        } catch (_: IOException) {
+            // unreadable, skip
+        }
+        return false
     }
 
     private fun readPermissions(path: Path): String = readFilePermissions(path, isWindows)

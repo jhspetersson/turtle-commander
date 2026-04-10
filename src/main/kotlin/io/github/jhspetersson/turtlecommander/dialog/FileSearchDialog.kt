@@ -24,6 +24,8 @@ data class FileSearchCriteria(
     val namePattern: String?,
     val namePatternMode: NamePatternMode,
     val caseSensitive: Boolean = false,
+    val contentPattern: String? = null,
+    val contentCaseSensitive: Boolean = false,
     val sizeFilter: SizeFilter?,
     val creationDateFilter: DateFilter?,
     val modificationDateFilter: DateFilter?,
@@ -89,6 +91,21 @@ class FileSearchDialog(
     private val regexpRadio = JRadioButton("Regexp", initialCriteria?.namePatternMode == NamePatternMode.REGEXP)
     private val caseSensitiveCheckBox = JCheckBox("Case sensitive", initialCriteria?.caseSensitive == true)
 
+    private val contentCheckBox = JCheckBox("Search by content", initialCriteria?.contentPattern != null)
+    private val contentCombo = ComboBox<String>().apply {
+        isEditable = true
+        val history = TurtleCommanderSettings.getInstance().contentSearchHistory
+        val initialPattern = initialCriteria?.contentPattern ?: ""
+        val items = linkedSetOf<String>()
+        if (initialPattern.isNotEmpty()) items.add(initialPattern)
+        items.addAll(history)
+        model = DefaultComboBoxModel(items.toTypedArray())
+        selectedItem = initialPattern
+    }
+    private val contentEditor: JTextField get() = contentCombo.editor.editorComponent as JTextField
+    private val contentText: String get() = (contentCombo.editor.item as? String ?: "").trim()
+    private val contentCaseSensitiveCheckBox = JCheckBox("Case sensitive", initialCriteria?.contentCaseSensitive == true)
+
     private val sizeCheckBox = JCheckBox("Search by size", initialCriteria?.sizeFilter != null)
     private val sizeModeCombo = ComboBox(DefaultComboBoxModel(arrayOf("More than", "Approximately equal", "Less than", "In between"))).apply {
         initialCriteria?.sizeFilter?.let { selectedIndex = it.mode.ordinal }
@@ -149,6 +166,7 @@ class FileSearchDialog(
             ownerField, groupField,
         ).forEach { it.installStandardContextMenu() }
         nameEditor.installStandardContextMenu()
+        contentEditor.installStandardContextMenu()
 
         init()
 
@@ -213,10 +231,18 @@ class FileSearchDialog(
             modificationDateField2.isEnabled = enabled
         }
 
+        fun updateContentEnabled() {
+            val enabled = contentCheckBox.isSelected
+            contentCombo.isEnabled = enabled
+            contentCaseSensitiveCheckBox.isEnabled = enabled
+        }
+
         fun updateOwnerEnabled() { ownerField.isEnabled = ownerCheckBox.isSelected }
         fun updateGroupEnabled() { groupField.isEnabled = groupCheckBox.isSelected }
 
         nameCheckBox.addActionListener { updateNameEnabled(); if (nameCheckBox.isSelected) nameEditor.requestFocusInWindow() }
+        contentCheckBox.addActionListener { updateContentEnabled(); if (contentCheckBox.isSelected) contentEditor.requestFocusInWindow() }
+        contentCaseSensitiveCheckBox.addActionListener { contentEditor.requestFocusInWindow() }
         sizeCheckBox.addActionListener { updateSizeEnabled(); if (sizeCheckBox.isSelected) sizeField1.requestFocusInWindow() }
         creationDateCheckBox.addActionListener { updateCreationDateEnabled(); if (creationDateCheckBox.isSelected) creationDateField1.requestFocusInWindow() }
         modificationDateCheckBox.addActionListener { updateModificationDateEnabled(); if (modificationDateCheckBox.isSelected) modificationDateField1.requestFocusInWindow() }
@@ -224,6 +250,7 @@ class FileSearchDialog(
         groupCheckBox.addActionListener { updateGroupEnabled(); if (groupCheckBox.isSelected) groupField.requestFocusInWindow() }
 
         updateNameEnabled()
+        updateContentEnabled()
         updateSizeEnabled()
         updateCreationDateEnabled()
         updateModificationDateEnabled()
@@ -261,8 +288,8 @@ class FileSearchDialog(
     override fun createCenterPanel(): JComponent {
         val panel = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
-            minimumSize = Dimension(550, 300)
-            preferredSize = Dimension(550, 430)
+            minimumSize = Dimension(550, 340)
+            preferredSize = Dimension(550, 490)
         }
 
         // Search root
@@ -277,6 +304,12 @@ class FileSearchDialog(
         // Name filter
         panel.add(nameCheckBox.apply { alignmentX = JComponent.LEFT_ALIGNMENT })
         panel.add(createNamePanel())
+
+        panel.add(Box.createVerticalStrut(8))
+
+        // Content filter
+        panel.add(contentCheckBox.apply { alignmentX = JComponent.LEFT_ALIGNMENT })
+        panel.add(createContentPanel())
 
         panel.add(Box.createVerticalStrut(8))
 
@@ -341,6 +374,22 @@ class FileSearchDialog(
             add(regexpRadio, gbc)
             gbc.gridx = 2
             add(caseSensitiveCheckBox, gbc)
+            maximumSize = Dimension(Int.MAX_VALUE, preferredSize.height)
+        }
+    }
+
+    private fun createContentPanel(): JPanel {
+        return JPanel(GridBagLayout()).apply {
+            alignmentX = JComponent.LEFT_ALIGNMENT
+            border = BorderFactory.createEmptyBorder(2, 20, 0, 0)
+            val gbc = GridBagConstraints().apply {
+                anchor = GridBagConstraints.WEST
+                insets = JBUI.insets(2, 4)
+            }
+            gbc.gridx = 0; gbc.gridy = 0; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0
+            add(contentCombo, gbc)
+            gbc.gridx = 1; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0.0
+            add(contentCaseSensitiveCheckBox, gbc)
             maximumSize = Dimension(Int.MAX_VALUE, preferredSize.height)
         }
     }
@@ -429,12 +478,17 @@ class FileSearchDialog(
             TurtleCommanderSettings.getInstance()
                 .addNameSearchHistory(namePattern, regexp = regexpRadio.isSelected)
         }
+        val contentPattern = if (contentCheckBox.isSelected && contentText.isNotBlank()) contentText else null
+        if (contentPattern != null) {
+            TurtleCommanderSettings.getInstance().addContentSearchHistory(contentPattern)
+        }
         super.doOKAction()
     }
 
     fun getCriteria(): FileSearchCriteria {
         val namePattern = if (nameCheckBox.isSelected && nameText.isNotBlank()) nameText else null
         val nameMode = if (regexpRadio.isSelected) NamePatternMode.REGEXP else NamePatternMode.GLOB
+        val contentPattern = if (contentCheckBox.isSelected && contentText.isNotBlank()) contentText else null
 
         val sizeFilter = if (sizeCheckBox.isSelected) {
             val mode = SizeFilterMode.entries[sizeModeCombo.selectedIndex]
@@ -462,6 +516,8 @@ class FileSearchDialog(
             namePattern = namePattern,
             namePatternMode = nameMode,
             caseSensitive = caseSensitiveCheckBox.isSelected,
+            contentPattern = contentPattern,
+            contentCaseSensitive = contentCaseSensitiveCheckBox.isSelected,
             sizeFilter = sizeFilter,
             creationDateFilter = creationDate,
             modificationDateFilter = modificationDate,

@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Search by file content
+
 ## [0.4.5] - 2026-04-10
 
 ### Added
