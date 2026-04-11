@@ -26,6 +26,7 @@ object CombineFilesOperation {
         val filename = props["filename"] ?: throw IllegalArgumentException("CRC file missing 'filename' field")
         val size = props["size"]?.toLongOrNull() ?: throw IllegalArgumentException("CRC file missing or invalid 'size' field")
         val crc32Str = props["crc32"] ?: throw IllegalArgumentException("CRC file missing 'crc32' field")
+        require(crc32Str.length in 1..8) { "Invalid CRC32 value: $crc32Str" }
         val crc32 = crc32Str.toULong(16).toLong() and 0xFFFFFFFFL
         return CrcInfo(filename, size, crc32)
     }

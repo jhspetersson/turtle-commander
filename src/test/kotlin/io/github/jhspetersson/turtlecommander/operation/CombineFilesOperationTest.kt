@@ -92,6 +92,15 @@ class CombineFilesOperationTest {
         CombineFilesOperation.parseCrcFile(crcFile)
     }
 
+    @Test(expected = IllegalArgumentException::class)
+    fun `parseCrcFile rejects crc32 hex string longer than 8 digits`() {
+        val dir = createTempDir()
+        val crcFile = dir.resolve("test.crc")
+        Files.writeString(crcFile, "filename=test.dat\nsize=100\ncrc32=1ABCD12345\n")
+
+        CombineFilesOperation.parseCrcFile(crcFile)
+    }
+
     // --- resolveBaseFileName ---
 
     @Test
