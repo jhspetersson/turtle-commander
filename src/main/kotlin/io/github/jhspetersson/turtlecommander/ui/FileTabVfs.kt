@@ -66,11 +66,12 @@ internal fun FileTab.exitVfs() {
         } catch (_: Exception) {}
     }
     val parentPath = entry.parentPath
+    val selectName = parentPath.fileName?.toString() ?: ""
     if (vfsStack.isNotEmpty()) {
         val parentVfsPath = parentPath.parent ?: vfsStack.last().vfs.root
-        fileOps.launch { navigateTo(parentVfsPath, selectName = parentPath.fileName.toString()) }
+        fileOps.launch { navigateTo(parentVfsPath, selectName = selectName) }
     } else {
-        fileOps.launch { navigateTo(parentPath.parent ?: parentPath, selectName = parentPath.fileName.toString()) }
+        fileOps.launch { navigateTo(parentPath.parent ?: parentPath, selectName = selectName) }
     }
 }
 
