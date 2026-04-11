@@ -1096,22 +1096,10 @@ class FileTab(
 
             // Update path display
             if (vfs != null && vfsStack.isNotEmpty()) {
-                val separator = if (vfsStack.first().parentPath.toString().contains("\\")) "\\" else "/"
-                val sb = StringBuilder()
-                // Build path showing entire VFS stack chain
-                for ((i, stackEntry) in vfsStack.withIndex()) {
-                    if (i == 0) {
-                        sb.append(stackEntry.parentPath.toString())
-                    } else {
-                        // For nested archives, show relative path within the parent VFS
-                        val parentVfs = vfsStack[i - 1].vfs
-                        val nestedPath = vfsRelativePath(parentVfs, stackEntry.parentPath)
-                            .removePrefix("/").replace("/", separator)
-                        sb.append(separator).append(nestedPath)
-                    }
-                }
-                val relativePath = vfsRelativePath(vfs, path)
+                val (separator, prefixes) = buildVfsStackPrefixes()
+                val sb = StringBuilder(prefixes.last())
                 if (!vfs.isRoot(path)) {
+                    val relativePath = vfsRelativePath(vfs, path)
                     sb.append(separator).append(relativePath.removePrefix("/").replace("/", separator))
                 }
                 pathField.text = sb.toString()
