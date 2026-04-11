@@ -551,6 +551,10 @@ class FileOperationService(
             } else {
                 addSubdirectories(roots, Path.of("/media"))
                 addSubdirectories(roots, Path.of("/mnt"))
+                val user = System.getProperty("user.name")
+                if (user != null) {
+                    addSubdirectories(roots, Path.of("/run/media/$user"))
+                }
             }
 
             roots
