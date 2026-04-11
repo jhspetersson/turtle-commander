@@ -1314,12 +1314,7 @@ class FileTab(
         driveRefreshTimer = null
         for (entry in vfsStack.asReversed()) {
             entry.vfs.close()
-            if (entry.tempFile != null) {
-                try {
-                    entry.tempFile.delete()
-                    entry.tempFile.parentFile?.delete()
-                } catch (_: Exception) {}
-            }
+            entry.cleanupTempFile()
         }
         vfsStack.clear()
     }

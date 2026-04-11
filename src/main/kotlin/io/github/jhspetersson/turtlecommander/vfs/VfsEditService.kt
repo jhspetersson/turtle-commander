@@ -21,7 +21,13 @@ class VfsStackEntry(
     val vfs: VirtualFileSystem,
     var parentPath: Path,
     val tempFile: File? = null,
-)
+) {
+    fun cleanupTempFile() {
+        tempFile?.let {
+            try { it.delete(); it.parentFile?.delete() } catch (_: Exception) {}
+        }
+    }
+}
 
 class VfsEditEntry(
     var vfsFilePath: Path,

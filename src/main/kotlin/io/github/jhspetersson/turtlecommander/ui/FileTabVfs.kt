@@ -59,12 +59,7 @@ internal fun FileTab.exitVfs() {
     if (vfsStack.isEmpty()) return
     val entry = vfsStack.removeLast()
     entry.vfs.close()
-    if (entry.tempFile != null) {
-        try {
-            entry.tempFile.delete()
-            entry.tempFile.parentFile?.delete()
-        } catch (_: Exception) {}
-    }
+    entry.cleanupTempFile()
     val parentPath = entry.parentPath
     val selectName = parentPath.fileName?.toString() ?: ""
     if (vfsStack.isNotEmpty()) {
@@ -115,12 +110,7 @@ internal fun FileTab.handleVfsBreadcrumbClick(segmentPath: String) {
     while (vfsStack.size > targetLevel + 1) {
         val entry = vfsStack.removeLast()
         entry.vfs.close()
-        if (entry.tempFile != null) {
-            try {
-                entry.tempFile.delete()
-                entry.tempFile.parentFile?.delete()
-            } catch (_: Exception) {}
-        }
+        entry.cleanupTempFile()
     }
 
     val vfs = vfsStack.last().vfs
