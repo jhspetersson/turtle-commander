@@ -66,6 +66,8 @@ object ThumbnailCache {
                 } finally {
                     loadSemaphore.release()
                 }
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
             } catch (e: Exception) {
                 thisLogger().debug("Failed to create thumbnail for $path: ${e.message}")
             } finally {
