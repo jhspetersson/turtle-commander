@@ -226,43 +226,47 @@ class TarOutputStreamTest {
     }
 
     @Test
-    fun `file entry rejects size exceeding 8GB`() {
-        val dir = Files.createTempDirectory("tar-test-")
-        tempFiles.add(dir)
-        val file = dir.resolve("test.txt")
-        Files.writeString(file, "data")
-
-        val baos = ByteArrayOutputStream()
-        var thrown: Throwable? = null
-        try {
-            val tar = TarOutputStream(baos)
-            // 8GB + 1 byte exceeds the ustar 11-digit octal size field
-            tar.putFileEntry("test.txt", file, 8L * 1024 * 1024 * 1024 + 1, 0)
-            tar.close()
-        } catch (e: Throwable) {
-            thrown = e
-        }
-        assertTrue("Should throw for >8GB files but got: $thrown", thrown is IllegalArgumentException)
-    }
-
-    @Test
-    fun `file entry detects size mismatch when file is shorter than declared`() {
+    fun `file entry uses actual file size ignoring stale declared size`() {
         val dir = Files.createTempDirectory("tar-test-")
         tempFiles.add(dir)
         val file = dir.resolve("test.txt")
         Files.writeString(file, "hi") // 2 bytes
 
         val baos = ByteArrayOutputStream()
-        var thrown: Throwable? = null
-        try {
-            val tar = TarOutputStream(baos)
-            // Declare 100 bytes but file only has 2
+        TarOutputStream(baos).use { tar ->
+            // Declare 100 bytes but actual file is 2 — should succeed using actual size
             tar.putFileEntry("test.txt", file, 100, 0)
-            tar.close()
-        } catch (e: Throwable) {
-            thrown = e
+            tar.finish()
         }
-        assertTrue("Should throw on size mismatch but got: $thrown", thrown is IOException)
+        val data = baos.toByteArray()
+        val sizeStr = String(data, 124, 11, StandardCharsets.UTF_8).trim().trimEnd('\u0000')
+        val headerSize = sizeStr.toLong(8)
+        assertEquals("Header should use actual file size, not declared", 2L, headerSize)
+    }
+
+    @Test
+    fun `file entry uses actual file size for header`() {
+        val dir = Files.createTempDirectory("tar-test-")
+        tempFiles.add(dir)
+        val file = dir.resolve("test.txt")
+        Files.writeString(file, "hello") // 5 bytes
+
+        val baos = ByteArrayOutputStream()
+        TarOutputStream(baos).use { tar ->
+            // Pass a wrong size (999) — putFileEntry should use actual file size
+            tar.putFileEntry("test.txt", file, 999, 0)
+            tar.finish()
+        }
+        val data = baos.toByteArray()
+
+        // Parse the size field from the header (octal at offset 124, 11 bytes)
+        val sizeStr = String(data, 124, 11, StandardCharsets.UTF_8).trim().trimEnd('\u0000')
+        val headerSize = sizeStr.toLong(8)
+        assertEquals("Header should contain actual file size", 5L, headerSize)
+
+        // Verify file content is correct
+        val content = String(data, 512, 5, StandardCharsets.UTF_8)
+        assertEquals("hello", content)
     }
 
     @Test

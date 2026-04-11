@@ -28,22 +28,23 @@ class TarOutputStream(private val out: OutputStream) : AutoCloseable {
     }
 
     fun putFileEntry(name: String, file: Path, size: Long, modTimeMillis: Long) {
-        if (size > maxFileSize) {
+        val actualSize = Files.size(file)
+        if (actualSize > maxFileSize) {
             throw IllegalArgumentException(
-                "File size $size exceeds maximum for ustar tar format ($maxFileSize bytes). Use a different archive format for files larger than ~8 GB."
+                "File size $actualSize exceeds maximum for ustar tar format ($maxFileSize bytes). Use a different archive format for files larger than ~8 GB."
             )
         }
         writeLongNameIfNeeded(name)
         val header = createHeader(
             name = if (name.length > 100) name.substring(0, 100) else name,
-            size = size,
+            size = actualSize,
             modTime = modTimeMillis / 1000,
             typeFlag = '0', // regular file
         )
         out.write(header)
         Files.newInputStream(file).use { input ->
             val buf = ByteArray(8192)
-            var remaining = size
+            var remaining = actualSize
             while (remaining > 0) {
                 val toRead = minOf(buf.size.toLong(), remaining).toInt()
                 val read = input.read(buf, 0, toRead)
@@ -52,11 +53,11 @@ class TarOutputStream(private val out: OutputStream) : AutoCloseable {
                 remaining -= read
             }
             if (remaining > 0) {
-                throw IOException("File $file is shorter than declared size $size (missing $remaining bytes)")
+                throw IOException("File $file is shorter than declared size $actualSize (missing $remaining bytes)")
             }
         }
         // Pad to block boundary
-        val remainder = (size % blockSize).toInt()
+        val remainder = (actualSize % blockSize).toInt()
         if (remainder > 0) {
             out.write(ByteArray(blockSize - remainder))
         }
