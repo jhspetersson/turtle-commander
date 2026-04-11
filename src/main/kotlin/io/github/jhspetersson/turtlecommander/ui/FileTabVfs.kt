@@ -71,7 +71,6 @@ internal fun FileTab.exitVfs() {
 }
 
 internal fun FileTab.handleVfsBreadcrumbClick(segmentPath: String) {
-    val separator = if (vfsStack.first().parentPath.toString().contains("\\")) "\\" else "/"
     val outerArchiveStr = vfsStack.first().parentPath.toString()
 
     if (segmentPath.length < outerArchiveStr.length) {
@@ -83,19 +82,7 @@ internal fun FileTab.handleVfsBreadcrumbClick(segmentPath: String) {
         return
     }
 
-    val prefixes = mutableListOf<String>()
-    val sb = StringBuilder()
-    for ((i, stackEntry) in vfsStack.withIndex()) {
-        if (i == 0) {
-            sb.append(stackEntry.parentPath.toString())
-        } else {
-            val parentVfs = vfsStack[i - 1].vfs
-            val nestedPath = vfsRelativePath(parentVfs, stackEntry.parentPath)
-                .removePrefix("/").replace("/", separator)
-            sb.append(separator).append(nestedPath)
-        }
-        prefixes.add(sb.toString())
-    }
+    val (_, prefixes) = buildVfsStackPrefixes()
 
     var targetLevel = -1
     for (i in prefixes.indices.reversed()) {
@@ -168,9 +155,13 @@ internal fun vfsRelativePath(vfs: VirtualFileSystem, path: Path): String {
     return io.github.jhspetersson.turtlecommander.vfs.vfsRelativePath(vfs.root, path)
 }
 
-fun FileTab.getDisplayPath(): String {
-    val vfs = currentVfs ?: return currentPath.toString()
+/**
+ * Builds the prefix string for each level of the VFS stack, e.g.
+ * `["C:\dir\archive.zip", "C:\dir\archive.zip\inner.tar"]`.
+ */
+internal fun FileTab.buildVfsStackPrefixes(): Pair<String, List<String>> {
     val separator = if (vfsStack.first().parentPath.toString().contains("\\")) "\\" else "/"
+    val prefixes = mutableListOf<String>()
     val sb = StringBuilder()
     for ((i, stackEntry) in vfsStack.withIndex()) {
         if (i == 0) {
@@ -181,7 +172,15 @@ fun FileTab.getDisplayPath(): String {
                 .removePrefix("/").replace("/", separator)
             sb.append(separator).append(nestedPath)
         }
+        prefixes.add(sb.toString())
     }
+    return separator to prefixes
+}
+
+fun FileTab.getDisplayPath(): String {
+    val vfs = currentVfs ?: return currentPath.toString()
+    val (separator, prefixes) = buildVfsStackPrefixes()
+    val sb = StringBuilder(prefixes.last())
     if (!vfs.isRoot(currentPath)) {
         val relativePath = vfsRelativePath(vfs, currentPath)
         sb.append(separator).append(relativePath.removePrefix("/").replace("/", separator))
