@@ -93,6 +93,11 @@ class FileTab(
     private val pathField = BreadcrumbPathField()
     private val statusLabel = JLabel(" ")
     private val freeSpaceLabel = JLabel(" ")
+    private var freeSpaceLastPath: Path? = null
+
+    internal fun invalidateFreeSpaceCache() {
+        freeSpaceLastPath = null
+    }
     private val statusPanel = JPanel(BorderLayout())
     private var allEntries: List<FileEntry> = emptyList()
     private val filterField = JTextField()
@@ -1023,18 +1028,21 @@ class FileTab(
         statusLabel.text = sb.toString()
 
         val path = currentPath
-        fileOps.launch {
-            try {
-                val text = withContext(Dispatchers.IO) {
-                    val fileStore = Files.getFileStore(path)
-                    val usableSpace = fileStore.usableSpace
-                    val totalSpace = fileStore.totalSpace
-                    val pct = if (totalSpace > 0) (usableSpace * 100 / totalSpace) else 0
-                    "${formatSize(usableSpace)} of ${formatSize(totalSpace)} free ($pct%)"
+        if (path != freeSpaceLastPath) {
+            freeSpaceLastPath = path
+            fileOps.launch {
+                try {
+                    val text = withContext(Dispatchers.IO) {
+                        val fileStore = Files.getFileStore(path)
+                        val usableSpace = fileStore.usableSpace
+                        val totalSpace = fileStore.totalSpace
+                        val pct = if (totalSpace > 0) (usableSpace * 100 / totalSpace) else 0
+                        "${formatSize(usableSpace)} of ${formatSize(totalSpace)} free ($pct%)"
+                    }
+                    withContext(Dispatchers.EDT) { freeSpaceLabel.text = text }
+                } catch (_: Exception) {
+                    withContext(Dispatchers.EDT) { freeSpaceLabel.text = "" }
                 }
-                withContext(Dispatchers.EDT) { freeSpaceLabel.text = text }
-            } catch (_: Exception) {
-                withContext(Dispatchers.EDT) { freeSpaceLabel.text = "" }
             }
         }
     }
@@ -1239,6 +1247,7 @@ class FileTab(
     }
 
     fun refresh() {
+        invalidateFreeSpaceCache()
         ThumbnailCache.evictDirectory(currentPath)
         val vfs = currentVfs
         if (vfs != null) {

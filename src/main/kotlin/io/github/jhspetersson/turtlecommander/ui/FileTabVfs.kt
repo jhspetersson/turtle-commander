@@ -135,6 +135,7 @@ internal suspend fun FileTab.writeBackNestedArchives() = withContext(Dispatchers
 }
 
 internal suspend fun FileTab.refreshAfterVfsChange(selectName: String? = null) {
+    invalidateFreeSpaceCache()
     val vfs = currentVfs
     if (vfs != null) {
         val relativePath = vfsRelativePath(vfs, currentPath)
