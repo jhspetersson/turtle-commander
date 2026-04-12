@@ -12,6 +12,7 @@
 ### Fixed
 
 - Drag'n'drop now works for every view mode
+- Selection with SPACE and INSERT works for list and thumbnail view modes
 
 ## [0.4.5] - 2026-04-10
 
