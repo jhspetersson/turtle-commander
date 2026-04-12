@@ -27,7 +27,7 @@ class TarOutputStream(private val out: OutputStream) : AutoCloseable {
         out.write(header)
     }
 
-    fun putFileEntry(name: String, file: Path, size: Long, modTimeMillis: Long) {
+    fun putFileEntry(name: String, file: Path, modTimeMillis: Long) {
         val actualSize = Files.size(file)
         if (actualSize > maxFileSize) {
             throw IllegalArgumentException(

@@ -141,7 +141,7 @@ class ArchiveService {
                                         if (isCancelled()) return FileVisitResult.TERMINATE
                                         try {
                                             val relativePath = (source.parent ?: source).relativize(file).toString().replace("\\", "/")
-                                            tarOs.putFileEntry(relativePath, file, attrs.size(), attrs.lastModifiedTime().toMillis())
+                                            tarOs.putFileEntry(relativePath, file, attrs.lastModifiedTime().toMillis())
                                             successCount++
                                         } catch (e: Exception) {
                                             onError(file, e)
@@ -160,7 +160,7 @@ class ArchiveService {
                             } else {
                                 try {
                                     val attrs = Files.readAttributes(source, BasicFileAttributes::class.java)
-                                    tarOs.putFileEntry(source.fileName.toString(), source, attrs.size(), attrs.lastModifiedTime().toMillis())
+                                    tarOs.putFileEntry(source.fileName.toString(), source, attrs.lastModifiedTime().toMillis())
                                     successCount++
                                 } catch (e: Exception) {
                                     onError(source, e)

@@ -5,7 +5,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayOutputStream
-import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
@@ -57,7 +56,7 @@ class TarOutputStreamTest {
 
         val baos = ByteArrayOutputStream()
         TarOutputStream(baos).use { tar ->
-            tar.putFileEntry("test.txt", file, 5, 0)
+            tar.putFileEntry("test.txt", file, 0)
             tar.finish()
         }
         val data = baos.toByteArray()
@@ -73,7 +72,7 @@ class TarOutputStreamTest {
 
         val baos = ByteArrayOutputStream()
         TarOutputStream(baos).use { tar ->
-            tar.putFileEntry("test.txt", file, 5, 0)
+            tar.putFileEntry("test.txt", file, 0)
             tar.finish()
         }
         val data = baos.toByteArray()
@@ -91,7 +90,7 @@ class TarOutputStreamTest {
 
         val baos = ByteArrayOutputStream()
         TarOutputStream(baos).use { tar ->
-            tar.putFileEntry("test.txt", file, 5, 0)
+            tar.putFileEntry("test.txt", file, 0)
             tar.finish()
         }
         val data = baos.toByteArray()
@@ -160,7 +159,7 @@ class TarOutputStreamTest {
 
         val baos = ByteArrayOutputStream()
         TarOutputStream(baos).use { tar ->
-            tar.putFileEntry(longName, file, 4, 0)
+            tar.putFileEntry(longName, file, 0)
             tar.finish()
         }
         val data = baos.toByteArray()
@@ -185,7 +184,7 @@ class TarOutputStreamTest {
 
         val baos = ByteArrayOutputStream()
         TarOutputStream(baos).use { tar ->
-            tar.putFileEntry(longName, file, 4, 0)
+            tar.putFileEntry(longName, file, 0)
             tar.finish()
         }
         val data = baos.toByteArray()
@@ -235,7 +234,7 @@ class TarOutputStreamTest {
         val baos = ByteArrayOutputStream()
         TarOutputStream(baos).use { tar ->
             // Declare 100 bytes but actual file is 2 — should succeed using actual size
-            tar.putFileEntry("test.txt", file, 100, 0)
+            tar.putFileEntry("test.txt", file, 0)
             tar.finish()
         }
         val data = baos.toByteArray()
@@ -254,7 +253,7 @@ class TarOutputStreamTest {
         val baos = ByteArrayOutputStream()
         TarOutputStream(baos).use { tar ->
             // Pass a wrong size (999) — putFileEntry should use actual file size
-            tar.putFileEntry("test.txt", file, 999, 0)
+            tar.putFileEntry("test.txt", file, 0)
             tar.finish()
         }
         val data = baos.toByteArray()
@@ -281,8 +280,8 @@ class TarOutputStreamTest {
         val baos = ByteArrayOutputStream()
         TarOutputStream(baos).use { tar ->
             tar.putDirectoryEntry("mydir/", 0)
-            tar.putFileEntry("mydir/a.txt", file1, 3, 0)
-            tar.putFileEntry("mydir/b.txt", file2, 3, 0)
+            tar.putFileEntry("mydir/a.txt", file1, 0)
+            tar.putFileEntry("mydir/b.txt", file2, 0)
             tar.finish()
         }
         val data = baos.toByteArray()
