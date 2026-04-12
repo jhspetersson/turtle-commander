@@ -130,8 +130,8 @@ fun FileTab.toggleSelectionAndMoveDown() {
             table.selectionModel.leadSelectionIndex = nextRow
             table.scrollRectToVisible(table.getCellRect(nextRow, 0, true))
         }
-        ViewMode.LIST -> toggleListSelectionAndMoveDown(list, listModel)
-        ViewMode.THUMBNAIL -> toggleListSelectionAndMoveDown(thumbnailList, thumbnailListModel)
+        ViewMode.LIST -> toggleListSelectionAndMoveDown(list, listModel, toggledListIndices)
+        ViewMode.THUMBNAIL -> toggleListSelectionAndMoveDown(thumbnailList, thumbnailListModel, toggledThumbnailIndices)
         ViewMode.TREE -> {
             val leadRow = tree.leadSelectionRow
             if (leadRow < 0) return
@@ -161,17 +161,16 @@ fun FileTab.toggleSelectionAndMoveDown() {
 }
 
 private fun <T : JList<FileEntry>> FileTab.toggleListSelectionAndMoveDown(
-    jList: T, model: DefaultListModel<FileEntry>,
+    jList: T, model: DefaultListModel<FileEntry>, toggled: MutableSet<Int>,
 ) {
     val index = jList.selectionModel.leadSelectionIndex
     if (index < 0 || index >= model.size()) return
     val entry = model.getElementAt(index)
-    val selectedSet = jList.selectedIndices.toMutableSet()
     if (entry != null && !entry.isParentLink) {
-        if (index in selectedSet) {
-            selectedSet.remove(index)
+        if (index in toggled) {
+            toggled.remove(index)
         } else {
-            selectedSet.add(index)
+            toggled.add(index)
             if (entry.isDirectory) calculateDirectorySize(entry)
         }
     }
@@ -180,11 +179,13 @@ private fun <T : JList<FileEntry>> FileTab.toggleListSelectionAndMoveDown(
     if (nextEntry != null && nextEntry.isDirectory && !nextEntry.isParentLink) {
         calculateDirectorySize(nextEntry)
     }
-    selectedSet.add(nextIndex)
+    val indicesToSelect = toggled.toMutableSet()
+    indicesToSelect.add(nextIndex)
     jList.clearSelection()
-    for (i in selectedSet) {
-        jList.addSelectionInterval(i, i)
+    for (i in indicesToSelect) {
+        if (i in 0 until model.size()) jList.addSelectionInterval(i, i)
     }
+    jList.selectionModel.leadSelectionIndex = nextIndex
     jList.ensureIndexIsVisible(nextIndex)
 }
 

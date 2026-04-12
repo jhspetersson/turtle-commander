@@ -563,10 +563,29 @@ class FileTab(
             dragEnabled = true
             transferHandler = FileEntryTransferHandler(this@FileTab)
 
-            addListSelectionListener { updateStatusBar() }
+            addListSelectionListener {
+                if (!insideToggle) toggledListIndices.clear()
+                updateStatusBar()
+            }
 
             installHomeEndBindings(this)
+            installToggleSelectionBinding(this)
         }
+    }
+
+    private fun installToggleSelectionBinding(component: JComponent) {
+        val toggleAction = object : DumbAwareAction() {
+            override fun actionPerformed(e: AnActionEvent) {
+                toggleSelectionAndMoveDown()
+            }
+        }
+        toggleAction.registerCustomShortcutSet(
+            CustomShortcutSet(
+                KeyboardShortcut(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0), null),
+                KeyboardShortcut(KeyStroke.getKeyStroke(KeyEvent.VK_INSERT, 0), null),
+            ),
+            component,
+        )
     }
 
     private fun handleTableContextMenu(e: MouseEvent) {
@@ -617,9 +636,13 @@ class FileTab(
             dragEnabled = true
             transferHandler = FileEntryTransferHandler(this@FileTab)
 
-            addListSelectionListener { updateStatusBar() }
+            addListSelectionListener {
+                if (!insideToggle) toggledThumbnailIndices.clear()
+                updateStatusBar()
+            }
 
             installHomeEndBindings(this)
+            installToggleSelectionBinding(this)
         }
     }
 
@@ -1330,6 +1353,8 @@ class FileTab(
 
     internal val toggledRows = mutableSetOf<Int>()
     internal val toggledTreeRows = mutableSetOf<Int>()
+    internal val toggledListIndices = mutableSetOf<Int>()
+    internal val toggledThumbnailIndices = mutableSetOf<Int>()
     internal var insideToggle = false
     internal val directorySizes = ConcurrentHashMap<Path, Long>()
 
