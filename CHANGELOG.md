@@ -8,6 +8,10 @@
 
 - Search by file content
 
+### Fixed
+
+- Drag'n'drop now works for every view mode
+
 ## [0.4.5] - 2026-04-10
 
 ### Added

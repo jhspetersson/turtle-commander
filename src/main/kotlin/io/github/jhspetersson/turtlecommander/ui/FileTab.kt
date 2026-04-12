@@ -555,6 +555,9 @@ class FileTab(
                 }
             })
 
+            dragEnabled = true
+            transferHandler = FileEntryTransferHandler(this@FileTab)
+
             addListSelectionListener { updateStatusBar() }
         }
     }
@@ -604,6 +607,9 @@ class FileTab(
                 }
             })
 
+            dragEnabled = true
+            transferHandler = FileEntryTransferHandler(this@FileTab)
+
             addListSelectionListener { updateStatusBar() }
         }
     }
@@ -623,6 +629,8 @@ class FileTab(
             isRootVisible = false
             showsRootHandles = true
             background = table.background
+            dragEnabled = true
+            transferHandler = FileEntryTransferHandler(this@FileTab)
 
             selectionModel.selectionMode = TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION
             cellRenderer = FileTreeCellRenderer(this@FileTab)
