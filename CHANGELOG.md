@@ -7,6 +7,7 @@
 ### Added
 
 - Search by file content
+- Open and modify `.apkg` files (Anki decks)
 
 ### Fixed
 
