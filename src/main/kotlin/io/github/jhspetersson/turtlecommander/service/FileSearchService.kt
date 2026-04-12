@@ -25,6 +25,8 @@ import kotlin.math.abs
 class FileSearchService(
     private val criteria: FileSearchCriteria,
     private val isWindows: Boolean = System.getProperty("os.name").lowercase().contains("win"),
+    private val ownerReader: (Path) -> String = ::readFileOwner,
+    private val groupReader: (Path) -> String = ::readFileGroup,
 ) {
     @Volatile
     var paused = false
@@ -129,8 +131,8 @@ class FileSearchService(
             if (!matchesDate(attrs.lastModifiedTime().toMillis(), criteria.modificationDateFilter)) return
         }
 
-        val owner = readFileOwner(path)
-        val group = if (!isWindows) readFileGroup(path) else ""
+        val owner = if (criteria.ownerPattern != null) ownerReader(path) else ""
+        val group = if (criteria.groupPattern != null && !isWindows) groupReader(path) else ""
 
         if (criteria.ownerPattern != null) {
             if (!owner.contains(criteria.ownerPattern, ignoreCase = true)) return

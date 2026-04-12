@@ -41,6 +41,72 @@ class FileSearchFilterTest {
         return results
     }
 
+    @Test
+    fun `owner is not read when ownerPattern is null`() {
+        val dir = createTempDir()
+        Files.write(dir.resolve("a.txt"), ByteArray(10))
+        Files.write(dir.resolve("b.txt"), ByteArray(20))
+
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = null,
+            namePatternMode = NamePatternMode.GLOB,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+        )
+
+        var ownerCalls = 0
+        var groupCalls = 0
+        val service = FileSearchService(
+            criteria,
+            isWindows = false,
+            ownerReader = { ownerCalls++; "u" },
+            groupReader = { groupCalls++; "g" },
+        )
+        val results = mutableListOf<FileEntry>()
+        service.search(
+            onResult = { results.add(it) },
+            isCancelled = { false },
+            onProgress = { _, _ -> },
+        )
+
+        assertEquals(2, results.size)
+        assertEquals(0, ownerCalls)
+        assertEquals(0, groupCalls)
+    }
+
+    @Test
+    fun `owner is read when ownerPattern is set`() {
+        val dir = createTempDir()
+        Files.write(dir.resolve("a.txt"), ByteArray(10))
+
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = null,
+            namePatternMode = NamePatternMode.GLOB,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+            ownerPattern = "u",
+        )
+
+        var ownerCalls = 0
+        val service = FileSearchService(
+            criteria,
+            isWindows = true,
+            ownerReader = { ownerCalls++; "user" },
+            groupReader = { "" },
+        )
+        service.search(
+            onResult = { },
+            isCancelled = { false },
+            onProgress = { _, _ -> },
+        )
+
+        assertEquals(1, ownerCalls)
+    }
+
     // --- Size filter ---
 
     @Test
