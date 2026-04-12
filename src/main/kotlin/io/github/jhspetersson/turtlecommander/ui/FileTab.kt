@@ -564,6 +564,8 @@ class FileTab(
             transferHandler = FileEntryTransferHandler(this@FileTab)
 
             addListSelectionListener { updateStatusBar() }
+
+            installHomeEndBindings(this)
         }
     }
 
@@ -616,7 +618,60 @@ class FileTab(
             transferHandler = FileEntryTransferHandler(this@FileTab)
 
             addListSelectionListener { updateStatusBar() }
+
+            installHomeEndBindings(this)
         }
+    }
+
+    private fun installHomeEndBindings(jlist: JList<*>) {
+        val selectFirst = object : DumbAwareAction() {
+            override fun actionPerformed(e: AnActionEvent) {
+                if (jlist.model.size > 0) {
+                    jlist.selectedIndex = 0
+                    jlist.ensureIndexIsVisible(0)
+                }
+            }
+        }
+        val selectLast = object : DumbAwareAction() {
+            override fun actionPerformed(e: AnActionEvent) {
+                val last = jlist.model.size - 1
+                if (last >= 0) {
+                    jlist.selectedIndex = last
+                    jlist.ensureIndexIsVisible(last)
+                }
+            }
+        }
+        val selectFirstExtend = object : DumbAwareAction() {
+            override fun actionPerformed(e: AnActionEvent) {
+                if (jlist.model.size > 0) {
+                    val anchor = jlist.selectionModel.anchorSelectionIndex.coerceAtLeast(0)
+                    jlist.selectionModel.setSelectionInterval(anchor, 0)
+                    jlist.ensureIndexIsVisible(0)
+                }
+            }
+        }
+        val selectLastExtend = object : DumbAwareAction() {
+            override fun actionPerformed(e: AnActionEvent) {
+                val last = jlist.model.size - 1
+                if (last >= 0) {
+                    val anchor = jlist.selectionModel.anchorSelectionIndex.coerceAtLeast(0)
+                    jlist.selectionModel.setSelectionInterval(anchor, last)
+                    jlist.ensureIndexIsVisible(last)
+                }
+            }
+        }
+        selectFirst.registerCustomShortcutSet(
+            CustomShortcutSet(KeyStroke.getKeyStroke(KeyEvent.VK_HOME, 0)), jlist
+        )
+        selectLast.registerCustomShortcutSet(
+            CustomShortcutSet(KeyStroke.getKeyStroke(KeyEvent.VK_END, 0)), jlist
+        )
+        selectFirstExtend.registerCustomShortcutSet(
+            CustomShortcutSet(KeyStroke.getKeyStroke(KeyEvent.VK_HOME, InputEvent.SHIFT_DOWN_MASK)), jlist
+        )
+        selectLastExtend.registerCustomShortcutSet(
+            CustomShortcutSet(KeyStroke.getKeyStroke(KeyEvent.VK_END, InputEvent.SHIFT_DOWN_MASK)), jlist
+        )
     }
 
     private fun handleThumbnailContextMenu(e: MouseEvent) {
