@@ -105,6 +105,42 @@ class DriveSelectionTargetTest {
     }
 
     @Test
+    fun `selecting root drive does not swap to other panel when a deeper root covers it`() {
+        // Bug: user on /home/user, other panel on /home/user/Documents, picks "/" from
+        // the drive selector. Without availableRoots the resolver always swaps to the
+        // other panel because every absolute path starts with "/".
+        val root = Path.of("/")
+        val otherPanel = Path.of("/home/user/Documents")
+        val roots = listOf(Path.of("/"), Path.of("/home/user"))
+
+        val result = FileTab.resolveDriveSelectionTarget(root, otherPanel, roots)
+
+        assertEquals(root, result)
+    }
+
+    @Test
+    fun `selecting root drive swaps to other panel when no deeper root covers it`() {
+        val root = Path.of("/")
+        val otherPanel = Path.of("/etc/nginx")
+        val roots = listOf(Path.of("/"))
+
+        val result = FileTab.resolveDriveSelectionTarget(root, otherPanel, roots)
+
+        assertEquals(otherPanel, result)
+    }
+
+    @Test
+    fun `selecting a deeper root swaps to other panel when that root is the deepest match`() {
+        val deeper = Path.of("/home/user")
+        val otherPanel = Path.of("/home/user/Documents")
+        val roots = listOf(Path.of("/"), Path.of("/home/user"))
+
+        val result = FileTab.resolveDriveSelectionTarget(deeper, otherPanel, roots)
+
+        assertEquals(otherPanel, result)
+    }
+
+    @Test
     fun `falls back to drive when VFS archive is on different drive`() {
         val drive = Path.of(System.getProperty("user.home"))
         // Simulate opposite panel's archive parent being on a completely different path

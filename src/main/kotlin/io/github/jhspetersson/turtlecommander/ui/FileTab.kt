@@ -398,7 +398,8 @@ class FileTab(
                     driveComboPopupOpen = false
                     if (updatingDriveCombo) return
                     val selected = selectedItem as? String ?: return
-                    val targetPath = resolveDriveSelectionTarget(Path.of(selected), otherPanelPathProvider())
+                    val availableRoots = fileOps.getRoots().map { Path.of(it) }
+                    val targetPath = resolveDriveSelectionTarget(Path.of(selected), otherPanelPathProvider(), availableRoots)
                     // Exit VFS if active
                     if (vfsStack.isNotEmpty()) {
                         dispose()
@@ -1543,9 +1544,22 @@ class FileTab(
          * Resolves the target path for a drive selector selection.
          * If the opposite panel is under the selected drive, returns the opposite panel's path instead.
          */
-        internal fun resolveDriveSelectionTarget(selectedDrive: Path, otherPanelPath: Path?): Path {
+        internal fun resolveDriveSelectionTarget(
+            selectedDrive: Path,
+            otherPanelPath: Path?,
+            availableRoots: List<Path> = emptyList(),
+        ): Path {
             if (otherPanelPath != null && otherPanelPath.startsWith(selectedDrive) && otherPanelPath != selectedDrive) {
-                return otherPanelPath
+                // Only swap to the opposite panel's path if `selectedDrive` is the deepest
+                // root that covers it. Otherwise (e.g. selecting "/" while the other panel
+                // is under "/home/user") the user is asking for the broader location and we
+                // must honor that selection instead of bouncing to the other panel.
+                val deepestRoot = availableRoots
+                    .filter { otherPanelPath.startsWith(it) }
+                    .maxByOrNull { it.toString().length }
+                if (deepestRoot == null || deepestRoot == selectedDrive) {
+                    return otherPanelPath
+                }
             }
             return selectedDrive
         }

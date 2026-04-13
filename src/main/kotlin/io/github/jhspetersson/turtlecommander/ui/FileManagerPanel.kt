@@ -388,7 +388,10 @@ class FileManagerPanel(
         val closeButton = TabCloseButton {
             searchPanel.dispose()
             val idx = tabbedPane.indexOfComponent(searchPanel)
-            if (idx >= 0) tabbedPane.removeTabAt(idx)
+            if (idx >= 0) {
+                tabbedPane.removeTabAt(idx)
+                focusActiveTab()
+            }
         }
         panel.add(closeButton, BorderLayout.EAST)
         return panel
@@ -467,13 +470,8 @@ class FileManagerPanel(
         label.addMouseMotionListener(motionForwarder)
 
         val closeButton = TabCloseButton {
-            val realTabCount = tabbedPane.tabCount - 1
-            if (realTabCount > 1) {
-                val idx = tabbedPane.indexOfComponent(fileTab)
-                if (idx >= 0) {
-                    tabbedPane.removeTabAt(idx)
-                }
-            }
+            val idx = tabbedPane.indexOfComponent(fileTab)
+            if (idx >= 0) closeTab(idx)
         }
         panel.add(closeButton, BorderLayout.EAST)
 
