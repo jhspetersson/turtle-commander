@@ -69,7 +69,8 @@ class FileManagerPanel(
                 if (!e.isPopupTrigger && SwingUtilities.isLeftMouseButton(e)) {
                     val tabIndex = getTabIndexAt(e.point)
                     val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
-                    if (tabIndex >= 0 && tabIndex != plusIndex) {
+                    val realTabCount = if (plusIndex >= 0) tabbedPane.tabCount - 1 else tabbedPane.tabCount
+                    if (tabIndex >= 0 && tabIndex != plusIndex && realTabCount > 1) {
                         dragSourceIndex = tabIndex
                         dragStartPoint = e.point
                     }
