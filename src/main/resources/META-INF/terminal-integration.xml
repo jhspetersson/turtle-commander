@@ -4,7 +4,7 @@
                 class="io.github.jhspetersson.turtlecommander.action.OpenInTerminalAction"
                 text="Open in Terminal"
                 icon="org.jetbrains.plugins.terminal.TerminalIcons.Command"/>
-        <group>
+        <group id="TurtleCommander.FileContextMenu.OpenInTerminal">
             <reference ref="TurtleCommander.OpenInTerminal"/>
             <add-to-group group-id="TurtleCommander.FileContextMenu" anchor="after"
                           relative-to-action="TurtleCommander.OpenInExplorer"/>
@@ -14,7 +14,7 @@
                 class="io.github.jhspetersson.turtlecommander.action.OpenTabInTerminalAction"
                 text="Open in Terminal"
                 icon="org.jetbrains.plugins.terminal.TerminalIcons.Command"/>
-        <group>
+        <group id="TurtleCommander.TabContextMenu.OpenTabInTerminal">
             <separator/>
             <reference ref="TurtleCommander.OpenTabInTerminal"/>
             <add-to-group group-id="TurtleCommander.TabContextMenu" anchor="last"/>
