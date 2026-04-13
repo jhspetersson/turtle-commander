@@ -336,10 +336,49 @@
         <action id="TurtleCommander.CopyAsParentPath"
                 class="io.github.jhspetersson.turtlecommander.action.CopyAsParentPathAction"
                 text="Parent Path"/>
+        <action id="TurtleCommander.CopyAsCrc16"
+                class="io.github.jhspetersson.turtlecommander.action.CopyAsCrc16Action"
+                text="CRC16"/>
+        <action id="TurtleCommander.CopyAsCrc32"
+                class="io.github.jhspetersson.turtlecommander.action.CopyAsCrc32Action"
+                text="CRC32"/>
+        <action id="TurtleCommander.CopyAsMd5"
+                class="io.github.jhspetersson.turtlecommander.action.CopyAsMd5Action"
+                text="MD5"/>
+        <action id="TurtleCommander.CopyAsSha1"
+                class="io.github.jhspetersson.turtlecommander.action.CopyAsSha1Action"
+                text="SHA-1"/>
+        <action id="TurtleCommander.CopyAsSha256"
+                class="io.github.jhspetersson.turtlecommander.action.CopyAsSha256Action"
+                text="SHA-256"/>
+        <action id="TurtleCommander.CopyAsSha512"
+                class="io.github.jhspetersson.turtlecommander.action.CopyAsSha512Action"
+                text="SHA-512"/>
+        <action id="TurtleCommander.CopyAsSha3_256"
+                class="io.github.jhspetersson.turtlecommander.action.CopyAsSha3_256Action"
+                text="SHA3-256"/>
+        <action id="TurtleCommander.CopyAsSha3_512"
+                class="io.github.jhspetersson.turtlecommander.action.CopyAsSha3_512Action"
+                text="SHA3-512"/>
+        <group id="TurtleCommander.CopyAsHashGroup" text="Hash" popup="true" icon="AllIcons.General.Hashtag">
+            <reference ref="TurtleCommander.CopyAsCrc16"/>
+            <reference ref="TurtleCommander.CopyAsCrc32"/>
+            <separator/>
+            <reference ref="TurtleCommander.CopyAsMd5"/>
+            <reference ref="TurtleCommander.CopyAsSha1"/>
+            <separator/>
+            <reference ref="TurtleCommander.CopyAsSha256"/>
+            <reference ref="TurtleCommander.CopyAsSha512"/>
+            <separator/>
+            <reference ref="TurtleCommander.CopyAsSha3_256"/>
+            <reference ref="TurtleCommander.CopyAsSha3_512"/>
+        </group>
         <group id="TurtleCommander.CopyAsGroup" text="Copy as" popup="true" icon="AllIcons.Actions.Copy">
             <reference ref="TurtleCommander.CopyAsName"/>
             <reference ref="TurtleCommander.CopyAsFullPath"/>
             <reference ref="TurtleCommander.CopyAsParentPath"/>
+            <separator/>
+            <reference ref="TurtleCommander.CopyAsHashGroup"/>
         </group>
         <group id="TurtleCommander.FileContextMenu" text="File Context Menu" popup="true">
             <reference ref="TurtleCommander.OpenInNewTab"/>
