@@ -237,9 +237,10 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
             return action.shortcutSet.shortcuts.firstOrNull() as? KeyboardShortcut
         }
 
-        fun hasShiftModifier(actionId: String): Boolean {
-            val shortcut = getShortcut(actionId) ?: return false
-            return shortcut.firstKeyStroke.modifiers and InputEvent.SHIFT_DOWN_MASK != 0
+        fun modifierOf(actionId: String): Int {
+            val shortcut = getShortcut(actionId) ?: return 0
+            val m = shortcut.firstKeyStroke.modifiers
+            return m and (InputEvent.SHIFT_DOWN_MASK or InputEvent.CTRL_DOWN_MASK or InputEvent.ALT_DOWN_MASK)
         }
 
         fun shortcutText(actionId: String): String {
@@ -247,64 +248,91 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
             return KeymapUtil.getKeystrokeText(shortcut.firstKeyStroke)
         }
 
-        data class BarButton(val actionId: String, val label: String, val button: JButton, val strut: Component?)
+        data class BarButton(val actionId: String, val label: String, val button: JButton)
+
+        fun invokeById(actionId: String) {
+            val action = ActionManager.getInstance().getAction(actionId) ?: return
+            ActionUtil.invokeAction(action, bar, "CommandBar", null, null)
+        }
 
         val buttonDefs = listOf(
+            Triple("TurtleCommander.LeftDriveSelector", "Left") { leftPanel.showDriveSelector() },
+            Triple("TurtleCommander.RightDriveSelector", "Right") { rightPanel.showDriveSelector() },
+            Triple("TurtleCommander.SearchFiles", "Search") { invokeById("TurtleCommander.SearchFiles") },
+            Triple("TurtleCommander.PreviousTab", "Prev") { activePanel().selectPreviousTab() },
+            Triple("TurtleCommander.NextTab", "Next") { activePanel().selectNextTab() },
             Triple("TurtleCommander.ViewFile", "View") { activePanel().getActiveTab()?.viewSelectedFile() },
             Triple("TurtleCommander.OpenInApp", "Open") { activePanel().getActiveTab()?.openSelectedInAssociatedApp() },
+            Triple("TurtleCommander.Refresh", "Refresh") { activePanel().getActiveTab()?.refresh() },
+            Triple("TurtleCommander.QuickFilter", "Filter") { activePanel().getActiveTab()?.showQuickFilter() },
+            Triple("TurtleCommander.NewTab", "Tab") { activePanel().openNewTab() },
             Triple("TurtleCommander.CopyFiles", "Copy") { activePanel().getActiveTab()?.performCopy() },
             Triple("TurtleCommander.MoveFiles", "Move") { activePanel().getActiveTab()?.performMove() },
             Triple("TurtleCommander.CreateDirectory", "Mkdir") { activePanel().getActiveTab()?.performCreateDirectory() },
+            Triple("TurtleCommander.CloseTab", "Close") { activePanel().closeTab(activePanel().getActiveTabIndex()) },
             Triple("TurtleCommander.DeleteFiles", "Delete") { activePanel().getActiveTab()?.performDelete() },
             Triple("TurtleCommander.CreateFile", "New File") { activePanel().getActiveTab()?.performCreateFile() },
             Triple("TurtleCommander.Rename", "Rename") { activePanel().getActiveTab()?.startRename() },
             Triple("TurtleCommander.Quit", "Quit") { toolWindow.hide() },
         )
 
-        val barButtons = buttonDefs.mapIndexed { index, (actionId, label, action) ->
+        val barButtons = buttonDefs.map { (actionId, label, action) ->
             val button = JButton().apply {
                 isFocusable = false
                 addActionListener { action() }
             }
-            val strut = if (index > 0) Box.createHorizontalStrut(2).also { bar.add(it) } else null
-            bar.add(button)
-            BarButton(actionId, label, button, strut)
+            BarButton(actionId, label, button)
         }
 
-        fun updateBar(shiftPressed: Boolean) {
-            for (btn in barButtons) {
-                val isShift = hasShiftModifier(btn.actionId)
-                val visible = isShift == shiftPressed
-                btn.button.isVisible = visible
-                btn.strut?.isVisible = visible
+        fun sortKey(actionId: String): Int {
+            val ks = getShortcut(actionId)?.firstKeyStroke ?: return Int.MAX_VALUE
+            return ks.keyCode
+        }
+
+        fun updateBar(activeModifier: Int) {
+            val matching = barButtons.filter { getShortcut(it.actionId) != null && modifierOf(it.actionId) == activeModifier }
+            val visibleButtons = (if (matching.isEmpty() && activeModifier != 0) {
+                barButtons.filter { getShortcut(it.actionId) != null && modifierOf(it.actionId) == 0 }
+            } else matching).sortedBy { sortKey(it.actionId) }
+
+            bar.removeAll()
+            visibleButtons.forEachIndexed { index, btn ->
+                if (index > 0) bar.add(Box.createHorizontalStrut(2))
                 val key = shortcutText(btn.actionId)
                 btn.button.text = if (key.isNotEmpty()) "$key ${btn.label}" else btn.label
+                bar.add(btn.button)
             }
             bar.revalidate()
             bar.repaint()
         }
 
-        updateBar(false)
+        barButtons.forEach { bar.add(it.button) }
         val settings = TurtleCommanderSettings.getInstance().state
         applyCommandBarStyle(bar, settings.styles.commandBarStyle, settings.styles.commandButtonStyle)
+        updateBar(0)
 
         ApplicationManager.getApplication().messageBus
             .connect(toolWindow.disposable)
             .subscribe(KeymapManagerListener.TOPIC, object : KeymapManagerListener {
                 override fun activeKeymapChanged(keymap: Keymap?) {
-                    updateBar(false)
+                    updateBar(0)
                 }
 
                 override fun shortcutsChanged(keymap: Keymap, actionIds: Collection<String>, fromSettings: Boolean) {
-                    updateBar(false)
+                    updateBar(0)
                 }
             })
 
         KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher { e ->
             if (bar.isShowing) {
-                when (e.id) {
-                    KeyEvent.KEY_PRESSED -> if (e.keyCode == KeyEvent.VK_SHIFT) updateBar(true)
-                    KeyEvent.KEY_RELEASED -> if (e.keyCode == KeyEvent.VK_SHIFT) updateBar(false)
+                if (e.id == KeyEvent.KEY_PRESSED || e.id == KeyEvent.KEY_RELEASED) {
+                    when (e.keyCode) {
+                        KeyEvent.VK_SHIFT, KeyEvent.VK_CONTROL, KeyEvent.VK_ALT -> {
+                            val m = e.modifiersEx and
+                                (InputEvent.SHIFT_DOWN_MASK or InputEvent.CTRL_DOWN_MASK or InputEvent.ALT_DOWN_MASK)
+                            updateBar(m)
+                        }
+                    }
                 }
             }
             false
