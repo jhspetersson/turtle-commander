@@ -8,6 +8,10 @@
 
 - Copy as hash actions
 
+### Fixed
+
+- Stale cache issues
+
 ## [0.4.6] - 2026-04-13
 
 ### Added
