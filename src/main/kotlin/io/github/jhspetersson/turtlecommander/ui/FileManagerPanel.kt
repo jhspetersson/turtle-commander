@@ -74,7 +74,7 @@ class FileManagerPanel(
                         return
                     }
                     val realTabCount = if (plusIndex >= 0) tabbedPane.tabCount - 1 else tabbedPane.tabCount
-                    if (tabIndex >= 0 && tabIndex != plusIndex && realTabCount > 1) {
+                    if (tabIndex >= 0 && realTabCount > 1) {
                         dragSourceIndex = tabIndex
                         dragStartPoint = e.point
                     }
