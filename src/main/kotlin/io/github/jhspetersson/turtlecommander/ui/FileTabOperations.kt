@@ -174,6 +174,9 @@ internal fun FileTab.performDelete() {
                 )
 
                 refreshAfterVfsChange()
+                withContext(Dispatchers.EDT) {
+                    onRefreshOtherPanel()
+                }
             }
         }
     })
@@ -191,7 +194,11 @@ internal fun FileTab.performCreateDirectory() {
             if (currentVfs != null) {
                 refreshAfterVfsChange(selectName = name)
             } else {
+                invalidateFreeSpaceCache()
                 navigateTo(currentPath, selectName = name)
+            }
+            withContext(Dispatchers.EDT) {
+                onRefreshOtherPanel()
             }
         } catch (e: Exception) {
             fileErrorNotification("Create directory failed: ${fileErrorMessage(e)}")
@@ -213,7 +220,11 @@ internal fun FileTab.performCreateFile() {
             if (currentVfs != null) {
                 refreshAfterVfsChange(selectName = name)
             } else {
+                invalidateFreeSpaceCache()
                 navigateTo(currentPath, selectName = name)
+            }
+            withContext(Dispatchers.EDT) {
+                onRefreshOtherPanel()
             }
             // Open the created file in editor
             val entryPath = if (currentVfs != null) {
