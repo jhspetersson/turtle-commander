@@ -69,6 +69,10 @@ class FileManagerPanel(
                 if (!e.isPopupTrigger && SwingUtilities.isLeftMouseButton(e)) {
                     val tabIndex = getTabIndexAt(e.point)
                     val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
+                    if (tabIndex == plusIndex && plusIndex >= 0) {
+                        openNewTab()
+                        return
+                    }
                     val realTabCount = if (plusIndex >= 0) tabbedPane.tabCount - 1 else tabbedPane.tabCount
                     if (tabIndex >= 0 && tabIndex != plusIndex && realTabCount > 1) {
                         dragSourceIndex = tabIndex
@@ -441,6 +445,26 @@ class FileManagerPanel(
         val label = JLabel(title)
         applyTabStyleToHeader(panel, label)
         panel.add(label, BorderLayout.CENTER)
+
+        val forwarder = object : MouseAdapter() {
+            private fun forward(e: MouseEvent) {
+                val converted = SwingUtilities.convertMouseEvent(e.component, e, tabbedPane)
+                tabbedPane.dispatchEvent(converted)
+            }
+            override fun mousePressed(e: MouseEvent) = forward(e)
+            override fun mouseReleased(e: MouseEvent) = forward(e)
+            override fun mouseClicked(e: MouseEvent) = forward(e)
+        }
+        panel.addMouseListener(forwarder)
+        label.addMouseListener(forwarder)
+        val motionForwarder = object : MouseMotionAdapter() {
+            override fun mouseDragged(e: MouseEvent) {
+                val converted = SwingUtilities.convertMouseEvent(e.component, e, tabbedPane)
+                tabbedPane.dispatchEvent(converted)
+            }
+        }
+        panel.addMouseMotionListener(motionForwarder)
+        label.addMouseMotionListener(motionForwarder)
 
         val closeButton = TabCloseButton {
             val realTabCount = tabbedPane.tabCount - 1
