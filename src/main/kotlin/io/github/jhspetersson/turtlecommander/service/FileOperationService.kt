@@ -301,6 +301,7 @@ class FileOperationService(
                 onError(source, e)
             }
         }
+        invalidateListingCache(destination)
     }
 
     private suspend fun copyFileWithOverwrite(
@@ -449,6 +450,8 @@ class FileOperationService(
                 onError(source, e)
             }
         }
+        invalidateListingCache(destination)
+        sources.mapNotNull { it.parent }.toSet().forEach { invalidateListingCache(it) }
     }
 
     suspend fun deleteFilesWithProgress(
@@ -512,16 +515,21 @@ class FileOperationService(
                 onError(path, e)
             }
         }
+        paths.mapNotNull { it.parent }.toSet().forEach { invalidateListingCache(it) }
     }
 
     suspend fun renameFile(source: Path, newName: String): Path = withContext(Dispatchers.IO) {
         val parent = source.parent ?: throw IllegalArgumentException("Cannot rename a root path")
         val target = parent.resolve(newName)
-        Files.move(source, target)
+        val moved = Files.move(source, target)
+        invalidateListingCache(parent)
+        moved
     }
 
     suspend fun createDirectory(parent: Path, name: String): Path = withContext(Dispatchers.IO) {
-        Files.createDirectory(parent.resolve(name))
+        val created = Files.createDirectory(parent.resolve(name))
+        invalidateListingCache(parent)
+        created
     }
 
     fun getRoots(): List<String> {

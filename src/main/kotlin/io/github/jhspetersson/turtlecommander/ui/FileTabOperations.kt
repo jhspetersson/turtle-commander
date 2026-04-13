@@ -217,6 +217,7 @@ internal fun FileTab.performCreateFile() {
             val filePath = withContext(Dispatchers.IO) {
                 Files.createFile(currentPath.resolve(name))
             }
+            fileOps.invalidateListingCache(currentPath)
             if (currentVfs != null) {
                 refreshAfterVfsChange(selectName = name)
             } else {
