@@ -247,7 +247,7 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
             return KeymapUtil.getKeystrokeText(shortcut.firstKeyStroke)
         }
 
-        data class BarButton(val actionId: String, val label: String, val button: JButton)
+        data class BarButton(val actionId: String, val label: String, val button: JButton, val strut: Component?)
 
         val buttonDefs = listOf(
             Triple("TurtleCommander.ViewFile", "View") { activePanel().getActiveTab()?.viewSelectedFile() },
@@ -266,15 +266,17 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
                 isFocusable = false
                 addActionListener { action() }
             }
-            if (index > 0) bar.add(Box.createHorizontalStrut(2))
+            val strut = if (index > 0) Box.createHorizontalStrut(2).also { bar.add(it) } else null
             bar.add(button)
-            BarButton(actionId, label, button)
+            BarButton(actionId, label, button, strut)
         }
 
         fun updateBar(shiftPressed: Boolean) {
             for (btn in barButtons) {
                 val isShift = hasShiftModifier(btn.actionId)
-                btn.button.isVisible = isShift == shiftPressed
+                val visible = isShift == shiftPressed
+                btn.button.isVisible = visible
+                btn.strut?.isVisible = visible
                 val key = shortcutText(btn.actionId)
                 btn.button.text = if (key.isNotEmpty()) "$key ${btn.label}" else btn.label
             }
