@@ -199,11 +199,11 @@ class ArchiveService {
                 name.endsWith(".ear") || name.endsWith(".apk") -> countZipEntries(archivePath)
             name.endsWith(".7z") -> countSevenZEntries(archivePath)
             name.endsWith(".tar.gz") || name.endsWith(".tgz") ->
-                countTarEntries(GzipCompressorInputStream(Files.newInputStream(archivePath)))
+                countTarCompressed(archivePath) { GzipCompressorInputStream(it) }
             name.endsWith(".tar.bz2") || name.endsWith(".tbz2") || name.endsWith(".tbz") ->
-                countTarEntries(BZip2CompressorInputStream(Files.newInputStream(archivePath)))
+                countTarCompressed(archivePath) { BZip2CompressorInputStream(it) }
             name.endsWith(".tar.xz") || name.endsWith(".txz") ->
-                countTarEntries(XZCompressorInputStream(Files.newInputStream(archivePath)))
+                countTarCompressed(archivePath) { XZCompressorInputStream(it) }
             name.endsWith(".tar") -> countTarEntries(Files.newInputStream(archivePath))
             name.endsWith(".ar") || name.endsWith(".deb") || name.endsWith(".a") ->
                 countArEntries(archivePath)
@@ -227,6 +227,24 @@ class ArchiveService {
             while (szf.nextEntry != null) c++
             c
         }
+
+    /**
+     * Opens [archivePath], wraps the stream with [wrap] (the compressor constructor),
+     * and counts tar entries. Closes the raw file stream if the compressor constructor
+     * throws — otherwise the stream would leak on corrupt archives.
+     */
+    internal fun countTarCompressed(archivePath: Path, wrap: (InputStream) -> InputStream): Int =
+        countTarCompressed(Files.newInputStream(archivePath), wrap)
+
+    internal fun countTarCompressed(raw: InputStream, wrap: (InputStream) -> InputStream): Int {
+        val wrapped = try {
+            wrap(raw)
+        } catch (e: Throwable) {
+            runCatching { raw.close() }
+            throw e
+        }
+        return countTarEntries(wrapped)
+    }
 
     private fun countTarEntries(raw: InputStream): Int =
         raw.use { input ->
