@@ -10,6 +10,7 @@
 
 ### Changed
 
+- The standard delete dialog is used for files in the project directory
 - Split files by 1 MB by default
 
 ### Fixed

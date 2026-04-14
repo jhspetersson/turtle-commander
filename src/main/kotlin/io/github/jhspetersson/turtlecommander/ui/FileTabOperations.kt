@@ -11,7 +11,10 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.ui.Messages
 import io.github.jhspetersson.turtlecommander.dialog.InputDialog
+import com.intellij.ide.util.DeleteHandler
 import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiManager
 import io.github.jhspetersson.turtlecommander.dialog.*
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.operation.CombineFilesOperation
@@ -147,6 +150,8 @@ internal fun FileTab.performDelete() {
     val selected = getSelectedEntries()
     if (selected.isEmpty()) return
 
+    if (currentVfs == null && tryIdeaDelete(selected)) return
+
     val deleteDialog = DeleteDialog(project, selected)
     if (!deleteDialog.showAndGet()) return
     val sourcePaths = selected.map { it.path }
@@ -180,6 +185,37 @@ internal fun FileTab.performDelete() {
             }
         }
     })
+}
+
+internal fun allUnderProjectBase(paths: List<Path>, basePathStr: String?): Boolean {
+    val basePath = basePathStr?.let {
+        runCatching { Path.of(it).toAbsolutePath().normalize() }.getOrNull()
+    } ?: return false
+    if (paths.isEmpty()) return false
+    return paths.all { p ->
+        runCatching { p.toAbsolutePath().normalize().startsWith(basePath) }.getOrDefault(false)
+    }
+}
+
+private fun FileTab.tryIdeaDelete(selected: List<FileEntry>): Boolean {
+    if (!allUnderProjectBase(selected.map { it.path }, project.basePath)) return false
+
+    val lfs = LocalFileSystem.getInstance()
+    val psiManager = PsiManager.getInstance(project)
+    val elements = mutableListOf<PsiElement>()
+    for (entry in selected) {
+        val vf = lfs.refreshAndFindFileByNioFile(entry.path) ?: return false
+        val psi = if (vf.isDirectory) psiManager.findDirectory(vf) else psiManager.findFile(vf)
+        elements.add(psi ?: return false)
+    }
+
+    DeleteHandler.deletePsiElement(elements.toTypedArray(), project)
+
+    fileOps.launch {
+        refreshAfterVfsChange()
+        withContext(Dispatchers.EDT) { onRefreshOtherPanel() }
+    }
+    return true
 }
 
 internal fun FileTab.performCreateDirectory() {
