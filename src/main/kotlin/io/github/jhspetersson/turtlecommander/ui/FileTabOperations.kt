@@ -680,6 +680,7 @@ private fun FileTab.openVfsFileReadOnly(entry: FileEntry) {
                 entry.path
             } else {
                 val tempDir = withContext(Dispatchers.IO) {
+                    io.github.jhspetersson.turtlecommander.service.VfsTempCleanup.cleanupOnce()
                     Files.createTempDirectory("turtle-vfs-view-")
                 }
                 val tempPath = tempDir.resolve(entry.path.fileName.toString())
@@ -711,6 +712,7 @@ private fun FileTab.openVfsFileEditable(entry: FileEntry) {
     fileOps.launch {
         try {
             val tempDir = withContext(Dispatchers.IO) {
+                io.github.jhspetersson.turtlecommander.service.VfsTempCleanup.cleanupOnce()
                 Files.createTempDirectory("turtle-vfs-edit-")
             }
             val tempPath = tempDir.resolve(entry.path.fileName.toString())
@@ -757,7 +759,10 @@ internal fun FileTab.openSelectedInAssociatedApp() {
         fileOps.launch {
             try {
                 val filePath = if (isZipVfs) {
-                    val tempDir = withContext(Dispatchers.IO) { Files.createTempDirectory("turtle-vfs-app-") }
+                    val tempDir = withContext(Dispatchers.IO) {
+                        io.github.jhspetersson.turtlecommander.service.VfsTempCleanup.cleanupOnce()
+                        Files.createTempDirectory("turtle-vfs-app-")
+                    }
                     val tempPath = tempDir.resolve(entry.path.fileName.toString())
                     withContext(Dispatchers.IO) { Files.copy(entry.path, tempPath) }
                     tempPath.toFile().deleteOnExit()

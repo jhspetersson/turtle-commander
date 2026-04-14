@@ -29,6 +29,7 @@ internal fun FileTab.enterVfs(archivePath: Path) {
                 } else {
                     var tempFile: java.io.File? = null
                     try {
+                        io.github.jhspetersson.turtlecommander.service.VfsTempCleanup.cleanupOnce()
                         val tempDir = Files.createTempDirectory("turtle-vfs-")
                         val tempPath = tempDir.resolve(fileName)
                         Files.copy(archivePath, tempPath)
