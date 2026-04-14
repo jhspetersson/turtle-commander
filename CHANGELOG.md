@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.4.7] - 2026-04-14
+
 ### Added
 
 - Copy as hash actions
