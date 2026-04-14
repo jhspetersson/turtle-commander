@@ -1,6 +1,8 @@
 package io.github.jhspetersson.turtlecommander.ui
 
-import com.intellij.ui.JBColor
+import com.intellij.ui.*
+import com.intellij.ui.speedSearch.SpeedSearchSupply
+import com.intellij.ui.speedSearch.SpeedSearchUtil
 import com.intellij.util.IconUtil
 import io.github.jhspetersson.turtlecommander.model.DirectoryType
 import io.github.jhspetersson.turtlecommander.model.FileEntry
@@ -13,7 +15,52 @@ import java.awt.Component
 import javax.swing.*
 import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.tree.DefaultMutableTreeNode
-import javax.swing.tree.DefaultTreeCellRenderer
+
+/**
+ * Wraps matched speed-search substrings in an HTML <span> so they appear highlighted
+ * in JLabel-based renderers (which don't support SimpleColoredComponent's native path).
+ * Returns the original text unchanged when no speed search is active or no match exists.
+ */
+internal fun highlightSpeedSearchMatches(speedSearchComponent: JComponent, text: String): String {
+    val supply = SpeedSearchSupply.getSupply(speedSearchComponent) ?: return text
+    val fragments = supply.matchingFragments(text) ?: return text
+    val ordered = fragments.sortedBy { it.startOffset }
+    if (ordered.isEmpty()) return text
+    val bg = UIManager.getColor("SearchMatch.startBackground")
+        ?: UIManager.getColor("SpeedSearch.background")
+        ?: JBColor(Color(0xFFC800), Color(0x5E5339))
+    val fg = UIManager.getColor("SearchMatch.foreground")
+        ?: UIManager.getColor("SpeedSearch.foreground")
+    val style = buildString {
+        append("background:").append(toHex(bg)).append(';')
+        if (fg != null) append("color:").append(toHex(fg)).append(';')
+    }
+    val sb = StringBuilder("<html>")
+    var cursor = 0
+    for (range in ordered) {
+        val start = range.startOffset.coerceIn(0, text.length)
+        val end = range.endOffset.coerceIn(start, text.length)
+        if (start > cursor) sb.append(escapeHtml(text.substring(cursor, start)))
+        sb.append("<span style='").append(style).append("'>")
+        sb.append(escapeHtml(text.substring(start, end)))
+        sb.append("</span>")
+        cursor = end
+    }
+    if (cursor < text.length) sb.append(escapeHtml(text.substring(cursor)))
+    sb.append("</html>")
+    return sb.toString()
+}
+
+private fun toHex(c: Color): String = "#%02X%02X%02X".format(c.red, c.green, c.blue)
+
+private fun escapeHtml(s: String): String = buildString(s.length) {
+    for (c in s) when (c) {
+        '<' -> append("&lt;")
+        '>' -> append("&gt;")
+        '&' -> append("&amp;")
+        else -> append(c)
+    }
+}
 
 private val DEFAULT_COLUMN_WIDTHS = mapOf(
     "Name" to 275,
@@ -102,38 +149,53 @@ internal fun applyColumnConfig(tab: FileTab) {
 internal class StyledFileNameCellRenderer(
     private val tab: FileTab,
     private val style: ComponentStyle?,
-) : DefaultTableCellRenderer() {
-    override fun getTableCellRendererComponent(
+) : ColoredTableCellRenderer() {
+    init {
+        // Let us paint our own background (including inactive-selection tint).
+        isOpaque = true
+    }
+
+    override fun customizeCellRenderer(
         table: JTable,
         value: Any?,
-        isSelected: Boolean,
+        selected: Boolean,
         hasFocus: Boolean,
         row: Int,
         column: Int,
-    ): Component {
-        super.getTableCellRendererComponent(table, value, isSelected, false, row, column)
-        if (isSelected && !table.hasFocus()) {
-            background = tab.inactiveSelectionBackground()
-            foreground = tab.inactiveSelectionForeground()
-        }
+    ) {
         val modelRow = table.convertRowIndexToModel(row)
         val entry = tab.tableModel.getEntryAt(modelRow)
         icon = if (entry != null) fileEntryIcon(entry, tab.enableFileNameHighlighting) else null
-        if (isSelected && !table.hasFocus()) {
-            foreground = tab.inactiveSelectionForeground()
-        } else if (!isSelected) {
+
+        if (selected && !table.hasFocus()) {
+            background = tab.inactiveSelectionBackground()
+        } else if (!selected) {
             background = table.background
-            foreground = if (tab.enableFileNameHighlighting && entry != null && entry.isDirectory && entry.directoryType != DirectoryType.NONE) {
-                DirectoryIcons.getColor(entry.directoryType)
-            } else {
-                style?.parsedFontColor() ?: table.foreground
-            }
         }
+
+        val fg: Color? = when {
+            selected && !table.hasFocus() -> tab.inactiveSelectionForeground()
+            selected -> null // default selection foreground from ColoredTableCellRenderer
+            tab.enableFileNameHighlighting && entry != null && entry.isDirectory && entry.directoryType != DirectoryType.NONE ->
+                DirectoryIcons.getColor(entry.directoryType)
+            else -> style?.parsedFontColor() ?: table.foreground
+        }
+
+        val fontStyle = style?.getFont(table.font)?.style ?: java.awt.Font.PLAIN
+        val attrs = if (fg != null) SimpleTextAttributes(fontStyle, fg) else SimpleTextAttributes(fontStyle, null)
+        val text = value as? String ?: value?.toString().orEmpty()
+        append(text, attrs)
+
         if (style != null) {
             val f = style.getFont(table.font)
             if (f != null) font = f
         }
-        return this
+
+        SpeedSearchUtil.applySpeedSearchHighlighting(table, this, true, selected)
+
+        // Suppress the focus rectangle the LAF paints around the focused cell.
+        // ColoredTableCellRenderer may install a focus border in super; clear it.
+        border = null
     }
 }
 
@@ -185,22 +247,25 @@ internal fun FileTab.inactiveSelectionForeground(): Color {
     return table.foreground
 }
 
-internal class FileListCellRenderer(private val tab: FileTab) : DefaultListCellRenderer() {
-    override fun getListCellRendererComponent(
-        list: JList<*>,
-        value: Any?,
+internal class FileListCellRenderer(private val tab: FileTab) : ColoredListCellRenderer<FileEntry>() {
+    override fun customizeCellRenderer(
+        list: JList<out FileEntry>,
+        value: FileEntry?,
         index: Int,
-        isSelected: Boolean,
-        cellHasFocus: Boolean,
-    ): Component {
-        super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
-        val entry = value as? FileEntry ?: return this
-        text = entry.name
+        selected: Boolean,
+        hasFocus: Boolean,
+    ) {
+        val entry = value ?: return
         icon = fileEntryIcon(entry, tab.enableFileNameHighlighting)
-        if (!isSelected && tab.enableFileNameHighlighting && entry.isDirectory && entry.directoryType != DirectoryType.NONE) {
-            foreground = DirectoryIcons.getColor(entry.directoryType)
+        val fg: Color? = when {
+            selected -> null
+            tab.enableFileNameHighlighting && entry.isDirectory && entry.directoryType != DirectoryType.NONE ->
+                DirectoryIcons.getColor(entry.directoryType)
+            else -> null
         }
-        return this
+        val attrs = if (fg != null) SimpleTextAttributes(SimpleTextAttributes.STYLE_PLAIN, fg) else SimpleTextAttributes.REGULAR_ATTRIBUTES
+        append(entry.name, attrs)
+        SpeedSearchUtil.applySpeedSearchHighlighting(list, this, true, selected)
     }
 }
 
@@ -250,7 +315,8 @@ internal class FileThumbnailCellRenderer(private val tab: FileTab) : ListCellRen
             iconLabel.icon = if (entryIcon != null) IconUtil.scale(entryIcon, list, 2.0f) else null
         }
         val name = entry.name
-        nameLabel.text = if (name.length > 16) name.substring(0, 14) + "\u2026" else name
+        val displayName = if (name.length > 16) name.substring(0, 14) + "\u2026" else name
+        nameLabel.text = highlightSpeedSearchMatches(list, displayName)
         nameLabel.toolTipText = name
         nameLabel.font = list.font
         if (isSelected) {
@@ -268,30 +334,30 @@ internal class FileThumbnailCellRenderer(private val tab: FileTab) : ListCellRen
     }
 }
 
-internal class FileTreeCellRenderer(private val tab: FileTab) : DefaultTreeCellRenderer() {
-    init {
-        backgroundNonSelectionColor = tab.table.background
-    }
-
-    override fun getTreeCellRendererComponent(
+internal class FileTreeCellRenderer(private val tab: FileTab) : ColoredTreeCellRenderer() {
+    override fun customizeCellRenderer(
         tree: JTree,
         value: Any?,
-        sel: Boolean,
+        selected: Boolean,
         expanded: Boolean,
         leaf: Boolean,
         row: Int,
         hasFocus: Boolean,
-    ): Component {
-        super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus)
-        val node = value as? DefaultMutableTreeNode ?: return this
-        val entry = node.userObject as? FileEntry
-        if (entry != null) {
-            text = entry.name
-            icon = fileEntryIcon(entry, tab.enableFileNameHighlighting)
-            if (!sel && tab.enableFileNameHighlighting && entry.isDirectory && entry.directoryType != DirectoryType.NONE) {
-                foreground = DirectoryIcons.getColor(entry.directoryType)
-            }
+    ) {
+        val node = value as? DefaultMutableTreeNode ?: return
+        val entry = node.userObject as? FileEntry ?: run {
+            append(node.userObject?.toString().orEmpty())
+            return
         }
-        return this
+        icon = fileEntryIcon(entry, tab.enableFileNameHighlighting)
+        val fg: Color? = when {
+            selected -> null
+            tab.enableFileNameHighlighting && entry.isDirectory && entry.directoryType != DirectoryType.NONE ->
+                DirectoryIcons.getColor(entry.directoryType)
+            else -> null
+        }
+        val attrs = if (fg != null) SimpleTextAttributes(SimpleTextAttributes.STYLE_PLAIN, fg) else SimpleTextAttributes.REGULAR_ATTRIBUTES
+        append(entry.name, attrs)
+        SpeedSearchUtil.applySpeedSearchHighlighting(tree, this, true, selected)
     }
 }

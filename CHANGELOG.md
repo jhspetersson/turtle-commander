@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Speed search in file panels (just start typing)
+
 ### Changed
 
 - Split files by 1 MB by default

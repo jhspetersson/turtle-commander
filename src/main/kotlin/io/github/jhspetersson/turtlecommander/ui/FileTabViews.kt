@@ -12,6 +12,15 @@ fun FileTab.setViewMode(mode: ViewMode) {
     val previousMode = viewMode
     if (previousMode == mode) return
 
+    // If a speed search is active on the old view, capture its prefix so we can
+    // re-activate it on the new view after the switch.
+    val carriedPrefix = when (previousMode) {
+        ViewMode.TABLE -> tableSpeedSearch?.enteredPrefix
+        ViewMode.LIST -> listSpeedSearch?.enteredPrefix
+        ViewMode.THUMBNAIL -> thumbnailSpeedSearch?.enteredPrefix
+        ViewMode.TREE -> treeSpeedSearch?.enteredPrefix
+    }?.takeIf { it.isNotEmpty() }
+
     // Capture selection from the current (old) view before switching
     val selectedEntries = getSelectedEntries()
     val selectedNames = selectedEntries.map { it.name }.toSet()
@@ -63,6 +72,21 @@ fun FileTab.setViewMode(mode: ViewMode) {
             else -> table.requestFocusInWindow()
         }
     }
+
+    if (carriedPrefix != null) {
+        // Defer so the focus/card transition completes before the popup reattaches.
+        javax.swing.SwingUtilities.invokeLater { restoreSpeedSearchPrefix(mode, carriedPrefix) }
+    }
+}
+
+private fun FileTab.restoreSpeedSearchPrefix(mode: ViewMode, prefix: String) {
+    val target: com.intellij.ui.SpeedSearchBase<*>? = when (mode) {
+        ViewMode.TABLE -> tableSpeedSearch
+        ViewMode.LIST -> listSpeedSearch
+        ViewMode.THUMBNAIL -> thumbnailSpeedSearch
+        ViewMode.TREE -> treeSpeedSearch
+    }
+    target?.showPopup(prefix)
 }
 
 internal fun FileTab.rebuildFullTree(selectNames: Set<String> = emptySet()) {

@@ -12,6 +12,9 @@ import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.ui.JBColor
+import com.intellij.ui.ListSpeedSearch
+import com.intellij.ui.TableSpeedSearch
+import com.intellij.ui.TreeSpeedSearch
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
@@ -567,6 +570,12 @@ class FileTab(
             addListSelectionListener {
                 if (!insideToggle) toggledListIndices.clear()
                 updateStatusBar()
+                // VERTICAL_WRAP JList doesn't auto-scroll on programmatic selection
+                // changes (e.g. speed-search Up/Down jumps), so force it here.
+                if (com.intellij.ui.speedSearch.SpeedSearchSupply.getSupply(list) != null) {
+                    val idx = list.selectedIndex
+                    if (idx >= 0) list.ensureIndexIsVisible(idx)
+                }
             }
 
             installHomeEndBindings(this)
@@ -640,6 +649,10 @@ class FileTab(
             addListSelectionListener {
                 if (!insideToggle) toggledThumbnailIndices.clear()
                 updateStatusBar()
+                if (com.intellij.ui.speedSearch.SpeedSearchSupply.getSupply(thumbnailList) != null) {
+                    val idx = thumbnailList.selectedIndex
+                    if (idx >= 0) thumbnailList.ensureIndexIsVisible(idx)
+                }
             }
 
             installHomeEndBindings(this)
@@ -1046,11 +1059,33 @@ class FileTab(
         }
     }
 
+    internal var tableSpeedSearch: TableSpeedSearch? = null
+    internal var listSpeedSearch: ListSpeedSearch<FileEntry>? = null
+    internal var thumbnailSpeedSearch: ListSpeedSearch<FileEntry>? = null
+    internal var treeSpeedSearch: TreeSpeedSearch? = null
+
+    private fun installSpeedSearch() {
+        // IntelliJ-style speed search: typing in a focused view opens a small search
+        // popup, matched substrings in filenames are highlighted, and Up/Down jump
+        // between matches. Esc cancels. Converter returns the display name of each
+        // entry so non-visible columns (size/date) don't pollute matches.
+        tableSpeedSearch = TableSpeedSearch.installOn(table) { value ->
+            (value as? FileEntry)?.name ?: value?.toString().orEmpty()
+        }
+        listSpeedSearch = ListSpeedSearch.installOn(list) { entry -> entry.name }
+        thumbnailSpeedSearch = ListSpeedSearch.installOn(thumbnailList) { entry -> entry.name }
+        treeSpeedSearch = TreeSpeedSearch.installOn(tree, true) { path ->
+            val node = path.lastPathComponent as? DefaultMutableTreeNode
+            (node?.userObject as? FileEntry)?.name ?: node?.userObject?.toString().orEmpty()
+        }
+    }
+
     private fun setupViewPanel() {
         viewPanel.add(JBScrollPane(table), VIEW_TABLE)
         viewPanel.add(JBScrollPane(list), VIEW_LIST)
         viewPanel.add(JBScrollPane(thumbnailList), VIEW_THUMBNAIL)
         viewPanel.add(JBScrollPane(tree), VIEW_TREE)
+        installSpeedSearch()
         val initialCard = when (viewMode) {
             ViewMode.TABLE -> VIEW_TABLE
             ViewMode.LIST -> VIEW_LIST
