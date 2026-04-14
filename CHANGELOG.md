@@ -12,6 +12,10 @@
 
 - Split files by 1 MB by default
 
+### Fixed
+
+- Stale cache issues 😭
+
 ## [0.4.7] - 2026-04-14
 
 ### Added

@@ -300,6 +300,9 @@ internal fun FileTab.performSplitFile() {
             }
 
             runBlocking {
+                // Chunks + .crc file are written into targetDir; invalidate so
+                // whichever panel lands on it doesn't serve a stale listing.
+                fileOps.invalidateListingCache(targetDir)
                 refreshAfterVfsChange()
                 withContext(Dispatchers.EDT) {
                     onRefreshOtherPanel()
@@ -398,6 +401,9 @@ internal fun FileTab.performCombineFiles() {
             }
 
             runBlocking {
+                // The combined file is created in targetDir — invalidate so
+                // either panel sees it on refresh.
+                fileOps.invalidateListingCache(targetDir)
                 refreshAfterVfsChange()
                 withContext(Dispatchers.EDT) {
                     onRefreshOtherPanel()
@@ -529,6 +535,10 @@ internal fun FileTab.performPack() {
 
                 val archiveFileName = finalArchivePath.fileName.toString()
                 val archiveParent = finalArchivePath.parent
+                // The archive is created (or updated) inside archiveParent; neither
+                // refreshAfterVfsChange nor onRefreshOtherPanel invalidates the
+                // listing cache for that directory.
+                if (archiveParent != null) fileOps.invalidateListingCache(archiveParent)
                 if (archiveParent != null && archiveParent == currentPath) {
                     refreshAfterVfsChange(selectName = archiveFileName)
                     withContext(Dispatchers.EDT) {
@@ -612,6 +622,9 @@ internal fun FileTab.extractArchives(archivePaths: List<Path>, destination: Path
                     )
                 }
 
+                // Extract writes into `destination`; invalidate it so the
+                // refreshed panel shows the new entries.
+                fileOps.invalidateListingCache(destination)
                 refreshAfterVfsChange()
                 withContext(Dispatchers.EDT) {
                     onRefreshOtherPanel()
@@ -812,6 +825,9 @@ internal fun FileTab.performRename(entry: FileEntry, newName: String) {
                             vFile.rename(this, newName)
                         }
                     }
+                    // FileOperationService.renameFile() invalidates the listing cache
+                    // itself; the VFS rename path bypasses it, so do it here.
+                    entry.path.parent?.let { fileOps.invalidateListingCache(it) }
                 } else {
                     fileOps.renameFile(entry.path, newName)
                 }
