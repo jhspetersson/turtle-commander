@@ -35,7 +35,7 @@ class SplitFileDialog(
 
     private val sizeCombo = ComboBox(DefaultComboBoxModel(PRESET_SIZES.map { it.first }.toTypedArray())).apply {
         isEditable = true
-        selectedIndex = 3
+        selectedIndex = 0
     }
 
     private val partsSpinner = JSpinner(SpinnerNumberModel(2, 2, 9999, 1)).apply {
@@ -165,7 +165,10 @@ class SplitFileDialog(
 
     companion object {
         val PRESET_SIZES = listOf(
+            "1 MB" to 1L * 1024 * 1024,
             "1.44 MB (Floppy)" to 1_457_664L,
+            "5 MB" to 5L * 1024 * 1024,
+            "10 MB" to 10L * 1024 * 1024,
             "100 MB (Zip)" to 100L * 1024 * 1024,
             "650 MB (CD)" to 650L * 1024 * 1024,
             "700 MB (CD)" to 700L * 1024 * 1024,
