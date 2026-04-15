@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.4.8] - 2026-04-15
+
 ### Added
 
 - Speed search in file panels (just start typing)
