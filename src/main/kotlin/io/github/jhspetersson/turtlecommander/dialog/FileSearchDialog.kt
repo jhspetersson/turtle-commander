@@ -9,6 +9,7 @@ import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.ui.installStandardContextMenu
+import io.github.jhspetersson.turtlecommander.util.PermissionFlag
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.GridBagConstraints
@@ -31,9 +32,17 @@ data class FileSearchCriteria(
     val modificationDateFilter: DateFilter?,
     val ownerPattern: String? = null,
     val groupPattern: String? = null,
+    val permissionsFilter: PermissionsFilter? = null,
 )
 
 enum class NamePatternMode { GLOB, REGEXP }
+
+data class PermissionsFilter(
+    val mode: PermissionsFilterMode,
+    val flags: Set<PermissionFlag>,
+)
+
+enum class PermissionsFilterMode { EXACT_MATCH, ALL_OF, ANY_OF, NONE_OF }
 
 data class SizeFilter(
     val mode: SizeFilterMode,
@@ -155,6 +164,17 @@ class FileSearchDialog(
     private val groupCheckBox = JCheckBox("Search by group", initialCriteria?.groupPattern != null)
     private val groupField = JBTextField(initialCriteria?.groupPattern ?: "")
 
+    private val isHostWindows: Boolean = System.getProperty("os.name").lowercase().contains("win")
+    private val permissionFlagsForOs: List<PermissionFlag> =
+        if (isHostWindows) PermissionFlag.DOS_FLAGS else PermissionFlag.POSIX_FLAGS
+    private val permissionsCheckBox = JCheckBox("Search by permissions", initialCriteria?.permissionsFilter != null)
+    private val permissionsModeCombo = ComboBox(DefaultComboBoxModel(arrayOf("Exact match", "All of", "Any of", "None of"))).apply {
+        initialCriteria?.permissionsFilter?.let { selectedIndex = it.mode.ordinal }
+    }
+    private val permissionFlagCheckBoxes: Map<PermissionFlag, JCheckBox> = permissionFlagsForOs.associateWith { flag ->
+        JCheckBox(permissionLabel(flag), initialCriteria?.permissionsFilter?.flags?.contains(flag) == true)
+    }
+
     init {
         title = "Search Files"
         setOKButtonText("Search")
@@ -239,6 +259,11 @@ class FileSearchDialog(
 
         fun updateOwnerEnabled() { ownerField.isEnabled = ownerCheckBox.isSelected }
         fun updateGroupEnabled() { groupField.isEnabled = groupCheckBox.isSelected }
+        fun updatePermissionsEnabled() {
+            val enabled = permissionsCheckBox.isSelected
+            permissionsModeCombo.isEnabled = enabled
+            permissionFlagCheckBoxes.values.forEach { it.isEnabled = enabled }
+        }
 
         nameCheckBox.addActionListener { updateNameEnabled(); if (nameCheckBox.isSelected) nameEditor.requestFocusInWindow() }
         contentCheckBox.addActionListener { updateContentEnabled(); if (contentCheckBox.isSelected) contentEditor.requestFocusInWindow() }
@@ -248,6 +273,7 @@ class FileSearchDialog(
         modificationDateCheckBox.addActionListener { updateModificationDateEnabled(); if (modificationDateCheckBox.isSelected) modificationDateField1.requestFocusInWindow() }
         ownerCheckBox.addActionListener { updateOwnerEnabled(); if (ownerCheckBox.isSelected) ownerField.requestFocusInWindow() }
         groupCheckBox.addActionListener { updateGroupEnabled(); if (groupCheckBox.isSelected) groupField.requestFocusInWindow() }
+        permissionsCheckBox.addActionListener { updatePermissionsEnabled() }
 
         updateNameEnabled()
         updateContentEnabled()
@@ -256,6 +282,7 @@ class FileSearchDialog(
         updateModificationDateEnabled()
         updateOwnerEnabled()
         updateGroupEnabled()
+        updatePermissionsEnabled()
     }
 
     private fun setupSizeInBetween() {
@@ -288,8 +315,8 @@ class FileSearchDialog(
     override fun createCenterPanel(): JComponent {
         val panel = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
-            minimumSize = Dimension(550, 340)
-            preferredSize = Dimension(550, 490)
+            minimumSize = Dimension(550, 420)
+            preferredSize = Dimension(550, 570)
         }
 
         // Search root
@@ -331,15 +358,18 @@ class FileSearchDialog(
 
         panel.add(Box.createVerticalStrut(8))
 
-        // Owner & Group filters
+        // Owner & Group filters — keep the section checkbox flush with the other section
+        // checkboxes (name, size, dates, permissions) by zeroing the horizontal inset on the
+        // first column; the field/group checkbox/field still get padded.
         panel.add(JPanel(GridBagLayout()).apply {
             alignmentX = JComponent.LEFT_ALIGNMENT
             val gbc = GridBagConstraints().apply {
                 anchor = GridBagConstraints.WEST
                 insets = JBUI.insets(2, 4)
             }
-            gbc.gridx = 0; gbc.gridy = 0
+            gbc.gridx = 0; gbc.gridy = 0; gbc.insets = JBUI.insets(2, 0, 2, 4)
             add(ownerCheckBox, gbc)
+            gbc.insets = JBUI.insets(2, 4)
             gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0
             add(ownerField, gbc)
             gbc.gridx = 2; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0.0
@@ -349,7 +379,73 @@ class FileSearchDialog(
             maximumSize = Dimension(Int.MAX_VALUE, preferredSize.height)
         })
 
+        panel.add(Box.createVerticalStrut(8))
+
+        // Permissions filter
+        panel.add(permissionsCheckBox.apply { alignmentX = JComponent.LEFT_ALIGNMENT })
+        panel.add(createPermissionsPanel())
+
         return panel
+    }
+
+    private fun createPermissionsPanel(): JPanel {
+        return JPanel(GridBagLayout()).apply {
+            alignmentX = JComponent.LEFT_ALIGNMENT
+            border = BorderFactory.createEmptyBorder(2, 20, 0, 0)
+            val gbc = GridBagConstraints().apply {
+                anchor = GridBagConstraints.WEST
+                insets = JBUI.insets(2, 4)
+            }
+            gbc.gridx = 0; gbc.gridy = 0
+            add(permissionsModeCombo, gbc)
+
+            // DOS: 4 flags in one row. POSIX: 9 flags in a 3x3 grid (owner/group/others x r/w/x).
+            if (isHostWindows) {
+                var col = 1
+                for (flag in permissionFlagsForOs) {
+                    gbc.gridx = col++
+                    add(permissionFlagCheckBoxes.getValue(flag), gbc)
+                }
+            } else {
+                val flagsPanel = JPanel(GridBagLayout())
+                val fg = GridBagConstraints().apply {
+                    anchor = GridBagConstraints.WEST
+                    insets = JBUI.insets(2, 4)
+                }
+                val triplets = listOf(
+                    Triple(PermissionFlag.OWNER_READ, PermissionFlag.OWNER_WRITE, PermissionFlag.OWNER_EXECUTE),
+                    Triple(PermissionFlag.GROUP_READ, PermissionFlag.GROUP_WRITE, PermissionFlag.GROUP_EXECUTE),
+                    Triple(PermissionFlag.OTHERS_READ, PermissionFlag.OTHERS_WRITE, PermissionFlag.OTHERS_EXECUTE),
+                )
+                for ((rowIdx, triplet) in triplets.withIndex()) {
+                    fg.gridx = 0; fg.gridy = rowIdx
+                    flagsPanel.add(permissionFlagCheckBoxes.getValue(triplet.first), fg)
+                    fg.gridx = 1
+                    flagsPanel.add(permissionFlagCheckBoxes.getValue(triplet.second), fg)
+                    fg.gridx = 2
+                    flagsPanel.add(permissionFlagCheckBoxes.getValue(triplet.third), fg)
+                }
+                gbc.gridx = 1
+                add(flagsPanel, gbc)
+            }
+            maximumSize = Dimension(Int.MAX_VALUE, preferredSize.height)
+        }
+    }
+
+    private fun permissionLabel(flag: PermissionFlag): String = when (flag) {
+        PermissionFlag.OWNER_READ -> "Owner read"
+        PermissionFlag.OWNER_WRITE -> "Owner write"
+        PermissionFlag.OWNER_EXECUTE -> "Owner execute"
+        PermissionFlag.GROUP_READ -> "Group read"
+        PermissionFlag.GROUP_WRITE -> "Group write"
+        PermissionFlag.GROUP_EXECUTE -> "Group execute"
+        PermissionFlag.OTHERS_READ -> "Others read"
+        PermissionFlag.OTHERS_WRITE -> "Others write"
+        PermissionFlag.OTHERS_EXECUTE -> "Others execute"
+        PermissionFlag.DOS_READ_ONLY -> "Read-only"
+        PermissionFlag.DOS_HIDDEN -> "Hidden"
+        PermissionFlag.DOS_SYSTEM -> "System"
+        PermissionFlag.DOS_ARCHIVE -> "Archive"
     }
 
     private fun createNamePanel(): JPanel {
@@ -511,6 +607,14 @@ class FileSearchDialog(
         val owner = if (ownerCheckBox.isSelected && ownerField.text.isNotBlank()) ownerField.text.trim() else null
         val group = if (groupCheckBox.isSelected && groupField.text.isNotBlank()) groupField.text.trim() else null
 
+        val permissions = if (permissionsCheckBox.isSelected) {
+            val mode = PermissionsFilterMode.entries[permissionsModeCombo.selectedIndex]
+            val selectedFlags = permissionFlagCheckBoxes.entries
+                .filter { it.value.isSelected }
+                .mapTo(mutableSetOf()) { it.key }
+            PermissionsFilter(mode, selectedFlags)
+        } else null
+
         return FileSearchCriteria(
             rootPath = Path.of(rootField.text.trim()),
             namePattern = namePattern,
@@ -523,6 +627,7 @@ class FileSearchDialog(
             modificationDateFilter = modificationDate,
             ownerPattern = owner,
             groupPattern = group,
+            permissionsFilter = permissions,
         )
     }
 

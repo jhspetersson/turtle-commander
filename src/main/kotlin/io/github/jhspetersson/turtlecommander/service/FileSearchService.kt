@@ -1,9 +1,13 @@
 package io.github.jhspetersson.turtlecommander.service
+import io.github.jhspetersson.turtlecommander.util.PermissionFlag
 import io.github.jhspetersson.turtlecommander.util.readFileGroup
 import io.github.jhspetersson.turtlecommander.util.readFileOwner
+import io.github.jhspetersson.turtlecommander.util.readFilePermissionFlags
 import io.github.jhspetersson.turtlecommander.util.readFilePermissions
 import io.github.jhspetersson.turtlecommander.dialog.DateFilterMode
 import io.github.jhspetersson.turtlecommander.dialog.DateFilter
+import io.github.jhspetersson.turtlecommander.dialog.PermissionsFilter
+import io.github.jhspetersson.turtlecommander.dialog.PermissionsFilterMode
 import io.github.jhspetersson.turtlecommander.dialog.SizeFilterMode
 import io.github.jhspetersson.turtlecommander.dialog.SizeFilter
 import io.github.jhspetersson.turtlecommander.dialog.NamePatternMode
@@ -27,6 +31,7 @@ class FileSearchService(
     private val isWindows: Boolean = System.getProperty("os.name").lowercase().contains("win"),
     private val ownerReader: (Path) -> String = ::readFileOwner,
     private val groupReader: (Path) -> String = ::readFileGroup,
+    private val permissionsFlagReader: (Path) -> Set<PermissionFlag> = { readFilePermissionFlags(it, isWindows) },
 ) {
     @Volatile
     var paused = false
@@ -141,6 +146,11 @@ class FileSearchService(
             if (!group.contains(criteria.groupPattern, ignoreCase = true)) return
         }
 
+        if (criteria.permissionsFilter != null) {
+            val flags = permissionsFlagReader(path)
+            if (!matchesPermissions(flags, criteria.permissionsFilter)) return
+        }
+
         if (criteria.contentPattern != null) {
             if (attrs.isDirectory) return
             if (!matchesContent(path, criteria.contentPattern, criteria.contentCaseSensitive)) return
@@ -209,6 +219,15 @@ class FileSearchService(
     }
 
     private fun readPermissions(path: Path): String = readFilePermissions(path, isWindows)
+
+    private fun matchesPermissions(fileFlags: Set<PermissionFlag>, filter: PermissionsFilter): Boolean {
+        return when (filter.mode) {
+            PermissionsFilterMode.EXACT_MATCH -> fileFlags == filter.flags
+            PermissionsFilterMode.ALL_OF -> fileFlags.containsAll(filter.flags)
+            PermissionsFilterMode.ANY_OF -> filter.flags.isEmpty() || filter.flags.any { it in fileFlags }
+            PermissionsFilterMode.NONE_OF -> filter.flags.none { it in fileFlags }
+        }
+    }
 
     private fun waitWhilePaused(isCancelled: () -> Boolean) {
         while (paused && !isCancelled()) {
