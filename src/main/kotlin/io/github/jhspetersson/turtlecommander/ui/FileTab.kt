@@ -1261,8 +1261,9 @@ class FileTab(
 
             allEntries = entries
             directorySizes.clear()
-            // Mark indices are tied to the previous directory's row positions, so they would
-            // point at the wrong files after the swap.
+            // Drop marks on directory change so they don't accumulate across navigations.
+            // (Path-keyed marks would survive technically, but that's poor UX — users expect
+            // a fresh slate when they cd somewhere new.)
             clearAllToggledMarks()
             // Hide filter on navigation
             if (filterPanel.isVisible) {
