@@ -590,7 +590,7 @@ internal fun FileTab.performPack() {
                             val svc = stateService ?: return@withContext
                             val activePanel = svc.getActivePanel()
                             val otherPanel = if (activePanel == svc.leftPanel) svc.rightPanel else svc.leftPanel
-                            otherPanel?.refreshActiveTab(archiveFileName)
+                            otherPanel?.refreshActiveTab(archiveFileName, requestFocus = false)
                         }
                     } else {
                         withContext(Dispatchers.EDT) {

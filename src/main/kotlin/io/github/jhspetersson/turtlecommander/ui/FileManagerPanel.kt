@@ -302,7 +302,7 @@ class FileManagerPanel(
         fileTab.updatePanelCallbacks(
             otherPanelPathProvider = { target.otherPanel?.getActiveTab()?.realFilesystemPath },
             onDirectoryChanged = { tab -> target.updateTabTitle(tab); target.syncViewToggle() },
-            onRefreshOtherPanel = { target.otherPanel?.refreshActiveTab() },
+            onRefreshOtherPanel = { target.otherPanel?.refreshActiveTab(requestFocus = false) },
         )
     }
 
@@ -403,7 +403,7 @@ class FileManagerPanel(
             initialPath = path,
             otherPanelPathProvider = { otherPanel?.getActiveTab()?.realFilesystemPath ?: otherPanelPathProvider() },
             onDirectoryChanged = { tab -> updateTabTitle(tab); syncViewToggle() },
-            onRefreshOtherPanel = { otherPanel?.refreshActiveTab() },
+            onRefreshOtherPanel = { otherPanel?.refreshActiveTab(requestFocus = false) },
         )
 
         // Insert before the "+" tab
@@ -724,13 +724,13 @@ class FileManagerPanel(
         return tab.table.hasFocus() || tab.list.hasFocus() || tab.thumbnailList.hasFocus() || tab.tree.hasFocus()
     }
 
-    fun refreshActiveTab() {
-        getActiveTab()?.refresh()
+    fun refreshActiveTab(requestFocus: Boolean = true) {
+        getActiveTab()?.refresh(requestFocus = requestFocus)
     }
 
-    fun refreshActiveTab(selectName: String) {
+    fun refreshActiveTab(selectName: String, requestFocus: Boolean = true) {
         val tab = getActiveTab() ?: return
         val fileOps = project.service<FileOperationService>()
-        fileOps.launch { tab.navigateTo(tab.currentPath, selectName = selectName) }
+        fileOps.launch { tab.navigateTo(tab.currentPath, selectName = selectName, requestFocus = requestFocus) }
     }
 }

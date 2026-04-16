@@ -590,7 +590,7 @@ class FileTab(
     private fun installToggleSelectionBinding(component: JComponent) {
         val spaceAction = object : DumbAwareAction() {
             override fun actionPerformed(e: AnActionEvent) {
-                toggleSelectionAndMoveDown()
+                toggleSelection()
             }
         }
         spaceAction.registerCustomShortcutSet(
@@ -599,7 +599,7 @@ class FileTab(
         )
         val insertAction = object : DumbAwareAction() {
             override fun actionPerformed(e: AnActionEvent) {
-                toggleSelection()
+                toggleSelectionAndMoveDown()
             }
         }
         insertAction.registerCustomShortcutSet(
@@ -817,10 +817,10 @@ class FileTab(
 
         // Register SPACE and INSERT as component-local IntelliJ actions on the tree.
         // This takes priority over both global IntelliJ actions and JTree's default Swing bindings.
-        // SPACE toggles the mark and moves the cursor down; INSERT toggles the mark in place.
+        // SPACE toggles the mark in place; INSERT toggles the mark and moves the cursor down.
         val spaceTreeAction = object : DumbAwareAction() {
             override fun actionPerformed(e: AnActionEvent) {
-                toggleSelectionAndMoveDown()
+                toggleSelection()
             }
         }
         spaceTreeAction.registerCustomShortcutSet(
@@ -829,7 +829,7 @@ class FileTab(
         )
         val insertTreeAction = object : DumbAwareAction() {
             override fun actionPerformed(e: AnActionEvent) {
-                toggleSelection()
+                toggleSelectionAndMoveDown()
             }
         }
         insertTreeAction.registerCustomShortcutSet(
@@ -1224,7 +1224,7 @@ class FileTab(
         }.apply { start() }
     }
 
-    suspend fun navigateTo(path: Path, selectName: String? = null) {
+    suspend fun navigateTo(path: Path, selectName: String? = null, requestFocus: Boolean = true) {
         val vfs = currentVfs
         val entries = try {
             vfs?.listFiles(path) ?: fileOps.listFiles(path)
@@ -1332,15 +1332,18 @@ class FileTab(
                 }
             }
 
-            // Select by name, restore saved position, or default to first row
+            // Select by name, restore saved position (clamped to last row when the saved
+            // index now points past the end — e.g. user deleted the last entry), or default
+            // to first row.
+            val savedCursor = cursorPositions[path]
             val targetRow = if (selectName != null) {
                 (0 until table.rowCount).firstOrNull { viewRow ->
                     val modelRow = table.convertRowIndexToModel(viewRow)
                     tableModel.getEntryAt(modelRow)?.name == selectName
                 }
-            } else {
-                cursorPositions[path]?.takeIf { it < table.rowCount }
-            }
+            } else if (savedCursor != null && table.rowCount > 0) {
+                savedCursor.coerceAtMost(table.rowCount - 1)
+            } else null
 
             if (targetRow != null && targetRow < table.rowCount) {
                 table.setRowSelectionInterval(targetRow, targetRow)
@@ -1352,9 +1355,9 @@ class FileTab(
             // Select in list view too
             val listTarget = if (selectName != null) {
                 (0 until listModel.size()).firstOrNull { listModel.getElementAt(it).name == selectName }
-            } else {
-                null
-            }
+            } else if (savedCursor != null && listModel.size() > 0) {
+                savedCursor.coerceAtMost(listModel.size() - 1)
+            } else null
             if (listTarget != null) {
                 list.selectedIndex = listTarget
                 list.ensureIndexIsVisible(listTarget)
@@ -1365,9 +1368,9 @@ class FileTab(
             // Select in thumbnail view too
             val thumbTarget = if (selectName != null) {
                 (0 until thumbnailListModel.size()).firstOrNull { thumbnailListModel.getElementAt(it).name == selectName }
-            } else {
-                null
-            }
+            } else if (savedCursor != null && thumbnailListModel.size() > 0) {
+                savedCursor.coerceAtMost(thumbnailListModel.size() - 1)
+            } else null
             if (thumbTarget != null) {
                 thumbnailList.selectedIndex = thumbTarget
                 thumbnailList.ensureIndexIsVisible(thumbTarget)
@@ -1377,16 +1380,18 @@ class FileTab(
 
             initialized = true
 
-            when (viewMode) {
-                ViewMode.TABLE -> table.requestFocusInWindow()
-                ViewMode.LIST -> list.requestFocusInWindow()
-                ViewMode.THUMBNAIL -> thumbnailList.requestFocusInWindow()
-                ViewMode.TREE -> tree.requestFocusInWindow()
+            if (requestFocus) {
+                when (viewMode) {
+                    ViewMode.TABLE -> table.requestFocusInWindow()
+                    ViewMode.LIST -> list.requestFocusInWindow()
+                    ViewMode.THUMBNAIL -> thumbnailList.requestFocusInWindow()
+                    ViewMode.TREE -> tree.requestFocusInWindow()
+                }
             }
         }
     }
 
-    fun refresh() {
+    fun refresh(requestFocus: Boolean = true) {
         invalidateFreeSpaceCache()
         ThumbnailCache.evictDirectory(currentPath)
         val vfs = currentVfs
@@ -1400,11 +1405,11 @@ class FileTab(
                     }
                 }
                 val newPath = if (relativePath.isEmpty()) vfs.root else vfs.root.resolve(relativePath)
-                navigateTo(newPath)
+                navigateTo(newPath, requestFocus = requestFocus)
             }
         } else {
             fileOps.invalidateListingCache(currentPath)
-            fileOps.launch { navigateTo(currentPath) }
+            fileOps.launch { navigateTo(currentPath, requestFocus = requestFocus) }
         }
     }
 

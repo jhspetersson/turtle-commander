@@ -134,13 +134,13 @@ class GoToLastAction : FileManagerAction() {
 
 class ToggleSelectionAction : FileManagerAction() {
     override fun actionPerformed(e: AnActionEvent) {
-        findActiveTab(e)?.toggleSelectionAndMoveDown()
+        findActiveTab(e)?.toggleSelection()
     }
 }
 
 class ToggleSelectionMarkAction : FileManagerAction() {
     override fun actionPerformed(e: AnActionEvent) {
-        findActiveTab(e)?.toggleSelection()
+        findActiveTab(e)?.toggleSelectionAndMoveDown()
     }
 }
 
