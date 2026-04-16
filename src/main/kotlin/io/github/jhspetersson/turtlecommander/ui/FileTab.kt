@@ -535,7 +535,7 @@ class FileTab(
             transferHandler = FileEntryTransferHandler(this@FileTab)
 
             selectionModel.addListSelectionListener {
-                if (!insideToggle && !insideRestore && markedPaths.isNotEmpty()) {
+                if (!insideToggle && !insideRestore && !insideViewSwitch && markedPaths.isNotEmpty()) {
                     restoreTableMarks()
                 }
                 updateStatusBar()
@@ -570,7 +570,7 @@ class FileTab(
             transferHandler = FileEntryTransferHandler(this@FileTab)
 
             addListSelectionListener {
-                if (!insideToggle && !insideRestore && markedPaths.isNotEmpty()) {
+                if (!insideToggle && !insideRestore && !insideViewSwitch && markedPaths.isNotEmpty()) {
                     restoreListMarks(list, listModel)
                 }
                 updateStatusBar()
@@ -657,7 +657,7 @@ class FileTab(
             transferHandler = FileEntryTransferHandler(this@FileTab)
 
             addListSelectionListener {
-                if (!insideToggle && !insideRestore && markedPaths.isNotEmpty()) {
+                if (!insideToggle && !insideRestore && !insideViewSwitch && markedPaths.isNotEmpty()) {
                     restoreListMarks(thumbnailList, thumbnailListModel)
                 }
                 updateStatusBar()
@@ -771,7 +771,7 @@ class FileTab(
             })
 
             addTreeSelectionListener {
-                if (!insideToggle && !insideRestore && markedPaths.isNotEmpty()) {
+                if (!insideToggle && !insideRestore && !insideViewSwitch && markedPaths.isNotEmpty()) {
                     restoreTreeMarks()
                 }
                 updateStatusBar()
@@ -1420,6 +1420,12 @@ class FileTab(
     // Set while a selection listener is restoring the marked rows after Swing's default
     // arrow / click handler clobbered them. Prevents the restore from triggering itself.
     internal var insideRestore = false
+    // Set while setViewMode / rebuildFullTree is rebuilding selection in the new view.
+    // Without this, each addRowSelectionInterval call inside selectEntriesByName fires the
+    // listener and runs a full restoreTableMarks pass, giving O(N*rowCount) work on view
+    // switch. With the flag, the listener no-ops and one explicit applyMarksForCurrentView
+    // / restoreTreeMarks call after the rebuild does the work once.
+    internal var insideViewSwitch = false
     internal val directorySizes = ConcurrentHashMap<Path, Long>()
 
     fun openSelectedEntry() {

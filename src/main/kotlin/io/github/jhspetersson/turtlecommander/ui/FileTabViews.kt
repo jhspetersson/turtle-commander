@@ -57,19 +57,18 @@ fun FileTab.setViewMode(mode: ViewMode) {
                 fileOps.launch {
                     navigateTo(targetDir, selectName = namesInDir.firstOrNull())
                     if (namesInDir.size > 1) {
-                        withContext(Dispatchers.EDT) { selectEntriesByName(namesInDir) }
-                    }
-                    if (markedPaths.isNotEmpty()) {
+                        withContext(Dispatchers.EDT) {
+                            selectEntriesByNameThenApplyMarks(namesInDir)
+                        }
+                    } else if (markedPaths.isNotEmpty()) {
                         withContext(Dispatchers.EDT) { applyMarksForCurrentView() }
                     }
                 }
             } else {
-                selectEntriesByName(namesInDir)
-                if (markedPaths.isNotEmpty()) applyMarksForCurrentView()
+                selectEntriesByNameThenApplyMarks(namesInDir)
             }
         } else {
-            selectEntriesByName(selectedNames)
-            if (markedPaths.isNotEmpty()) applyMarksForCurrentView()
+            selectEntriesByNameThenApplyMarks(selectedNames)
         }
         when (mode) {
             ViewMode.THUMBNAIL -> thumbnailList.requestFocusInWindow()
@@ -149,6 +148,8 @@ internal fun FileTab.rebuildFullTree(selectNames: Set<String> = emptySet()) {
         }
 
         withContext(Dispatchers.EDT) {
+            insideViewSwitch = true
+            try {
             treeRootNode.removeAllChildren()
 
             val ancestorNodes = mutableListOf<DefaultMutableTreeNode>()
@@ -224,6 +225,9 @@ internal fun FileTab.rebuildFullTree(selectNames: Set<String> = emptySet()) {
                     tree.scrollPathToVisible(treePaths.first())
                 }
             }
+            } finally {
+                insideViewSwitch = false
+            }
 
             if (markedPaths.isNotEmpty()) restoreTreeMarks()
         }
@@ -237,6 +241,20 @@ internal fun FileTab.applyMarksForCurrentView() {
         ViewMode.THUMBNAIL -> restoreListMarks(thumbnailList, thumbnailListModel)
         ViewMode.TREE -> restoreTreeMarks()
     }
+}
+
+// Suppresses the per-event mark-restore in the selection listeners so the inevitable
+// clearSelection + N addRowSelectionInterval calls inside selectEntriesByName don't each
+// fire a full O(rowCount) restoreTableMarks. One explicit applyMarksForCurrentView at the
+// end does the work once.
+private fun FileTab.selectEntriesByNameThenApplyMarks(names: Set<String>) {
+    insideViewSwitch = true
+    try {
+        selectEntriesByName(names)
+    } finally {
+        insideViewSwitch = false
+    }
+    if (markedPaths.isNotEmpty()) applyMarksForCurrentView()
 }
 
 internal fun FileTab.selectEntriesByName(names: Set<String>) {
