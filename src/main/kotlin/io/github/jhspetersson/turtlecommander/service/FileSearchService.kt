@@ -8,6 +8,7 @@ import io.github.jhspetersson.turtlecommander.dialog.DateFilterMode
 import io.github.jhspetersson.turtlecommander.dialog.DateFilter
 import io.github.jhspetersson.turtlecommander.dialog.PermissionsFilter
 import io.github.jhspetersson.turtlecommander.dialog.PermissionsFilterMode
+import io.github.jhspetersson.turtlecommander.dialog.ResultKind
 import io.github.jhspetersson.turtlecommander.dialog.SizeFilterMode
 import io.github.jhspetersson.turtlecommander.dialog.SizeFilter
 import io.github.jhspetersson.turtlecommander.dialog.NamePatternMode
@@ -120,6 +121,12 @@ class FileSearchService(
         onResult: (FileEntry) -> Unit,
     ) {
         val name = path.fileName?.toString() ?: return
+
+        when (criteria.resultKind) {
+            ResultKind.FILES -> if (attrs.isDirectory) return
+            ResultKind.DIRS -> if (!attrs.isDirectory) return
+            ResultKind.ALL -> Unit
+        }
 
         if (nameMatcher != null && !nameMatcher(name)) return
 

@@ -25,6 +25,7 @@ data class FileSearchCriteria(
     val namePattern: String?,
     val namePatternMode: NamePatternMode,
     val caseSensitive: Boolean = false,
+    val resultKind: ResultKind = ResultKind.ALL,
     val contentPattern: String? = null,
     val contentCaseSensitive: Boolean = false,
     val sizeFilter: SizeFilter?,
@@ -36,6 +37,8 @@ data class FileSearchCriteria(
 )
 
 enum class NamePatternMode { GLOB, REGEXP }
+
+enum class ResultKind { ALL, FILES, DIRS }
 
 data class PermissionsFilter(
     val mode: PermissionsFilterMode,
@@ -99,6 +102,9 @@ class FileSearchDialog(
     private val globRadio = JRadioButton("Glob", initialCriteria?.namePatternMode != NamePatternMode.REGEXP)
     private val regexpRadio = JRadioButton("Regexp", initialCriteria?.namePatternMode == NamePatternMode.REGEXP)
     private val caseSensitiveCheckBox = JCheckBox("Case sensitive", initialCriteria?.caseSensitive == true)
+    private val resultKindAllRadio = JRadioButton("All", initialCriteria?.resultKind != ResultKind.FILES && initialCriteria?.resultKind != ResultKind.DIRS)
+    private val resultKindFilesRadio = JRadioButton("Files", initialCriteria?.resultKind == ResultKind.FILES)
+    private val resultKindDirsRadio = JRadioButton("Dirs", initialCriteria?.resultKind == ResultKind.DIRS)
 
     private val contentCheckBox = JCheckBox("Search by content", initialCriteria?.contentPattern != null)
     private val contentCombo = ComboBox<String>().apply {
@@ -218,6 +224,9 @@ class FileSearchDialog(
         globRadio.addActionListener { swap(); nameEditor.requestFocusInWindow() }
         regexpRadio.addActionListener { swap(); nameEditor.requestFocusInWindow() }
         caseSensitiveCheckBox.addActionListener { nameEditor.requestFocusInWindow() }
+        resultKindAllRadio.addActionListener { nameEditor.requestFocusInWindow() }
+        resultKindFilesRadio.addActionListener { nameEditor.requestFocusInWindow() }
+        resultKindDirsRadio.addActionListener { nameEditor.requestFocusInWindow() }
     }
 
     private fun setupEnabling() {
@@ -227,6 +236,9 @@ class FileSearchDialog(
             globRadio.isEnabled = enabled
             regexpRadio.isEnabled = enabled
             caseSensitiveCheckBox.isEnabled = enabled
+            resultKindAllRadio.isEnabled = enabled
+            resultKindFilesRadio.isEnabled = enabled
+            resultKindDirsRadio.isEnabled = enabled
         }
 
         fun updateSizeEnabled() {
@@ -313,10 +325,13 @@ class FileSearchDialog(
     }
 
     override fun createCenterPanel(): JComponent {
+        // POSIX permissions add an Owner/Group/Others legend row under the checkboxes, so the
+        // dialog needs a bit more vertical room than on Windows.
+        val extraHeight = if (isHostWindows) 0 else 20
         val panel = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
-            minimumSize = Dimension(550, 420)
-            preferredSize = Dimension(550, 570)
+            minimumSize = Dimension(550, 420 + extraHeight)
+            preferredSize = Dimension(550, 570 + extraHeight)
         }
 
         // Search root
@@ -399,7 +414,8 @@ class FileSearchDialog(
             gbc.gridx = 0; gbc.gridy = 0
             add(permissionsModeCombo, gbc)
 
-            // DOS: 4 flags in one row. POSIX: 9 flags in a 3x3 grid (owner/group/others x r/w/x).
+            // DOS: 4 flags in one row. POSIX: 9 flags in one row with short r/w/x labels and
+            // an Owner/Group/Others legend underneath each triplet.
             if (isHostWindows) {
                 var col = 1
                 for (flag in permissionFlagsForOs) {
@@ -409,21 +425,31 @@ class FileSearchDialog(
             } else {
                 val flagsPanel = JPanel(GridBagLayout())
                 val fg = GridBagConstraints().apply {
-                    anchor = GridBagConstraints.WEST
+                    anchor = GridBagConstraints.CENTER
                     insets = JBUI.insets(2, 4)
                 }
                 val triplets = listOf(
-                    Triple(PermissionFlag.OWNER_READ, PermissionFlag.OWNER_WRITE, PermissionFlag.OWNER_EXECUTE),
-                    Triple(PermissionFlag.GROUP_READ, PermissionFlag.GROUP_WRITE, PermissionFlag.GROUP_EXECUTE),
-                    Triple(PermissionFlag.OTHERS_READ, PermissionFlag.OTHERS_WRITE, PermissionFlag.OTHERS_EXECUTE),
+                    "Owner" to Triple(PermissionFlag.OWNER_READ, PermissionFlag.OWNER_WRITE, PermissionFlag.OWNER_EXECUTE),
+                    "Group" to Triple(PermissionFlag.GROUP_READ, PermissionFlag.GROUP_WRITE, PermissionFlag.GROUP_EXECUTE),
+                    "Others" to Triple(PermissionFlag.OTHERS_READ, PermissionFlag.OTHERS_WRITE, PermissionFlag.OTHERS_EXECUTE),
                 )
-                for ((rowIdx, triplet) in triplets.withIndex()) {
-                    fg.gridx = 0; fg.gridy = rowIdx
-                    flagsPanel.add(permissionFlagCheckBoxes.getValue(triplet.first), fg)
-                    fg.gridx = 1
-                    flagsPanel.add(permissionFlagCheckBoxes.getValue(triplet.second), fg)
-                    fg.gridx = 2
-                    flagsPanel.add(permissionFlagCheckBoxes.getValue(triplet.third), fg)
+                for ((groupIdx, entry) in triplets.withIndex()) {
+                    val baseCol = groupIdx * 3
+                    fg.gridy = 0
+                    fg.gridwidth = 1
+                    fg.fill = GridBagConstraints.NONE
+                    fg.gridx = baseCol
+                    flagsPanel.add(permissionFlagCheckBoxes.getValue(entry.second.first), fg)
+                    fg.gridx = baseCol + 1
+                    flagsPanel.add(permissionFlagCheckBoxes.getValue(entry.second.second), fg)
+                    fg.gridx = baseCol + 2
+                    flagsPanel.add(permissionFlagCheckBoxes.getValue(entry.second.third), fg)
+
+                    fg.gridy = 1
+                    fg.gridx = baseCol
+                    fg.gridwidth = 3
+                    fg.fill = GridBagConstraints.HORIZONTAL
+                    flagsPanel.add(JBLabel(entry.first, SwingConstants.CENTER), fg)
                 }
                 gbc.gridx = 1
                 add(flagsPanel, gbc)
@@ -433,15 +459,9 @@ class FileSearchDialog(
     }
 
     private fun permissionLabel(flag: PermissionFlag): String = when (flag) {
-        PermissionFlag.OWNER_READ -> "Owner read"
-        PermissionFlag.OWNER_WRITE -> "Owner write"
-        PermissionFlag.OWNER_EXECUTE -> "Owner execute"
-        PermissionFlag.GROUP_READ -> "Group read"
-        PermissionFlag.GROUP_WRITE -> "Group write"
-        PermissionFlag.GROUP_EXECUTE -> "Group execute"
-        PermissionFlag.OTHERS_READ -> "Others read"
-        PermissionFlag.OTHERS_WRITE -> "Others write"
-        PermissionFlag.OTHERS_EXECUTE -> "Others execute"
+        PermissionFlag.OWNER_READ, PermissionFlag.GROUP_READ, PermissionFlag.OTHERS_READ -> "r"
+        PermissionFlag.OWNER_WRITE, PermissionFlag.GROUP_WRITE, PermissionFlag.OTHERS_WRITE -> "w"
+        PermissionFlag.OWNER_EXECUTE, PermissionFlag.GROUP_EXECUTE, PermissionFlag.OTHERS_EXECUTE -> "x"
         PermissionFlag.DOS_READ_ONLY -> "Read-only"
         PermissionFlag.DOS_HIDDEN -> "Hidden"
         PermissionFlag.DOS_SYSTEM -> "System"
@@ -453,6 +473,18 @@ class FileSearchDialog(
         group.add(globRadio)
         group.add(regexpRadio)
 
+        val resultKindGroup = ButtonGroup()
+        resultKindGroup.add(resultKindAllRadio)
+        resultKindGroup.add(resultKindFilesRadio)
+        resultKindGroup.add(resultKindDirsRadio)
+        val resultKindPanel = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.X_AXIS)
+            isOpaque = false
+            add(resultKindAllRadio)
+            add(resultKindFilesRadio)
+            add(resultKindDirsRadio)
+        }
+
         return JPanel(GridBagLayout()).apply {
             alignmentX = JComponent.LEFT_ALIGNMENT
             border = BorderFactory.createEmptyBorder(2, 20, 0, 0)
@@ -461,7 +493,7 @@ class FileSearchDialog(
                 insets = JBUI.insets(2, 4)
             }
             gbc.gridx = 0; gbc.gridy = 0; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0
-            gbc.gridwidth = 2
+            gbc.gridwidth = 4
             add(nameCombo, gbc)
             gbc.gridwidth = 1; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0.0
             gbc.gridx = 0; gbc.gridy = 1
@@ -470,6 +502,11 @@ class FileSearchDialog(
             add(regexpRadio, gbc)
             gbc.gridx = 2
             add(caseSensitiveCheckBox, gbc)
+            // Push the All/Files/Dirs radio group to the right edge of the row. fill=NONE keeps
+            // the panel at its preferred width so anchor=EAST has room to push against.
+            gbc.gridx = 3; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 1.0
+            gbc.anchor = GridBagConstraints.EAST
+            add(resultKindPanel, gbc)
             maximumSize = Dimension(Int.MAX_VALUE, preferredSize.height)
         }
     }
@@ -620,6 +657,11 @@ class FileSearchDialog(
             namePattern = namePattern,
             namePatternMode = nameMode,
             caseSensitive = caseSensitiveCheckBox.isSelected,
+            resultKind = when {
+                resultKindFilesRadio.isSelected -> ResultKind.FILES
+                resultKindDirsRadio.isSelected -> ResultKind.DIRS
+                else -> ResultKind.ALL
+            },
             contentPattern = contentPattern,
             contentCaseSensitive = contentCaseSensitiveCheckBox.isSelected,
             sizeFilter = sizeFilter,

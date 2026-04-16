@@ -4,6 +4,7 @@ import io.github.jhspetersson.turtlecommander.dialog.FileSearchCriteria
 import io.github.jhspetersson.turtlecommander.dialog.DateFilter
 import io.github.jhspetersson.turtlecommander.dialog.DateFilterMode
 import io.github.jhspetersson.turtlecommander.dialog.NamePatternMode
+import io.github.jhspetersson.turtlecommander.dialog.ResultKind
 import io.github.jhspetersson.turtlecommander.dialog.SizeFilter
 import io.github.jhspetersson.turtlecommander.dialog.SizeFilterMode
 
@@ -709,5 +710,95 @@ class FileSearchFilterTest {
         )
 
         assertTrue(results.size < 100)
+    }
+
+    // --- Result kind (All/Files/Dirs) ---
+
+    @Test
+    fun `result kind ALL returns both files and directories`() {
+        val dir = createTempDir()
+        Files.createDirectory(dir.resolve("subdir"))
+        Files.write(dir.resolve("file.txt"), ByteArray(10))
+
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = null,
+            namePatternMode = NamePatternMode.GLOB,
+            resultKind = ResultKind.ALL,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+        )
+
+        val results = search(criteria)
+        val names = results.map { it.name }.toSet()
+        assertTrue("Should include file", "file.txt" in names)
+        assertTrue("Should include directory", "subdir" in names)
+    }
+
+    @Test
+    fun `result kind FILES excludes directories`() {
+        val dir = createTempDir()
+        Files.createDirectory(dir.resolve("subdir"))
+        Files.write(dir.resolve("file.txt"), ByteArray(10))
+
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = null,
+            namePatternMode = NamePatternMode.GLOB,
+            resultKind = ResultKind.FILES,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+        )
+
+        val results = search(criteria)
+        assertEquals(1, results.size)
+        assertEquals("file.txt", results[0].name)
+        assertFalse(results[0].isDirectory)
+    }
+
+    @Test
+    fun `result kind DIRS excludes files`() {
+        val dir = createTempDir()
+        Files.createDirectory(dir.resolve("subdir"))
+        Files.write(dir.resolve("file.txt"), ByteArray(10))
+
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = null,
+            namePatternMode = NamePatternMode.GLOB,
+            resultKind = ResultKind.DIRS,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+        )
+
+        val results = search(criteria)
+        assertEquals(1, results.size)
+        assertEquals("subdir", results[0].name)
+        assertTrue(results[0].isDirectory)
+    }
+
+    @Test
+    fun `result kind FILES combines with name pattern`() {
+        val dir = createTempDir()
+        Files.createDirectory(dir.resolve("report"))
+        Files.write(dir.resolve("report.txt"), ByteArray(10))
+        Files.write(dir.resolve("image.png"), ByteArray(10))
+
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = "report*",
+            namePatternMode = NamePatternMode.GLOB,
+            resultKind = ResultKind.FILES,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+        )
+
+        val results = search(criteria)
+        assertEquals(1, results.size)
+        assertEquals("report.txt", results[0].name)
     }
 }

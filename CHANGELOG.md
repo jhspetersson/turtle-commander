@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- Search by permissions
+- Search filter by file/directory
+
 ## [0.4.8] - 2026-04-15
 
 ### Added
