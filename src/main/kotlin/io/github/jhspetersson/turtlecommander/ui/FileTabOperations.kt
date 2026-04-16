@@ -51,6 +51,7 @@ internal fun FileTab.performCopyEntries(selected: List<FileEntry>, destination: 
     val copyDialog = CopyDialog(project, selected, destination, displayPath)
     if (!copyDialog.showAndGet()) return
     val overwriteAll = copyDialog.overwriteExisting
+    val finalDestination = copyDialog.targetDirectory
     val sourcePaths = selected.map { it.path }
 
     ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Copying files", true) {
@@ -64,7 +65,7 @@ internal fun FileTab.performCopyEntries(selected: List<FileEntry>, destination: 
 
                 fileOps.copyFilesWithProgress(
                     sources = sourcePaths,
-                    destination = destination,
+                    destination = finalDestination,
                     overwriteAll = overwriteAll,
                     onProgress = { count, name ->
                         indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
@@ -108,6 +109,7 @@ internal fun FileTab.performMoveEntries(selected: List<FileEntry>, destination: 
     val moveDialog = MoveDialog(project, selected, destination, displayPath)
     if (!moveDialog.showAndGet()) return
     val overwriteAll = moveDialog.overwriteExisting
+    val finalDestination = moveDialog.targetDirectory
     val sourcePaths = selected.map { it.path }
 
     ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Moving files", true) {
@@ -121,7 +123,7 @@ internal fun FileTab.performMoveEntries(selected: List<FileEntry>, destination: 
 
                 fileOps.moveFilesWithProgress(
                     sources = sourcePaths,
-                    destination = destination,
+                    destination = finalDestination,
                     overwriteAll = overwriteAll,
                     onProgress = { count, name ->
                         indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
