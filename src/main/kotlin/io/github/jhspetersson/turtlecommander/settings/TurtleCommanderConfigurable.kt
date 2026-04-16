@@ -9,6 +9,7 @@ import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBLabel
+import com.intellij.ui.components.JBList
 import com.intellij.util.ui.JBUI
 import io.github.jhspetersson.turtlecommander.dialog.InputDialog
 import io.github.jhspetersson.turtlecommander.service.ThumbnailCache
@@ -259,19 +260,22 @@ class TurtleCommanderConfigurable : Configurable {
         }
         themeCombo = combo
 
-        val saveButton = JButton("Save").apply {
+        val iconSize = AllIcons.ToolbarDecorator.Export.iconWidth + JBUI.scale(14)
+        val saveButton = JButton(AllIcons.Actions.MenuSaveall).apply {
             toolTipText = "Save current styles as a new theme"
+            preferredSize = Dimension(iconSize, preferredSize.height)
             addActionListener { saveCurrentTheme() }
         }
-        val renameButton = JButton("Rename").apply {
+        val renameButton = JButton(AllIcons.Actions.Edit).apply {
             toolTipText = "Rename the selected custom theme"
+            preferredSize = Dimension(iconSize, preferredSize.height)
             addActionListener { renameSelectedTheme() }
         }
-        val deleteButton = JButton("Delete").apply {
+        val deleteButton = JButton(AllIcons.Actions.GC).apply {
             toolTipText = "Delete the selected custom theme"
+            preferredSize = Dimension(iconSize, preferredSize.height)
             addActionListener { deleteSelectedTheme() }
         }
-        val iconSize = AllIcons.ToolbarDecorator.Export.iconWidth + JBUI.scale(14)
         val exportButton = JButton(AllIcons.ToolbarDecorator.Export).apply {
             toolTipText = "Export the selected theme to a file"
             preferredSize = Dimension(iconSize, preferredSize.height)
@@ -314,61 +318,105 @@ class TurtleCommanderConfigurable : Configurable {
             add(resetStylesButton)
         }
 
-        val styleGrid = JPanel(GridBagLayout()).apply {
-            val gbc = GridBagConstraints().apply {
-                anchor = GridBagConstraints.WEST
-                fill = GridBagConstraints.NONE
-                insets = JBUI.insets(2, 4)
+        val panelEditorLabel = styleEditors["panel"]?.label
+        val commandBarEditorLabel = styleEditors["commandBar"]?.label
+
+        val componentListModel = DefaultListModel<ComponentStyleEditor>()
+        editors.forEach { componentListModel.addElement(it) }
+        val componentList = JBList(componentListModel).apply {
+            selectionMode = ListSelectionModel.SINGLE_SELECTION
+            cellRenderer = object : ListCellRenderer<ComponentStyleEditor> {
+                private val label = JBLabel().apply { border = JBUI.Borders.empty(2, 6) }
+                override fun getListCellRendererComponent(
+                    list: JList<out ComponentStyleEditor>,
+                    value: ComponentStyleEditor?,
+                    index: Int,
+                    isSelected: Boolean,
+                    cellHasFocus: Boolean,
+                ): Component {
+                    label.text = value?.label ?: ""
+                    label.background = if (isSelected) list.selectionBackground else list.background
+                    label.foreground = if (isSelected) list.selectionForeground else list.foreground
+                    label.isOpaque = true
+                    label.font = list.font
+                    return label
+                }
             }
+        }
 
-            // Header row
-            gbc.gridy = 0
-            gbc.gridx = 0; gbc.insets = JBUI.insets(2, 8, 2, 4)
-            add(JBLabel(""), gbc)
-            gbc.insets = JBUI.insets(2, 4)
-            gbc.gridx = 1; add(JBLabel("Font"), gbc)
-            gbc.gridx = 2; add(JBLabel("Size"), gbc)
-            gbc.gridx = 3; add(JBLabel("Style"), gbc)
-            gbc.gridx = 4; add(JBLabel("Color"), gbc)
-            gbc.gridx = 5; add(JBLabel("Bg"), gbc)
-            gbc.gridx = 6; add(JBLabel("Sel"), gbc)
-            gbc.gridx = 7; add(JBLabel("Active"), gbc)
-            // Filler to push everything left
-            gbc.gridx = 8; gbc.weightx = 1.0; gbc.fill = GridBagConstraints.HORIZONTAL
-            add(JPanel().apply { isOpaque = false }, gbc)
-            gbc.weightx = 0.0; gbc.fill = GridBagConstraints.NONE
+        val detailPanel = JPanel(BorderLayout())
 
-            val panelEditorLabel = styleEditors["panel"]?.label
-            val commandBarEditorLabel = styleEditors["commandBar"]?.label
-            for ((i, editor) in editors.withIndex()) {
-                gbc.gridy = i + 1
-                gbc.gridx = 0; gbc.insets = JBUI.insets(2, 8, 2, 4)
-                val lbl = JBLabel("${editor.label}:")
-                add(lbl, gbc)
+        fun renderDetail() {
+            detailPanel.removeAll()
+            val editor = componentList.selectedValue
+            if (editor != null) {
+                val grid = JPanel(GridBagLayout())
+                val gbc = GridBagConstraints().apply {
+                    anchor = GridBagConstraints.WEST
+                    fill = GridBagConstraints.NONE
+                    insets = JBUI.insets(2, 4)
+                }
+                // Spacer row to keep column widths consistent across selections
+                gbc.insets = JBUI.insets(0, 4)
+                gbc.gridy = 0
+                gbc.gridx = 0; grid.add(Box.createHorizontalStrut(JBUI.scale(110)), gbc)
+                gbc.gridx = 1; grid.add(Box.createHorizontalStrut(JBUI.scale(170)), gbc)
                 gbc.insets = JBUI.insets(2, 4)
+
+                var row = 1
                 val bgOnly = editor.label == commandBarEditorLabel
                 if (!bgOnly) {
-                    gbc.gridx = 1; add(editor.fontCombo, gbc)
-                    gbc.gridx = 2; add(editor.sizeSpinner, gbc)
-                    gbc.gridx = 3; add(editor.styleCombo, gbc)
-                    gbc.gridx = 4; add(editor.colorButton, gbc)
+                    gbc.gridy = row++
+                    gbc.gridx = 0; grid.add(JBLabel("Font:"), gbc)
+                    gbc.gridx = 1; grid.add(editor.fontCombo, gbc)
+                    gbc.gridy = row++
+                    gbc.gridx = 0; grid.add(JBLabel("Size:"), gbc)
+                    gbc.gridx = 1; grid.add(editor.sizeSpinner, gbc)
+                    gbc.gridy = row++
+                    gbc.gridx = 0; grid.add(JBLabel("Style:"), gbc)
+                    gbc.gridx = 1; grid.add(editor.styleCombo, gbc)
+                    gbc.gridy = row++
+                    gbc.gridx = 0; grid.add(JBLabel("Color:"), gbc)
+                    gbc.gridx = 1; grid.add(editor.colorButton, gbc)
                 }
-                gbc.gridx = 5; add(editor.bgColorButton, gbc)
+                gbc.gridy = row++
+                gbc.gridx = 0; grid.add(JBLabel("Background:"), gbc)
+                gbc.gridx = 1; grid.add(editor.bgColorButton, gbc)
                 if (editor.label == panelEditorLabel) {
-                    gbc.gridx = 6; add(editor.selectedColorButton, gbc)
-                    gbc.gridx = 7; add(editor.activeSelectedColorButton, gbc)
+                    gbc.gridy = row++
+                    gbc.gridx = 0; grid.add(JBLabel("Selected:"), gbc)
+                    gbc.gridx = 1; grid.add(editor.selectedColorButton, gbc)
+                    gbc.gridy = row++
+                    gbc.gridx = 0; grid.add(JBLabel("Active selected:"), gbc)
+                    gbc.gridx = 1; grid.add(editor.activeSelectedColorButton, gbc)
                 }
+                detailPanel.add(grid, BorderLayout.NORTH)
             }
+            detailPanel.revalidate()
+            detailPanel.repaint()
+        }
+
+        componentList.addListSelectionListener { renderDetail() }
+        if (componentListModel.size() > 0) componentList.selectedIndex = 0
+
+        val listPanel = JPanel(BorderLayout()).apply {
+            add(JScrollPane(componentList).apply {
+                preferredSize = Dimension(160, 0)
+            }, BorderLayout.CENTER)
+        }
+
+        val styleArea = JPanel(BorderLayout(8, 0)).apply {
+            add(listPanel, BorderLayout.WEST)
+            add(detailPanel, BorderLayout.CENTER)
+            preferredSize = Dimension(Int.MAX_VALUE, 280)
+            maximumSize = Dimension(Int.MAX_VALUE, 280)
         }
 
         return JPanel(BorderLayout(8, 4)).apply {
             alignmentX = JComponent.LEFT_ALIGNMENT
             border = BorderFactory.createTitledBorder("Appearance")
-            val topPanel = JPanel(BorderLayout()).apply {
-                add(themeRow, BorderLayout.NORTH)
-                add(styleGrid, BorderLayout.CENTER)
-            }
-            add(topPanel, BorderLayout.CENTER)
+            add(themeRow, BorderLayout.NORTH)
+            add(styleArea, BorderLayout.CENTER)
         }
     }
 
