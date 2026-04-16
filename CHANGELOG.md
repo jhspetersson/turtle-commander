@@ -8,6 +8,11 @@
 
 - Improved Copy/Move dialogs
 - Improved cursor movement
+- Reworked theme configuration UI
+
+### Fixed
+
+- Restoring tab view mode
 
 ## [0.4.9] - 2026-04-16
 
