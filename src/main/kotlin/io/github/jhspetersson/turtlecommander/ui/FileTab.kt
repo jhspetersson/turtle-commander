@@ -982,9 +982,10 @@ class FileTab(
             allEntries
         } else {
             val glob = if (pattern.contains('*') || pattern.contains('?') || pattern.contains('[')) pattern else "*$pattern*"
-            val matcher = if (glob == cachedFilterGlob && cachedFilterMatcher != null) {
+            val cached = cachedFilterMatcher
+            val matcher = if (glob == cachedFilterGlob && cached != null) {
                 setFilterFieldError(false)
-                cachedFilterMatcher!!
+                cached
             } else {
                 val m = try {
                     FileSystems.getDefault().getPathMatcher("glob:$glob")
