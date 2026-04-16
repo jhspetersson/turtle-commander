@@ -535,7 +535,9 @@ class FileTab(
             transferHandler = FileEntryTransferHandler(this@FileTab)
 
             selectionModel.addListSelectionListener {
-                if (!insideToggle) toggledRows.clear()
+                if (!insideToggle && !insideRestore && markedPaths.isNotEmpty()) {
+                    restoreTableMarks()
+                }
                 updateStatusBar()
             }
         }
@@ -568,7 +570,9 @@ class FileTab(
             transferHandler = FileEntryTransferHandler(this@FileTab)
 
             addListSelectionListener {
-                if (!insideToggle) toggledListIndices.clear()
+                if (!insideToggle && !insideRestore && markedPaths.isNotEmpty()) {
+                    restoreListMarks(list, listModel)
+                }
                 updateStatusBar()
                 // VERTICAL_WRAP JList doesn't auto-scroll on programmatic selection
                 // changes (e.g. speed-search Up/Down jumps), so force it here.
@@ -584,16 +588,22 @@ class FileTab(
     }
 
     private fun installToggleSelectionBinding(component: JComponent) {
-        val toggleAction = object : DumbAwareAction() {
+        val spaceAction = object : DumbAwareAction() {
             override fun actionPerformed(e: AnActionEvent) {
                 toggleSelectionAndMoveDown()
             }
         }
-        toggleAction.registerCustomShortcutSet(
-            CustomShortcutSet(
-                KeyboardShortcut(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0), null),
-                KeyboardShortcut(KeyStroke.getKeyStroke(KeyEvent.VK_INSERT, 0), null),
-            ),
+        spaceAction.registerCustomShortcutSet(
+            CustomShortcutSet(KeyboardShortcut(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0), null)),
+            component,
+        )
+        val insertAction = object : DumbAwareAction() {
+            override fun actionPerformed(e: AnActionEvent) {
+                toggleSelection()
+            }
+        }
+        insertAction.registerCustomShortcutSet(
+            CustomShortcutSet(KeyboardShortcut(KeyStroke.getKeyStroke(KeyEvent.VK_INSERT, 0), null)),
             component,
         )
     }
@@ -647,7 +657,9 @@ class FileTab(
             transferHandler = FileEntryTransferHandler(this@FileTab)
 
             addListSelectionListener {
-                if (!insideToggle) toggledThumbnailIndices.clear()
+                if (!insideToggle && !insideRestore && markedPaths.isNotEmpty()) {
+                    restoreListMarks(thumbnailList, thumbnailListModel)
+                }
                 updateStatusBar()
                 if (com.intellij.ui.speedSearch.SpeedSearchSupply.getSupply(thumbnailList) != null) {
                     val idx = thumbnailList.selectedIndex
@@ -759,7 +771,9 @@ class FileTab(
             })
 
             addTreeSelectionListener {
-                if (!insideToggle) toggledTreeRows.clear()
+                if (!insideToggle && !insideRestore && markedPaths.isNotEmpty()) {
+                    restoreTreeMarks()
+                }
                 updateStatusBar()
             }
 
@@ -803,16 +817,23 @@ class FileTab(
 
         // Register SPACE and INSERT as component-local IntelliJ actions on the tree.
         // This takes priority over both global IntelliJ actions and JTree's default Swing bindings.
-        val toggleTreeAction = object : DumbAwareAction() {
+        // SPACE toggles the mark and moves the cursor down; INSERT toggles the mark in place.
+        val spaceTreeAction = object : DumbAwareAction() {
             override fun actionPerformed(e: AnActionEvent) {
                 toggleSelectionAndMoveDown()
             }
         }
-        toggleTreeAction.registerCustomShortcutSet(
-            CustomShortcutSet(
-                KeyboardShortcut(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0), null),
-                KeyboardShortcut(KeyStroke.getKeyStroke(KeyEvent.VK_INSERT, 0), null),
-            ),
+        spaceTreeAction.registerCustomShortcutSet(
+            CustomShortcutSet(KeyboardShortcut(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0), null)),
+            tree,
+        )
+        val insertTreeAction = object : DumbAwareAction() {
+            override fun actionPerformed(e: AnActionEvent) {
+                toggleSelection()
+            }
+        }
+        insertTreeAction.registerCustomShortcutSet(
+            CustomShortcutSet(KeyboardShortcut(KeyStroke.getKeyStroke(KeyEvent.VK_INSERT, 0), null)),
             tree,
         )
     }
@@ -993,6 +1014,10 @@ class FileTab(
         }
 
         val selectedName = getSelectedEntry()?.name
+
+        // Filtering reshuffles row indices, so the persistent mark sets would point at the
+        // wrong files. Drop them.
+        clearAllToggledMarks()
 
         tableModel.setEntries(filtered)
 
@@ -1239,6 +1264,9 @@ class FileTab(
 
             allEntries = entries
             directorySizes.clear()
+            // Mark indices are tied to the previous directory's row positions, so they would
+            // point at the wrong files after the swap.
+            clearAllToggledMarks()
             // Hide filter on navigation
             if (filterPanel.isVisible) {
                 filterField.text = ""
@@ -1387,11 +1415,13 @@ class FileTab(
         driveCombo.showPopup()
     }
 
-    internal val toggledRows = mutableSetOf<Int>()
-    internal val toggledTreeRows = mutableSetOf<Int>()
-    internal val toggledListIndices = mutableSetOf<Int>()
-    internal val toggledThumbnailIndices = mutableSetOf<Int>()
+    // Persistent marks (Insert/Space) keyed by absolute path so they survive sort changes
+    // and view-mode switches. Each renderer/apply helper translates back to view rows on the fly.
+    internal val markedPaths = mutableSetOf<Path>()
     internal var insideToggle = false
+    // Set while a selection listener is restoring the marked rows after Swing's default
+    // arrow / click handler clobbered them. Prevents the restore from triggering itself.
+    internal var insideRestore = false
     internal val directorySizes = ConcurrentHashMap<Path, Long>()
 
     fun openSelectedEntry() {

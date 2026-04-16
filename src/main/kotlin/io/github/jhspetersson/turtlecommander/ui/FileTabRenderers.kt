@@ -165,15 +165,27 @@ internal class StyledFileNameCellRenderer(
     ) {
         val modelRow = table.convertRowIndexToModel(row)
         val entry = tab.tableModel.getEntryAt(modelRow)
+        val isMarked = entry != null && entry.path in tab.markedPaths
+        val isCursor = row == table.selectionModel.leadSelectionIndex
         icon = if (entry != null) fileEntryIcon(entry, tab.enableFileNameHighlighting) else null
 
-        if (selected && !table.hasFocus()) {
+        if (isMarked && isCursor) {
+            background = MARK_CURSOR_BACKGROUND
+        } else if (isMarked) {
+            background = MARK_BACKGROUND
+        } else if (isCursor) {
+            background = if (table.hasFocus()) table.selectionBackground else tab.inactiveSelectionBackground()
+        } else if (selected && !table.hasFocus()) {
             background = tab.inactiveSelectionBackground()
         } else if (!selected) {
             background = table.background
         }
 
         val fg: Color? = when {
+            isMarked && isCursor -> table.foreground
+            isMarked -> table.foreground
+            isCursor && table.hasFocus() -> table.selectionForeground
+            isCursor -> tab.inactiveSelectionForeground()
             selected && !table.hasFocus() -> tab.inactiveSelectionForeground()
             selected -> null // default selection foreground from ColoredTableCellRenderer
             tab.enableFileNameHighlighting && entry != null && entry.isDirectory && entry.directoryType != DirectoryType.NONE ->
@@ -214,8 +226,20 @@ internal class StyledDisplayValueRenderer(
         val modelRow = table.convertRowIndexToModel(row)
         val modelCol = table.convertColumnIndexToModel(column)
         val displayValue = tab.tableModel.getDisplayValue(modelRow, modelCol)
+        val entry = tab.tableModel.getEntryAt(modelRow)
+        val isMarked = entry != null && entry.path in tab.markedPaths
+        val isCursor = row == table.selectionModel.leadSelectionIndex
         val comp = super.getTableCellRendererComponent(table, displayValue, isSelected, false, row, column)
-        if (isSelected && !table.hasFocus()) {
+        if (isMarked && isCursor) {
+            background = MARK_CURSOR_BACKGROUND
+            foreground = table.foreground
+        } else if (isMarked) {
+            background = MARK_BACKGROUND
+            foreground = table.foreground
+        } else if (isCursor) {
+            background = if (table.hasFocus()) table.selectionBackground else tab.inactiveSelectionBackground()
+            foreground = if (table.hasFocus()) table.selectionForeground else tab.inactiveSelectionForeground()
+        } else if (isSelected && !table.hasFocus()) {
             background = tab.inactiveSelectionBackground()
             foreground = tab.inactiveSelectionForeground()
         } else if (!isSelected) {
@@ -247,6 +271,12 @@ internal fun FileTab.inactiveSelectionForeground(): Color {
     return table.foreground
 }
 
+// Persistent marks (Insert/Space) get their own warm-amber background so they remain
+// visually distinct from the cursor row's active selection. Default theme blue is reserved
+// for the cursor-only row; the cursor-on-marked combo uses a deeper, saturated orange.
+internal val MARK_BACKGROUND: JBColor = JBColor(Color(0xFFD180), Color(0x6B4A1F))
+internal val MARK_CURSOR_BACKGROUND: JBColor = JBColor(Color(0xFF8C42), Color(0xA86A20))
+
 internal class FileListCellRenderer(private val tab: FileTab) : ColoredListCellRenderer<FileEntry>() {
     override fun customizeCellRenderer(
         list: JList<out FileEntry>,
@@ -256,8 +286,20 @@ internal class FileListCellRenderer(private val tab: FileTab) : ColoredListCellR
         hasFocus: Boolean,
     ) {
         val entry = value ?: return
+        val isMarked = entry.path in tab.markedPaths
+        val isCursor = index == list.selectionModel.leadSelectionIndex
         icon = fileEntryIcon(entry, tab.enableFileNameHighlighting)
+        if (isMarked && isCursor) {
+            background = MARK_CURSOR_BACKGROUND
+        } else if (isMarked) {
+            background = MARK_BACKGROUND
+        } else if (isCursor) {
+            background = list.selectionBackground
+        }
         val fg: Color? = when {
+            isMarked && isCursor -> list.foreground
+            isMarked -> list.foreground
+            isCursor -> list.selectionForeground
             selected -> null
             tab.enableFileNameHighlighting && entry.isDirectory && entry.directoryType != DirectoryType.NONE ->
                 DirectoryIcons.getColor(entry.directoryType)
@@ -319,7 +361,18 @@ internal class FileThumbnailCellRenderer(private val tab: FileTab) : ListCellRen
         nameLabel.text = highlightSpeedSearchMatches(list, displayName)
         nameLabel.toolTipText = name
         nameLabel.font = list.font
-        if (isSelected) {
+        val isMarked = entry.path in tab.markedPaths
+        val isCursor = index == list.selectionModel.leadSelectionIndex
+        if (isMarked && isCursor) {
+            panel.background = MARK_CURSOR_BACKGROUND
+            nameLabel.foreground = list.foreground
+        } else if (isMarked) {
+            panel.background = MARK_BACKGROUND
+            nameLabel.foreground = list.foreground
+        } else if (isCursor) {
+            panel.background = list.selectionBackground
+            nameLabel.foreground = list.selectionForeground
+        } else if (isSelected) {
             panel.background = list.selectionBackground
             nameLabel.foreground = list.selectionForeground
         } else {
@@ -349,8 +402,20 @@ internal class FileTreeCellRenderer(private val tab: FileTab) : ColoredTreeCellR
             append(node.userObject?.toString().orEmpty())
             return
         }
+        val isMarked = entry.path in tab.markedPaths
+        val isCursor = row == tree.leadSelectionRow
         icon = fileEntryIcon(entry, tab.enableFileNameHighlighting)
+        if (isMarked && isCursor) {
+            background = MARK_CURSOR_BACKGROUND
+        } else if (isMarked) {
+            background = MARK_BACKGROUND
+        } else if (isCursor) {
+            background = UIManager.getColor("Tree.selectionBackground") ?: tree.background
+        }
         val fg: Color? = when {
+            isMarked && isCursor -> tree.foreground
+            isMarked -> tree.foreground
+            isCursor -> UIManager.getColor("Tree.selectionForeground") ?: tree.foreground
             selected -> null
             tab.enableFileNameHighlighting && entry.isDirectory && entry.directoryType != DirectoryType.NONE ->
                 DirectoryIcons.getColor(entry.directoryType)

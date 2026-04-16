@@ -59,12 +59,17 @@ fun FileTab.setViewMode(mode: ViewMode) {
                     if (namesInDir.size > 1) {
                         withContext(Dispatchers.EDT) { selectEntriesByName(namesInDir) }
                     }
+                    if (markedPaths.isNotEmpty()) {
+                        withContext(Dispatchers.EDT) { applyMarksForCurrentView() }
+                    }
                 }
             } else {
                 selectEntriesByName(namesInDir)
+                if (markedPaths.isNotEmpty()) applyMarksForCurrentView()
             }
         } else {
             selectEntriesByName(selectedNames)
+            if (markedPaths.isNotEmpty()) applyMarksForCurrentView()
         }
         when (mode) {
             ViewMode.THUMBNAIL -> thumbnailList.requestFocusInWindow()
@@ -219,7 +224,18 @@ internal fun FileTab.rebuildFullTree(selectNames: Set<String> = emptySet()) {
                     tree.scrollPathToVisible(treePaths.first())
                 }
             }
+
+            if (markedPaths.isNotEmpty()) restoreTreeMarks()
         }
+    }
+}
+
+internal fun FileTab.applyMarksForCurrentView() {
+    when (viewMode) {
+        ViewMode.TABLE -> restoreTableMarks()
+        ViewMode.LIST -> restoreListMarks(list, listModel)
+        ViewMode.THUMBNAIL -> restoreListMarks(thumbnailList, thumbnailListModel)
+        ViewMode.TREE -> restoreTreeMarks()
     }
 }
 

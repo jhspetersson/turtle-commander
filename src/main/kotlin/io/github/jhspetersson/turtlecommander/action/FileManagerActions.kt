@@ -138,6 +138,12 @@ class ToggleSelectionAction : FileManagerAction() {
     }
 }
 
+class ToggleSelectionMarkAction : FileManagerAction() {
+    override fun actionPerformed(e: AnActionEvent) {
+        findActiveTab(e)?.toggleSelection()
+    }
+}
+
 class QuickFilterAction : FileManagerAction() {
     override fun update(e: AnActionEvent) {
         e.presentation.isEnabled = isToolWindowActive(e)

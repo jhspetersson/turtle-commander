@@ -9,6 +9,10 @@
 - Search by permissions
 - Search filter by file/directory
 
+### Changed
+
+- Selection logic mimics existing dual-pane file managers
+
 ## [0.4.8] - 2026-04-15
 
 ### Added

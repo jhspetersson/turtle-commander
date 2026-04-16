@@ -15,6 +15,7 @@ import java.nio.file.Path
 import java.nio.file.SimpleFileVisitor
 import java.nio.file.attribute.BasicFileAttributes
 import javax.swing.DefaultListModel
+import javax.swing.DefaultListSelectionModel
 import javax.swing.JList
 import javax.swing.tree.DefaultMutableTreeNode
 
@@ -103,7 +104,15 @@ fun FileTab.showContextMenu() {
     }
 }
 
+fun FileTab.toggleSelection() {
+    toggleSelectionInternal(moveCursorDown = false)
+}
+
 fun FileTab.toggleSelectionAndMoveDown() {
+    toggleSelectionInternal(moveCursorDown = true)
+}
+
+private fun FileTab.toggleSelectionInternal(moveCursorDown: Boolean) {
     insideToggle = true
     try {
     when (viewMode) {
@@ -112,47 +121,24 @@ fun FileTab.toggleSelectionAndMoveDown() {
             if (row < 0) return
             val modelRow = table.convertRowIndexToModel(row)
             val entry = tableModel.getEntryAt(modelRow)
-            if (entry != null && !entry.isParentLink) {
-                if (row in toggledRows) {
-                    toggledRows.remove(row)
-                } else {
-                    toggledRows.add(row)
-                    if (entry.isDirectory) calculateDirectorySize(entry)
-                }
-            }
-            val nextRow = if (row + 1 < table.rowCount) row + 1 else row
-            val nextModelRow = table.convertRowIndexToModel(nextRow)
-            val nextEntry = tableModel.getEntryAt(nextModelRow)
-            if (nextEntry != null && nextEntry.isDirectory && !nextEntry.isParentLink) {
-                calculateDirectorySize(nextEntry)
-            }
-            applyToggledSelection(nextRow)
-            table.selectionModel.leadSelectionIndex = nextRow
-            table.scrollRectToVisible(table.getCellRect(nextRow, 0, true))
+            toggleMarkForEntry(entry)
+            val cursorRow = if (moveCursorDown && row + 1 < table.rowCount) row + 1 else row
+            applyToggledSelection()
+            val tsm = table.selectionModel as? DefaultListSelectionModel
+            tsm?.moveLeadSelectionIndex(cursorRow) ?: run { table.selectionModel.leadSelectionIndex = cursorRow }
+            if (moveCursorDown) table.scrollRectToVisible(table.getCellRect(cursorRow, 0, true))
         }
-        ViewMode.LIST -> toggleListSelectionAndMoveDown(list, listModel, toggledListIndices)
-        ViewMode.THUMBNAIL -> toggleListSelectionAndMoveDown(thumbnailList, thumbnailListModel, toggledThumbnailIndices)
+        ViewMode.LIST -> toggleListSelection(list, listModel, moveCursorDown)
+        ViewMode.THUMBNAIL -> toggleListSelection(thumbnailList, thumbnailListModel, moveCursorDown)
         ViewMode.TREE -> {
             val leadRow = tree.leadSelectionRow
             if (leadRow < 0) return
             val node = (tree.getPathForRow(leadRow)?.lastPathComponent) as? DefaultMutableTreeNode
             val entry = node?.userObject as? FileEntry
-            if (entry != null && !entry.isParentLink) {
-                if (leadRow in toggledTreeRows) {
-                    toggledTreeRows.remove(leadRow)
-                } else {
-                    toggledTreeRows.add(leadRow)
-                    if (entry.isDirectory) calculateDirectorySize(entry)
-                }
-            }
-            val nextRow = if (leadRow + 1 < tree.rowCount) leadRow + 1 else leadRow
-            val nextNode = (tree.getPathForRow(nextRow)?.lastPathComponent) as? DefaultMutableTreeNode
-            val nextEntry = nextNode?.userObject as? FileEntry
-            if (nextEntry != null && nextEntry.isDirectory && !nextEntry.isParentLink) {
-                calculateDirectorySize(nextEntry)
-            }
-            applyToggledTreeSelection(nextRow)
-            tree.scrollRowToVisible(nextRow)
+            toggleMarkForEntry(entry)
+            val cursorRow = if (moveCursorDown && leadRow + 1 < tree.rowCount) leadRow + 1 else leadRow
+            applyToggledTreeSelection()
+            if (moveCursorDown) tree.scrollRowToVisible(cursorRow)
         }
     }
     } finally {
@@ -160,55 +146,113 @@ fun FileTab.toggleSelectionAndMoveDown() {
     }
 }
 
-private fun <T : JList<FileEntry>> FileTab.toggleListSelectionAndMoveDown(
-    jList: T, model: DefaultListModel<FileEntry>, toggled: MutableSet<Int>,
+private fun FileTab.toggleMarkForEntry(entry: FileEntry?) {
+    if (entry == null || entry.isParentLink) return
+    if (entry.path in markedPaths) {
+        markedPaths.remove(entry.path)
+    } else {
+        markedPaths.add(entry.path)
+        if (entry.isDirectory) calculateDirectorySize(entry)
+    }
+}
+
+private fun <T : JList<FileEntry>> FileTab.toggleListSelection(
+    jList: T, model: DefaultListModel<FileEntry>, moveCursorDown: Boolean,
 ) {
     val index = jList.selectionModel.leadSelectionIndex
     if (index < 0 || index >= model.size()) return
     val entry = model.getElementAt(index)
-    if (entry != null && !entry.isParentLink) {
-        if (index in toggled) {
-            toggled.remove(index)
-        } else {
-            toggled.add(index)
-            if (entry.isDirectory) calculateDirectorySize(entry)
-        }
-    }
-    val nextIndex = if (index + 1 < model.size()) index + 1 else index
-    val nextEntry = model.getElementAt(nextIndex)
-    if (nextEntry != null && nextEntry.isDirectory && !nextEntry.isParentLink) {
-        calculateDirectorySize(nextEntry)
-    }
-    val indicesToSelect = toggled.toMutableSet()
-    indicesToSelect.add(nextIndex)
-    jList.clearSelection()
-    for (i in indicesToSelect) {
-        if (i in 0 until model.size()) jList.addSelectionInterval(i, i)
-    }
-    jList.selectionModel.leadSelectionIndex = nextIndex
-    jList.ensureIndexIsVisible(nextIndex)
+    toggleMarkForEntry(entry)
+    val cursorIndex = if (moveCursorDown && index + 1 < model.size()) index + 1 else index
+    applyMarksToList(jList, model)
+    val lsm = jList.selectionModel as? DefaultListSelectionModel
+    lsm?.moveLeadSelectionIndex(cursorIndex) ?: run { jList.selectionModel.leadSelectionIndex = cursorIndex }
+    if (moveCursorDown) jList.ensureIndexIsVisible(cursorIndex)
 }
 
-internal fun FileTab.applyToggledSelection(cursorRow: Int) {
-    val rowsToSelect = toggledRows.toMutableSet()
-    rowsToSelect.add(cursorRow)
+internal fun FileTab.applyToggledSelection() {
     table.clearSelection()
-    for (row in rowsToSelect) {
-        if (row in 0 until table.rowCount) {
-            table.addRowSelectionInterval(row, row)
+    for (viewRow in 0 until table.rowCount) {
+        val modelRow = table.convertRowIndexToModel(viewRow)
+        val entry = tableModel.getEntryAt(modelRow) ?: continue
+        if (entry.path in markedPaths) {
+            table.addRowSelectionInterval(viewRow, viewRow)
         }
     }
 }
 
-internal fun FileTab.applyToggledTreeSelection(cursorRow: Int) {
-    val rowsToSelect = toggledTreeRows.toMutableSet()
-    rowsToSelect.add(cursorRow)
+internal fun FileTab.applyToggledTreeSelection() {
     tree.clearSelection()
-    for (row in rowsToSelect) {
-        if (row in 0 until tree.rowCount) {
+    for (row in 0 until tree.rowCount) {
+        val node = tree.getPathForRow(row)?.lastPathComponent as? DefaultMutableTreeNode ?: continue
+        val entry = node.userObject as? FileEntry ?: continue
+        if (entry.path in markedPaths) {
             tree.addSelectionRow(row)
         }
     }
+}
+
+internal fun <T : JList<FileEntry>> FileTab.applyMarksToList(jList: T, model: DefaultListModel<FileEntry>) {
+    jList.clearSelection()
+    for (i in 0 until model.size()) {
+        val entry = model.getElementAt(i) ?: continue
+        if (entry.path in markedPaths) jList.addSelectionInterval(i, i)
+    }
+}
+
+// Re-apply the persistent mark set to the table's selection model after Swing's default key /
+// mouse handler clobbered it (arrow keys, HOME/END, plain click), preserving the new lead so
+// the cursor still moves visibly. Only the marked rows are highlighted; the cursor row gets the
+// focus rectangle from the lead index when it isn't itself marked.
+//
+// Restoring the lead requires `moveLeadSelectionIndex` (DefaultListSelectionModel-specific):
+// `setLeadSelectionIndex` would also extend or shrink the selection between anchor and the new
+// lead — which is exactly the "selection follows the cursor" bug we're trying to avoid.
+internal fun FileTab.restoreTableMarks() {
+    val savedAnchor = table.selectionModel.anchorSelectionIndex
+    val savedLead = table.selectionModel.leadSelectionIndex
+    insideRestore = true
+    try {
+        applyToggledSelection()
+        val sm = table.selectionModel as? DefaultListSelectionModel
+        if (savedAnchor in 0 until table.rowCount) sm?.anchorSelectionIndex = savedAnchor
+        if (savedLead in 0 until table.rowCount) sm?.moveLeadSelectionIndex(savedLead)
+    } finally {
+        insideRestore = false
+    }
+}
+
+internal fun <T : JList<FileEntry>> FileTab.restoreListMarks(jList: T, model: DefaultListModel<FileEntry>) {
+    val savedAnchor = jList.selectionModel.anchorSelectionIndex
+    val savedLead = jList.selectionModel.leadSelectionIndex
+    insideRestore = true
+    try {
+        applyMarksToList(jList, model)
+        val sm = jList.selectionModel as? DefaultListSelectionModel
+        if (savedAnchor in 0 until jList.model.size) sm?.anchorSelectionIndex = savedAnchor
+        if (savedLead in 0 until jList.model.size) sm?.moveLeadSelectionIndex(savedLead)
+    } finally {
+        insideRestore = false
+    }
+}
+
+// JTree exposes no public setter for the lead path, so we can't visually separate the cursor
+// from the marked rows the way the table can. Instead the cursor path is appended to the
+// selection — matching the look JTree had before this rework, while still preserving the
+// persistent mark set across arrow / click navigation.
+internal fun FileTab.restoreTreeMarks() {
+    val cursorPath = tree.leadSelectionPath ?: tree.selectionPath
+    insideRestore = true
+    try {
+        applyToggledTreeSelection()
+        if (cursorPath != null) tree.addSelectionPath(cursorPath)
+    } finally {
+        insideRestore = false
+    }
+}
+
+internal fun FileTab.clearAllToggledMarks() {
+    markedPaths.clear()
 }
 
 internal fun FileTab.calculateDirectorySize(entry: FileEntry) {

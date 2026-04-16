@@ -118,6 +118,11 @@
                     text="Toggle Selection"
                     description="Toggle selection of the current entry and move to the next one">
                 <keyboard-shortcut first-keystroke="SPACE" keymap="$default"/>
+            </action>
+            <action id="TurtleCommander.ToggleSelectionMark"
+                    class="io.github.jhspetersson.turtlecommander.action.ToggleSelectionMarkAction"
+                    text="Toggle Selection (No Cursor Move)"
+                    description="Toggle selection of the current entry without moving the cursor">
                 <keyboard-shortcut first-keystroke="INSERT" keymap="$default"/>
             </action>
             <action id="TurtleCommander.Quit"
