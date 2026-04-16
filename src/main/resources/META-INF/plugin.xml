@@ -94,6 +94,8 @@
                     description="Delete selected files">
                 <keyboard-shortcut first-keystroke="F8" keymap="$default"/>
                 <keyboard-shortcut first-keystroke="DELETE" keymap="$default"/>
+                <keyboard-shortcut first-keystroke="shift DELETE" keymap="$default"/>
+                <keyboard-shortcut first-keystroke="shift F8" keymap="$default"/>
             </action>
             <action id="TurtleCommander.SwitchPanel"
                     class="io.github.jhspetersson.turtlecommander.action.SwitchPanelAction"

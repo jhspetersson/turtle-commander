@@ -14,11 +14,12 @@ import javax.swing.JTextArea
 class DeleteDialog(
     project: Project,
     private val sources: List<FileEntry>,
+    private val useRecycleBin: Boolean = false,
 ) : DialogWrapper(project) {
 
     init {
-        title = "Delete"
-        setOKButtonText("Delete")
+        title = if (useRecycleBin) "Move to Recycle Bin" else "Delete"
+        setOKButtonText(if (useRecycleBin) "Move to Recycle Bin" else "Delete")
         init()
     }
 
@@ -29,11 +30,7 @@ class DeleteDialog(
             preferredSize = Dimension(500, 120)
         }
 
-        val label = if (sources.size == 1) {
-            "Delete \"${sources[0].name}\"?"
-        } else {
-            "Delete ${sources.size} items?"
-        }
+        val label = buildPrompt(sources, useRecycleBin)
 
         panel.add(JBLabel(label).apply {
             alignmentX = JComponent.LEFT_ALIGNMENT
@@ -50,5 +47,22 @@ class DeleteDialog(
         }
 
         return panel
+    }
+
+    companion object {
+        /**
+         * Package-visible for testing: the exact wording depends on whether the deletion is
+         * permanent or reversible via the recycle bin, so tests assert against this directly
+         * without spinning up the Swing dialog.
+         */
+        fun buildPrompt(sources: List<FileEntry>, useRecycleBin: Boolean): String {
+            return if (sources.size == 1) {
+                if (useRecycleBin) "Move \"${sources[0].name}\" to Recycle Bin?"
+                else "Delete \"${sources[0].name}\"?"
+            } else {
+                if (useRecycleBin) "Move ${sources.size} items to Recycle Bin?"
+                else "Delete ${sources.size} items?"
+            }
+        }
     }
 }

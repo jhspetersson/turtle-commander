@@ -8,6 +8,7 @@
 
 - Duplicate tab action
 - Close duplicate tabs action
+- Option to delete to Recycle Bin
 
 ### Changed
 

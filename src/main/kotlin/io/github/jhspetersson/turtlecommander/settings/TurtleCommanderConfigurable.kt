@@ -25,6 +25,7 @@ class TurtleCommanderConfigurable : Configurable {
     private var hideDriveSelectorCheckBox: JCheckBox? = null
     private var hideStatusBarCheckBox: JCheckBox? = null
     private var overwriteCheckBox: JCheckBox? = null
+    private var deleteToRecycleBinCheckBox: JCheckBox? = null
     private var sortWithDirectoriesCheckBox: JCheckBox? = null
     private var calculateDirectorySizeCheckBox: JCheckBox? = null
     private var defaultViewModeCombo: ComboBox<String>? = null
@@ -52,6 +53,7 @@ class TurtleCommanderConfigurable : Configurable {
         hideDriveSelectorCheckBox = JCheckBox("Hide drive selector", settings.hideDriveSelector)
         hideStatusBarCheckBox = JCheckBox("Hide status bar", settings.hideStatusBar)
         overwriteCheckBox = JCheckBox("Always overwrite existing files during copy/move", settings.alwaysOverwriteFiles)
+        deleteToRecycleBinCheckBox = JCheckBox("Delete to Recycle Bin (Shift+Delete bypasses)", settings.deleteToRecycleBin)
         sortWithDirectoriesCheckBox = JCheckBox("Sort directories together with files", settings.sortWithDirectories)
         calculateDirectorySizeCheckBox = JCheckBox("Calculate directory size on selection", settings.calculateDirectorySize)
 
@@ -111,6 +113,7 @@ class TurtleCommanderConfigurable : Configurable {
         hideDriveSelectorCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         hideStatusBarCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         overwriteCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
+        deleteToRecycleBinCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         sortWithDirectoriesCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         calculateDirectorySizeCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
 
@@ -144,6 +147,7 @@ class TurtleCommanderConfigurable : Configurable {
             add(hideDriveSelectorCheckBox)
             add(hideStatusBarCheckBox)
             add(overwriteCheckBox)
+            add(deleteToRecycleBinCheckBox)
             add(sortWithDirectoriesCheckBox)
             add(calculateDirectorySizeCheckBox)
             add(Box.createVerticalStrut(8))
@@ -549,6 +553,7 @@ class TurtleCommanderConfigurable : Configurable {
             || hideDriveSelectorCheckBox?.isSelected != settings.hideDriveSelector
             || hideStatusBarCheckBox?.isSelected != settings.hideStatusBar
             || overwriteCheckBox?.isSelected != settings.alwaysOverwriteFiles
+            || deleteToRecycleBinCheckBox?.isSelected != settings.deleteToRecycleBin
             || sortWithDirectoriesCheckBox?.isSelected != settings.sortWithDirectories
             || calculateDirectorySizeCheckBox?.isSelected != settings.calculateDirectorySize
             || getSelectedViewMode() != settings.defaultViewMode
@@ -573,6 +578,7 @@ class TurtleCommanderConfigurable : Configurable {
         settings.hideDriveSelector = hideDriveSelectorCheckBox?.isSelected ?: settings.hideDriveSelector
         settings.hideStatusBar = hideStatusBarCheckBox?.isSelected ?: settings.hideStatusBar
         settings.alwaysOverwriteFiles = overwriteCheckBox?.isSelected ?: settings.alwaysOverwriteFiles
+        settings.deleteToRecycleBin = deleteToRecycleBinCheckBox?.isSelected ?: settings.deleteToRecycleBin
         settings.sortWithDirectories = sortWithDirectoriesCheckBox?.isSelected ?: settings.sortWithDirectories
         settings.calculateDirectorySize = calculateDirectorySizeCheckBox?.isSelected ?: settings.calculateDirectorySize
         settings.defaultViewMode = getSelectedViewMode()
@@ -608,6 +614,7 @@ class TurtleCommanderConfigurable : Configurable {
         hideDriveSelectorCheckBox?.isSelected = settings.hideDriveSelector
         hideStatusBarCheckBox?.isSelected = settings.hideStatusBar
         overwriteCheckBox?.isSelected = settings.alwaysOverwriteFiles
+        deleteToRecycleBinCheckBox?.isSelected = settings.deleteToRecycleBin
         sortWithDirectoriesCheckBox?.isSelected = settings.sortWithDirectories
         calculateDirectorySizeCheckBox?.isSelected = settings.calculateDirectorySize
         defaultViewModeCombo?.selectedItem = when (settings.defaultViewMode) {
@@ -643,6 +650,7 @@ class TurtleCommanderConfigurable : Configurable {
         hideDriveSelectorCheckBox = null
         hideStatusBarCheckBox = null
         overwriteCheckBox = null
+        deleteToRecycleBinCheckBox = null
         sortWithDirectoriesCheckBox = null
         calculateDirectorySizeCheckBox = null
         panelFontCombo = null

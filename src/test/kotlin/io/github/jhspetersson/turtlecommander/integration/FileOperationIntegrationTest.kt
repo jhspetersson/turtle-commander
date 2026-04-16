@@ -246,6 +246,106 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         assertFalse(Files.exists(f3))
     }
 
+    fun testDeleteToRecycleBinUsesMoveToTrash() = runBlocking {
+        val f1 = Files.writeString(tempDir.resolve("r1.txt"), "1")
+        val f2 = Files.writeString(tempDir.resolve("r2.txt"), "2")
+        val subDir = Files.createDirectory(tempDir.resolve("rdir"))
+        Files.writeString(subDir.resolve("inner.txt"), "inner")
+
+        val trashed = mutableListOf<Path>()
+        fileOps.isMoveToTrashSupported = { true }
+        fileOps.moveToTrash = { path ->
+            trashed.add(path)
+            // Simulate OS trash by deleting (so the file no longer appears at the original
+            // location) — real moveToTrash does the same from the filesystem's perspective.
+            if (Files.isDirectory(path)) path.toFile().deleteRecursively()
+            else Files.deleteIfExists(path)
+            true
+        }
+
+        val progressCounts = mutableListOf<Int>()
+        fileOps.deleteFilesWithProgress(
+            paths = listOf(f1, f2, subDir),
+            onProgress = { count, _ -> progressCounts.add(count) },
+            onError = { _, e -> fail("Unexpected error: $e") },
+            isCancelled = { false },
+            useRecycleBin = true,
+        )
+
+        assertEquals("moveToTrash called per top-level path", 3, trashed.size)
+        assertEquals(listOf(1, 2, 3), progressCounts)
+        assertFalse(Files.exists(f1))
+        assertFalse(Files.exists(f2))
+        assertFalse(Files.exists(subDir))
+    }
+
+    fun testDeleteToRecycleBinReportsErrorWhenMoveFails() = runBlocking {
+        val f1 = Files.writeString(tempDir.resolve("ok.txt"), "1")
+        val f2 = Files.writeString(tempDir.resolve("bad.txt"), "2")
+
+        fileOps.isMoveToTrashSupported = { true }
+        fileOps.moveToTrash = { path ->
+            if (path.fileName.toString() == "bad.txt") {
+                false
+            } else {
+                Files.deleteIfExists(path)
+                true
+            }
+        }
+
+        val errors = mutableListOf<Path>()
+        fileOps.deleteFilesWithProgress(
+            paths = listOf(f1, f2),
+            onProgress = { _, _ -> },
+            onError = { path, _ -> errors.add(path) },
+            isCancelled = { false },
+            useRecycleBin = true,
+        )
+
+        assertFalse("Successful path was trashed", Files.exists(f1))
+        assertTrue("Failing path is left alone", Files.exists(f2))
+        assertEquals(listOf(f2), errors)
+    }
+
+    fun testDeleteToRecycleBinFallsBackToPermanentWhenUnsupported() = runBlocking {
+        val f1 = Files.writeString(tempDir.resolve("fallback.txt"), "x")
+
+        var moveCalled = false
+        fileOps.isMoveToTrashSupported = { false }
+        fileOps.moveToTrash = { _ -> moveCalled = true; true }
+
+        fileOps.deleteFilesWithProgress(
+            paths = listOf(f1),
+            onProgress = { _, _ -> },
+            onError = { _, e -> fail("Unexpected error: $e") },
+            isCancelled = { false },
+            useRecycleBin = true,
+        )
+
+        assertFalse("moveToTrash should not be invoked when unsupported", moveCalled)
+        assertFalse("File should still be deleted via the permanent path", Files.exists(f1))
+    }
+
+    fun testDeleteDefaultIsPermanent() = runBlocking {
+        // Default (no useRecycleBin flag) must not touch the trash hook, so it continues to
+        // behave exactly like the pre-feature implementation.
+        val f1 = Files.writeString(tempDir.resolve("perm.txt"), "x")
+
+        var moveCalled = false
+        fileOps.isMoveToTrashSupported = { true }
+        fileOps.moveToTrash = { _ -> moveCalled = true; true }
+
+        fileOps.deleteFilesWithProgress(
+            paths = listOf(f1),
+            onProgress = { _, _ -> },
+            onError = { _, e -> fail("Unexpected error: $e") },
+            isCancelled = { false },
+        )
+
+        assertFalse("Default delete must not hit the trash hook", moveCalled)
+        assertFalse(Files.exists(f1))
+    }
+
     // --- Rename ---
 
     fun testRenameFile() = runBlocking {

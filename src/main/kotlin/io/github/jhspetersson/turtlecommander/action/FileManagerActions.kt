@@ -93,7 +93,11 @@ class CreateFileAction : FileManagerAction() {
 
 class DeleteFilesAction : FileManagerAction() {
     override fun actionPerformed(e: AnActionEvent) {
-        findActiveTab(e)?.performDelete()
+        // Shift+DELETE (and Shift+F8) forces a permanent delete regardless of the
+        // "Delete to Recycle Bin" setting. The input event is only present for keyboard/mouse
+        // triggers — menu invocations fall back to the configured setting.
+        val forcePermanent = (e.inputEvent as? java.awt.event.InputEvent)?.isShiftDown == true
+        findActiveTab(e)?.performDelete(forcePermanent = forcePermanent)
     }
 }
 

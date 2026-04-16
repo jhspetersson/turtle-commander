@@ -21,6 +21,7 @@ import io.github.jhspetersson.turtlecommander.operation.CombineFilesOperation
 import io.github.jhspetersson.turtlecommander.operation.SplitFileOperation
 import io.github.jhspetersson.turtlecommander.service.ArchiveService
 import io.github.jhspetersson.turtlecommander.service.OverwriteResponse
+import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.util.countFiles
 import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
 import io.github.jhspetersson.turtlecommander.util.formatSize
@@ -148,17 +149,26 @@ internal fun FileTab.performMoveEntries(selected: List<FileEntry>, destination: 
     })
 }
 
-internal fun FileTab.performDelete() {
+internal fun FileTab.performDelete(forcePermanent: Boolean = false) {
     val selected = getSelectedEntries()
     if (selected.isEmpty()) return
 
-    if (currentVfs == null && tryIdeaDelete(selected)) return
+    // Shift+DELETE (forcePermanent) always does an irreversible delete, bypassing the
+    // recycle-bin setting. Otherwise honor the user's preference.
+    val useRecycleBin = !forcePermanent && TurtleCommanderSettings.getInstance().state.deleteToRecycleBin
 
-    val deleteDialog = DeleteDialog(project, selected)
+    // IDE's DeleteHandler performs a permanent delete with its own UX; we only hand off to it
+    // when the user expects a permanent delete (recycle-bin mode has its own dialog + service
+    // path so we keep it consistent with VFS-side deletes).
+    if (!useRecycleBin && currentVfs == null && tryIdeaDelete(selected)) return
+
+    val deleteDialog = DeleteDialog(project, selected, useRecycleBin = useRecycleBin)
     if (!deleteDialog.showAndGet()) return
     val sourcePaths = selected.map { it.path }
 
-    ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Deleting files", true) {
+    val taskTitle = if (useRecycleBin) "Moving files to Recycle Bin" else "Deleting files"
+    val progressVerb = if (useRecycleBin) "Moving" else "Deleting"
+    ProgressManager.getInstance().run(object : Task.Backgroundable(project, taskTitle, true) {
         override fun run(indicator: ProgressIndicator) {
             indicator.isIndeterminate = true
             indicator.text = "Counting files..."
@@ -171,13 +181,14 @@ internal fun FileTab.performDelete() {
                     paths = sourcePaths,
                     onProgress = { count, name ->
                         indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
-                        indicator.text = "Deleting $count / $totalFiles"
+                        indicator.text = "$progressVerb $count / $totalFiles"
                         indicator.text2 = name
                     },
                     onError = { path, error ->
                         fileErrorNotification("Failed to delete ${path.fileName}: ${fileErrorMessage(error)}")
                     },
                     isCancelled = { indicator.isCanceled },
+                    useRecycleBin = useRecycleBin,
                 )
 
                 refreshAfterVfsChange()

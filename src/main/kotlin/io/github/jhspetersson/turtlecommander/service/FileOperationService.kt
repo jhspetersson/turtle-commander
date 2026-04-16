@@ -31,6 +31,33 @@ class FileOperationService(
     /** Test-only clock override. Defaults to wall clock. */
     internal var clock: () -> Long = System::currentTimeMillis
 
+    /**
+     * Test-only hook for the "Delete to Recycle Bin" flow. Defaults to the real AWT Desktop
+     * `moveToTrash`. Tests replace this with an in-memory fake so they don't depend on the
+     * presence of a real trash on the CI runner and don't actually litter the system trash.
+     */
+    internal var moveToTrash: (Path) -> Boolean = { path ->
+        try {
+            java.awt.Desktop.getDesktop().moveToTrash(path.toFile())
+        } catch (_: UnsupportedOperationException) {
+            false
+        }
+    }
+
+    /**
+     * Test-only hook for the platform capability check. Mirrors [moveToTrash] so tests can
+     * exercise the recycle-bin code path regardless of whether the runner has a graphical
+     * desktop available.
+     */
+    internal var isMoveToTrashSupported: () -> Boolean = {
+        try {
+            java.awt.Desktop.isDesktopSupported() &&
+                java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.MOVE_TO_TRASH)
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
     private data class CachedListing(
         val dirs: List<FileEntry>,
         val files: List<FileEntry>,
@@ -459,8 +486,32 @@ class FileOperationService(
         onProgress: suspend (deletedCount: Int, currentFile: String) -> Unit,
         onError: suspend (path: Path, error: Exception) -> Unit,
         isCancelled: () -> Boolean,
+        useRecycleBin: Boolean = false,
     ): Unit = withContext(Dispatchers.IO) {
         var deletedCount = 0
+
+        // Recycle-bin mode: move each top-level path to the OS trash in one call. Directories
+        // move atomically (the OS handles recursion), so we don't walk the tree ourselves.
+        // Progress is reported once per top-level path since moveToTrash is a single op.
+        if (useRecycleBin && isMoveToTrashSupported()) {
+            for (path in paths) {
+                if (isCancelled()) break
+                try {
+                    val moved = moveToTrash(path)
+                    if (moved) {
+                        deletedCount++
+                        onProgress(deletedCount, path.name)
+                    } else {
+                        onError(path, IOException("Failed to move to Recycle Bin: $path"))
+                    }
+                } catch (e: Exception) {
+                    thisLogger().warn("Failed to move to trash $path: ${e.message}")
+                    onError(path, e)
+                }
+            }
+            paths.mapNotNull { it.parent }.toSet().forEach { invalidateListingCache(it) }
+            return@withContext
+        }
 
         for (path in paths) {
             if (isCancelled()) break

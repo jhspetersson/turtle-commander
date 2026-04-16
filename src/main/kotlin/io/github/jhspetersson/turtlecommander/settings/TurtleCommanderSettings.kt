@@ -170,6 +170,7 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
         var hideDriveSelector: Boolean = false
         var hideStatusBar: Boolean = false
         var alwaysOverwriteFiles: Boolean = false
+        var deleteToRecycleBin: Boolean = false
         var panelFontFamily: String = ""
         var panelFontSize: Int = 0
         var tabFontFamily: String = ""
