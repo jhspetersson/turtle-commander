@@ -70,6 +70,31 @@ class CloseAllTabsAction : TabContextAction() {
     }
 }
 
+class CloseDuplicateTabsAction : TabContextAction() {
+    override fun update(e: AnActionEvent) {
+        val (panel, tabIndex) = resolveTabContext(e)
+        e.presentation.isEnabled = panel != null && tabIndex >= 0 && panel.hasDuplicateTabs(tabIndex)
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val (panel, tabIndex) = resolveTabContext(e)
+        panel?.closeDuplicateTabs(tabIndex)
+    }
+}
+
+class DuplicateTabAction : TabContextAction() {
+    override fun update(e: AnActionEvent) {
+        val (panel, tabIndex) = resolveTabContext(e)
+        val tab = panel?.getTabAt(tabIndex)
+        e.presentation.isEnabled = tab != null
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val (panel, tabIndex) = resolveTabContext(e)
+        panel?.duplicateTab(tabIndex)
+    }
+}
+
 class CloseTabsToTheLeftAction : TabContextAction() {
     override fun update(e: AnActionEvent) {
         val (panel, tabIndex) = resolveTabContext(e)

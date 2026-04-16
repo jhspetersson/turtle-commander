@@ -205,6 +205,14 @@
                     class="io.github.jhspetersson.turtlecommander.action.CloseAllTabsAction"
                     text="Close All Tabs"
                     description="Close all tabs except one"/>
+            <action id="TurtleCommander.CloseDuplicateTabs"
+                    class="io.github.jhspetersson.turtlecommander.action.CloseDuplicateTabsAction"
+                    text="Close Duplicate Tabs"
+                    description="Close other tabs with the same path as the selected tab"/>
+            <action id="TurtleCommander.DuplicateTab"
+                    class="io.github.jhspetersson.turtlecommander.action.DuplicateTabAction"
+                    text="Duplicate Tab"
+                    description="Open a new tab with the same path and view as the selected tab"/>
             <action id="TurtleCommander.CloseTabsToTheLeft"
                     class="io.github.jhspetersson.turtlecommander.action.CloseTabsToTheLeftAction"
                     text="Close Tabs to the Left"
@@ -443,9 +451,12 @@
             <reference ref="TurtleCommander.CloseTab"/>
             <reference ref="TurtleCommander.CloseOtherTabs"/>
             <reference ref="TurtleCommander.CloseAllTabs"/>
+            <reference ref="TurtleCommander.CloseDuplicateTabs"/>
             <separator/>
             <reference ref="TurtleCommander.CloseTabsToTheLeft"/>
             <reference ref="TurtleCommander.CloseTabsToTheRight"/>
+            <separator/>
+            <reference ref="TurtleCommander.DuplicateTab"/>
             <separator/>
             <reference ref="TurtleCommander.TabCopyAsGroup"/>
             <separator/>

@@ -583,6 +583,46 @@ class FileManagerPanel(
         }
     }
 
+    fun duplicateTab(tabIndex: Int) {
+        val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
+        if (tabIndex < 0 || tabIndex == plusIndex) return
+        val tab = tabbedPane.getComponentAt(tabIndex) as? FileTab ?: return
+        val state = tab.saveTabState()
+        addNewTab(tab.currentPath, tabState = state)
+        focusActiveTab()
+    }
+
+    fun hasDuplicateTabs(tabIndex: Int): Boolean {
+        val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
+        if (tabIndex < 0 || tabIndex == plusIndex) return false
+        val tab = tabbedPane.getComponentAt(tabIndex) as? FileTab ?: return false
+        val path = tab.currentPath
+        return (0 until tabbedPane.tabCount).any { idx ->
+            if (idx == tabIndex || idx == plusIndex) return@any false
+            val c = tabbedPane.getComponentAt(idx)
+            c is FileTab && c.currentPath == path
+        }
+    }
+
+    fun closeDuplicateTabs(tabIndex: Int) {
+        val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
+        if (tabIndex < 0 || tabIndex == plusIndex) return
+        val keep = tabbedPane.getComponentAt(tabIndex) as? FileTab ?: return
+        val keepPath = keep.currentPath
+        val indicesToRemove = (0 until tabbedPane.tabCount)
+            .filter { idx ->
+                if (idx == tabIndex || idx == plusIndex) return@filter false
+                val comp = tabbedPane.getComponentAt(idx)
+                comp is FileTab && comp.currentPath == keepPath
+            }
+            .sortedDescending()
+        for (idx in indicesToRemove) {
+            (tabbedPane.getComponentAt(idx) as? FileTab)?.dispose()
+            tabbedPane.removeTabAt(idx)
+        }
+        focusActiveTab()
+    }
+
     fun getTabIndexAt(point: Point): Int {
         for (i in 0 until tabbedPane.tabCount) {
             val bounds = tabbedPane.getBoundsAt(i) ?: continue

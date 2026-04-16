@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- Duplicate tab action
+- Close duplicate tabs action
+
 ### Changed
 
 - Improved Copy/Move dialogs
