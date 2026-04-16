@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Improved Copy/Move dialogs
+- Improved cursor movement
+
 ## [0.4.9] - 2026-04-16
 
 ### Added
