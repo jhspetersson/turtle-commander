@@ -1016,10 +1016,6 @@ class FileTab(
 
         val selectedName = getSelectedEntry()?.name
 
-        // Filtering reshuffles row indices, so the persistent mark sets would point at the
-        // wrong files. Drop them.
-        clearAllToggledMarks()
-
         tableModel.setEntries(filtered)
 
         listModel.clear()
