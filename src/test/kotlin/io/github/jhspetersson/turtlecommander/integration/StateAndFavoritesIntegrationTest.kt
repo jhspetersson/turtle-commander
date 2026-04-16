@@ -254,4 +254,42 @@ class StateAndFavoritesIntegrationTest : BasePlatformTestCase() {
             tempDir.toFile().deleteRecursively()
         }
     }
+
+    fun testPanelRestoreTableViewModeWithNonTableDefault() {
+        if (GraphicsEnvironment.isHeadless()) return
+        // Default view mode differs from the saved tab's view mode. Tab was explicitly TABLE;
+        // it must restore as TABLE, not fall back to the LIST default.
+        TurtleCommanderSettings.getInstance().state.defaultViewMode = "LIST"
+        val tempDir = Files.createTempDirectory("turtle-viewmode-table-")
+        try {
+            val panelState = FileManagerStateService.PanelState().apply {
+                tabs.add(FileManagerStateService.TabState(path = tempDir.toString(), viewMode = "TABLE"))
+            }
+
+            val panel = io.github.jhspetersson.turtlecommander.ui.FileManagerPanel(
+                project = project,
+                initialPath = tempDir,
+                otherPanelPathProvider = { tempDir },
+            )
+            panel.restoreState(panelState, stateService)
+            com.intellij.testFramework.PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+            val activeTab = panel.getActiveTab()
+            assertNotNull("Should have an active tab after restore", activeTab)
+            assertEquals(
+                "Tab should be restored as TABLE even when default is LIST",
+                io.github.jhspetersson.turtlecommander.ui.ViewMode.TABLE,
+                activeTab!!.viewMode
+            )
+
+            val saved = panel.saveState()
+            assertEquals(
+                "View mode should round-trip as TABLE",
+                "TABLE",
+                saved.tabs.firstOrNull()?.viewMode
+            )
+        } finally {
+            tempDir.toFile().deleteRecursively()
+        }
+    }
 }

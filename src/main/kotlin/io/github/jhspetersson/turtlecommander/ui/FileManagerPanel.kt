@@ -417,10 +417,7 @@ class FileManagerPanel(
             fileTab.setStateService(svc)
             if (tabState != null) {
                 fileTab.pendingTabState = tabState
-                val modeName = tabState.viewMode
-                if (modeName != ViewMode.TABLE.name) {
-                    try { fileTab.setViewMode(ViewMode.valueOf(modeName)) } catch (_: Exception) {}
-                }
+                try { fileTab.setViewMode(ViewMode.valueOf(tabState.viewMode)) } catch (_: Exception) {}
             } else {
                 val entry = svc.getColumnState(path.toString())
                 if (entry != null) {
