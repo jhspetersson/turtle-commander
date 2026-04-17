@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.4.10] - 2026-04-17
+
 ### Added
 
 - Duplicate tab action
