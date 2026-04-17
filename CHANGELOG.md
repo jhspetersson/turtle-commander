@@ -8,6 +8,10 @@
 
 - Improved column width calculation
 
+### Fixed
+
+- Fixed resizing cursor for the table column headers
+
 ## [0.4.10] - 2026-04-17
 
 ### Added
