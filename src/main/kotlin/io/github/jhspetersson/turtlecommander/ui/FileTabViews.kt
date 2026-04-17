@@ -47,6 +47,10 @@ fun FileTab.setViewMode(mode: ViewMode) {
     }
     viewCardLayout.show(viewPanel, card)
 
+    if (mode == ViewMode.TABLE && !hasTabColumnState(currentPath.toString())) {
+        applyDefaultColumnWidths(this)
+    }
+
     if (mode == ViewMode.TREE) {
         rebuildFullTree(selectedNames)
         tree.requestFocusInWindow()

@@ -73,6 +73,17 @@ private val DEFAULT_COLUMN_WIDTHS = mapOf(
     "Permissions" to 100,
 )
 
+internal fun applyDefaultColumnWidths(tab: FileTab) {
+    val cm = tab.table.columnModel
+    for (i in 0 until cm.columnCount) {
+        val tc = cm.getColumn(i)
+        val name = COLUMN_NAME_TO_MODEL_INDEX.entries.find { it.value == tc.modelIndex }?.key
+        val width = DEFAULT_COLUMN_WIDTHS[name] ?: 80
+        tc.preferredWidth = width
+        tc.width = width
+    }
+}
+
 internal val COLUMN_NAME_TO_MODEL_INDEX = mapOf(
     "Name" to FileTableModel.COL_NAME,
     "Ext" to FileTableModel.COL_EXT,
@@ -112,12 +123,8 @@ internal fun applyColumnConfig(tab: FileTab) {
         } else {
             tc.cellRenderer = StyledDisplayValueRenderer(tab, style)
         }
-        val width = DEFAULT_COLUMN_WIDTHS[
-            COLUMN_NAME_TO_MODEL_INDEX.entries.find { it.value == modelIdx }?.key
-        ] ?: 80
-        tc.preferredWidth = width
-        tc.width = width
     }
+    applyDefaultColumnWidths(tab)
 
     // Remove hidden columns
     for (modelIdx in hiddenModelIndices) {

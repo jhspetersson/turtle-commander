@@ -398,6 +398,12 @@ class FileManagerPanel(
     }
 
     private fun addNewTab(path: Path, selectName: String? = null, tabState: FileManagerStateService.TabState? = null) {
+        val effectiveTabState = tabState ?: run {
+            val active = getActiveTab() ?: return@run null
+            if (active.viewMode != ViewMode.TABLE) return@run null
+            active.saveTabState()
+        }
+
         val fileTab = FileTab(
             project = project,
             initialPath = path,
@@ -415,14 +421,9 @@ class FileManagerPanel(
 
         stateService?.let { svc ->
             fileTab.setStateService(svc)
-            if (tabState != null) {
-                fileTab.pendingTabState = tabState
-                try { fileTab.setViewMode(ViewMode.valueOf(tabState.viewMode)) } catch (_: Exception) {}
-            } else {
-                val entry = svc.getColumnState(path.toString())
-                if (entry != null) {
-                    fileTab.applyColumnState(svc.parseWidths(entry), svc.parseOrder(entry))
-                }
+            if (effectiveTabState != null) {
+                fileTab.pendingTabState = effectiveTabState
+                try { fileTab.setViewMode(ViewMode.valueOf(effectiveTabState.viewMode)) } catch (_: Exception) {}
             }
         }
 

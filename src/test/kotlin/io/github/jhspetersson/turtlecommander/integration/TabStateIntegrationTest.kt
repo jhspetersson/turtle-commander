@@ -940,4 +940,123 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
         assertEquals(2, state.sortColumn)
         assertFalse(state.sortAscending)
     }
+
+    // --- Per-tab column widths and view-mode switch behavior ---
+
+    fun testNewTabInheritsColumnWidthsFromActiveTableTab() {
+        if (skipIfHeadless()) return
+        val dir = Files.createDirectory(tempDir.resolve("inheritwidths"))
+        val panel = createPanel()
+        panel.openDirectoryInNewTab(dir)
+        waitForNavigation()
+
+        val tab1 = panel.getTabAt(1)!!
+        tab1.table.columnModel.getColumn(0).apply { preferredWidth = 500; width = 500 }
+
+        panel.openDirectoryInNewTab(dir)
+        waitForNavigation()
+
+        val tab2 = panel.getTabAt(2)!!
+        assertEquals("New tab should inherit col 0 width from the previously active TABLE tab",
+            500, tab2.table.columnModel.getColumn(0).width)
+    }
+
+    fun testNewTabIndependentAfterInheritance() {
+        if (skipIfHeadless()) return
+        val dir = Files.createDirectory(tempDir.resolve("indepafter"))
+        val panel = createPanel()
+        panel.openDirectoryInNewTab(dir)
+        waitForNavigation()
+
+        val tab1 = panel.getTabAt(1)!!
+        tab1.table.columnModel.getColumn(0).apply { preferredWidth = 500; width = 500 }
+
+        panel.openDirectoryInNewTab(dir)
+        waitForNavigation()
+        val tab2 = panel.getTabAt(2)!!
+
+        // Resize tab2 — tab1 must not be affected
+        tab2.table.columnModel.getColumn(0).apply { preferredWidth = 200; width = 200 }
+        tab2.saveColumnState()
+
+        assertEquals("tab1 width unchanged by tab2 mutation",
+            500, tab1.table.columnModel.getColumn(0).width)
+        assertEquals("tab2 width is its own",
+            200, tab2.table.columnModel.getColumn(0).width)
+    }
+
+    fun testSwitchToTableAppliesDefaultWidthsWhenNoSavedState() {
+        if (skipIfHeadless()) return
+        val panel = createPanel()
+        val tab = panel.getTabAt(0)!!
+        val defaultWidth = tab.table.columnModel.getColumn(0).width
+
+        // User widens column 0 directly (no saveColumnState triggered, no navigation)
+        tab.table.columnModel.getColumn(0).apply { preferredWidth = 500; width = 500 }
+
+        tab.setViewMode(ViewMode.LIST)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        tab.setViewMode(ViewMode.TABLE)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        assertEquals("Width should reset to default when no saved state",
+            defaultWidth, tab.table.columnModel.getColumn(0).width)
+    }
+
+    fun testSwitchToTablePreservesWidthsWhenSavedState() {
+        if (skipIfHeadless()) return
+        val panel = createPanel()
+        val tab = panel.getTabAt(0)!!
+
+        tab.table.columnModel.getColumn(0).apply { preferredWidth = 500; width = 500 }
+        tab.saveColumnState()
+
+        tab.setViewMode(ViewMode.LIST)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        tab.setViewMode(ViewMode.TABLE)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        assertEquals("Width should be preserved when tab has saved column state",
+            500, tab.table.columnModel.getColumn(0).width)
+    }
+
+    fun testSwitchToTableFromThumbnailAppliesDefaultWidths() {
+        if (skipIfHeadless()) return
+        val panel = createPanel()
+        val tab = panel.getTabAt(0)!!
+        val defaultWidth = tab.table.columnModel.getColumn(0).width
+
+        tab.table.columnModel.getColumn(0).apply { preferredWidth = 500; width = 500 }
+
+        tab.setViewMode(ViewMode.THUMBNAIL)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        tab.setViewMode(ViewMode.TABLE)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        assertEquals("Switching from THUMBNAIL should also reset to defaults",
+            defaultWidth, tab.table.columnModel.getColumn(0).width)
+    }
+
+    fun testDuplicateTabIndependentColumnWidthsAfterResize() {
+        if (skipIfHeadless()) return
+        val dir = Files.createDirectory(tempDir.resolve("dup"))
+        val panel = createPanel()
+        panel.openDirectoryInNewTab(dir)
+        panel.openDirectoryInNewTab(dir)
+        waitForNavigation()
+
+        val tab1 = panel.getTabAt(1)!!
+        val tab2 = panel.getTabAt(2)!!
+
+        tab1.table.columnModel.getColumn(0).apply { preferredWidth = 350; width = 350 }
+        tab1.saveColumnState()
+
+        // tab2's saved state must not have been touched by tab1's save
+        assertFalse("tab2 should not have saved column state from tab1",
+            tab2.hasTabColumnState(dir.toString()))
+        assertNotSame(
+            "tab2 column width should be independent",
+            350, tab2.table.columnModel.getColumn(0).width
+        )
+    }
 }

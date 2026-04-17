@@ -115,6 +115,8 @@ class FileTab(
     private var driveComboPopupOpen = false
     private var driveRefreshTimer: Timer? = null
     private val cursorPositions = mutableMapOf<Path, Int>()
+    private data class TabColumnState(val widths: List<Int>, val order: List<Int>)
+    private val tabColumnStates = mutableMapOf<String, TabColumnState>()
     private var cachedFilterGlob: String? = null
     private var cachedFilterMatcher: java.nio.file.PathMatcher? = null
     internal var stateService: FileManagerStateService? = null
@@ -1240,7 +1242,10 @@ class FileTab(
             if (selectedRow >= 0) {
                 cursorPositions[currentPath] = selectedRow
             }
-            if (initialized) {
+            if (initialized && viewMode == ViewMode.TABLE) {
+                // Only save when the user has been interacting with the table;
+                // saving while in LIST/TREE/THUMBNAIL would capture stale defaults
+                // and mask the "no state yet" signal used when switching back to TABLE.
                 saveColumnState()
             }
 
@@ -1531,7 +1536,6 @@ class FileTab(
     }
 
     fun saveColumnState() {
-        val svc = stateService ?: return
         val cm = table.columnModel
         val widths = mutableListOf<Int>()
         val order = mutableListOf<Int>()
@@ -1541,8 +1545,10 @@ class FileTab(
             order.add(col.modelIndex)
             col.preferredWidth = col.width
         }
-        svc.putColumnState(currentPath.toString(), widths, order)
+        tabColumnStates[currentPath.toString()] = TabColumnState(widths, order)
     }
+
+    internal fun hasTabColumnState(path: String): Boolean = tabColumnStates.containsKey(path)
 
     fun saveTabState(): FileManagerStateService.TabState {
         val cm = table.columnModel
@@ -1587,11 +1593,8 @@ class FileTab(
     }
 
     private fun restoreColumnState(path: Path) {
-        val svc = stateService ?: return
-        val entry = svc.getColumnState(path.toString()) ?: return
-        val widths = svc.parseWidths(entry)
-        val order = svc.parseOrder(entry)
-        applyColumnState(widths, order)
+        val state = tabColumnStates[path.toString()] ?: return
+        applyColumnState(state.widths, state.order)
     }
 
     internal fun fileErrorNotification(content: String) {
