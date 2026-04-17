@@ -11,6 +11,7 @@ import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
+import com.intellij.openapi.wm.IdeGlassPaneUtil
 import com.intellij.ui.JBColor
 import com.intellij.ui.ListSpeedSearch
 import com.intellij.ui.TableSpeedSearch
@@ -356,6 +357,53 @@ class FileTab(
         })
     }
 
+    private fun setupHeaderResizeCursor() {
+        val header = table.tableHeader ?: return
+        val resizeZone = 3
+        val hoverCursor = Cursor.getPredefinedCursor(Cursor.E_RESIZE_CURSOR)
+        val dragCursor = Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR)
+        val cursorKey = Any()
+
+        fun nearColumnBoundary(x: Int): Boolean {
+            val cm = header.columnModel ?: return false
+            var edge = 0
+            for (i in 0 until cm.columnCount) {
+                edge += cm.getColumn(i).width
+                if (kotlin.math.abs(x - edge) <= resizeZone) return true
+            }
+            return false
+        }
+
+        // IntelliJ's IdeGlassPane sits above every tool window and owns cursor rendering —
+        // calling Component.setCursor on the header has no visible effect because the glass
+        // pane's cursor takes priority. IdeGlassPane.setCursor(cursor, key) is the official
+        // way to request a cursor, keyed by an arbitrary object so different requestors
+        // don't stomp each other. Passing a null cursor clears our request.
+        fun requestCursor(cursor: Cursor?) {
+            val glass = runCatching { IdeGlassPaneUtil.find(header) }.getOrNull() ?: return
+            glass.setCursor(cursor, cursorKey)
+        }
+
+        header.addMouseMotionListener(object : MouseMotionAdapter() {
+            override fun mouseMoved(e: MouseEvent) {
+                requestCursor(if (nearColumnBoundary(e.x)) hoverCursor else null)
+            }
+
+            override fun mouseDragged(e: MouseEvent) {
+                if (header.resizingColumn != null) requestCursor(dragCursor)
+            }
+        })
+        header.addMouseListener(object : MouseAdapter() {
+            override fun mouseReleased(e: MouseEvent) {
+                requestCursor(if (nearColumnBoundary(e.x)) hoverCursor else null)
+            }
+
+            override fun mouseExited(e: MouseEvent) {
+                if (header.resizingColumn == null) requestCursor(null)
+            }
+        })
+    }
+
     private fun applyDriveSelectorStyle() {
         val style = TurtleCommanderSettings.getInstance().state.styles.driveSelectorStyle
         driveCombo.font = style.getFont(defaultDriveComboFont) ?: defaultDriveComboFont
@@ -473,6 +521,7 @@ class FileTab(
 
             applyColumnConfig(this@FileTab)
             setupHeaderContextMenu()
+            setupHeaderResizeCursor()
 
             rowSorter = ParentPinningRowSorter(tableModel)
 
