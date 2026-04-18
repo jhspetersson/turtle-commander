@@ -169,6 +169,17 @@ class FileTab(
         }
         applyPanelFont()
         applyVisibilitySettings()
+        // Route BasicTabbedPaneUI's post-selection focus transfer to the active view instead
+        // of the drive combo (which would otherwise be the first focusable descendant).
+        isFocusCycleRoot = true
+        focusTraversalPolicy = object : LayoutFocusTraversalPolicy() {
+            override fun getDefaultComponent(aContainer: Container?): Component? = when (viewMode) {
+                ViewMode.TABLE -> table
+                ViewMode.LIST -> list
+                ViewMode.THUMBNAIL -> thumbnailList
+                ViewMode.TREE -> tree
+            }
+        }
     }
 
     fun applyVisibilitySettings() {
