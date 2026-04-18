@@ -96,7 +96,7 @@ class DeleteFilesAction : FileManagerAction() {
         // Shift+DELETE (and Shift+F8) forces a permanent delete regardless of the
         // "Delete to Recycle Bin" setting. The input event is only present for keyboard/mouse
         // triggers — menu invocations fall back to the configured setting.
-        val forcePermanent = (e.inputEvent as? java.awt.event.InputEvent)?.isShiftDown == true
+        val forcePermanent = e.inputEvent?.isShiftDown == true
         findActiveTab(e)?.performDelete(forcePermanent = forcePermanent)
     }
 }
@@ -219,6 +219,20 @@ class NewTabAction : FileManagerAction() {
         val project = e.project ?: return
         val stateService = project.service<FileManagerStateService>()
         stateService.getActivePanel()?.openNewTab()
+    }
+}
+
+class ReopenTabAction : FileManagerAction() {
+    override fun update(e: AnActionEvent) {
+        val project = e.project
+        val panel = project?.service<FileManagerStateService>()?.getActivePanel()
+        e.presentation.isEnabled = isToolWindowActive(e) && panel?.hasClosedTabs() == true
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project ?: return
+        val stateService = project.service<FileManagerStateService>()
+        stateService.getActivePanel()?.reopenLastClosedTab()
     }
 }
 

@@ -44,6 +44,10 @@ class FileManagerPanel(
     private var dragActive = false
     private var dragStartPoint: Point? = null
 
+    private data class ClosedTabEntry(val state: FileManagerStateService.TabState, val index: Int)
+    private val closedTabs: ArrayDeque<ClosedTabEntry> = ArrayDeque()
+    private val closedTabsLimit = 32
+
     init {
         appendPlusTab()
 
@@ -397,7 +401,12 @@ class FileManagerPanel(
         return panel
     }
 
-    private fun addNewTab(path: Path, selectName: String? = null, tabState: FileManagerStateService.TabState? = null) {
+    private fun addNewTab(
+        path: Path,
+        selectName: String? = null,
+        tabState: FileManagerStateService.TabState? = null,
+        insertIndex: Int? = null,
+    ) {
         val effectiveTabState = tabState ?: run {
             val active = getActiveTab() ?: return@run null
             if (active.viewMode != ViewMode.TABLE) return@run null
@@ -412,12 +421,13 @@ class FileManagerPanel(
             onRefreshOtherPanel = { otherPanel?.refreshActiveTab(requestFocus = false) },
         )
 
-        // Insert before the "+" tab
+        // Insert before the "+" tab (or at the caller-requested index, clamped)
         val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
-        val insertIndex = if (plusIndex >= 0) plusIndex else tabbedPane.tabCount
-        tabbedPane.insertTab(path.fileName?.toString() ?: path.toString(), null, fileTab, null, insertIndex)
-        tabbedPane.setTabComponentAt(insertIndex, createTabHeader(path.fileName?.toString() ?: path.toString(), fileTab))
-        tabbedPane.selectedIndex = insertIndex
+        val maxInsert = if (plusIndex >= 0) plusIndex else tabbedPane.tabCount
+        val resolvedInsertIndex = insertIndex?.coerceIn(0, maxInsert) ?: maxInsert
+        tabbedPane.insertTab(path.fileName?.toString() ?: path.toString(), null, fileTab, null, resolvedInsertIndex)
+        tabbedPane.setTabComponentAt(resolvedInsertIndex, createTabHeader(path.fileName?.toString() ?: path.toString(), fileTab))
+        tabbedPane.selectedIndex = resolvedInsertIndex
 
         stateService?.let { svc ->
             fileTab.setStateService(svc)
@@ -516,10 +526,40 @@ class FileManagerPanel(
         val realTabCount = tabbedPane.tabCount - 1
         if (realTabCount <= 1) return
         if (tabIndex < 0 || tabIndex == plusIndex) return
-        val component = tabbedPane.getComponentAt(tabIndex)
-        (component as? FileTab)?.dispose()
-        (component as? SearchResultsPanel)?.dispose()
-        tabbedPane.removeTabAt(tabIndex)
+        removeTabsAt(listOf(tabIndex))
+        focusActiveTab()
+    }
+
+    /**
+     * Push each index's state onto the closed-tab stack, then dispose and remove in descending
+     * order so earlier removals don't shift later indices. Caller handles focus/selection.
+     */
+    private fun removeTabsAt(indices: List<Int>) {
+        if (indices.isEmpty()) return
+        for (idx in indices) rememberClosedTab(tabbedPane.getComponentAt(idx), idx)
+        for (idx in indices.sortedDescending()) {
+            val component = tabbedPane.getComponentAt(idx)
+            (component as? FileTab)?.dispose()
+            (component as? SearchResultsPanel)?.dispose()
+            tabbedPane.removeTabAt(idx)
+        }
+    }
+
+    private fun rememberClosedTab(component: Component?, tabIndex: Int) {
+        val fileTab = component as? FileTab ?: return
+        closedTabs.addLast(ClosedTabEntry(fileTab.saveTabState(), tabIndex))
+        while (closedTabs.size > closedTabsLimit) closedTabs.removeFirst()
+    }
+
+    fun hasClosedTabs(): Boolean = closedTabs.isNotEmpty()
+
+    fun reopenLastClosedTab() {
+        val entry = closedTabs.removeLastOrNull() ?: return
+        val path = try { Path.of(entry.state.path) } catch (_: Exception) { null } ?: return
+        val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
+        val maxInsert = if (plusIndex >= 0) plusIndex else tabbedPane.tabCount
+        val desiredIndex = entry.index.coerceIn(0, maxInsert)
+        addNewTab(path, tabState = entry.state, insertIndex = desiredIndex)
         focusActiveTab()
     }
 
@@ -530,58 +570,26 @@ class FileManagerPanel(
     fun closeOtherTabs(tabIndex: Int) {
         val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
         if (tabIndex < 0 || tabIndex == plusIndex) return
-        val indicesToRemove = (0 until tabbedPane.tabCount)
-            .filter { it != tabIndex && it != plusIndex }
-            .sortedDescending()
-        for (idx in indicesToRemove) {
-            val component = tabbedPane.getComponentAt(idx)
-            (component as? FileTab)?.dispose()
-            (component as? SearchResultsPanel)?.dispose()
-            tabbedPane.removeTabAt(idx)
-        }
+        // Ascending order pushes the rightmost tab last → reopened first, restoring layout.
+        removeTabsAt((0 until tabbedPane.tabCount).filter { it != tabIndex && it != plusIndex })
     }
 
     fun closeAllTabs() {
         val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
         val firstRealIndex = (0 until tabbedPane.tabCount).firstOrNull { it != plusIndex } ?: return
-        val indicesToRemove = (0 until tabbedPane.tabCount)
-            .filter { it != firstRealIndex && it != plusIndex }
-            .sortedDescending()
-        if (indicesToRemove.isEmpty()) return
-        for (idx in indicesToRemove) {
-            val component = tabbedPane.getComponentAt(idx)
-            (component as? FileTab)?.dispose()
-            (component as? SearchResultsPanel)?.dispose()
-            tabbedPane.removeTabAt(idx)
-        }
+        removeTabsAt((0 until tabbedPane.tabCount).filter { it != firstRealIndex && it != plusIndex })
     }
 
     fun closeTabsToTheLeft(tabIndex: Int) {
         val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
         if (tabIndex <= 0 || tabIndex == plusIndex) return
-        val indicesToRemove = (0 until tabIndex)
-            .filter { it != plusIndex }
-            .sortedDescending()
-        for (idx in indicesToRemove) {
-            val component = tabbedPane.getComponentAt(idx)
-            (component as? FileTab)?.dispose()
-            (component as? SearchResultsPanel)?.dispose()
-            tabbedPane.removeTabAt(idx)
-        }
+        removeTabsAt((0 until tabIndex).filter { it != plusIndex })
     }
 
     fun closeTabsToTheRight(tabIndex: Int) {
         val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
         if (tabIndex < 0 || tabIndex == plusIndex) return
-        val indicesToRemove = (tabIndex + 1 until tabbedPane.tabCount)
-            .filter { it != plusIndex }
-            .sortedDescending()
-        for (idx in indicesToRemove) {
-            val component = tabbedPane.getComponentAt(idx)
-            (component as? FileTab)?.dispose()
-            (component as? SearchResultsPanel)?.dispose()
-            tabbedPane.removeTabAt(idx)
-        }
+        removeTabsAt((tabIndex + 1 until tabbedPane.tabCount).filter { it != plusIndex })
     }
 
     fun duplicateTab(tabIndex: Int) {
@@ -610,17 +618,13 @@ class FileManagerPanel(
         if (tabIndex < 0 || tabIndex == plusIndex) return
         val keep = tabbedPane.getComponentAt(tabIndex) as? FileTab ?: return
         val keepPath = keep.currentPath
-        val indicesToRemove = (0 until tabbedPane.tabCount)
-            .filter { idx ->
+        removeTabsAt(
+            (0 until tabbedPane.tabCount).filter { idx ->
                 if (idx == tabIndex || idx == plusIndex) return@filter false
                 val comp = tabbedPane.getComponentAt(idx)
                 comp is FileTab && comp.currentPath == keepPath
             }
-            .sortedDescending()
-        for (idx in indicesToRemove) {
-            (tabbedPane.getComponentAt(idx) as? FileTab)?.dispose()
-            tabbedPane.removeTabAt(idx)
-        }
+        )
         focusActiveTab()
     }
 

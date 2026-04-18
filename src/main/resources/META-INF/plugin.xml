@@ -181,6 +181,12 @@
                     description="Open a new tab in the active panel">
                 <keyboard-shortcut first-keystroke="ctrl T" keymap="$default"/>
             </action>
+            <action id="TurtleCommander.ReopenTab"
+                    class="io.github.jhspetersson.turtlecommander.action.ReopenTabAction"
+                    text="Reopen Closed Tab"
+                    description="Reopen the last tab closed in the active panel">
+                <keyboard-shortcut first-keystroke="ctrl shift T" keymap="$default"/>
+            </action>
             <action id="TurtleCommander.NextTab"
                     class="io.github.jhspetersson.turtlecommander.action.NextTabAction"
                     text="Next Tab"

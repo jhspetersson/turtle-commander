@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Reopen closed tab action (`Ctrl+Shift+T`), per-panel closed-tab history
+
 ### Changed
 
 - Improved column width calculation
@@ -11,6 +15,7 @@
 ### Fixed
 
 - Fixed resizing cursor for the table column headers
+- Drive selector no longer steals focus when switching tabs
 
 ## [0.4.10] - 2026-04-17
 

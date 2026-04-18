@@ -260,6 +260,177 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
         assertEquals(0, panel.getActiveTabIndex())
     }
 
+    // --- Reopen closed tab ---
+
+    fun testHasClosedTabsInitiallyFalse() {
+        if (skipIfHeadless()) return
+        val panel = createPanel()
+        assertFalse("Closed-tab stack should start empty", panel.hasClosedTabs())
+    }
+
+    fun testHasClosedTabsAfterClose() {
+        if (skipIfHeadless()) return
+        val panel = createPanel()
+        panel.openDirectoryInNewTab(Files.createDirectory(tempDir.resolve("rc1")))
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        panel.closeTab(1)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        assertTrue("Closing a tab should push onto the reopen stack", panel.hasClosedTabs())
+    }
+
+    fun testReopenClosedTabRestoresPath() {
+        if (skipIfHeadless()) return
+        val panel = createPanel()
+        val dir = Files.createDirectory(tempDir.resolve("reopenpath"))
+        panel.openDirectoryInNewTab(dir)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertEquals(2, panel.saveState().tabs.size)
+
+        panel.closeTab(1)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertEquals(1, panel.saveState().tabs.size)
+
+        panel.reopenLastClosedTab()
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        val state = panel.saveState()
+        assertEquals("Reopen should restore the tab", 2, state.tabs.size)
+        assertTrue(
+            "Reopened tab should point at the original directory",
+            state.tabs.any { it.path == dir.toString() },
+        )
+        assertFalse("Stack should be empty after single reopen", panel.hasClosedTabs())
+    }
+
+    fun testReopenInsertsAtOriginalIndex() {
+        if (skipIfHeadless()) return
+        val panel = createPanel()
+        val a = Files.createDirectory(tempDir.resolve("oi_a"))
+        val b = Files.createDirectory(tempDir.resolve("oi_b"))
+        val c = Files.createDirectory(tempDir.resolve("oi_c"))
+        panel.openDirectoryInNewTab(a)
+        panel.openDirectoryInNewTab(b)
+        panel.openDirectoryInNewTab(c)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        // Tabs: [project, a, b, c] — close the middle one.
+        panel.closeTab(2)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        panel.reopenLastClosedTab()
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        val state = panel.saveState()
+        assertEquals(4, state.tabs.size)
+        assertEquals("Reopen should restore index 2 (b) back between a and c",
+            b.toString(), state.tabs[2].path)
+    }
+
+    fun testReopenMultipleInLIFOOrder() {
+        if (skipIfHeadless()) return
+        val panel = createPanel()
+        val a = Files.createDirectory(tempDir.resolve("lifo_a"))
+        val b = Files.createDirectory(tempDir.resolve("lifo_b"))
+        panel.openDirectoryInNewTab(a)
+        panel.openDirectoryInNewTab(b)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        panel.closeTab(1) // close a (at index 1 after project at 0, a, b)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        panel.closeTab(1) // close b (now at index 1)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        // Most recently closed is b — it should come back first.
+        panel.reopenLastClosedTab()
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertTrue(panel.saveState().tabs.any { it.path == b.toString() })
+
+        panel.reopenLastClosedTab()
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        val paths = panel.saveState().tabs.map { it.path }
+        assertTrue("Both reopened tabs should be present", paths.contains(a.toString()) && paths.contains(b.toString()))
+        assertFalse(panel.hasClosedTabs())
+    }
+
+    fun testReopenAfterCloseOthersRestoresRightmostFirst() {
+        if (skipIfHeadless()) return
+        val panel = createPanel()
+        val a = Files.createDirectory(tempDir.resolve("co_a"))
+        val b = Files.createDirectory(tempDir.resolve("co_b"))
+        val c = Files.createDirectory(tempDir.resolve("co_c"))
+        panel.openDirectoryInNewTab(a)
+        panel.openDirectoryInNewTab(b)
+        panel.openDirectoryInNewTab(c)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        // Tabs: [project(0), a(1), b(2), c(3)] — keep 'b'.
+        panel.closeOtherTabs(2)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertEquals(1, panel.saveState().tabs.size)
+
+        // Bulk-close pushed in ascending order → rightmost (c) pops first.
+        panel.reopenLastClosedTab()
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        val paths1 = panel.saveState().tabs.map { it.path }
+        assertTrue("c should reopen first", paths1.contains(c.toString()))
+        assertFalse("a should not be back yet", paths1.contains(a.toString()))
+    }
+
+    fun testReopenAfterCloseTabsToTheRight() {
+        if (skipIfHeadless()) return
+        val panel = createPanel()
+        panel.openDirectoryInNewTab(Files.createDirectory(tempDir.resolve("cr_a")))
+        val b = Files.createDirectory(tempDir.resolve("cr_b"))
+        panel.openDirectoryInNewTab(b)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertEquals(3, panel.saveState().tabs.size)
+
+        panel.closeTabsToTheRight(1)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertEquals(2, panel.saveState().tabs.size)
+
+        panel.reopenLastClosedTab()
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertEquals(3, panel.saveState().tabs.size)
+        assertTrue(panel.saveState().tabs.any { it.path == b.toString() })
+    }
+
+    fun testReopenPreservesViewMode() {
+        if (skipIfHeadless()) return
+        val dir = Files.createDirectory(tempDir.resolve("vmreopen"))
+        val panelState = FileManagerStateService.PanelState().apply {
+            tabs.add(FileManagerStateService.TabState(path = projectPath.toString(), viewMode = "TABLE"))
+            tabs.add(FileManagerStateService.TabState(path = dir.toString(), viewMode = "LIST"))
+        }
+        val panel = FileManagerPanel(
+            project = project,
+            initialPath = projectPath,
+            otherPanelPathProvider = { projectPath },
+        )
+        panel.restoreState(panelState, stateService)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        panel.closeTab(1)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        panel.reopenLastClosedTab()
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        val reopened = panel.saveState().tabs.firstOrNull { it.path == dir.toString() }
+        assertNotNull("Reopened tab should be present", reopened)
+        assertEquals("View mode should survive close → reopen", "LIST", reopened!!.viewMode)
+    }
+
+    fun testReopenWithEmptyStackIsNoop() {
+        if (skipIfHeadless()) return
+        val panel = createPanel()
+        val before = panel.saveState().tabs.size
+
+        panel.reopenLastClosedTab()
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        assertEquals("Reopen on empty stack should not change tab count", before, panel.saveState().tabs.size)
+    }
+
     // --- Dual panel interaction ---
 
     fun testOtherPanelReference() {

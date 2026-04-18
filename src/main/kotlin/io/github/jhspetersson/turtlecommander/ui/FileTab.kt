@@ -173,7 +173,7 @@ class FileTab(
         // of the drive combo (which would otherwise be the first focusable descendant).
         isFocusCycleRoot = true
         focusTraversalPolicy = object : LayoutFocusTraversalPolicy() {
-            override fun getDefaultComponent(aContainer: Container?): Component? = when (viewMode) {
+            override fun getDefaultComponent(aContainer: Container?): Component = when (viewMode) {
                 ViewMode.TABLE -> table
                 ViewMode.LIST -> list
                 ViewMode.THUMBNAIL -> thumbnailList

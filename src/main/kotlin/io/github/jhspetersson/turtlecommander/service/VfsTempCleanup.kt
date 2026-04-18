@@ -1,6 +1,7 @@
 package io.github.jhspetersson.turtlecommander.service
 
 import com.intellij.openapi.diagnostic.thisLogger
+import io.github.jhspetersson.turtlecommander.service.VfsTempCleanup.MAX_AGE_MS
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicBoolean
@@ -56,7 +57,6 @@ internal object VfsTempCleanup {
         }.getOrDefault(false)
     }
 
-    @Suppress("unused") // for test-only reset
     internal fun resetForTesting() {
         done.set(false)
     }

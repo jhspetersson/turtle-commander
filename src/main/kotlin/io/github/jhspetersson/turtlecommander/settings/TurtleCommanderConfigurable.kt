@@ -390,7 +390,7 @@ class TurtleCommanderConfigurable : Configurable {
                     gbc.gridy = row++
                     gbc.gridx = 0; grid.add(JBLabel("Selected:"), gbc)
                     gbc.gridx = 1; grid.add(editor.selectedColorButton, gbc)
-                    gbc.gridy = row++
+                    gbc.gridy = row
                     gbc.gridx = 0; grid.add(JBLabel("Active selected:"), gbc)
                     gbc.gridx = 1; grid.add(editor.activeSelectedColorButton, gbc)
                 }
