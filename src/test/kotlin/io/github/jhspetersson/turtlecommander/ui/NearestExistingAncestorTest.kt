@@ -21,21 +21,22 @@ class NearestExistingAncestorTest {
 
     @Test
     fun `walks past deleted ancestors to the first surviving directory`() {
-        // Scenario from the bug: panel sat in C:\test\test2\test3 while the other
-        // panel deleted C:\test. Only C:\ survives, so navigation should fall
-        // back to it.
-        val drive = Path.of("C:\\")
+        // Scenario from the bug: panel sat in /root/test/test2/test3 while the
+        // other panel deleted /root/test. Only /root survives, so navigation
+        // should fall back to it. (Using POSIX paths keeps the test portable —
+        // Path.of on Linux parses "C:\\..." as a relative filename.)
+        val surviving = Path.of("/root")
         val dead = setOf(
-            Path.of("C:\\test"),
-            Path.of("C:\\test\\test2"),
-            Path.of("C:\\test\\test2\\test3"),
+            Path.of("/root/test"),
+            Path.of("/root/test/test2"),
+            Path.of("/root/test/test2/test3"),
         )
-        val path = Path.of("C:\\test\\test2\\test3")
-        val exists: (Path) -> Boolean = { it !in dead }
+        val path = Path.of("/root/test/test2/test3")
+        val exists: (Path) -> Boolean = { it !in dead && it == surviving }
 
         val result = FileTab.nearestExistingAncestor(path, exists)
 
-        assertEquals(drive, result)
+        assertEquals(surviving, result)
     }
 
     @Test
