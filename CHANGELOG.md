@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.4.11] - 2026-04-20
+
 ### Added
 
 - Reopen closed tab action (`Ctrl+Shift+T`), per-panel closed-tab history
