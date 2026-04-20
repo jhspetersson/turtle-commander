@@ -64,6 +64,18 @@
                     description="Rename selected file or directory">
                 <keyboard-shortcut first-keystroke="shift F6" keymap="$default"/>
             </action>
+            <action id="TurtleCommander.MultiRename"
+                    class="io.github.jhspetersson.turtlecommander.action.MultiRenameAction"
+                    text="Multi-Rename..."
+                    description="Batch-rename selected files with a template (Ctrl+M)">
+                <keyboard-shortcut first-keystroke="ctrl M" keymap="$default"/>
+            </action>
+            <action id="TurtleCommander.MultiRenameUndo"
+                    class="io.github.jhspetersson.turtlecommander.action.MultiRenameUndoAction"
+                    text="Undo Multi-Rename"
+                    description="Reverse the last multi-rename batch">
+                <keyboard-shortcut first-keystroke="ctrl shift M" keymap="$default"/>
+            </action>
             <action id="TurtleCommander.CopyFiles"
                     class="io.github.jhspetersson.turtlecommander.action.CopyFilesAction"
                     text="Copy Files"
@@ -284,6 +296,11 @@
                     text="Delete"
                     icon="AllIcons.Actions.GC"
                     description="Delete selected files"/>
+            <action id="TurtleCommander.ContextMultiRename"
+                    class="io.github.jhspetersson.turtlecommander.action.ContextMultiRenameAction"
+                    text="Multi-Rename..."
+                    icon="AllIcons.Actions.Edit"
+                    description="Batch-rename selected files with a template"/>
             <action id="TurtleCommander.PackFiles"
                     class="io.github.jhspetersson.turtlecommander.action.PackFilesAction"
                     text="Pack Files"
@@ -415,6 +432,7 @@
             <reference ref="TurtleCommander.CopyAsGroup"/>
             <separator/>
             <reference ref="TurtleCommander.ContextRename"/>
+            <reference ref="TurtleCommander.ContextMultiRename"/>
             <separator/>
             <reference ref="TurtleCommander.ContextDelete"/>
             <separator/>

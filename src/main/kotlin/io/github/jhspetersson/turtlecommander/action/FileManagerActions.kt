@@ -67,6 +67,25 @@ class RenameAction : FileManagerAction() {
     }
 }
 
+class MultiRenameAction : FileManagerAction() {
+    override fun actionPerformed(e: AnActionEvent) {
+        findActiveTab(e)?.performMultiRename()
+    }
+}
+
+class MultiRenameUndoAction : FileManagerAction() {
+    override fun update(e: AnActionEvent) {
+        super.update(e)
+        if (e.presentation.isEnabled) {
+            e.presentation.isEnabled = MultiRenameUndo.lastBatch?.isNotEmpty() == true
+        }
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        findActiveTab(e)?.performMultiRenameUndo()
+    }
+}
+
 class CopyFilesAction : FileManagerAction() {
     override fun actionPerformed(e: AnActionEvent) {
         findActiveTab(e)?.performCopy()

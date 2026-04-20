@@ -209,6 +209,19 @@ class ContextRenameAction : AnAction(), DumbAware {
     }
 }
 
+class ContextMultiRenameAction : AnAction(), DumbAware {
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+
+    override fun update(e: AnActionEvent) {
+        val tab = FileContextMenuState.clickedTab
+        e.presentation.isEnabled = tab != null && tab.getSelectedEntries().any { !it.isParentLink }
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        FileContextMenuState.clickedTab?.performMultiRename()
+    }
+}
+
 class ContextDeleteAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 

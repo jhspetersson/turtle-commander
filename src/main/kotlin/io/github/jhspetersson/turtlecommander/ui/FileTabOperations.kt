@@ -900,6 +900,133 @@ internal fun FileTab.viewSelectedFile() {
     }
 }
 
+/**
+ * Stores the last multi-rename as (originalPath, finalPath) pairs so Undo can reverse it.
+ * Undo is a per-plugin-process single slot — rerunning multi-rename overwrites the slot.
+ * Stored on the object, not per-tab, so undoing works regardless of which panel is focused
+ * (the user might switch tabs between the rename and the undo).
+ */
+internal object MultiRenameUndo {
+    @Volatile
+    var lastBatch: List<Pair<Path, Path>>? = null
+}
+
+internal fun FileTab.performMultiRename() {
+    if (currentVfs?.isReadOnly == true) {
+        fileErrorNotification("Cannot rename inside a read-only archive")
+        return
+    }
+    val selected = getSelectedEntries().filter { !it.isParentLink }
+    val targets = selected.ifEmpty {
+        // When nothing is selected, default to every non-parent entry in the current view.
+        (0 until tableModel.rowCount).mapNotNull { tableModel.getEntryAt(it) }.filter { !it.isParentLink }
+    }
+    if (targets.isEmpty()) {
+        fileErrorNotification("Nothing to rename")
+        return
+    }
+    val dialog = MultiRenameDialog(project, targets)
+    if (!dialog.showAndGet()) return
+    val pairs = dialog.result?.pairs.orEmpty()
+    if (pairs.isEmpty()) return
+    runMultiRename(pairs)
+}
+
+private fun FileTab.runMultiRename(pairs: List<Pair<io.github.jhspetersson.turtlecommander.model.FileEntry, String>>) {
+    fileOps.launch {
+        // Two-phase rename to survive cyclic swaps like a↔b: first move every source to a
+        // uniquely-named temp file, then move each temp to its final target. Without this,
+        // renaming a→b when b also needs renaming would collide on the first move.
+        val completed = mutableListOf<Pair<Path, Path>>()
+        val temps = mutableListOf<Triple<Path, Path, String>>() // original, tempPath, finalName
+        try {
+            for ((entry, finalName) in pairs) {
+                val parent = entry.path.parent ?: continue
+                val temp = uniqueTemp(parent, entry.path.fileName.toString())
+                Files.move(entry.path, temp)
+                temps.add(Triple(entry.path, temp, finalName))
+            }
+            for ((original, temp, finalName) in temps) {
+                val finalPath = temp.resolveSibling(finalName)
+                Files.move(temp, finalPath)
+                completed.add(original to finalPath)
+            }
+            completed.mapNotNull { it.first.parent }.toSet().forEach { fileOps.invalidateListingCache(it) }
+            MultiRenameUndo.lastBatch = completed
+            withContext(Dispatchers.EDT) {
+                val tab = this@runMultiRename
+                // Look up the live shortcut for the Undo action so the hint stays correct if
+                // the user has rebound it. Empty when the user has cleared the binding.
+                val undoAction = com.intellij.openapi.actionSystem.ActionManager.getInstance()
+                    .getAction("TurtleCommander.MultiRenameUndo")
+                val shortcut = undoAction?.let {
+                    com.intellij.openapi.keymap.KeymapUtil.getFirstKeyboardShortcutText(it)
+                }.orEmpty()
+                val hint = if (shortcut.isNotEmpty()) " Press $shortcut to undo." else ""
+                val content = "Renamed ${completed.size} file(s).$hint"
+                NotificationGroupManager.getInstance()
+                    .getNotificationGroup("Turtle Commander")
+                    .createNotification(content, NotificationType.INFORMATION)
+                    .addAction(com.intellij.notification.NotificationAction.createSimpleExpiring("Undo") {
+                        tab.performMultiRenameUndo()
+                    })
+                    .notify(project)
+            }
+            navigateTo(currentPath)
+        } catch (e: Exception) {
+            // Best-effort rollback of any temps we've already created.
+            for ((original, temp, _) in temps) {
+                if (original !in completed.map { it.first } && Files.exists(temp)) {
+                    try { Files.move(temp, original) } catch (_: Exception) {}
+                }
+            }
+            fileErrorNotification("Multi-rename failed: ${fileErrorMessage(e)}")
+        }
+    }
+}
+
+internal fun FileTab.performMultiRenameUndo() {
+    val batch = MultiRenameUndo.lastBatch
+    if (batch.isNullOrEmpty()) {
+        fileErrorNotification("Nothing to undo")
+        return
+    }
+    fileOps.launch {
+        val restored = mutableListOf<Pair<Path, Path>>()
+        try {
+            // Reverse via the same two-phase trick.
+            val temps = mutableListOf<Triple<Path, Path, Path>>() // final, temp, original
+            for ((original, current) in batch) {
+                if (!Files.exists(current)) continue
+                val parent = current.parent ?: continue
+                val temp = uniqueTemp(parent, current.fileName.toString())
+                Files.move(current, temp)
+                temps.add(Triple(current, temp, original))
+            }
+            for ((_, temp, original) in temps) {
+                Files.move(temp, original)
+                restored.add(original to temp)
+            }
+            (batch.mapNotNull { it.first.parent } + batch.mapNotNull { it.second.parent })
+                .toSet()
+                .forEach { fileOps.invalidateListingCache(it) }
+            MultiRenameUndo.lastBatch = null
+            navigateTo(currentPath)
+        } catch (e: Exception) {
+            fileErrorNotification("Undo failed: ${fileErrorMessage(e)}")
+        }
+    }
+}
+
+private fun uniqueTemp(parent: Path, seed: String): Path {
+    var i = 0
+    while (true) {
+        val candidate = parent.resolve(".tc-multirename-$seed.$i.tmp")
+        if (!Files.exists(candidate)) return candidate
+        i++
+    }
+}
+
 private suspend fun askOverwriteConfirm(path: Path): OverwriteResponse {
     return withContext(Dispatchers.EDT) {
         val result = Messages.showDialog(
