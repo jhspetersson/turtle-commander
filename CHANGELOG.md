@@ -7,6 +7,7 @@
 ### Added
 
 - Multi-Rename tool (`Ctrl+M`) with single-level undo (`Ctrl+Shift+M`)
+- Support `.aar` files as archives
 
 ## [0.4.11] - 2026-04-20
 
