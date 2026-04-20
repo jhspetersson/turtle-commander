@@ -1291,6 +1291,16 @@ class FileTab(
         val entries = try {
             vfs?.listFiles(path) ?: fileOps.listFiles(path)
         } catch (e: Exception) {
+            // On the real filesystem, if the target no longer exists (e.g. the other panel
+            // deleted an ancestor), fall back to the nearest surviving ancestor instead of
+            // leaving the user stranded on a dead path.
+            if (vfs == null) {
+                val fallback = withContext(Dispatchers.IO) { nearestExistingAncestor(path) }
+                if (fallback != null) {
+                    navigateTo(fallback, requestFocus = requestFocus)
+                    return
+                }
+            }
             withContext(Dispatchers.EDT) {
                 fileErrorNotification("Cannot list directory: ${fileErrorMessage(e)}")
             }
@@ -1664,6 +1674,15 @@ class FileTab(
             .notify(project)
     }
 
+    private fun nearestExistingAncestor(path: Path): Path? =
+        nearestExistingAncestor(path) { candidate ->
+            try {
+                Files.isDirectory(candidate)
+            } catch (_: Exception) {
+                false
+            }
+        }
+
     companion object {
         val FILE_ENTRY_FLAVOR = DataFlavor(
             DataFlavor.javaJVMLocalObjectMimeType + ";class=java.util.List",
@@ -1699,6 +1718,21 @@ class FileTab(
                 }
             }
             return selectedDrive
+        }
+
+        /**
+         * Walks the parent chain of [path] and returns the first ancestor for which
+         * [exists] reports true, or `null` if none do. The starting path itself is
+         * not tested — callers invoke this only after a listing for [path] already
+         * failed, so the walk begins at [path]'s parent.
+         */
+        internal fun nearestExistingAncestor(path: Path, exists: (Path) -> Boolean): Path? {
+            var current: Path? = path.parent
+            while (current != null) {
+                if (exists(current)) return current
+                current = current.parent
+            }
+            return null
         }
     }
 }
