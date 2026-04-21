@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.4.12] - 2026-04-21
+
 ### Added
 
 - Multi-Rename tool (`Ctrl+M`) with single-level undo (`Ctrl+Shift+M`)
