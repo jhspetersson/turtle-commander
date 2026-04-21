@@ -19,16 +19,22 @@ import java.util.regex.PatternSyntaxException
  * - `[N]`           full base name (without extension)
  * - `[N a]`         single char at 1-based position `a` (negative counts from the end)
  * - `[N a-b]`       chars from `a` to `b` inclusive (either can be negative)
- * - `[E]`, `[E a]`, `[E a-b]`   same, applied to the extension (without the leading dot)
+ * - `[N a-]`        chars from `a` to the end (open range)
+ * - `[N a,n]`       `n` chars starting at position `a` (TC's position+length form)
+ * - `[E]`, `[E a]`, `[E a-b]`, `[E a-]`, `[E a,n]`   same, applied to the extension (without the leading dot)
  * - `[C]`           counter using the supplied [CounterConfig]
  * - `[C s]`         counter with start `s`, step/width from config
  * - `[C s+step]`    counter with start `s` and step `step`
  * - `[C s+step:w]`  counter with start, step, and zero-padded width
- * - `[Y]` `[M]` `[D]`                date parts from `lastModified` (year/month/day)
+ * - `[Y]` `[M]` `[D]`                date parts (year/month/day) — from file's `lastModified`,
+ *                                    or current wall clock when `Options.useCurrentDate` is set
  * - `[h]` `[n]` `[s]`                time parts (hour/minute/second — `[n]` for minute
  *                                    avoids the `[M]` month/minute clash TC also avoids)
  * - `[YMD]`                          shorthand for `[Y][M][D]`
  * - `[P]`                            immediate parent directory name
+ * - `[G]`                            grandparent directory name (parent of parent)
+ * - `[R]`, `[R n]`, `[R##…]`         random digits (count from integer or `#` run; bare `[R]` → 1)
+ * - `[Ra n]` / `[RA n]` / `[RM n]`   random lowercase / uppercase / mixed alphanumeric chars
  *
  * Unknown placeholders are left untouched (including their brackets) so typos are visible
  * in the preview instead of silently eaten.
@@ -59,18 +65,36 @@ object MultiRenameTemplate {
         val caseMode: CaseMode = CaseMode.UNCHANGED,
         val counter: CounterConfig = CounterConfig(),
         val zone: ZoneId = ZoneId.systemDefault(),
+        /**
+         * When true, date/time placeholders ([Y][M][D][h][n][s][YMD]) read from the current
+         * wall clock instead of each file's lastModified. Matches TC's "use current date" mode.
+         */
+        val useCurrentDate: Boolean = false,
+        /**
+         * Optional fixed epoch-millis to use when [useCurrentDate] is true. Lets tests pin time
+         * deterministically; in production callers leave this null and we read the clock.
+         */
+        val currentTimeMillis: Long? = null,
+        /**
+         * RNG for random placeholders ([R]/[Ra]/[RA]/[RM]). Defaults to a fresh stream on
+         * every render so the preview re-rolls as the user edits the template — mirrors TC's
+         * behavior. Tests pass a seeded Random for deterministic assertions.
+         */
+        val random: kotlin.random.Random = kotlin.random.Random.Default,
     )
 
     data class Input(
         val originalName: String,
         val parentName: String,
         val lastModified: FileTime?,
+        val grandParentName: String = "",
     ) {
         companion object {
             fun from(path: Path, lastModified: FileTime?): Input = Input(
                 originalName = path.fileName?.toString() ?: "",
                 parentName = path.parent?.fileName?.toString() ?: "",
                 lastModified = lastModified,
+                grandParentName = path.parent?.parent?.fileName?.toString() ?: "",
             )
         }
     }
@@ -93,12 +117,35 @@ object MultiRenameTemplate {
 
     internal fun renderOne(input: Input, options: Options, index: Int): String {
         val (base, ext) = splitBaseExt(input.originalName)
-        val renderedBase = expand(options.nameTemplate, input, base, ext, options.counter, index, options.zone)
-        val renderedExt = expand(options.extensionTemplate, input, base, ext, options.counter, index, options.zone)
+        val ctx = RenderContext(
+            input = input,
+            base = base,
+            ext = ext,
+            counter = options.counter,
+            index = index,
+            zone = options.zone,
+            useCurrentDate = options.useCurrentDate,
+            currentTimeMillis = options.currentTimeMillis,
+            random = options.random,
+        )
+        val renderedBase = expand(options.nameTemplate, ctx)
+        val renderedExt = expand(options.extensionTemplate, ctx)
         val joined = if (renderedExt.isEmpty()) renderedBase else "$renderedBase.$renderedExt"
         val afterReplace = applySearchReplace(joined, options)
         return applyCase(afterReplace, options.caseMode)
     }
+
+    private data class RenderContext(
+        val input: Input,
+        val base: String,
+        val ext: String,
+        val counter: CounterConfig,
+        val index: Int,
+        val zone: ZoneId,
+        val useCurrentDate: Boolean,
+        val currentTimeMillis: Long?,
+        val random: kotlin.random.Random,
+    )
 
     /**
      * Splits "foo.tar.gz" into ("foo.tar", "gz"). Leading dot is preserved in the base
@@ -112,15 +159,7 @@ object MultiRenameTemplate {
         return name.substring(0, lastDot) to name.substring(lastDot + 1)
     }
 
-    private fun expand(
-        template: String,
-        input: Input,
-        base: String,
-        ext: String,
-        counter: CounterConfig,
-        index: Int,
-        zone: ZoneId,
-    ): String {
+    private fun expand(template: String, ctx: RenderContext): String {
         if (template.isEmpty()) return ""
         val sb = StringBuilder(template.length + 16)
         var i = 0
@@ -133,7 +172,7 @@ object MultiRenameTemplate {
                     break
                 }
                 val body = template.substring(i + 1, close)
-                val expanded = resolvePlaceholder(body, input, base, ext, counter, index, zone)
+                val expanded = resolvePlaceholder(body, ctx)
                 if (expanded == null) {
                     // Unknown placeholder — leave it as-is so the user can see the typo.
                     sb.append('[').append(body).append(']')
@@ -149,41 +188,40 @@ object MultiRenameTemplate {
         return sb.toString()
     }
 
-    private fun resolvePlaceholder(
-        body: String,
-        input: Input,
-        base: String,
-        ext: String,
-        counter: CounterConfig,
-        index: Int,
-        zone: ZoneId,
-    ): String? {
+    private fun resolvePlaceholder(body: String, ctx: RenderContext): String? {
         if (body.isEmpty()) return null
         // Date tokens are case-sensitive: [M] is month, [n] is minute. Substring/counter
-        // tokens (N/E/C/P) are treated case-insensitively for ergonomics — they don't clash.
+        // tokens (N/E/C/P/G) are treated case-insensitively for ergonomics — they don't clash.
         val head = body[0]
         val rest = body.substring(1).trim()
 
         if (rest.isEmpty()) {
             when (head) {
-                'Y' -> return datePart(DatePart.YEAR, input.lastModified, zone)
-                'M' -> return datePart(DatePart.MONTH, input.lastModified, zone)
-                'D' -> return datePart(DatePart.DAY, input.lastModified, zone)
-                'h' -> return datePart(DatePart.HOUR, input.lastModified, zone)
-                'n' -> return datePart(DatePart.MINUTE, input.lastModified, zone)
-                's' -> return datePart(DatePart.SECOND, input.lastModified, zone)
+                'Y' -> return datePart(DatePart.YEAR, ctx)
+                'M' -> return datePart(DatePart.MONTH, ctx)
+                'D' -> return datePart(DatePart.DAY, ctx)
+                'h' -> return datePart(DatePart.HOUR, ctx)
+                'n' -> return datePart(DatePart.MINUTE, ctx)
+                's' -> return datePart(DatePart.SECOND, ctx)
             }
         }
+        // Random placeholders. Checked before the N/E/P/C/G dispatch because [R...] and
+        // [Ra...]/[RA...]/[RM...] share the leading 'R' — we need to inspect the second
+        // char to route correctly.
+        if (head.uppercaseChar() == 'R') {
+            resolveRandom(body, ctx)?.let { return it }
+        }
         when (head.uppercaseChar()) {
-            'N' -> return resolveSubstring(base, rest)
-            'E' -> return resolveSubstring(ext, rest)
-            'P' -> return if (rest.isEmpty()) input.parentName else null
-            'C' -> return resolveCounter(rest, counter, index)
+            'N' -> return resolveSubstring(ctx.base, rest)
+            'E' -> return resolveSubstring(ctx.ext, rest)
+            'P' -> return if (rest.isEmpty()) ctx.input.parentName else null
+            'G' -> return if (rest.isEmpty()) ctx.input.grandParentName else null
+            'C' -> return resolveCounter(rest, ctx.counter, ctx.index)
         }
         if (body == "YMD") {
-            return datePart(DatePart.YEAR, input.lastModified, zone) +
-                datePart(DatePart.MONTH, input.lastModified, zone) +
-                datePart(DatePart.DAY, input.lastModified, zone)
+            return datePart(DatePart.YEAR, ctx) +
+                datePart(DatePart.MONTH, ctx) +
+                datePart(DatePart.DAY, ctx)
         }
         return null
     }
@@ -191,20 +229,37 @@ object MultiRenameTemplate {
     private enum class DatePart { YEAR, MONTH, DAY, HOUR, MINUTE, SECOND }
 
     /**
-     * Parses "a" or "a-b" (1-based, negative counts from end) and returns the substring.
-     * Empty `spec` returns the whole source.
+     * Parses substring specs and returns the corresponding slice of [source]. Forms accepted:
+     *   - empty               → whole source
+     *   - `"a"`               → single char at 1-based position `a` (negative counts from end)
+     *   - `"a-b"`             → chars from `a` to `b` inclusive
+     *   - `"a-"`              → chars from `a` to the end (open range; matches TC `[N3-]`)
+     *   - `"a,n"`             → `n` chars starting at position `a` (TC's position+length form)
      */
     private fun resolveSubstring(source: String, spec: String): String {
         if (spec.isEmpty()) return source
+        val comma = spec.indexOf(',')
+        if (comma > 0) {
+            val a = spec.substring(0, comma).toIntOrNull() ?: return ""
+            val len = spec.substring(comma + 1).toIntOrNull() ?: return ""
+            if (len <= 0) return ""
+            val start = resolveIndex(a, source.length) ?: return ""
+            val end = (start + len).coerceAtMost(source.length)
+            return source.substring(start, end)
+        }
         val dash = findRangeDash(spec)
         return if (dash < 0) {
             val idx = spec.toIntOrNull() ?: return ""
             val resolved = resolveIndex(idx, source.length) ?: return ""
             source.substring(resolved, resolved + 1)
         } else {
-            val a = spec.substring(0, dash).toIntOrNull() ?: return ""
-            val b = spec.substring(dash + 1).toIntOrNull() ?: return ""
+            val left = spec.substring(0, dash)
+            val right = spec.substring(dash + 1)
+            val a = left.toIntOrNull() ?: return ""
             val start = resolveIndex(a, source.length) ?: return ""
+            // Open-ended "a-" means "from a to the end of the source".
+            if (right.isEmpty()) return source.substring(start)
+            val b = right.toIntOrNull() ?: return ""
             val end = resolveIndex(b, source.length) ?: return ""
             if (start > end) return ""
             source.substring(start, (end + 1).coerceAtMost(source.length))
@@ -227,7 +282,7 @@ object MultiRenameTemplate {
     private fun resolveIndex(oneBased: Int, length: Int): Int? {
         if (length == 0) return null
         val zero = if (oneBased > 0) oneBased - 1 else length + oneBased
-        if (zero < 0 || zero >= length) return null
+        if (zero !in 0..<length) return null
         return zero
     }
 
@@ -261,9 +316,13 @@ object MultiRenameTemplate {
         return if (value < 0) "-$padded" else padded
     }
 
-    private fun datePart(kind: DatePart, time: FileTime?, zone: ZoneId): String {
-        if (time == null) return ""
-        val ldt = LocalDateTime.ofInstant(Instant.ofEpochMilli(time.toMillis()), zone)
+    private fun datePart(kind: DatePart, ctx: RenderContext): String {
+        val millis: Long = if (ctx.useCurrentDate) {
+            ctx.currentTimeMillis ?: System.currentTimeMillis()
+        } else {
+            ctx.input.lastModified?.toMillis() ?: return ""
+        }
+        val ldt = LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), ctx.zone)
         return when (kind) {
             DatePart.YEAR -> "%04d".format(ldt.year)
             DatePart.MONTH -> "%02d".format(ldt.monthValue)
@@ -272,6 +331,50 @@ object MultiRenameTemplate {
             DatePart.MINUTE -> "%02d".format(ldt.minute)
             DatePart.SECOND -> "%02d".format(ldt.second)
         }
+    }
+
+    /**
+     * Random placeholders. Returns null if [body] is not a random spec so the caller can fall
+     * through to other `R`-prefixed dispatch (currently none, but keeps the contract uniform).
+     * Forms accepted:
+     *   - `[R]`            → 1 random digit
+     *   - `[R5]`           → 5 random digits
+     *   - `[R###]`         → 3 random digits (TC-style: count of '#' marks)
+     *   - `[Ra...]`        → random lowercase letters
+     *   - `[RA...]`        → random uppercase letters
+     *   - `[RM...]`        → random mixed alphanumeric (upper + lower + digits)
+     */
+    private fun resolveRandom(body: String, ctx: RenderContext): String? {
+        if (body.isEmpty() || body[0].uppercaseChar() != 'R') return null
+        val alphabet: String
+        val specStart: Int
+        if (body.length == 1) {
+            alphabet = "0123456789"
+            specStart = 1
+        } else {
+            when (body[1]) {
+                'a' -> { alphabet = "abcdefghijklmnopqrstuvwxyz"; specStart = 2 }
+                'A' -> { alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"; specStart = 2 }
+                'M' -> { alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"; specStart = 2 }
+                else -> { alphabet = "0123456789"; specStart = 1 }
+            }
+        }
+        val spec = body.substring(specStart)
+        val count = parseRandomCount(spec) ?: return null
+        if (count <= 0) return ""
+        val sb = StringBuilder(count)
+        repeat(count) { sb.append(alphabet[ctx.random.nextInt(alphabet.length)]) }
+        return sb.toString()
+    }
+
+    /**
+     * Random-count parser. Accepts plain integer (`"5"` → 5), a run of `#` marks (`"###"` → 3),
+     * or empty (`""` → 1, matching TC's convention that a bare `[R]` yields a single digit).
+     */
+    private fun parseRandomCount(spec: String): Int? {
+        if (spec.isEmpty()) return 1
+        if (spec.all { it == '#' }) return spec.length
+        return spec.toIntOrNull()
     }
 
     private fun applySearchReplace(name: String, options: Options): String {

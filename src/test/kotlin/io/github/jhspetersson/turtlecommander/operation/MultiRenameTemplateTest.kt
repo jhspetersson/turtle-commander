@@ -17,15 +17,6 @@ class MultiRenameTemplateTest {
     private fun input(name: String, parent: String = "workdir", mtime: FileTime? = null) =
         MultiRenameTemplate.Input(name, parent, mtime)
 
-    private fun render(template: String, files: List<String>, options: MultiRenameTemplate.Options = MultiRenameTemplate.Options()): List<String> {
-        val opts = options.copy(
-            nameTemplate = template.substringBefore('.', template),
-            extensionTemplate = if (template.contains('.')) template.substringAfter('.') else "",
-            zone = zone,
-        )
-        return MultiRenameTemplate.render(files.map { input(it) }, opts)
-    }
-
     @Test
     fun `pass-through N E preserves name exactly`() {
         val out = MultiRenameTemplate.render(
@@ -157,13 +148,13 @@ class MultiRenameTemplateTest {
                 nameTemplate = "[N]",
                 extensionTemplate = "",
                 search = "zzz",
-                replace = "\$1_prefix",
+                replace = $$"$1_prefix",
                 regex = false,
                 caseSensitive = false,
                 zone = zone,
             ),
         )
-        assertEquals(listOf("\$1_prefix_old_data"), out)
+        assertEquals(listOf($$"$1_prefix_old_data"), out)
     }
 
     @Test
@@ -176,7 +167,7 @@ class MultiRenameTemplateTest {
                 nameTemplate = "[N]",
                 extensionTemplate = "[E]",
                 search = "IMG_(\\d+)_([^.]+)",
-                replace = "\$2-\$1",
+                replace = $$"$2-$1",
                 regex = true,
                 zone = zone,
             ),
@@ -341,5 +332,192 @@ class MultiRenameTemplateTest {
             MultiRenameTemplate.Options(nameTemplate = "[N]", extensionTemplate = "", zone = zone),
         )
         assertEquals(listOf("foo"), out)
+    }
+
+    @Test
+    fun `substring position-length picks N chars starting at 1-based position`() {
+        // "Photograph" → pos 2, 3 chars → "hot"
+        val out = MultiRenameTemplate.render(
+            listOf(input("Photograph.jpg")),
+            MultiRenameTemplate.Options(nameTemplate = "[N2,3]", extensionTemplate = "[E]", zone = zone),
+        )
+        assertEquals(listOf("hot.jpg"), out)
+    }
+
+    @Test
+    fun `substring position-length clamps to source length if it overruns`() {
+        // "ab" → pos 1, 10 chars → clamped to "ab"
+        val out = MultiRenameTemplate.render(
+            listOf(input("ab.txt")),
+            MultiRenameTemplate.Options(nameTemplate = "[N1,10]", extensionTemplate = "[E]", zone = zone),
+        )
+        assertEquals(listOf("ab.txt"), out)
+    }
+
+    @Test
+    fun `substring open-ended range yields everything from position to end`() {
+        // "photograph" → pos 3 onwards → "otograph"
+        val out = MultiRenameTemplate.render(
+            listOf(input("photograph.jpg")),
+            MultiRenameTemplate.Options(nameTemplate = "[N3-]", extensionTemplate = "[E]", zone = zone),
+        )
+        assertEquals(listOf("otograph.jpg"), out)
+    }
+
+    @Test
+    fun `substring open-ended range honours negative start`() {
+        // "photograph" → from 3rd-from-end onwards → last 3 chars "aph"
+        val out = MultiRenameTemplate.render(
+            listOf(input("photograph.jpg")),
+            MultiRenameTemplate.Options(nameTemplate = "[N-3-]", extensionTemplate = "[E]", zone = zone),
+        )
+        assertEquals(listOf("aph.jpg"), out)
+    }
+
+    @Test
+    fun `grandparent placeholder pulls from input`() {
+        val out = MultiRenameTemplate.render(
+            listOf(MultiRenameTemplate.Input("x.log", "service-A", null, "prod")),
+            MultiRenameTemplate.Options(
+                nameTemplate = "[G]_[P]_[N]",
+                extensionTemplate = "[E]",
+                zone = zone,
+            ),
+        )
+        assertEquals(listOf("prod_service-A_x.log"), out)
+    }
+
+    @Test
+    fun `grandparent placeholder is empty when path has no grandparent`() {
+        val out = MultiRenameTemplate.render(
+            // Default grandParentName is "" via data-class default
+            listOf(MultiRenameTemplate.Input("x.log", "workdir", null)),
+            MultiRenameTemplate.Options(
+                nameTemplate = "[G]-[N]",
+                extensionTemplate = "[E]",
+                zone = zone,
+            ),
+        )
+        assertEquals(listOf("-x.log"), out)
+    }
+
+    @Test
+    fun `random digits placeholder emits the requested count`() {
+        val out = MultiRenameTemplate.render(
+            listOf(input("a.txt"), input("b.txt")),
+            MultiRenameTemplate.Options(
+                nameTemplate = "[N]-[R5]",
+                extensionTemplate = "[E]",
+                zone = zone,
+                random = kotlin.random.Random(42),
+            ),
+        )
+        // Seeded RNG → deterministic digits. Shape check: 5 digits after the dash, different across rows.
+        assertEquals(2, out.size)
+        out.forEach { name ->
+            val suffix = name.substringAfter('-').substringBefore('.')
+            assertEquals(5, suffix.length)
+            assertTrue(suffix.all { it.isDigit() })
+        }
+    }
+
+    @Test
+    fun `random hash-mark count parses like TC`() {
+        val out = MultiRenameTemplate.render(
+            listOf(input("a")),
+            MultiRenameTemplate.Options(
+                nameTemplate = "[R###]",
+                extensionTemplate = "",
+                zone = zone,
+                random = kotlin.random.Random(1),
+            ),
+        )
+        assertEquals(1, out.size)
+        assertEquals(3, out[0].length)
+        assertTrue(out[0].all { it.isDigit() })
+    }
+
+    @Test
+    fun `bare random placeholder yields a single digit`() {
+        val out = MultiRenameTemplate.render(
+            listOf(input("a")),
+            MultiRenameTemplate.Options(
+                nameTemplate = "[R]",
+                extensionTemplate = "",
+                zone = zone,
+                random = kotlin.random.Random(7),
+            ),
+        )
+        assertEquals(1, out[0].length)
+        assertTrue(out[0][0].isDigit())
+    }
+
+    @Test
+    fun `random lowercase uppercase and mixed alphabets`() {
+        val lower = MultiRenameTemplate.render(
+            listOf(input("a")),
+            MultiRenameTemplate.Options(nameTemplate = "[Ra8]", extensionTemplate = "", zone = zone, random = kotlin.random.Random(1)),
+        )[0]
+        val upper = MultiRenameTemplate.render(
+            listOf(input("a")),
+            MultiRenameTemplate.Options(nameTemplate = "[RA8]", extensionTemplate = "", zone = zone, random = kotlin.random.Random(1)),
+        )[0]
+        val mixed = MultiRenameTemplate.render(
+            listOf(input("a")),
+            MultiRenameTemplate.Options(nameTemplate = "[RM12]", extensionTemplate = "", zone = zone, random = kotlin.random.Random(1)),
+        )[0]
+        assertEquals(8, lower.length)
+        assertTrue(lower.all { it in 'a'..'z' })
+        assertEquals(8, upper.length)
+        assertTrue(upper.all { it in 'A'..'Z' })
+        assertEquals(12, mixed.length)
+        assertTrue(mixed.all { it.isLetterOrDigit() })
+    }
+
+    @Test
+    fun `malformed random spec falls through as unknown placeholder`() {
+        // "Rz" isn't a recognized random variant and "z" isn't a digit count — preserve the
+        // brackets so the user sees the typo in the preview instead of silently dropping it.
+        val out = MultiRenameTemplate.render(
+            listOf(input("a.txt")),
+            MultiRenameTemplate.Options(nameTemplate = "[Rz]", extensionTemplate = "[E]", zone = zone),
+        )
+        assertEquals(listOf("[Rz].txt"), out)
+    }
+
+    @Test
+    fun `useCurrentDate pulls date parts from pinned current time`() {
+        // 2026-04-21 00:15:30 UTC
+        val pinned = ZonedDateTime.of(2026, 4, 21, 0, 15, 30, 0, zone).toInstant().toEpochMilli()
+        val out = MultiRenameTemplate.render(
+            listOf(input("a.txt")),
+            MultiRenameTemplate.Options(
+                nameTemplate = "[Y][M][D]_[h][n][s]_[N]",
+                extensionTemplate = "[E]",
+                zone = zone,
+                useCurrentDate = true,
+                currentTimeMillis = pinned,
+            ),
+        )
+        assertEquals(listOf("20260421_001530_a.txt"), out)
+    }
+
+    @Test
+    fun `useCurrentDate ignores lastModified on each file`() {
+        // File mtime is 2020; current time is pinned to 2026. With useCurrentDate=true the
+        // rendered date must reflect 2026, not 2020.
+        val fileTime = FileTime.fromMillis(ZonedDateTime.of(2020, 1, 1, 0, 0, 0, 0, zone).toInstant().toEpochMilli())
+        val pinned = ZonedDateTime.of(2026, 4, 21, 12, 0, 0, 0, zone).toInstant().toEpochMilli()
+        val out = MultiRenameTemplate.render(
+            listOf(MultiRenameTemplate.Input("a.txt", "p", fileTime)),
+            MultiRenameTemplate.Options(
+                nameTemplate = "[Y]",
+                extensionTemplate = "[E]",
+                zone = zone,
+                useCurrentDate = true,
+                currentTimeMillis = pinned,
+            ),
+        )
+        assertEquals(listOf("2026.txt"), out)
     }
 }

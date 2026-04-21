@@ -932,7 +932,7 @@ internal fun FileTab.performMultiRename() {
     runMultiRename(pairs)
 }
 
-private fun FileTab.runMultiRename(pairs: List<Pair<io.github.jhspetersson.turtlecommander.model.FileEntry, String>>) {
+private fun FileTab.runMultiRename(pairs: List<Pair<FileEntry, String>>) {
     fileOps.launch {
         // Two-phase rename to survive cyclic swaps like a↔b: first move every source to a
         // uniquely-named temp file, then move each temp to its final target. Without this,

@@ -5,6 +5,7 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
+import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.JBUI
@@ -19,9 +20,7 @@ import java.awt.GridBagLayout
 import java.nio.file.Files
 import javax.swing.JCheckBox
 import javax.swing.JComponent
-import javax.swing.JLabel
 import javax.swing.JPanel
-import javax.swing.JScrollPane
 import javax.swing.JSpinner
 import javax.swing.JTable
 import javax.swing.SpinnerNumberModel
@@ -44,6 +43,7 @@ class MultiRenameDialog(
     private val replaceField = JBTextField("")
     private val regexCheck = JCheckBox("Regex", false)
     private val caseSensitiveCheck = JCheckBox("Case sensitive", true)
+    private val useCurrentDateCheck = JCheckBox("Use current date for [Y][M][D][h][n][s]", false)
     private val caseCombo = ComboBox(CaseOption.entries.toTypedArray()).apply {
         selectedItem = CaseOption.UNCHANGED
     }
@@ -122,15 +122,18 @@ class MultiRenameDialog(
             add(counterStepSpinner)
             add(JBLabel("width:"))
             add(counterWidthSpinner)
+            add(useCurrentDateCheck)
         }
         gbc.gridx = 0; gbc.gridwidth = 4
         panel.add(counterPanel, gbc)
         gbc.gridwidth = 1; gbc.gridy++
 
         val hint = JBLabel("<html><small>" +
-            "[N]=name &nbsp; [N1-5]=chars 1..5 &nbsp; [N-3]=3rd from end &nbsp; " +
-            "[E]=extension &nbsp; [C]=counter &nbsp; [Y][M][D][h][n][s]=date/time &nbsp; [P]=parent dir &nbsp; " +
-            "Regex replace supports \$1, \$2, …" +
+            "[N]=name &nbsp; [N1-5]=chars 1..5 &nbsp; [N3-]=from 3 to end &nbsp; [N2,3]=3 chars from pos 2 &nbsp; [N-3]=3rd from end &nbsp; " +
+            "[E]=extension &nbsp; [C]=counter &nbsp; [Y][M][D][h][n][s]=date/time &nbsp; " +
+            "[P]=parent dir &nbsp; [G]=grandparent dir &nbsp; " +
+            "[R5]=5 random digits &nbsp; [Ra5]/[RA5]/[RM5]=lower/upper/mixed letters &nbsp; " +
+                $$"Regex replace supports $1, $2, …" +
             "</small></html>")
         gbc.gridx = 0; gbc.gridwidth = 4
         panel.add(hint, gbc)
@@ -140,13 +143,13 @@ class MultiRenameDialog(
 
     private fun buildPreview(): JComponent {
         table.setShowGrid(true)
-        table.rowHeight = table.rowHeight + 2
+        table.rowHeight += 2
         table.autoResizeMode = JTable.AUTO_RESIZE_LAST_COLUMN
         val renderer = ConflictRenderer { conflictRows }
         for (col in 0 until table.columnCount) {
             table.columnModel.getColumn(col).cellRenderer = renderer
         }
-        val scroll = JScrollPane(table)
+        val scroll = JBScrollPane(table)
         val panel = JPanel(BorderLayout(0, 4))
         panel.add(JBLabel("Preview — conflicting rows are highlighted; rename is disabled while any conflict exists."), BorderLayout.NORTH)
         panel.add(scroll, BorderLayout.CENTER)
@@ -160,7 +163,7 @@ class MultiRenameDialog(
             override fun changedUpdate(e: DocumentEvent?) = recomputePreview()
         }
         listOf(nameField, extField, searchField, replaceField).forEach { it.document.addDocumentListener(docListener) }
-        listOf(regexCheck, caseSensitiveCheck).forEach { it.addActionListener { recomputePreview() } }
+        listOf(regexCheck, caseSensitiveCheck, useCurrentDateCheck).forEach { it.addActionListener { recomputePreview() } }
         caseCombo.addActionListener { recomputePreview() }
         listOf(counterStartSpinner, counterStepSpinner, counterWidthSpinner).forEach {
             it.addChangeListener { recomputePreview() }
@@ -181,6 +184,7 @@ class MultiRenameDialog(
                 step = (counterStepSpinner.value as Number).toInt(),
                 width = (counterWidthSpinner.value as Number).toInt(),
             ),
+            useCurrentDate = useCurrentDateCheck.isSelected,
         )
         val inputs = entries.map { entry ->
             MultiRenameTemplate.Input.from(entry.path, entry.lastModified)
