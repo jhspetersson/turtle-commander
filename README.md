@@ -17,6 +17,7 @@ A dual-panel file manager integrated into IntelliJ-based IDEs, inspired by class
 - Drag-and-drop between panels and to/from the Project tool window
 - Compare files (with the standard diff tool)
 - Split and combine large files
+- Multi-Rename tool
 - Draggable and reorderable tabs with the context menu
 - Session state persistence: open tabs, panel sizes, and column layouts are saved per project
 - Middle-click to close tabs
