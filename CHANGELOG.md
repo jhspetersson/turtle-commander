@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-04-23
+
+### Changed
+
+- Project directory colors are now fully customizable
+
 ## [0.4.13] - 2026-04-22
 
 ### Changed

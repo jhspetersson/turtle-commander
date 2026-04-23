@@ -23,7 +23,7 @@ A dual-panel file manager integrated into IntelliJ-based IDEs, inspired by class
 - Middle-click to close tabs
 - Favorite tabs (with Ctrl-1..9 shortcuts for quick access) with customizable colors
 - Open in Terminal
-- Colored directory icons for project types (IntelliJ, Git, Gradle, Maven, Cargo, npm, Python, CMake, .NET)
+- Fully customizable colors and icons for project directories (IntelliJ, Git, Gradle, Maven, Cargo, npm, Python, CMake, .NET)
 - Themes (including classic NC), customizable fonts, hotkeys, other settings
 <!-- Plugin description end -->
 
