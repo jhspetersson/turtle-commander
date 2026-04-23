@@ -280,4 +280,167 @@ class XmlSerializationTest {
         assertEquals("Consolas", restored.styles.tabStyle.fontFamily)
         assertEquals("#112233", restored.preThemeStyles.panelStyle.backgroundColor)
     }
+
+    @Test
+    fun `colorRulesInitialized and colorizationMode survive round-trip`() {
+        val state = TurtleCommanderSettings.State().apply {
+            colorRulesInitialized = true
+            colorizationMode = ColorizationMode.LAYERED.name
+        }
+        val restored = roundTrip(state)
+        assertTrue(restored.colorRulesInitialized)
+        assertEquals("LAYERED", restored.colorizationMode)
+    }
+
+    @Test
+    fun `SavedColorRule all fields survive round-trip`() {
+        val rule = ColorRule(
+            id = "rule-1",
+            name = "Big PDFs",
+            priority = 42,
+            active = false,
+            combinator = Combinator.OR,
+            matchers = listOf(
+                RuleMatcher.Size(op = SizeOp.BETWEEN, bytes = 1_000L, bytesMax = 10_000L),
+                RuleMatcher.Name(kind = PatternKind.GLOB, pattern = "*.pdf", caseSensitive = true, appliesTo = AppliesTo.FILE),
+                RuleMatcher.Contains(kind = PatternKind.EXACT, pattern = ".git", caseSensitive = false),
+            ),
+            style = RuleStyle(
+                fontColor = "#FF0000",
+                backgroundColor = "#FFFFE0",
+                iconDotColor = "#00AA00",
+                fontStyle = Font.BOLD,
+                fontSize = 16,
+            ),
+        )
+        val state = TurtleCommanderSettings.State().apply {
+            colorRulesInitialized = true
+            colorRules = mutableListOf(SavedColorRule.fromRule(rule))
+        }
+
+        val restored = roundTrip(state)
+        assertEquals(1, restored.colorRules.size)
+        val rt = restored.colorRules[0].toRule()
+
+        assertEquals("rule-1", rt.id)
+        assertEquals("Big PDFs", rt.name)
+        assertEquals(42, rt.priority)
+        assertFalse(rt.active)
+        assertEquals(Combinator.OR, rt.combinator)
+        assertEquals(3, rt.matchers.size)
+
+        val size = rt.matchers[0] as RuleMatcher.Size
+        assertEquals(SizeOp.BETWEEN, size.op)
+        assertEquals(1_000L, size.bytes)
+        assertEquals(10_000L, size.bytesMax)
+
+        val name = rt.matchers[1] as RuleMatcher.Name
+        assertEquals(PatternKind.GLOB, name.kind)
+        assertEquals("*.pdf", name.pattern)
+        assertTrue(name.caseSensitive)
+        assertEquals(AppliesTo.FILE, name.appliesTo)
+
+        val contains = rt.matchers[2] as RuleMatcher.Contains
+        assertEquals(PatternKind.EXACT, contains.kind)
+        assertEquals(".git", contains.pattern)
+        assertFalse(contains.caseSensitive)
+
+        assertEquals("#FF0000", rt.style.fontColor)
+        assertEquals("#FFFFE0", rt.style.backgroundColor)
+        assertEquals("#00AA00", rt.style.iconDotColor)
+        assertEquals(Font.BOLD, rt.style.fontStyle)
+        assertEquals(16, rt.style.fontSize)
+    }
+
+    @Test
+    fun `SavedColorRule sentinel font fields normalize to null`() {
+        // A rule with no font-style/font-size override is stored as fontStyle=-1, fontSize=-1
+        // (primitive int fields don't round-trip null). toRule() must reconstitute them as null.
+        val state = TurtleCommanderSettings.State().apply {
+            colorRulesInitialized = true
+            colorRules = mutableListOf(SavedColorRule.fromRule(
+                ColorRule(
+                    id = "plain",
+                    name = "plain",
+                    matchers = listOf(RuleMatcher.Name(PatternKind.GLOB, "*.x")),
+                    // style left as default RuleStyle — fontStyle/fontSize are null
+                )
+            ))
+        }
+        val restored = roundTrip(state)
+        val rt = restored.colorRules[0].toRule()
+        assertNull(rt.style.fontStyle)
+        assertNull(rt.style.fontSize)
+    }
+
+    @Test
+    fun `SavedColorMatcher with invalid type yields null and is dropped`() {
+        val saved = SavedColorRule().apply {
+            id = "x"
+            name = "x"
+            matchers.add(SavedColorMatcher().apply { type = "BOGUS" })
+            matchers.add(SavedColorMatcher().apply {
+                type = "NAME"
+                patternKind = "GLOB"
+                pattern = "*.md"
+            })
+        }
+        val state = TurtleCommanderSettings.State().apply {
+            colorRulesInitialized = true
+            colorRules = mutableListOf(saved)
+        }
+        val restored = roundTrip(state)
+        val rt = restored.colorRules[0].toRule()
+        assertEquals(1, rt.matchers.size)
+        assertTrue(rt.matchers[0] is RuleMatcher.Name)
+    }
+
+    @Test
+    fun `multiple color rules survive round-trip preserving order`() {
+        val state = TurtleCommanderSettings.State().apply {
+            colorRulesInitialized = true
+            colorRules = mutableListOf(
+                SavedColorRule.fromRule(ColorRule(
+                    id = "a", name = "alpha", priority = 10,
+                    matchers = listOf(RuleMatcher.Size(SizeOp.GT, 100)),
+                )),
+                SavedColorRule.fromRule(ColorRule(
+                    id = "b", name = "beta", priority = 20,
+                    matchers = listOf(RuleMatcher.Name(PatternKind.REGEX, ".*\\.tmp$")),
+                )),
+                SavedColorRule.fromRule(ColorRule(
+                    id = "c", name = "gamma", priority = 30,
+                    matchers = listOf(RuleMatcher.Contains(PatternKind.EXACT, "pom.xml")),
+                )),
+            )
+        }
+        val restored = roundTrip(state)
+        assertEquals(3, restored.colorRules.size)
+        assertEquals(listOf("a", "b", "c"), restored.colorRules.map { it.id })
+        assertEquals(listOf("alpha", "beta", "gamma"), restored.colorRules.map { it.name })
+        assertEquals(listOf(10, 20, 30), restored.colorRules.map { it.priority })
+    }
+
+    @Test
+    fun `XML output actually contains colorRules when non-empty`() {
+        val state = TurtleCommanderSettings.State().apply {
+            colorRulesInitialized = true
+            colorRules = mutableListOf(SavedColorRule.fromRule(
+                ColorRule(
+                    id = "marker",
+                    name = "marker-rule",
+                    matchers = listOf(RuleMatcher.Name(PatternKind.GLOB, "*.log")),
+                    style = RuleStyle(fontColor = "#ABCDEF"),
+                )
+            ))
+        }
+        val element: Element = XmlSerializer.serialize(state)
+        val xmlOutput = JDOMUtil.writeElement(element)
+        assertTrue("XML should contain colorRulesInitialized:\n$xmlOutput",
+            xmlOutput.contains("colorRulesInitialized"))
+        assertTrue("XML should contain rule name:\n$xmlOutput",
+            xmlOutput.contains("marker-rule"))
+        assertTrue("XML should contain font color:\n$xmlOutput",
+            xmlOutput.contains("#ABCDEF"))
+    }
 }

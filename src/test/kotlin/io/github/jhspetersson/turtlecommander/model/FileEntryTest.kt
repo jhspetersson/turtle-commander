@@ -29,7 +29,6 @@ class FileEntryTest {
     fun testDefaultValues() {
         val entry = FileEntry("test", Path.of("/test"), false, 0, lastModified = null, permissions = "")
         assertFalse(entry.isParentLink)
-        assertEquals(DirectoryType.NONE, entry.directoryType)
     }
 
     @Test
@@ -37,22 +36,6 @@ class FileEntryTest {
         val entry = FileEntry("..", Path.of("/"), true, 0, lastModified = null, permissions = "", isParentLink = true)
         assertTrue(entry.isParentLink)
         assertTrue(entry.isDirectory)
-    }
-
-    @Test
-    fun testDirectoryTypes() {
-        val types = DirectoryType.entries
-        assertTrue(types.contains(DirectoryType.NONE))
-        assertTrue(types.contains(DirectoryType.GIT))
-        assertTrue(types.contains(DirectoryType.IDEA_PROJECT))
-        assertTrue(types.contains(DirectoryType.GRADLE))
-        assertTrue(types.contains(DirectoryType.MAVEN))
-        assertTrue(types.contains(DirectoryType.CARGO))
-        assertTrue(types.contains(DirectoryType.NPM))
-        assertTrue(types.contains(DirectoryType.PYTHON))
-        assertTrue(types.contains(DirectoryType.CMAKE))
-        assertTrue(types.contains(DirectoryType.DOTNET))
-        assertEquals(10, types.size)
     }
 
     @Test

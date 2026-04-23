@@ -14,18 +14,4 @@ data class FileEntry(
     val group: String = "",
     val permissions: String,
     val isParentLink: Boolean = false,
-    val directoryType: DirectoryType = DirectoryType.NONE,
 )
-
-enum class DirectoryType {
-    NONE,
-    GIT,
-    IDEA_PROJECT,
-    GRADLE,
-    MAVEN,
-    CARGO,
-    NPM,
-    PYTHON,
-    CMAKE,
-    DOTNET,
-}

@@ -28,6 +28,7 @@ import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.service.FileOperationService
 import io.github.jhspetersson.turtlecommander.service.ThumbnailCache
 import io.github.jhspetersson.turtlecommander.settings.ColumnConfig
+import io.github.jhspetersson.turtlecommander.settings.ResolvedStyle
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
 import io.github.jhspetersson.turtlecommander.util.formatSize
@@ -1742,13 +1743,17 @@ fun isArchiveFile(entry: FileEntry): Boolean {
     return VirtualFileSystemRegistry.supportsByExtension(entry.name)
 }
 
-fun fileEntryIcon(entry: FileEntry, enableFileNameHighlighting: Boolean): Icon? {
+fun fileEntryIcon(
+    entry: FileEntry,
+    enableFileNameHighlighting: Boolean,
+    resolved: ResolvedStyle = ResolvedStyle.EMPTY,
+): Icon? {
     return when {
         entry.isParentLink -> AllIcons.Nodes.UpLevel
-        entry.isDirectory -> if (enableFileNameHighlighting) {
-            DirectoryIcons.getIcon(entry.directoryType)
-        } else {
-            AllIcons.Nodes.Folder
+        entry.isDirectory -> {
+            if (!enableFileNameHighlighting) return AllIcons.Nodes.Folder
+            val dot = resolved.iconDotJBColor()
+            if (dot != null) DirectoryIcons.folderIconWithDot(dot) else AllIcons.Nodes.Folder
         }
         isArchiveFile(entry) -> AllIcons.FileTypes.Archive
         else -> FileTypeManager.getInstance().getFileTypeByFileName(entry.name).icon

@@ -31,6 +31,7 @@ class TurtleCommanderConfigurable : Configurable {
     private var defaultViewModeCombo: ComboBox<String>? = null
     private var columnsEditor: ColumnsEditor? = null
     private var favoritesEditor: FavoritesEditor? = null
+    private var colorRulesEditor: ColorRulesEditor? = null
 
     // Legacy font combos kept for backward compat during migration
     private var panelFontCombo: ComboBox<String>? = null
@@ -48,7 +49,7 @@ class TurtleCommanderConfigurable : Configurable {
         val settings = TurtleCommanderSettings.getInstance().state
         val fontFamilies = GraphicsEnvironment.getLocalGraphicsEnvironment().availableFontFamilyNames
 
-        highlightingCheckBox = JCheckBox("Enable file name highlighting for project directories", settings.enableFileNameHighlighting)
+        highlightingCheckBox = JCheckBox("Enable colorization rules for files and directories", settings.enableFileNameHighlighting)
         commandBarCheckBox = JCheckBox("Show command bar (F5 Copy, F6 Move, etc.)", settings.showCommandBar)
         hideDriveSelectorCheckBox = JCheckBox("Hide drive selector", settings.hideDriveSelector)
         hideStatusBarCheckBox = JCheckBox("Hide status bar", settings.hideStatusBar)
@@ -125,6 +126,11 @@ class TurtleCommanderConfigurable : Configurable {
         val favEditor = FavoritesEditor()
         favoritesEditor = favEditor
 
+        // Color rules editor
+        val rulesEditor = ColorRulesEditor(null)
+        rulesEditor.resetFrom(settings)
+        colorRulesEditor = rulesEditor
+
         val thumbnailCacheSizeLabel = JBLabel(formatSize(ThumbnailCache.getCacheSize()))
         val clearCacheButton = JButton("Clear").apply {
             addActionListener {
@@ -156,6 +162,8 @@ class TurtleCommanderConfigurable : Configurable {
             add(appearancePanel)
             add(Box.createVerticalStrut(8))
             add(colEditor.panel)
+            add(Box.createVerticalStrut(8))
+            add(rulesEditor.panel)
             add(Box.createVerticalStrut(8))
             add(favEditor.panel)
             add(Box.createVerticalStrut(8))
@@ -568,6 +576,7 @@ class TurtleCommanderConfigurable : Configurable {
             || getSelectedThemeName() != settings.themeName.ifEmpty { Theme.DEFAULT.name }
             || columnsEditor?.isModified(TurtleCommanderSettings.getInstance().getEffectiveColumns()) == true
             || favoritesEditor?.isModified() == true
+            || colorRulesEditor?.isModified() == true
     }
 
     override fun apply() {
@@ -595,6 +604,7 @@ class TurtleCommanderConfigurable : Configurable {
         settings.themeName = getSelectedThemeName()
 
         columnsEditor?.applyTo(settings)
+        colorRulesEditor?.applyTo(settings)
 
         // Sync legacy fields from panelStyle/tabStyle
         settings.panelFontFamily = settings.styles.panelStyle.fontFamily
@@ -642,6 +652,7 @@ class TurtleCommanderConfigurable : Configurable {
 
         columnsEditor?.resetFrom(TurtleCommanderSettings.getInstance().getEffectiveColumns())
         favoritesEditor?.reset()
+        colorRulesEditor?.resetFrom(settings)
     }
 
     override fun disposeUIResources() {
@@ -660,6 +671,7 @@ class TurtleCommanderConfigurable : Configurable {
         defaultViewModeCombo = null
         columnsEditor = null
         favoritesEditor = null
+        colorRulesEditor = null
         themeCombo = null
         suppressThemeAction = false
         styleEditors.clear()

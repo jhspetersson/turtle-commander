@@ -4,10 +4,11 @@ import com.intellij.ui.*
 import com.intellij.ui.speedSearch.SpeedSearchSupply
 import com.intellij.ui.speedSearch.SpeedSearchUtil
 import com.intellij.util.IconUtil
-import io.github.jhspetersson.turtlecommander.model.DirectoryType
 import io.github.jhspetersson.turtlecommander.model.FileEntry
+import io.github.jhspetersson.turtlecommander.service.ColorizationService
 import io.github.jhspetersson.turtlecommander.service.ThumbnailCache
 import io.github.jhspetersson.turtlecommander.settings.ComponentStyle
+import io.github.jhspetersson.turtlecommander.settings.ResolvedStyle
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import java.awt.BorderLayout
 import java.awt.Color
@@ -15,6 +16,19 @@ import java.awt.Component
 import javax.swing.*
 import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.tree.DefaultMutableTreeNode
+
+/** Resolves the color-rule engine's effective style for [entry], respecting the tab-level master switch. */
+internal fun resolvedStyleFor(entry: FileEntry, enableHighlighting: Boolean): ResolvedStyle =
+    if (enableHighlighting) ColorizationService.getInstance().resolve(entry) else ResolvedStyle.EMPTY
+
+internal fun ResolvedStyle.fontJBColor(): Color? = parseHexColor(fontColor)
+internal fun ResolvedStyle.backgroundJBColor(): Color? = parseHexColor(backgroundColor)
+internal fun ResolvedStyle.iconDotJBColor(): Color? = parseHexColor(iconDotColor)
+
+private fun parseHexColor(hex: String): Color? {
+    if (hex.isBlank()) return null
+    return try { Color.decode(hex) } catch (_: Exception) { null }
+}
 
 /**
  * Wraps matched speed-search substrings in an HTML <span> so they appear highlighted
@@ -174,7 +188,8 @@ internal class StyledFileNameCellRenderer(
         val entry = tab.tableModel.getEntryAt(modelRow)
         val isMarked = entry != null && entry.path in tab.markedPaths
         val isCursor = row == table.selectionModel.leadSelectionIndex
-        icon = if (entry != null) fileEntryIcon(entry, tab.enableFileNameHighlighting) else null
+        val resolved = if (entry != null) resolvedStyleFor(entry, tab.enableFileNameHighlighting) else ResolvedStyle.EMPTY
+        icon = if (entry != null) fileEntryIcon(entry, tab.enableFileNameHighlighting, resolved) else null
 
         if (isMarked && isCursor) {
             background = MARK_CURSOR_BACKGROUND
@@ -185,7 +200,7 @@ internal class StyledFileNameCellRenderer(
         } else if (selected && !table.hasFocus()) {
             background = tab.inactiveSelectionBackground()
         } else if (!selected) {
-            background = table.background
+            background = resolved.backgroundJBColor() ?: table.background
         }
 
         val fg: Color? = when {
@@ -195,9 +210,7 @@ internal class StyledFileNameCellRenderer(
             isCursor -> tab.inactiveSelectionForeground()
             selected && !table.hasFocus() -> tab.inactiveSelectionForeground()
             selected -> null // default selection foreground from ColoredTableCellRenderer
-            tab.enableFileNameHighlighting && entry != null && entry.isDirectory && entry.directoryType != DirectoryType.NONE ->
-                DirectoryIcons.getColor(entry.directoryType)
-            else -> style?.parsedFontColor() ?: table.foreground
+            else -> resolved.fontJBColor() ?: style?.parsedFontColor() ?: table.foreground
         }
 
         val fontStyle = style?.getFont(table.font)?.style ?: java.awt.Font.PLAIN
@@ -295,22 +308,23 @@ internal class FileListCellRenderer(private val tab: FileTab) : ColoredListCellR
         val entry = value ?: return
         val isMarked = entry.path in tab.markedPaths
         val isCursor = index == list.selectionModel.leadSelectionIndex
-        icon = fileEntryIcon(entry, tab.enableFileNameHighlighting)
+        val resolved = resolvedStyleFor(entry, tab.enableFileNameHighlighting)
+        icon = fileEntryIcon(entry, tab.enableFileNameHighlighting, resolved)
         if (isMarked && isCursor) {
             background = MARK_CURSOR_BACKGROUND
         } else if (isMarked) {
             background = MARK_BACKGROUND
         } else if (isCursor) {
             background = list.selectionBackground
+        } else if (!selected) {
+            resolved.backgroundJBColor()?.let { background = it }
         }
         val fg: Color? = when {
             isMarked && isCursor -> list.foreground
             isMarked -> list.foreground
             isCursor -> list.selectionForeground
             selected -> null
-            tab.enableFileNameHighlighting && entry.isDirectory && entry.directoryType != DirectoryType.NONE ->
-                DirectoryIcons.getColor(entry.directoryType)
-            else -> null
+            else -> resolved.fontJBColor()
         }
         val attrs = if (fg != null) SimpleTextAttributes(SimpleTextAttributes.STYLE_PLAIN, fg) else SimpleTextAttributes.REGULAR_ATTRIBUTES
         append(entry.name, attrs)
@@ -357,10 +371,11 @@ internal class FileThumbnailCellRenderer(private val tab: FileTab) : ListCellRen
             cached
         } else null
 
+        val resolved = resolvedStyleFor(entry, tab.enableFileNameHighlighting)
         if (thumbnail != null) {
             iconLabel.icon = thumbnail
         } else {
-            val entryIcon = fileEntryIcon(entry, tab.enableFileNameHighlighting)
+            val entryIcon = fileEntryIcon(entry, tab.enableFileNameHighlighting, resolved)
             iconLabel.icon = if (entryIcon != null) IconUtil.scale(entryIcon, list, 2.0f) else null
         }
         val name = entry.name
@@ -383,12 +398,8 @@ internal class FileThumbnailCellRenderer(private val tab: FileTab) : ListCellRen
             panel.background = list.selectionBackground
             nameLabel.foreground = list.selectionForeground
         } else {
-            panel.background = list.background
-            if (tab.enableFileNameHighlighting && entry.isDirectory && entry.directoryType != DirectoryType.NONE) {
-                nameLabel.foreground = DirectoryIcons.getColor(entry.directoryType)
-            } else {
-                nameLabel.foreground = list.foreground
-            }
+            panel.background = resolved.backgroundJBColor() ?: list.background
+            nameLabel.foreground = resolved.fontJBColor() ?: list.foreground
         }
         return panel
     }
@@ -411,22 +422,23 @@ internal class FileTreeCellRenderer(private val tab: FileTab) : ColoredTreeCellR
         }
         val isMarked = entry.path in tab.markedPaths
         val isCursor = row == tree.leadSelectionRow
-        icon = fileEntryIcon(entry, tab.enableFileNameHighlighting)
+        val resolved = resolvedStyleFor(entry, tab.enableFileNameHighlighting)
+        icon = fileEntryIcon(entry, tab.enableFileNameHighlighting, resolved)
         if (isMarked && isCursor) {
             background = MARK_CURSOR_BACKGROUND
         } else if (isMarked) {
             background = MARK_BACKGROUND
         } else if (isCursor) {
             background = UIManager.getColor("Tree.selectionBackground") ?: tree.background
+        } else if (!selected) {
+            resolved.backgroundJBColor()?.let { background = it }
         }
         val fg: Color? = when {
             isMarked && isCursor -> tree.foreground
             isMarked -> tree.foreground
             isCursor -> UIManager.getColor("Tree.selectionForeground") ?: tree.foreground
             selected -> null
-            tab.enableFileNameHighlighting && entry.isDirectory && entry.directoryType != DirectoryType.NONE ->
-                DirectoryIcons.getColor(entry.directoryType)
-            else -> null
+            else -> resolved.fontJBColor()
         }
         val attrs = if (fg != null) SimpleTextAttributes(SimpleTextAttributes.STYLE_PLAIN, fg) else SimpleTextAttributes.REGULAR_ATTRIBUTES
         append(entry.name, attrs)

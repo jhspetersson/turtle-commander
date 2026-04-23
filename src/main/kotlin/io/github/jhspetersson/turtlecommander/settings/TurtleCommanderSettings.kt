@@ -192,6 +192,11 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
         var nameSearchHistory: MutableList<String> = mutableListOf()
         var regexpSearchHistory: MutableList<String> = mutableListOf()
         var contentSearchHistory: MutableList<String> = mutableListOf()
+
+        var colorRules: MutableList<SavedColorRule> = mutableListOf()
+        var colorRulesInitialized: Boolean = false
+        // "WINNER" | "LAYERED" — stored as string so XmlSerializer stays happy
+        var colorizationMode: String = ColorizationMode.WINNER.name
     }
 
     fun getNameSearchHistory(regexp: Boolean): MutableList<String> =
@@ -268,6 +273,7 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
 
     override fun getState(): State {
         ThemeManager.ensureInitialThemes(myState)
+        ColorRuleManager.ensureInitialRules(myState)
         return myState
     }
 

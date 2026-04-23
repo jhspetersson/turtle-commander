@@ -2,7 +2,6 @@ package io.github.jhspetersson.turtlecommander.service
 
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
-import io.github.jhspetersson.turtlecommander.model.DirectoryType
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.util.readFileGroup
@@ -64,19 +63,9 @@ class FileOperationService(
         val timestamp: Long,
     )
 
-    private data class CachedDirectoryType(
-        val type: DirectoryType,
-        val timestamp: Long,
-    )
-
     private val listingCache = object : LinkedHashMap<Path, CachedListing>(CACHE_MAX_SIZE, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Path, CachedListing>): Boolean =
             size > CACHE_MAX_SIZE
-    }
-
-    private val directoryTypeCache = object : LinkedHashMap<Path, CachedDirectoryType>(DIRECTORY_TYPE_CACHE_MAX_SIZE, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Path, CachedDirectoryType>): Boolean =
-            size > DIRECTORY_TYPE_CACHE_MAX_SIZE
     }
 
     fun launch(block: suspend CoroutineScope.() -> Unit): Job = cs.launch(block = block)
@@ -138,7 +127,6 @@ class FileOperationService(
                         isWindows && attrs is DosFileAttributes -> dosAttrsToString(attrs)
                         else -> readPermissions(entry)
                     }
-                    val dirType = if (attrs.isDirectory) cachedDetectDirectoryType(entry, forceRefresh) else DirectoryType.NONE
                     val fileEntry = FileEntry(
                         name = entry.name,
                         path = entry,
@@ -149,7 +137,6 @@ class FileOperationService(
                         owner = owner,
                         group = group,
                         permissions = permissions,
-                        directoryType = dirType,
                     )
                     if (attrs.isDirectory) dirs.add(fileEntry) else files.add(fileEntry)
                 } catch (e: IOException) {
@@ -208,7 +195,6 @@ class FileOperationService(
         synchronized(listingCache) {
             listingCache.clear()
         }
-        clearDirectoryTypeCache()
     }
 
     internal fun listingCacheSize(): Int = synchronized(listingCache) { listingCache.size }
@@ -218,58 +204,9 @@ class FileOperationService(
         clock() - entry.timestamp <= CACHE_TTL_MS
     }
 
-    /**
-     * Returns the [DirectoryType] of [dir], using a cached value when available. Directory
-     * colorization (detecting `.git`, `pom.xml`, `package.json`, etc.) requires several stat
-     * calls per directory; caching the result speeds up re-listing large parent directories.
-     *
-     * @param forceRefresh when true, bypasses the cache and re-detects. The freshly detected
-     *                     value is written back to the cache.
-     */
-    private fun cachedDetectDirectoryType(dir: Path, forceRefresh: Boolean = false): DirectoryType {
-        if (!forceRefresh) {
-            synchronized(directoryTypeCache) {
-                val entry = directoryTypeCache[dir]
-                if (entry != null && clock() - entry.timestamp <= CACHE_TTL_MS) {
-                    return entry.type
-                }
-            }
-        }
-        val type = detectDirectoryType(dir)
-        synchronized(directoryTypeCache) {
-            directoryTypeCache[dir] = CachedDirectoryType(type, clock())
-        }
-        return type
-    }
-
-    fun invalidateDirectoryTypeCache(directory: Path) {
-        synchronized(directoryTypeCache) {
-            directoryTypeCache.remove(directory)
-        }
-    }
-
-    fun clearDirectoryTypeCache() {
-        synchronized(directoryTypeCache) {
-            directoryTypeCache.clear()
-        }
-    }
-
-    internal fun directoryTypeCacheSize(): Int = synchronized(directoryTypeCache) { directoryTypeCache.size }
-
-    internal fun isDirectoryTypeCached(directory: Path): Boolean = synchronized(directoryTypeCache) {
-        val entry = directoryTypeCache[directory] ?: return@synchronized false
-        clock() - entry.timestamp <= CACHE_TTL_MS
-    }
-
-    internal fun cachedDirectoryType(directory: Path): DirectoryType? = synchronized(directoryTypeCache) {
-        val entry = directoryTypeCache[directory] ?: return@synchronized null
-        if (clock() - entry.timestamp > CACHE_TTL_MS) null else entry.type
-    }
-
     companion object {
         internal const val CACHE_MAX_SIZE = 20
         internal const val CACHE_TTL_MS = 10L * 60 * 1000 // 10 minutes
-        internal const val DIRECTORY_TYPE_CACHE_MAX_SIZE = 500
     }
 
     /**
@@ -635,20 +572,6 @@ class FileOperationService(
     private fun readGroup(path: Path): String = readFileGroup(path)
     private fun readPermissions(path: Path): String = readFilePermissions(path, isWindows)
 
-    private fun hasDotNetMarker(dir: Path): Boolean = try {
-        Files.newDirectoryStream(dir).use { stream ->
-            for (entry in stream) {
-                val name = entry.fileName?.toString() ?: continue
-                if (name.endsWith(".sln") || name.endsWith(".csproj") || name.endsWith(".fsproj")) {
-                    return@use true
-                }
-            }
-            false
-        }
-    } catch (_: Exception) {
-        false
-    }
-
     private fun dosAttrsToString(attrs: DosFileAttributes): String = buildString {
         if (attrs.isReadOnly) append('R')
         if (attrs.isHidden) append('H')
@@ -694,43 +617,6 @@ class FileOperationService(
                 }
                 Files.delete(source)
             }
-        }
-    }
-
-    private fun detectDirectoryType(dir: Path): DirectoryType {
-        return try {
-            when {
-                // IntelliJ IDEA / JetBrains project
-                Files.isDirectory(dir.resolve(".idea")) -> DirectoryType.IDEA_PROJECT
-                // Gradle project
-                Files.exists(dir.resolve("build.gradle.kts"))
-                    || Files.exists(dir.resolve("build.gradle"))
-                    || Files.exists(dir.resolve("settings.gradle.kts"))
-                    || Files.exists(dir.resolve("settings.gradle")) -> DirectoryType.GRADLE
-                // Maven project
-                Files.exists(dir.resolve("pom.xml")) -> DirectoryType.MAVEN
-                // Rust / Cargo project
-                Files.exists(dir.resolve("Cargo.toml")) -> DirectoryType.CARGO
-                // Node.js / npm project
-                Files.exists(dir.resolve("package.json")) -> DirectoryType.NPM
-                // Python project
-                Files.exists(dir.resolve("pyproject.toml"))
-                    || Files.exists(dir.resolve("setup.py"))
-                    || Files.exists(dir.resolve("requirements.txt"))
-                    || Files.isDirectory(dir.resolve(".venv"))
-                    || Files.isDirectory(dir.resolve("venv")) -> DirectoryType.PYTHON
-                // CMake project
-                Files.exists(dir.resolve("CMakeLists.txt")) -> DirectoryType.CMAKE
-                // .NET project. Stream the directory entries with early termination instead of
-                // materializing the full name list up front — large subdirectories (e.g. extracted
-                // archives inside Downloads) otherwise trigger a full listing per detection call.
-                hasDotNetMarker(dir) -> DirectoryType.DOTNET
-                // Git repository
-                Files.isDirectory(dir.resolve(".git")) -> DirectoryType.GIT
-                else -> DirectoryType.NONE
-            }
-        } catch (_: Exception) {
-            DirectoryType.NONE
         }
     }
 
