@@ -9,6 +9,7 @@ import io.github.jhspetersson.turtlecommander.vfs.ZipVirtualFileSystem
 import kotlinx.coroutines.runBlocking
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.attribute.FileTime
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -446,7 +447,7 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         assertTrue("Directory should be cached after first call", fileOps.isListingCached(dir))
     }
 
-    fun testListingCacheReturnsStaleResultWithoutRefresh() = runBlocking {
+    fun testListingCacheDetectsExternalMtimeChange() = runBlocking {
         val dir = Files.createDirectory(tempDir.resolve("cache-b"))
         Files.writeString(dir.resolve("before.txt"), "x")
 
@@ -454,12 +455,31 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         val first = fileOps.listFiles(dir).map { it.name }.toSet()
         assertTrue("before.txt" in first)
 
-        // Add a new file bypassing the plugin
+        // Bump mtime explicitly so the test isn't sensitive to filesystem timer resolution
+        // (some filesystems round mtime to the nearest second, so two writes in the same
+        // second would produce identical mtimes).
+        val bumped = FileTime.fromMillis(Files.getLastModifiedTime(dir).toMillis() + 2000)
         Files.writeString(dir.resolve("after.txt"), "y")
+        Files.setLastModifiedTime(dir, bumped)
 
         val second = fileOps.listFiles(dir).map { it.name }.toSet()
-        assertFalse("Cached result should NOT include file added outside the plugin", "after.txt" in second)
+        assertTrue("Cache should auto-invalidate when dir mtime changes", "after.txt" in second)
         assertTrue("before.txt" in second)
+    }
+
+    fun testListingCacheFreshnessReflectsMtime() = runBlocking {
+        val dir = Files.createDirectory(tempDir.resolve("cache-fresh"))
+        Files.writeString(dir.resolve("a.txt"), "a")
+
+        fileOps.clearListingCache()
+        fileOps.listFiles(dir)
+        assertTrue("Should be fresh right after listing", fileOps.isListingCacheFresh(dir))
+
+        val bumped = FileTime.fromMillis(Files.getLastModifiedTime(dir).toMillis() + 2000)
+        Files.writeString(dir.resolve("b.txt"), "b")
+        Files.setLastModifiedTime(dir, bumped)
+
+        assertFalse("Should be stale after external mtime change", fileOps.isListingCacheFresh(dir))
     }
 
     fun testListingCacheRefreshedOnForceRefresh() = runBlocking {
@@ -541,24 +561,22 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
 
         fileOps.clearListingCache()
 
-        // Control the clock: start at T=0, advance past TTL on second call
+        // Control the clock: start at T=0, advance past TTL. The test only checks TTL-based
+        // expiry via `isListingCached` (which is timestamp-only); mtime-based invalidation is
+        // covered separately so we don't need to perturb the directory here.
         var now = 1_000_000L
         fileOps.clock = { now }
         try {
             fileOps.listFiles(dir)
             assertTrue(fileOps.isListingCached(dir))
 
-            // Add a file, advance clock by just under TTL — should still use cache
-            Files.writeString(dir.resolve("mid.txt"), "y")
+            // Just under TTL — still cached
             now += FileOperationService.CACHE_TTL_MS - 1
-            val stillCached = fileOps.listFiles(dir).map { it.name }.toSet()
-            assertFalse("Still within TTL, cache should not include mid.txt", "mid.txt" in stillCached)
+            assertTrue("Within TTL, entry should remain cached", fileOps.isListingCached(dir))
 
-            // Advance past TTL — entry should be treated as expired
+            // Past TTL — expired
             now += 2
-            assertFalse("Entry should have expired", fileOps.isListingCached(dir))
-            val refreshed = fileOps.listFiles(dir).map { it.name }.toSet()
-            assertTrue("After TTL, re-read should include mid.txt", "mid.txt" in refreshed)
+            assertFalse("After TTL, entry should be expired", fileOps.isListingCached(dir))
         } finally {
             fileOps.clock = System::currentTimeMillis
         }

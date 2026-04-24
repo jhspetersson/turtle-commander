@@ -15,6 +15,7 @@ import java.nio.file.*
 import java.nio.file.Files.walkFileTree
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.DosFileAttributes
+import java.nio.file.attribute.FileTime
 import kotlin.io.path.exists
 import kotlin.io.path.isDirectory
 import kotlin.io.path.name
@@ -61,6 +62,10 @@ class FileOperationService(
         val dirs: List<FileEntry>,
         val files: List<FileEntry>,
         val timestamp: Long,
+        // Directory mtime captured when the listing was built. Used to auto-invalidate the
+        // cache on external modifications (other process, shell, IDE). Nullable because
+        // some filesystems or paths (e.g. unreadable system dirs) may refuse the stat.
+        val dirMtime: FileTime?,
     )
 
     private val listingCache = object : LinkedHashMap<Path, CachedListing>(CACHE_MAX_SIZE, 0.75f, true) {
@@ -145,7 +150,8 @@ class FileOperationService(
             }
         }
 
-        putCachedListing(directory, dirs.toList(), files.toList())
+        val mtime = try { Files.getLastModifiedTime(effectiveDirectory) } catch (_: Exception) { null }
+        putCachedListing(directory, dirs.toList(), files.toList(), mtime)
         appendSortedEntries(result, dirs, files)
 
         result
@@ -169,19 +175,30 @@ class FileOperationService(
     }
 
     private fun getCachedListing(directory: Path): CachedListing? {
-        synchronized(listingCache) {
-            val entry = listingCache[directory] ?: return null
-            if (clock() - entry.timestamp > CACHE_TTL_MS) {
+        val entry = synchronized(listingCache) {
+            val e = listingCache[directory] ?: return null
+            if (clock() - e.timestamp > CACHE_TTL_MS) {
                 listingCache.remove(directory)
                 return null
             }
-            return entry
+            e
         }
+        // mtime check is done outside the lock to avoid blocking other cache users on a
+        // filesystem stat. A racing `put` can't corrupt the result — worst case we evict a
+        // freshly-repopulated entry, which is a self-healing no-op on the next listFiles.
+        if (entry.dirMtime != null) {
+            val current = try { Files.getLastModifiedTime(directory) } catch (_: Exception) { null }
+            if (current == null || current != entry.dirMtime) {
+                synchronized(listingCache) { listingCache.remove(directory) }
+                return null
+            }
+        }
+        return entry
     }
 
-    private fun putCachedListing(directory: Path, dirs: List<FileEntry>, files: List<FileEntry>) {
+    private fun putCachedListing(directory: Path, dirs: List<FileEntry>, files: List<FileEntry>, dirMtime: FileTime?) {
         synchronized(listingCache) {
-            listingCache[directory] = CachedListing(dirs, files, clock())
+            listingCache[directory] = CachedListing(dirs, files, clock(), dirMtime)
         }
     }
 
@@ -204,9 +221,25 @@ class FileOperationService(
         clock() - entry.timestamp <= CACHE_TTL_MS
     }
 
+    /**
+     * Like [isListingCached] but also verifies the directory's mtime still matches. Returns
+     * false if the cache would be re-read on the next [listFiles] call — used by the UI to
+     * skip a costly re-render on tab activation when nothing has changed.
+     */
+    fun isListingCacheFresh(directory: Path): Boolean {
+        val entry = synchronized(listingCache) {
+            val e = listingCache[directory] ?: return false
+            if (clock() - e.timestamp > CACHE_TTL_MS) return false
+            e
+        }
+        if (entry.dirMtime == null) return true
+        val current = try { Files.getLastModifiedTime(directory) } catch (_: Exception) { return false }
+        return current == entry.dirMtime
+    }
+
     companion object {
         internal const val CACHE_MAX_SIZE = 20
-        internal const val CACHE_TTL_MS = 10L * 60 * 1000 // 10 minutes
+        internal const val CACHE_TTL_MS = 2L * 60 * 1000 // 2 minutes; mtime invalidation handles most staleness
     }
 
     /**

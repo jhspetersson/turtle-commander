@@ -1489,6 +1489,20 @@ class FileTab(
         }
     }
 
+    /**
+     * Re-list [currentPath] only if the listing cache is no longer fresh for it. Called when
+     * the tab becomes active, so externally-modified directories stop showing ghost rows
+     * without forcing a re-render on every tab switch.
+     *
+     * Inside an archive (VFS) we skip the check: the VFS state is authoritative, and the
+     * real-filesystem mtime of the archive file doesn't reflect the virtual directory listing.
+     */
+    fun revalidateIfStale() {
+        if (currentVfs != null) return
+        if (fileOps.isListingCacheFresh(currentPath)) return
+        fileOps.launch { navigateTo(currentPath, requestFocus = false) }
+    }
+
     fun showDriveSelector() {
         driveCombo.requestFocusInWindow()
         driveCombo.showPopup()

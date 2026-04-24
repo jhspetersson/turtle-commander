@@ -57,6 +57,7 @@ class FileManagerPanel(
                 tabbedPane.selectedIndex = plusIndex - 1
             }
             syncViewToggle()
+            getActiveTab()?.revalidateIfStale()
         }
 
         tabbedPane.addMouseListener(object : MouseAdapter() {
