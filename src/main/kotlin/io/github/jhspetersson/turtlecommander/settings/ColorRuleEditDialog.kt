@@ -3,8 +3,10 @@ package io.github.jhspetersson.turtlecommander.settings
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
+import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.JBUI
 import io.github.jhspetersson.turtlecommander.ui.installStandardContextMenu
 import java.awt.*
@@ -47,7 +49,7 @@ internal class ColorRuleEditDialog(
 
     private val matchers = mutableListOf<RuleMatcher>()
     private val matcherModel = MatcherTableModel()
-    private val matcherTable = JTable(matcherModel).apply {
+    private val matcherTable = JBTable(matcherModel).apply {
         setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
         rowHeight = JBUI.scale(22)
         tableHeader.reorderingAllowed = false
@@ -63,7 +65,7 @@ internal class ColorRuleEditDialog(
     private val fontSizeSpinner = JSpinner(SpinnerNumberModel(0, 0, 72, 1))
     private val previewLabel = JBLabel("Preview").apply {
         border = BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(UIManager.getColor("Separator.foreground") ?: Color.GRAY),
+            BorderFactory.createLineBorder(UIManager.getColor("Separator.foreground") ?: JBColor.GRAY),
             BorderFactory.createEmptyBorder(6, 10, 6, 10),
         )
         isOpaque = true

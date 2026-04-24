@@ -144,7 +144,7 @@ class MultiRenameDialog(
     private fun buildPreview(): JComponent {
         table.setShowGrid(true)
         table.rowHeight += 2
-        table.autoResizeMode = JTable.AUTO_RESIZE_LAST_COLUMN
+        table.autoResizeMode = JBTable.AUTO_RESIZE_LAST_COLUMN
         val renderer = ConflictRenderer { conflictRows }
         for (col in 0 until table.columnCount) {
             table.columnModel.getColumn(col).cellRenderer = renderer
