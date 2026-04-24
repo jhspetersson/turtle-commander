@@ -637,6 +637,40 @@ internal fun FileTab.performExtractHere() {
     extractArchives(selected.map { it.path }, currentPath, overwriteAll = false)
 }
 
+internal fun FileTab.performExtractToSubdir() {
+    val selected = getSelectedEntries().filter { isArchiveFile(it) }
+    if (selected.isEmpty()) return
+    val subdir = archiveBaseName(selected.first().name)
+    val destination = currentPath.resolve(subdir)
+
+    val dialog = ExtractDialog(project, selected, destination.toString())
+    if (!dialog.showAndGet()) return
+
+    var destPath = Path.of(dialog.destinationPath)
+    if (!destPath.isAbsolute) {
+        destPath = currentPath.resolve(destPath)
+    }
+    val overwriteAll = dialog.overwriteExisting
+
+    extractArchives(selected.map { it.path }, destPath, overwriteAll)
+}
+
+/**
+ * Returns the archive name with its extension stripped, handling the common compound
+ * forms (`foo.tar.gz` → `foo`, `foo.tar.bz2` → `foo`, `foo.tar.xz` → `foo`) as well as
+ * single-extension archives (`foo.zip` → `foo`, `foo.tgz` → `foo`). The result is what
+ * "Extract to Subdir" offers as the default subdirectory name.
+ */
+internal fun archiveBaseName(archiveName: String): String {
+    val afterLast = archiveName.substringBeforeLast('.', archiveName)
+    if (afterLast == archiveName) return archiveName
+    return if (afterLast.endsWith(".tar", ignoreCase = true)) {
+        afterLast.substringBeforeLast('.', afterLast)
+    } else {
+        afterLast
+    }
+}
+
 internal fun FileTab.extractArchives(archivePaths: List<Path>, destination: Path, overwriteAll: Boolean) {
     val archiveService = project.service<ArchiveService>()
 

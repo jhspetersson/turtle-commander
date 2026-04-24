@@ -305,7 +305,9 @@
                     class="io.github.jhspetersson.turtlecommander.action.PackFilesAction"
                     text="Pack Files"
                     icon="AllIcons.FileTypes.Archive"
-                    description="Pack selected files into a zip archive"/>
+                    description="Pack selected files into a zip archive">
+                <keyboard-shortcut first-keystroke="shift F1" keymap="$default"/>
+            </action>
             <action id="TurtleCommander.ExtractFiles"
                     class="io.github.jhspetersson.turtlecommander.action.ExtractFilesAction"
                     text="Extract Files..."
@@ -316,6 +318,11 @@
                     text="Extract Here"
                     icon="AllIcons.Actions.Uninstall"
                     description="Extract archive into current directory"/>
+            <action id="TurtleCommander.ExtractToSubdir"
+                    class="io.github.jhspetersson.turtlecommander.action.ExtractToSubdirAction"
+                    text="Extract to Subdir..."
+                    icon="AllIcons.Actions.Uninstall"
+                    description="Extract archive into a subdirectory named after the archive"/>
             <action id="TurtleCommander.SplitFile"
                     class="io.github.jhspetersson.turtlecommander.action.SplitFileAction"
                     text="Split File..."
@@ -439,6 +446,7 @@
             <reference ref="TurtleCommander.PackFiles"/>
             <reference ref="TurtleCommander.ExtractFiles"/>
             <reference ref="TurtleCommander.ExtractHere"/>
+            <reference ref="TurtleCommander.ExtractToSubdir"/>
             <reference ref="TurtleCommander.SplitFile"/>
             <reference ref="TurtleCommander.CombineFiles"/>
             <separator/>

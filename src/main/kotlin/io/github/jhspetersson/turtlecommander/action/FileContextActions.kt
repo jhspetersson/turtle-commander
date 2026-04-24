@@ -274,6 +274,19 @@ class ExtractHereAction : AnAction(), DumbAware {
     }
 }
 
+class ExtractToSubdirAction : AnAction(), DumbAware {
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+
+    override fun update(e: AnActionEvent) {
+        val entry = FileContextMenuState.clickedEntry
+        e.presentation.isEnabledAndVisible = entry != null && isArchiveFile(entry)
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        FileContextMenuState.clickedTab?.performExtractToSubdir()
+    }
+}
+
 class SplitFileAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 

@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Extract to Subdir action
+
 ### Fixed
 
 - Improved directory cache behavior
