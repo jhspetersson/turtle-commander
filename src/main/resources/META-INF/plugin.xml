@@ -312,7 +312,9 @@
                     class="io.github.jhspetersson.turtlecommander.action.ExtractFilesAction"
                     text="Extract Files..."
                     icon="AllIcons.Actions.Uninstall"
-                    description="Extract archive to a directory"/>
+                    description="Extract archive to a directory">
+                <keyboard-shortcut first-keystroke="shift F2" keymap="$default"/>
+            </action>
             <action id="TurtleCommander.ExtractHere"
                     class="io.github.jhspetersson.turtlecommander.action.ExtractHereAction"
                     text="Extract Here"

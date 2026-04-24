@@ -7,6 +7,7 @@
 ### Added
 
 - Extract to Subdir action
+- `Shift-F2` is now a default shortcut for extracting files
 
 ### Fixed
 
