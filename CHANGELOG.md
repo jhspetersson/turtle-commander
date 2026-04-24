@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-04-24
+
+### Added
+
+- Vertical and Single-panel layouts
+
 ## [0.5.0] - 2026-04-23
 
 ### Changed

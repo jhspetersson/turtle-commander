@@ -29,6 +29,7 @@ class TurtleCommanderConfigurable : Configurable {
     private var sortWithDirectoriesCheckBox: JCheckBox? = null
     private var calculateDirectorySizeCheckBox: JCheckBox? = null
     private var defaultViewModeCombo: ComboBox<String>? = null
+    private var panelLayoutCombo: ComboBox<String>? = null
     private var columnsEditor: ColumnsEditor? = null
     private var favoritesEditor: FavoritesEditor? = null
     private var colorRulesEditor: ColorRulesEditor? = null
@@ -68,6 +69,11 @@ class TurtleCommanderConfigurable : Configurable {
             }
         }
 
+        val layoutItems = arrayOf("Horizontal Dual-panel", "Vertical Dual-panel", "Single-panel")
+        panelLayoutCombo = ComboBox(DefaultComboBoxModel(layoutItems)).apply {
+            selectedItem = layoutLabelFor(settings.panelLayout)
+        }
+
         val defaultLabel = "(Default)"
         val fontItems = arrayOf(defaultLabel) + fontFamilies
 
@@ -103,6 +109,12 @@ class TurtleCommanderConfigurable : Configurable {
             alignmentX = JComponent.LEFT_ALIGNMENT
             add(JBLabel("Default tab view:  "))
             add(defaultViewModeCombo!!)
+        }
+
+        val layoutRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
+            alignmentX = JComponent.LEFT_ALIGNMENT
+            add(JBLabel("Layout:  "))
+            add(panelLayoutCombo!!)
         }
 
         val appearancePanel = createAppearancePanel(
@@ -158,6 +170,7 @@ class TurtleCommanderConfigurable : Configurable {
             add(calculateDirectorySizeCheckBox)
             add(Box.createVerticalStrut(8))
             add(viewModeRow)
+            add(layoutRow)
             add(Box.createVerticalStrut(8))
             add(appearancePanel)
             add(Box.createVerticalStrut(8))
@@ -565,6 +578,7 @@ class TurtleCommanderConfigurable : Configurable {
             || sortWithDirectoriesCheckBox?.isSelected != settings.sortWithDirectories
             || calculateDirectorySizeCheckBox?.isSelected != settings.calculateDirectorySize
             || getSelectedViewMode() != settings.defaultViewMode
+            || getSelectedPanelLayout() != settings.panelLayout
             || styleEditors["panel"]?.isModified(settings.styles.panelStyle, effectivePanelFamily(settings), effectivePanelSize(settings)) == true
             || styleEditors["tab"]?.isModified(settings.styles.tabStyle, effectiveTabFamily(settings), effectiveTabSize(settings)) == true
             || styleEditors["pathBar"]?.isModified(settings.styles.pathBarStyle) == true
@@ -591,6 +605,7 @@ class TurtleCommanderConfigurable : Configurable {
         settings.sortWithDirectories = sortWithDirectoriesCheckBox?.isSelected ?: settings.sortWithDirectories
         settings.calculateDirectorySize = calculateDirectorySizeCheckBox?.isSelected ?: settings.calculateDirectorySize
         settings.defaultViewMode = getSelectedViewMode()
+        settings.panelLayout = getSelectedPanelLayout()
 
         styleEditors["panel"]?.applyTo(settings.styles.panelStyle)
         styleEditors["tab"]?.applyTo(settings.styles.tabStyle)
@@ -633,6 +648,7 @@ class TurtleCommanderConfigurable : Configurable {
             "TREE" -> "Tree"
             else -> "Table"
         }
+        panelLayoutCombo?.selectedItem = layoutLabelFor(settings.panelLayout)
 
         styleEditors["panel"]?.resetFrom(settings.styles.panelStyle, effectivePanelFamily(settings), effectivePanelSize(settings))
         styleEditors["tab"]?.resetFrom(settings.styles.tabStyle, effectiveTabFamily(settings), effectiveTabSize(settings))
@@ -669,6 +685,7 @@ class TurtleCommanderConfigurable : Configurable {
         tabFontCombo = null
         tabFontSizeSpinner = null
         defaultViewModeCombo = null
+        panelLayoutCombo = null
         columnsEditor = null
         favoritesEditor = null
         colorRulesEditor = null
@@ -700,6 +717,20 @@ class TurtleCommanderConfigurable : Configurable {
             "Tree" -> "TREE"
             else -> "TABLE"
         }
+    }
+
+    private fun getSelectedPanelLayout(): String {
+        return when (panelLayoutCombo?.selectedItem as? String) {
+            "Vertical Dual-panel" -> PanelLayout.VERTICAL.name
+            "Single-panel" -> PanelLayout.SINGLE.name
+            else -> PanelLayout.HORIZONTAL.name
+        }
+    }
+
+    private fun layoutLabelFor(name: String): String = when (name) {
+        PanelLayout.VERTICAL.name -> "Vertical Dual-panel"
+        PanelLayout.SINGLE.name -> "Single-panel"
+        else -> "Horizontal Dual-panel"
     }
 
     private fun getSelectedThemeName(): String {

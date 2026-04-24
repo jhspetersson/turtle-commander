@@ -10,6 +10,8 @@ import com.intellij.util.messages.Topic
 import com.intellij.util.xmlb.annotations.Attribute
 import com.intellij.util.xmlb.annotations.Tag
 import com.intellij.util.xmlb.annotations.XCollection
+import io.github.jhspetersson.turtlecommander.settings.PanelLayout
+import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
 import io.github.jhspetersson.turtlecommander.ui.FileTab
 
@@ -33,11 +35,20 @@ class FileManagerStateService(
     var rightPanel: FileManagerPanel? = null
         private set
     private var splitter: OnePixelSplitter? = null
+    private var swapSinglePanelCallback: (() -> Unit)? = null
 
-    fun registerPanels(left: FileManagerPanel, right: FileManagerPanel, split: OnePixelSplitter) {
+    fun registerPanels(left: FileManagerPanel, right: FileManagerPanel, split: OnePixelSplitter?) {
         leftPanel = left
         rightPanel = right
         splitter = split
+    }
+
+    fun updateSplitter(split: OnePixelSplitter?) {
+        splitter = split
+    }
+
+    fun setSwapSinglePanelCallback(cb: (() -> Unit)?) {
+        swapSinglePanelCallback = cb
     }
 
     override fun getState(): FileManagerState {
@@ -252,10 +263,10 @@ class FileManagerStateService(
     fun switchToOtherPanel() {
         val left = leftPanel ?: return
         val right = rightPanel ?: return
-        if (left.hasFocusInPanel()) {
-            right.focusActiveTab()
-        } else {
-            left.focusActiveTab()
+        val currentlyLeft = left.hasFocusInPanel()
+        if (TurtleCommanderSettings.getInstance().state.panelLayout == PanelLayout.SINGLE.name) {
+            swapSinglePanelCallback?.invoke()
         }
+        if (currentlyLeft) right.focusActiveTab() else left.focusActiveTab()
     }
 }

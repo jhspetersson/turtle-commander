@@ -165,7 +165,8 @@ class StateAndFavoritesIntegrationTest : BasePlatformTestCase() {
             initialPath = projectPath,
             otherPanelPathProvider = { projectPath },
         )
-        panel.restoreState(stateService.state.leftPanel, stateService)
+        // Fresh PanelState: stateService.state.leftPanel would leak tabs from prior tests that registered panels.
+        panel.restoreState(FileManagerStateService.PanelState(), stateService)
         com.intellij.testFramework.PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
         val savedState = panel.saveState()

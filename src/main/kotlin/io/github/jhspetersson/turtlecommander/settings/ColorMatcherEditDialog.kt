@@ -20,7 +20,7 @@ internal class ColorMatcherEditDialog(
     initial: RuleMatcher?,
 ) : DialogWrapper(project) {
 
-    enum class Kind() {
+    enum class Kind {
         SIZE,
         NAME,
         CONTAINS;

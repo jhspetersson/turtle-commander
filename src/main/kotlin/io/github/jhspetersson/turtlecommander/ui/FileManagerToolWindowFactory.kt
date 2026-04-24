@@ -19,6 +19,7 @@ import io.github.jhspetersson.turtlecommander.action.FileCopyBuffer
 import io.github.jhspetersson.turtlecommander.service.FavoritesChangeListener
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.settings.ComponentStyle
+import io.github.jhspetersson.turtlecommander.settings.PanelLayout
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettingsListener
 import java.awt.*
@@ -52,19 +53,54 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
         leftPanel.restoreState(savedState.leftPanel, stateService)
         rightPanel.restoreState(savedState.rightPanel, stateService)
 
-        val splitter = OnePixelSplitter(false, savedState.splitProportion).apply {
-            firstComponent = leftPanel
-            secondComponent = rightPanel
+        val layoutHost = JPanel(BorderLayout())
+        var currentSplitter: OnePixelSplitter? = null
+        var singleShowsLeft = true
+
+        fun currentLayout(): PanelLayout = try {
+            PanelLayout.valueOf(TurtleCommanderSettings.getInstance().state.panelLayout)
+        } catch (_: Exception) {
+            PanelLayout.HORIZONTAL
         }
 
-        stateService.registerPanels(leftPanel, rightPanel, splitter)
+        fun applyLayout() {
+            // Persist the user's current drag position before we rebuild the splitter.
+            currentSplitter?.let { savedState.splitProportion = it.proportion }
+            layoutHost.removeAll()
+            currentSplitter = null
+            when (currentLayout()) {
+                PanelLayout.HORIZONTAL, PanelLayout.VERTICAL -> {
+                    val vertical = currentLayout() == PanelLayout.VERTICAL
+                    val splitter = OnePixelSplitter(vertical, savedState.splitProportion).apply {
+                        firstComponent = leftPanel
+                        secondComponent = rightPanel
+                    }
+                    currentSplitter = splitter
+                    layoutHost.add(splitter, BorderLayout.CENTER)
+                }
+                PanelLayout.SINGLE -> {
+                    val visible = if (singleShowsLeft) leftPanel else rightPanel
+                    layoutHost.add(visible, BorderLayout.CENTER)
+                }
+            }
+            stateService.updateSplitter(currentSplitter)
+            layoutHost.revalidate()
+            layoutHost.repaint()
+        }
+
+        applyLayout()
+        stateService.registerPanels(leftPanel, rightPanel, currentSplitter)
+        stateService.setSwapSinglePanelCallback {
+            singleShowsLeft = !singleShowsLeft
+            if (currentLayout() == PanelLayout.SINGLE) applyLayout()
+        }
 
         val settings = TurtleCommanderSettings.getInstance()
         val bottomBar = createBottomBar(leftPanel, rightPanel, toolWindow)
         bottomBar.isVisible = settings.state.showCommandBar
 
         val contentPanel = JPanel(BorderLayout()).apply {
-            add(splitter, BorderLayout.CENTER)
+            add(layoutHost, BorderLayout.CENTER)
             add(bottomBar, BorderLayout.SOUTH)
         }
         val content = ContentFactory.getInstance().createContent(contentPanel, null, false)
@@ -76,6 +112,12 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
         val gearActions = DefaultActionGroup()
         am.getAction("TurtleCommander.OpenPluginSettings")?.let { gearActions.add(it) }
         am.getAction("TurtleCommander.OpenKeymapSettings")?.let { gearActions.add(it) }
+        gearActions.addSeparator()
+        val layoutGroup = DefaultActionGroup("Layout", true).apply { isPopup = true }
+        layoutGroup.add(LayoutToggleAction(PanelLayout.HORIZONTAL, "Horizontal Dual-panel"))
+        layoutGroup.add(LayoutToggleAction(PanelLayout.VERTICAL, "Vertical Dual-panel"))
+        layoutGroup.add(LayoutToggleAction(PanelLayout.SINGLE, "Single-panel"))
+        gearActions.add(layoutGroup)
         gearActions.addSeparator()
         am.getAction("TurtleCommander.About")?.let { gearActions.add(it) }
         toolWindow.setAdditionalGearActions(gearActions)
@@ -152,6 +194,7 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
                     rightPanel.applyVisibilitySettings()
                     leftPanel.reSort()
                     rightPanel.reSort()
+                    applyLayout()
                     contentPanel.revalidate()
                     contentPanel.repaint()
                 }
@@ -339,6 +382,24 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
         }
 
         return bar
+    }
+}
+
+private class LayoutToggleAction(
+    private val layout: PanelLayout,
+    text: String,
+) : ToggleAction(text), DumbAware {
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+
+    override fun isSelected(e: AnActionEvent): Boolean =
+        TurtleCommanderSettings.getInstance().state.panelLayout == layout.name
+
+    override fun setSelected(e: AnActionEvent, state: Boolean) {
+        if (!state) return
+        val settings = TurtleCommanderSettings.getInstance()
+        if (settings.state.panelLayout == layout.name) return
+        settings.state.panelLayout = layout.name
+        settings.fireSettingsChanged()
     }
 }
 

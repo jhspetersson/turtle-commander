@@ -13,6 +13,8 @@ interface TurtleCommanderSettingsListener {
     fun settingsChanged()
 }
 
+enum class PanelLayout { HORIZONTAL, VERTICAL, SINGLE }
+
 class ColumnConfig {
     var id: String = ""
     var visible: Boolean = true
@@ -178,6 +180,7 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
         var defaultViewMode: String = "TABLE"
         var sortWithDirectories: Boolean = false
         var calculateDirectorySize: Boolean = true
+        var panelLayout: String = PanelLayout.HORIZONTAL.name
 
         var styles: StyleSet = StyleSet()
         var themeName: String = ""
