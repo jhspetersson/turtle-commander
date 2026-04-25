@@ -143,11 +143,12 @@ class TurtleCommanderConfigurable : Configurable {
         rulesEditor.resetFrom(settings)
         colorRulesEditor = rulesEditor
 
-        val thumbnailCacheSizeLabel = JBLabel(formatSize(ThumbnailCache.getCacheSize()))
+        val thumbnailCache = ThumbnailCache.getInstance()
+        val thumbnailCacheSizeLabel = JBLabel(formatSize(thumbnailCache.getCacheSize()))
         val clearCacheButton = JButton("Clear").apply {
             addActionListener {
-                ThumbnailCache.clearCache()
-                thumbnailCacheSizeLabel.text = formatSize(ThumbnailCache.getCacheSize())
+                thumbnailCache.clearCache()
+                thumbnailCacheSizeLabel.text = formatSize(thumbnailCache.getCacheSize())
             }
         }
         val thumbnailCachePanel = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {

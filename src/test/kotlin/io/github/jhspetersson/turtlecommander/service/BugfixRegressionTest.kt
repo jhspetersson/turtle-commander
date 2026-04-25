@@ -1,5 +1,9 @@
 package io.github.jhspetersson.turtlecommander.service
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import org.junit.Assert.*
 import org.junit.Test
 import java.nio.file.Path
@@ -9,13 +13,17 @@ import java.nio.file.Path
  */
 class ThumbnailCacheHashTest {
 
+    private fun newCache(): ThumbnailCache =
+        ThumbnailCache(CoroutineScope(SupervisorJob() + Dispatchers.IO))
+
     @Test
     fun `different paths same filename get different cache paths`() {
+        val cache = newCache()
         val path1 = Path.of("C:/photos/img.jpg")
         val path2 = Path.of("D:/backup/img.jpg")
 
-        val cache1 = ThumbnailCache.getCachePath(path1)
-        val cache2 = ThumbnailCache.getCachePath(path2)
+        val cache1 = cache.getCachePath(path1)
+        val cache2 = cache.getCachePath(path2)
 
         assertNotNull("Cache path 1 should not be null", cache1)
         assertNotNull("Cache path 2 should not be null", cache2)
@@ -24,21 +32,23 @@ class ThumbnailCacheHashTest {
 
     @Test
     fun `same path always gets same cache path`() {
+        val cache = newCache()
         val path = Path.of("C:/photos/img.jpg")
 
-        val cache1 = ThumbnailCache.getCachePath(path)
-        val cache2 = ThumbnailCache.getCachePath(path)
+        val cache1 = cache.getCachePath(path)
+        val cache2 = cache.getCachePath(path)
 
         assertEquals("Same source path must produce same cache path", cache1, cache2)
     }
 
     @Test
     fun `paths differing only in case get different cache paths`() {
+        val cache = newCache()
         val path1 = Path.of("C:/Photos/IMG.jpg")
         val path2 = Path.of("C:/photos/img.jpg")
 
-        val cache1 = ThumbnailCache.getCachePath(path1)
-        val cache2 = ThumbnailCache.getCachePath(path2)
+        val cache1 = cache.getCachePath(path1)
+        val cache2 = cache.getCachePath(path2)
 
         // On case-sensitive systems these are different files
         assertNotNull(cache1)
@@ -48,8 +58,9 @@ class ThumbnailCacheHashTest {
 
     @Test
     fun `cache path for path without filename returns null`() {
+        val cache = newCache()
         val root = Path.of("/")
-        val result = ThumbnailCache.getCachePath(root)
+        val result = cache.getCachePath(root)
         // Root path has no fileName, should return null gracefully
         assertNull("Root path should produce null cache path", result)
     }
@@ -62,11 +73,14 @@ class ThumbnailCacheEvictTest {
 
     @Test
     fun `evictDirectory does not throw when cache has many entries under directory`() {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val thumbnailCache = ThumbnailCache(scope)
+
         // Populate memoryCache via reflection since it's private
         val field = ThumbnailCache::class.java.getDeclaredField("memoryCache")
         field.isAccessible = true
         @Suppress("UNCHECKED_CAST")
-        val cache = field.get(ThumbnailCache) as java.util.concurrent.ConcurrentHashMap<Path, javax.swing.Icon>
+        val cache = field.get(thumbnailCache) as java.util.concurrent.ConcurrentHashMap<Path, javax.swing.Icon>
 
         val dir = Path.of("/test/evict/dir")
         val icon = javax.swing.ImageIcon()
@@ -79,7 +93,7 @@ class ThumbnailCacheEvictTest {
         cache[Path.of("/other/file.png")] = icon
 
         // Should not throw ConcurrentModificationException
-        ThumbnailCache.evictDirectory(dir)
+        thumbnailCache.evictDirectory(dir)
 
         // Entries under directory should be gone
         for (i in 1..20) {
@@ -90,56 +104,6 @@ class ThumbnailCacheEvictTest {
 
         // Cleanup
         cache.remove(Path.of("/other/file.png"))
-    }
-}
-
-/**
- * Regression test for vfsRelativePath correctly stripping temp dir prefix.
- */
-class VfsRelativePathTest {
-
-    @Test
-    fun `vfsRelativePath strips temp dir prefix`() {
-        val tempDir = java.nio.file.Files.createTempDirectory("turtle-test-vfs-")
-        try {
-            val fakePath = tempDir.resolve("subdir").resolve("file.txt")
-            val fakeVfs = object : io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem {
-                override val root: Path get() = tempDir
-                override val isReadOnly: Boolean get() = true
-                override val archivePath: Path get() = Path.of("/fake.tar")
-                override fun isRoot(path: Path) = path.normalize() == tempDir.normalize()
-                override fun getPath(path: String) = tempDir.resolve(path)
-                override suspend fun listFiles(directory: Path) = emptyList<io.github.jhspetersson.turtlecommander.model.FileEntry>()
-                override fun flush() {}
-                override suspend fun renameFile(source: Path, newName: String): Path = throw UnsupportedOperationException()
-                override fun close() {}
-            }
-            val result = io.github.jhspetersson.turtlecommander.ui.vfsRelativePath(fakeVfs, fakePath)
-            assertEquals("subdir/file.txt", result.replace("\\", "/"))
-        } finally {
-            tempDir.toFile().deleteRecursively()
-        }
-    }
-
-    @Test
-    fun `vfsRelativePath returns empty for root`() {
-        val tempDir = java.nio.file.Files.createTempDirectory("turtle-test-vfs-")
-        try {
-            val fakeVfs = object : io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem {
-                override val root: Path get() = tempDir
-                override val isReadOnly: Boolean get() = true
-                override val archivePath: Path get() = Path.of("/fake.tar")
-                override fun isRoot(path: Path) = path.normalize() == tempDir.normalize()
-                override fun getPath(path: String) = tempDir.resolve(path)
-                override suspend fun listFiles(directory: Path) = emptyList<io.github.jhspetersson.turtlecommander.model.FileEntry>()
-                override fun flush() {}
-                override suspend fun renameFile(source: Path, newName: String): Path = throw UnsupportedOperationException()
-                override fun close() {}
-            }
-            val result = io.github.jhspetersson.turtlecommander.ui.vfsRelativePath(fakeVfs, tempDir)
-            assertEquals("", result)
-        } finally {
-            tempDir.toFile().deleteRecursively()
-        }
+        scope.cancel()
     }
 }

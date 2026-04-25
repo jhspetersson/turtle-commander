@@ -1469,7 +1469,7 @@ class FileTab(
 
     fun refresh(requestFocus: Boolean = true) {
         invalidateFreeSpaceCache()
-        ThumbnailCache.evictDirectory(currentPath)
+        ThumbnailCache.getInstance().evictDirectory(currentPath)
         val vfs = currentVfs
         if (vfs != null) {
             val relativePath = vfsRelativePath(vfs, currentPath)

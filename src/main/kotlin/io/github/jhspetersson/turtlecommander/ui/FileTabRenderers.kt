@@ -357,15 +357,16 @@ internal class FileThumbnailCellRenderer(private val tab: FileTab) : ListCellRen
         val entry = value ?: return panel
         val thumbnail = if (!entry.isDirectory && !entry.isParentLink && !tab.isInsideArchive
             && ThumbnailCache.isImageFile(entry.name)) {
-            val cached = ThumbnailCache.getCachedThumbnail(entry.path)
+            val thumbnailCache = ThumbnailCache.getInstance()
+            val cached = thumbnailCache.getCachedThumbnail(entry.path)
             if (cached == null) {
-                ThumbnailCache.requestThumbnail(
+                thumbnailCache.requestThumbnail(
                     entry.path, entry.lastModified,
                     isStillVisible = {
                         index in tab.thumbnailList.firstVisibleIndex..tab.thumbnailList.lastVisibleIndex
                     },
                 ) {
-                    SwingUtilities.invokeLater { tab.thumbnailList.repaint() }
+                    tab.thumbnailList.repaint()
                 }
             }
             cached

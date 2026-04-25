@@ -1,28 +1,37 @@
 package io.github.jhspetersson.turtlecommander.service
 
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.PathManager
+import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.FileTime
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Semaphore
 import javax.imageio.ImageIO
 import javax.imageio.ImageReadParam
 import javax.swing.Icon
 import javax.swing.ImageIcon
 
-object ThumbnailCache {
+@Service(Service.Level.APP)
+class ThumbnailCache(private val scope: CoroutineScope) {
 
-    private const val THUMBNAIL_SIZE = 64
-    private const val CACHE_DIR_NAME = "turtle-commander-thumbnails"
-    private const val MAX_CONCURRENT_LOADS = 4
-
-    private val IMAGE_EXTENSIONS = setOf(
-        "png", "jpg", "jpeg", "gif", "bmp", "webp", "ico", "tif", "tiff",
-    )
+    /**
+     * Bounded-parallelism IO dispatcher. Replaces the explicit Semaphore(4) the previous
+     * virtual-thread implementation used: limitedParallelism gives the same "at most N
+     * concurrent loads" guarantee while reading more naturally than acquire/release pairs.
+     */
+    @Suppress("OPT_IN_USAGE")
+    private val thumbnailDispatcher = Dispatchers.IO.limitedParallelism(MAX_CONCURRENT_LOADS)
 
     private val cacheDir: Path by lazy {
         val dir = Path.of(PathManager.getSystemPath(), CACHE_DIR_NAME)
@@ -36,38 +45,32 @@ object ThumbnailCache {
     /** Tracks which files are currently being loaded to avoid duplicate work */
     private val loading = ConcurrentHashMap.newKeySet<Path>()
 
-    /** Limits concurrent image decoding to avoid OOM with many large images */
-    private val loadSemaphore = Semaphore(MAX_CONCURRENT_LOADS)
-
-    fun isImageFile(name: String): Boolean {
-        val ext = name.substringAfterLast('.', "").lowercase()
-        return ext in IMAGE_EXTENSIONS
-    }
-
     fun getCachedThumbnail(path: Path): Icon? {
         return memoryCache[path]
     }
 
+    /**
+     * Fire-and-forget thumbnail load. [onReady] runs on the EDT once the icon lands in
+     * [memoryCache] — callers no longer need their own SwingUtilities.invokeLater wrapper.
+     * Cancellation is cooperative: the [isStillVisible] gate is re-checked before each
+     * expensive step, and the whole job participates in the application-scoped CoroutineScope
+     * so it cancels cleanly on shutdown.
+     */
     fun requestThumbnail(path: Path, lastModified: FileTime?, isStillVisible: () -> Boolean, onReady: () -> Unit) {
         if (memoryCache.containsKey(path)) return
         if (!loading.add(path)) return
 
-        Thread.startVirtualThread {
+        scope.launch(thumbnailDispatcher) {
             try {
-                loadSemaphore.acquire()
-                try {
-                    if (memoryCache.containsKey(path)) return@startVirtualThread
-                    if (!isStillVisible()) return@startVirtualThread
-                    val icon = loadOrCreateThumbnail(path, lastModified)
-                    if (icon != null) {
-                        memoryCache.putIfAbsent(path, icon)
-                        onReady()
-                    }
-                } finally {
-                    loadSemaphore.release()
-                }
-            } catch (e: InterruptedException) {
-                Thread.currentThread().interrupt()
+                if (memoryCache.containsKey(path)) return@launch
+                if (!isStillVisible()) return@launch
+                ensureActive()
+                val icon = loadOrCreateThumbnail(path, lastModified) ?: return@launch
+                ensureActive()
+                memoryCache.putIfAbsent(path, icon)
+                withContext(Dispatchers.EDT) { onReady() }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 thisLogger().debug("Failed to create thumbnail for $path: ${e.message}")
             } finally {
@@ -87,7 +90,7 @@ object ThumbnailCache {
             }
         }
         if (evicted.isNotEmpty()) {
-            Thread.startVirtualThread {
+            scope.launch(Dispatchers.IO) {
                 for (sourcePath in evicted) {
                     try {
                         val cachePath = getCachePath(sourcePath) ?: continue
@@ -221,5 +224,23 @@ object ThumbnailCache {
         } catch (_: Exception) {
             null
         }
+    }
+
+    companion object {
+        private const val THUMBNAIL_SIZE = 64
+        private const val CACHE_DIR_NAME = "turtle-commander-thumbnails"
+        private const val MAX_CONCURRENT_LOADS = 4
+
+        private val IMAGE_EXTENSIONS = setOf(
+            "png", "jpg", "jpeg", "gif", "bmp", "webp", "ico", "tif", "tiff",
+        )
+
+        fun isImageFile(name: String): Boolean {
+            val ext = name.substringAfterLast('.', "").lowercase()
+            return ext in IMAGE_EXTENSIONS
+        }
+
+        fun getInstance(): ThumbnailCache =
+            ApplicationManager.getApplication().getService(ThumbnailCache::class.java)
     }
 }
