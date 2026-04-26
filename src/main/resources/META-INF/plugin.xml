@@ -58,6 +58,12 @@
                     description="Navigate to parent directory">
                 <keyboard-shortcut first-keystroke="BACK_SPACE" keymap="$default"/>
             </action>
+            <action id="TurtleCommander.BackToRoot"
+                    class="io.github.jhspetersson.turtlecommander.action.BackToRootAction"
+                    text="Back to Root"
+                    description="Navigate to the root of the current filesystem or archive">
+                <keyboard-shortcut first-keystroke="ctrl BACK_SLASH" keymap="$default"/>
+            </action>
             <action id="TurtleCommander.Rename"
                     class="io.github.jhspetersson.turtlecommander.action.RenameAction"
                     text="Rename"

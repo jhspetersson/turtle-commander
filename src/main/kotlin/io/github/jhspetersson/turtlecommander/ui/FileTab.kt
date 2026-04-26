@@ -1559,6 +1559,14 @@ class FileTab(
         }
     }
 
+    fun goToRoot() {
+        val vfs = currentVfs
+        val root = if (vfs != null) vfs.root else currentPath.root
+        if (root != null && root != currentPath) {
+            fileOps.launch { navigateTo(root) }
+        }
+    }
+
     fun dispose() {
         driveRefreshTimer?.stop()
         driveRefreshTimer = null

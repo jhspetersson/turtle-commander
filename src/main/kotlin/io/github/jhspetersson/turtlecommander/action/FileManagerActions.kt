@@ -61,6 +61,12 @@ class GoUpAction : FileManagerAction() {
     }
 }
 
+class BackToRootAction : FileManagerAction() {
+    override fun actionPerformed(e: AnActionEvent) {
+        findActiveTab(e)?.goToRoot()
+    }
+}
+
 class RenameAction : FileManagerAction() {
     override fun actionPerformed(e: AnActionEvent) {
         findActiveTab(e)?.startRename()
