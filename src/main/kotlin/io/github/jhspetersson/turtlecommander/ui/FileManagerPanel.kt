@@ -714,6 +714,15 @@ class FileManagerPanel(
         }
     }
 
+    fun applyThumbnailSettings() {
+        val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
+        for (i in 0 until tabbedPane.tabCount) {
+            if (i == plusIndex) continue
+            val tab = tabbedPane.getComponentAt(i) as? FileTab ?: continue
+            tab.applyThumbnailSettings()
+        }
+    }
+
     fun reSort() {
         val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
         for (i in 0 until tabbedPane.tabCount) {

@@ -18,6 +18,7 @@ import com.intellij.ui.content.ContentFactory
 import io.github.jhspetersson.turtlecommander.action.FileCopyBuffer
 import io.github.jhspetersson.turtlecommander.service.FavoritesChangeListener
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
+import io.github.jhspetersson.turtlecommander.service.ThumbnailCache
 import io.github.jhspetersson.turtlecommander.settings.ComponentStyle
 import io.github.jhspetersson.turtlecommander.settings.PanelLayout
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
@@ -192,6 +193,11 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
                     rightPanel.applyFonts()
                     leftPanel.applyVisibilitySettings()
                     rightPanel.applyVisibilitySettings()
+                    // Drop the in-memory icon cache so visible thumbnails re-render
+                    // at the new display size; on-disk caches per size are preserved.
+                    ThumbnailCache.getInstance().clearMemoryCache()
+                    leftPanel.applyThumbnailSettings()
+                    rightPanel.applyThumbnailSettings()
                     leftPanel.reSort()
                     rightPanel.reSort()
                     applyLayout()

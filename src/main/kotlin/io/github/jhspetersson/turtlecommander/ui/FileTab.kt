@@ -29,6 +29,7 @@ import io.github.jhspetersson.turtlecommander.service.FileOperationService
 import io.github.jhspetersson.turtlecommander.service.ThumbnailCache
 import io.github.jhspetersson.turtlecommander.settings.ColumnConfig
 import io.github.jhspetersson.turtlecommander.settings.ResolvedStyle
+import io.github.jhspetersson.turtlecommander.settings.ThumbnailSize
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
 import io.github.jhspetersson.turtlecommander.util.formatSize
@@ -193,6 +194,14 @@ class FileTab(
         } else {
             if (driveRefreshTimer?.isRunning != true) startDriveRefreshTimer()
         }
+    }
+
+    fun applyThumbnailSettings() {
+        val size = ThumbnailSize.fromName(TurtleCommanderSettings.getInstance().state.thumbnailSize)
+        thumbnailList.fixedCellWidth = size.cellW
+        thumbnailList.fixedCellHeight = size.cellH
+        thumbnailList.revalidate()
+        thumbnailList.repaint()
     }
 
     fun applyPanelFont() {
@@ -692,12 +701,13 @@ class FileTab(
     }
 
     private fun setupThumbnailList() {
+        val initialSize = ThumbnailSize.fromName(TurtleCommanderSettings.getInstance().state.thumbnailSize)
         thumbnailList.apply {
             selectionMode = ListSelectionModel.MULTIPLE_INTERVAL_SELECTION
             layoutOrientation = JList.HORIZONTAL_WRAP
             visibleRowCount = 0
-            fixedCellWidth = 120
-            fixedCellHeight = 90
+            fixedCellWidth = initialSize.cellW
+            fixedCellHeight = initialSize.cellH
             cellRenderer = FileThumbnailCellRenderer(this@FileTab)
 
             addMouseListener(object : MouseAdapter() {
@@ -1561,7 +1571,7 @@ class FileTab(
 
     fun goToRoot() {
         val vfs = currentVfs
-        val root = if (vfs != null) vfs.root else currentPath.root
+        val root = vfs?.root ?: currentPath.root
         if (root != null && root != currentPath) {
             fileOps.launch { navigateTo(root) }
         }

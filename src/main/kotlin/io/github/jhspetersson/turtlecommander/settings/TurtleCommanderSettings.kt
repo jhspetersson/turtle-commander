@@ -15,6 +15,35 @@ interface TurtleCommanderSettingsListener {
 
 enum class PanelLayout { HORIZONTAL, VERTICAL, SINGLE }
 
+/**
+ * Preset sizes for the Thumbnail view's cells.
+ *
+ * - [displaySize] is the icon's logical size in the cell.
+ * - [cacheSize] is the bitmap that gets generated and stored on disk; it's
+ *   ~3× the display size so HiDPI displays still get a sharp render after
+ *   the bicubic paint-time downscale.
+ * - [cellW], [cellH] are the JList fixedCellWidth/Height.
+ *
+ * [SMALL] matches the previous hardcoded layout (120×90 cells, 64px icons).
+ */
+enum class ThumbnailSize(
+    val displaySize: Int,
+    val cacheSize: Int,
+    val cellW: Int,
+    val cellH: Int,
+    val label: String,
+) {
+    SMALL(64, 192, 120, 90, "Small (64 px)"),
+    MEDIUM(96, 256, 152, 122, "Medium (96 px)"),
+    LARGE(128, 320, 184, 154, "Large (128 px)"),
+    EXTRA_LARGE(160, 384, 216, 186, "Extra Large (160 px)");
+
+    companion object {
+        fun fromName(name: String): ThumbnailSize =
+            entries.firstOrNull { it.name == name } ?: SMALL
+    }
+}
+
 class ColumnConfig {
     var id: String = ""
     var visible: Boolean = true
@@ -181,6 +210,7 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
         var sortWithDirectories: Boolean = false
         var calculateDirectorySize: Boolean = true
         var panelLayout: String = PanelLayout.HORIZONTAL.name
+        var thumbnailSize: String = ThumbnailSize.SMALL.name
 
         var styles: StyleSet = StyleSet()
         var themeName: String = ""

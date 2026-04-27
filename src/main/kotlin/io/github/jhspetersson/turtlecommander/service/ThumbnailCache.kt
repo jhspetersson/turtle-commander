@@ -5,6 +5,8 @@ import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
+import io.github.jhspetersson.turtlecommander.settings.ThumbnailSize
+import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -49,6 +51,19 @@ class ThumbnailCache(private val scope: CoroutineScope) {
 
     fun getCachedThumbnail(path: Path): Icon? {
         return memoryCache[path]
+    }
+
+    /**
+     * Drop the in-memory icon cache without touching the on-disk cache. Called
+     * when the user changes the thumbnail size preset so visible cells re-render
+     * at the new logical size on the next paint.
+     */
+    fun clearMemoryCache() {
+        memoryCache.clear()
+    }
+
+    private fun currentSize(): ThumbnailSize {
+        return ThumbnailSize.fromName(TurtleCommanderSettings.getInstance().state.thumbnailSize)
     }
 
     /**
@@ -129,7 +144,8 @@ class ThumbnailCache(private val scope: CoroutineScope) {
     }
 
     private fun loadOrCreateThumbnail(path: Path, lastModified: FileTime?): Icon? {
-        val cachePath = getCachePath(path)
+        val size = currentSize()
+        val cachePath = getCachePath(path, size.cacheSize)
         val modMillis = lastModified?.toMillis() ?: 0L
 
         // Check disk cache
@@ -137,12 +153,12 @@ class ThumbnailCache(private val scope: CoroutineScope) {
             val cacheModified = Files.getLastModifiedTime(cachePath).toMillis()
             if (cacheModified >= modMillis) {
                 val img = ImageIO.read(cachePath.toFile())
-                if (img != null) return HighQualityImageIcon(img, MAX_DISPLAY_SIZE)
+                if (img != null) return HighQualityImageIcon(img, size.displaySize)
             }
         }
 
         // Generate thumbnail from source using subsampled reading
-        val thumb = readSubsampledThumbnail(path) ?: return null
+        val thumb = readSubsampledThumbnail(path, size.cacheSize) ?: return null
 
         // Write to disk cache
         if (cachePath != null) {
@@ -157,10 +173,10 @@ class ThumbnailCache(private val scope: CoroutineScope) {
             }
         }
 
-        return HighQualityImageIcon(thumb, MAX_DISPLAY_SIZE)
+        return HighQualityImageIcon(thumb, size.displaySize)
     }
 
-    private fun readSubsampledThumbnail(path: Path): BufferedImage? {
+    private fun readSubsampledThumbnail(path: Path, targetSize: Int): BufferedImage? {
         val stream = try {
             ImageIO.createImageInputStream(path.toFile())
         } catch (_: Exception) {
@@ -182,7 +198,7 @@ class ThumbnailCache(private val scope: CoroutineScope) {
                 // pass in createScaledThumbnail has enough source data to produce
                 // a sharp result. Subsampling alone is a nearest-neighbour pick
                 // and produces visible aliasing on photographic content.
-                val subsampleTarget = THUMBNAIL_SIZE * 2
+                val subsampleTarget = targetSize * 2
                 if (maxDim > subsampleTarget) {
                     val subsample = maxOf(1, maxDim / subsampleTarget)
                     param.setSourceSubsampling(subsample, subsample, 0, 0)
@@ -190,10 +206,10 @@ class ThumbnailCache(private val scope: CoroutineScope) {
 
                 val subsampled = reader.read(0, param)
 
-                if (subsampled.width <= THUMBNAIL_SIZE && subsampled.height <= THUMBNAIL_SIZE) {
+                if (subsampled.width <= targetSize && subsampled.height <= targetSize) {
                     subsampled
                 } else {
-                    createScaledThumbnail(subsampled)
+                    createScaledThumbnail(subsampled, targetSize)
                 }
             } finally {
                 reader.dispose()
@@ -201,10 +217,10 @@ class ThumbnailCache(private val scope: CoroutineScope) {
         }
     }
 
-    private fun createScaledThumbnail(source: BufferedImage): BufferedImage {
+    private fun createScaledThumbnail(source: BufferedImage, targetSize: Int): BufferedImage {
         val srcW = source.width
         val srcH = source.height
-        val scale = THUMBNAIL_SIZE.toDouble() / maxOf(srcW, srcH)
+        val scale = targetSize.toDouble() / maxOf(srcW, srcH)
         val dstW = maxOf(1, (srcW * scale).toInt())
         val dstH = maxOf(1, (srcH * scale).toInt())
 
@@ -222,17 +238,26 @@ class ThumbnailCache(private val scope: CoroutineScope) {
         return thumb
     }
 
-    internal fun getCachePath(sourcePath: Path): Path? {
+    /**
+     * Default-size cache path; kept for [evictDirectory] which doesn't know what
+     * size the entry was generated at. Evicting the in-memory entry is enough
+     * to force a regeneration; orphaned disk entries will be replaced or wiped
+     * on the next manual cache clear.
+     */
+    internal fun getCachePath(sourcePath: Path): Path? =
+        getCachePath(sourcePath, currentSize().cacheSize)
+
+    internal fun getCachePath(sourcePath: Path, cacheSize: Int): Path? {
         return try {
             // Use a hash of the absolute path to avoid filesystem issues with long paths.
-            // The "v2|" prefix is part of the hash material so cache entries written by
-            // the old 64px implementation hash to a different filename and are simply
-            // ignored — we keep the cache directory name unchanged.
-            val bytes = "$CACHE_VERSION|${sourcePath.toAbsolutePath()}".toByteArray()
+            // The cache size is part of the filename so different size presets coexist
+            // on disk without colliding, and entries from the old hardcoded 64px layout
+            // (which had no size segment) are naturally bypassed.
+            val bytes = sourcePath.toAbsolutePath().toString().toByteArray()
             val digest = java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
             val hash = digest.take(16).joinToString("") { "%02x".format(it) }
             val name = sourcePath.fileName?.toString() ?: return null
-            cacheDir.resolve("$hash-$name.png")
+            cacheDir.resolve("$hash-$cacheSize-$name.png")
         } catch (_: Exception) {
             null
         }
@@ -282,10 +307,7 @@ class ThumbnailCache(private val scope: CoroutineScope) {
     }
 
     companion object {
-        private const val THUMBNAIL_SIZE = 192
-        private const val MAX_DISPLAY_SIZE = 64
         private const val CACHE_DIR_NAME = "turtle-commander-thumbnails"
-        private const val CACHE_VERSION = "v2"
         private const val MAX_CONCURRENT_LOADS = 4
 
         private val IMAGE_EXTENSIONS = setOf(

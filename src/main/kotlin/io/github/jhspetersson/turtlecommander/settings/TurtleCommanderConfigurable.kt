@@ -30,6 +30,7 @@ class TurtleCommanderConfigurable : Configurable {
     private var calculateDirectorySizeCheckBox: JCheckBox? = null
     private var defaultViewModeCombo: ComboBox<String>? = null
     private var panelLayoutCombo: ComboBox<String>? = null
+    private var thumbnailSizeCombo: ComboBox<ThumbnailSize>? = null
     private var columnsEditor: ColumnsEditor? = null
     private var favoritesEditor: FavoritesEditor? = null
     private var colorRulesEditor: ColorRulesEditor? = null
@@ -74,6 +75,20 @@ class TurtleCommanderConfigurable : Configurable {
             selectedItem = layoutLabelFor(settings.panelLayout)
         }
 
+        thumbnailSizeCombo = ComboBox(DefaultComboBoxModel(ThumbnailSize.entries.toTypedArray())).apply {
+            selectedItem = ThumbnailSize.fromName(settings.thumbnailSize)
+            renderer = object : DefaultListCellRenderer() {
+                override fun getListCellRendererComponent(
+                    list: JList<*>?, value: Any?, index: Int,
+                    isSelected: Boolean, cellHasFocus: Boolean,
+                ): Component {
+                    val c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
+                    if (value is ThumbnailSize) text = value.label
+                    return c
+                }
+            }
+        }
+
         val defaultLabel = "(Default)"
         val fontItems = arrayOf(defaultLabel) + fontFamilies
 
@@ -115,6 +130,12 @@ class TurtleCommanderConfigurable : Configurable {
             alignmentX = JComponent.LEFT_ALIGNMENT
             add(JBLabel("Layout:  "))
             add(panelLayoutCombo!!)
+        }
+
+        val thumbnailSizeRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
+            alignmentX = JComponent.LEFT_ALIGNMENT
+            add(JBLabel("Thumbnail size:  "))
+            add(thumbnailSizeCombo!!)
         }
 
         val appearancePanel = createAppearancePanel(
@@ -172,6 +193,7 @@ class TurtleCommanderConfigurable : Configurable {
             add(Box.createVerticalStrut(8))
             add(viewModeRow)
             add(layoutRow)
+            add(thumbnailSizeRow)
             add(Box.createVerticalStrut(8))
             add(appearancePanel)
             add(Box.createVerticalStrut(8))
@@ -580,6 +602,7 @@ class TurtleCommanderConfigurable : Configurable {
             || calculateDirectorySizeCheckBox?.isSelected != settings.calculateDirectorySize
             || getSelectedViewMode() != settings.defaultViewMode
             || getSelectedPanelLayout() != settings.panelLayout
+            || getSelectedThumbnailSize() != settings.thumbnailSize
             || styleEditors["panel"]?.isModified(settings.styles.panelStyle, effectivePanelFamily(settings), effectivePanelSize(settings)) == true
             || styleEditors["tab"]?.isModified(settings.styles.tabStyle, effectiveTabFamily(settings), effectiveTabSize(settings)) == true
             || styleEditors["pathBar"]?.isModified(settings.styles.pathBarStyle) == true
@@ -607,6 +630,7 @@ class TurtleCommanderConfigurable : Configurable {
         settings.calculateDirectorySize = calculateDirectorySizeCheckBox?.isSelected ?: settings.calculateDirectorySize
         settings.defaultViewMode = getSelectedViewMode()
         settings.panelLayout = getSelectedPanelLayout()
+        settings.thumbnailSize = getSelectedThumbnailSize()
 
         styleEditors["panel"]?.applyTo(settings.styles.panelStyle)
         styleEditors["tab"]?.applyTo(settings.styles.tabStyle)
@@ -650,6 +674,7 @@ class TurtleCommanderConfigurable : Configurable {
             else -> "Table"
         }
         panelLayoutCombo?.selectedItem = layoutLabelFor(settings.panelLayout)
+        thumbnailSizeCombo?.selectedItem = ThumbnailSize.fromName(settings.thumbnailSize)
 
         styleEditors["panel"]?.resetFrom(settings.styles.panelStyle, effectivePanelFamily(settings), effectivePanelSize(settings))
         styleEditors["tab"]?.resetFrom(settings.styles.tabStyle, effectiveTabFamily(settings), effectiveTabSize(settings))
@@ -687,6 +712,7 @@ class TurtleCommanderConfigurable : Configurable {
         tabFontSizeSpinner = null
         defaultViewModeCombo = null
         panelLayoutCombo = null
+        thumbnailSizeCombo = null
         columnsEditor = null
         favoritesEditor = null
         colorRulesEditor = null
@@ -726,6 +752,11 @@ class TurtleCommanderConfigurable : Configurable {
             "Single-panel" -> PanelLayout.SINGLE.name
             else -> PanelLayout.HORIZONTAL.name
         }
+    }
+
+    private fun getSelectedThumbnailSize(): String {
+        val selected = thumbnailSizeCombo?.selectedItem as? ThumbnailSize ?: ThumbnailSize.SMALL
+        return selected.name
     }
 
     private fun layoutLabelFor(name: String): String = when (name) {
