@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Improved thumbnail quality
+
 ## [0.5.2] - 2026-04-27
 
 ### Added
