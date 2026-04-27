@@ -11,6 +11,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.awt.Component
+import java.awt.Graphics
+import java.awt.Graphics2D
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.nio.file.Files
@@ -20,7 +23,6 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.imageio.ImageIO
 import javax.imageio.ImageReadParam
 import javax.swing.Icon
-import javax.swing.ImageIcon
 
 @Service(Service.Level.APP)
 class ThumbnailCache(private val scope: CoroutineScope) {
@@ -135,7 +137,7 @@ class ThumbnailCache(private val scope: CoroutineScope) {
             val cacheModified = Files.getLastModifiedTime(cachePath).toMillis()
             if (cacheModified >= modMillis) {
                 val img = ImageIO.read(cachePath.toFile())
-                if (img != null) return ImageIcon(img)
+                if (img != null) return HighQualityImageIcon(img, MAX_DISPLAY_SIZE)
             }
         }
 
@@ -155,7 +157,7 @@ class ThumbnailCache(private val scope: CoroutineScope) {
             }
         }
 
-        return ImageIcon(thumb)
+        return HighQualityImageIcon(thumb, MAX_DISPLAY_SIZE)
     }
 
     private fun readSubsampledThumbnail(path: Path): BufferedImage? {
@@ -176,15 +178,18 @@ class ThumbnailCache(private val scope: CoroutineScope) {
                 val maxDim = maxOf(width, height)
 
                 val param: ImageReadParam = reader.defaultReadParam
-                if (maxDim > THUMBNAIL_SIZE) {
-                    // Subsample to reduce memory: read every Nth pixel
-                    val subsample = maxOf(1, maxDim / THUMBNAIL_SIZE)
+                // Two-step downscale: subsample to ~2× the target so the bicubic
+                // pass in createScaledThumbnail has enough source data to produce
+                // a sharp result. Subsampling alone is a nearest-neighbour pick
+                // and produces visible aliasing on photographic content.
+                val subsampleTarget = THUMBNAIL_SIZE * 2
+                if (maxDim > subsampleTarget) {
+                    val subsample = maxOf(1, maxDim / subsampleTarget)
                     param.setSourceSubsampling(subsample, subsample, 0, 0)
                 }
 
                 val subsampled = reader.read(0, param)
 
-                // Scale to exact thumbnail size
                 if (subsampled.width <= THUMBNAIL_SIZE && subsampled.height <= THUMBNAIL_SIZE) {
                     subsampled
                 } else {
@@ -206,17 +211,24 @@ class ThumbnailCache(private val scope: CoroutineScope) {
         @Suppress("UndesirableClassUsage")
         val thumb = BufferedImage(dstW, dstH, BufferedImage.TYPE_INT_ARGB)
         val g = thumb.createGraphics()
-        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR)
-        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
-        g.drawImage(source, 0, 0, dstW, dstH, null)
-        g.dispose()
+        try {
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
+            g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+            g.drawImage(source, 0, 0, dstW, dstH, null)
+        } finally {
+            g.dispose()
+        }
         return thumb
     }
 
     internal fun getCachePath(sourcePath: Path): Path? {
         return try {
-            // Use a hash of the absolute path to avoid filesystem issues with long paths
-            val bytes = sourcePath.toAbsolutePath().toString().toByteArray()
+            // Use a hash of the absolute path to avoid filesystem issues with long paths.
+            // The "v2|" prefix is part of the hash material so cache entries written by
+            // the old 64px implementation hash to a different filename and are simply
+            // ignored — we keep the cache directory name unchanged.
+            val bytes = "$CACHE_VERSION|${sourcePath.toAbsolutePath()}".toByteArray()
             val digest = java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
             val hash = digest.take(16).joinToString("") { "%02x".format(it) }
             val name = sourcePath.fileName?.toString() ?: return null
@@ -226,9 +238,54 @@ class ThumbnailCache(private val scope: CoroutineScope) {
         }
     }
 
+    /**
+     * Icon backed by a high-resolution thumbnail bitmap. paintIcon scales the
+     * underlying [BufferedImage] to a fixed logical display size with bicubic
+     * interpolation, so on HiDPI displays the Graphics2D's existing device-scale
+     * transform turns the larger source bitmap into a sharp render at physical
+     * pixel resolution.
+     */
+    private class HighQualityImageIcon(
+        private val image: BufferedImage,
+        maxLogicalSize: Int,
+    ) : Icon {
+
+        private val displayW: Int
+        private val displayH: Int
+
+        init {
+            val maxDim = maxOf(image.width, image.height)
+            if (maxDim <= maxLogicalSize) {
+                displayW = image.width
+                displayH = image.height
+            } else {
+                val scale = maxLogicalSize.toDouble() / maxDim
+                displayW = maxOf(1, (image.width * scale).toInt())
+                displayH = maxOf(1, (image.height * scale).toInt())
+            }
+        }
+
+        override fun getIconWidth(): Int = displayW
+        override fun getIconHeight(): Int = displayH
+
+        override fun paintIcon(c: Component?, g: Graphics, x: Int, y: Int) {
+            val g2 = g.create() as Graphics2D
+            try {
+                g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
+                g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+                g2.drawImage(image, x, y, displayW, displayH, null)
+            } finally {
+                g2.dispose()
+            }
+        }
+    }
+
     companion object {
-        private const val THUMBNAIL_SIZE = 64
+        private const val THUMBNAIL_SIZE = 192
+        private const val MAX_DISPLAY_SIZE = 64
         private const val CACHE_DIR_NAME = "turtle-commander-thumbnails"
+        private const val CACHE_VERSION = "v2"
         private const val MAX_CONCURRENT_LOADS = 4
 
         private val IMAGE_EXTENSIONS = setOf(
