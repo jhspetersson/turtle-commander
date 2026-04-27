@@ -4,9 +4,11 @@
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-04-27
+
 ### Added
 
-- Extract to Subdir action
+- `Extract to Subdir` action
 - `Shift-F2` is now a default shortcut for extracting files
 - `Back to Root` action (`Ctrl-\`) to navigate to the root of the current filesystem or archive
 
