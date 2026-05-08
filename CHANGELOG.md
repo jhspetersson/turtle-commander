@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Properties context menu on Windows
+
 ## [0.5.3] - 2026-05-08
 
 ### Changed
