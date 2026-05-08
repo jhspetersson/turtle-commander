@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-05-08
+
 ### Changed
 
 - Thumbnail size is now configurable
