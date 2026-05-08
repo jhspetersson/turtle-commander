@@ -13,7 +13,7 @@ import io.github.jhspetersson.turtlecommander.dialog.FileSearchDialog
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.ui.*
-import io.github.jhspetersson.turtlecommander.util.WindowsProperties
+import io.github.jhspetersson.turtlecommander.util.NativeProperties
 
 object FileContextMenuState {
     var clickedEntry: FileEntry? = null
@@ -386,14 +386,15 @@ class CompareFilesAction : AnAction(), DumbAware {
 }
 
 /**
- * Opens the Windows Explorer Properties dialog for the right-clicked file or
- * directory. Hidden on non-Windows hosts — the same verb doesn't exist on
- * macOS or Linux, and we don't want a non-functional menu item there.
+ * Opens the platform Properties / Get Info dialog for the right-clicked file
+ * or directory. Hidden on Linux (no DE-independent equivalent) and inside
+ * archives (where `entry.path` is a temp-extracted file).
  *
- * Operates on the right-clicked entry only, not on multi-select: the Windows
- * shell shows a single combined dialog for multiple items only when invoked
- * via IShellFolder + an IDLIST array, which we don't bother building here.
- * Right-click is implicitly single-target anyway.
+ * Operates on the right-clicked entry only, not on multi-select: both Windows
+ * Explorer and macOS Finder show a combined dialog for multiple items only
+ * when invoked via lower-level shell APIs (IShellFolder + IDLIST on Windows,
+ * a Finder selection on macOS), which we don't bother building. Right-click
+ * is implicitly single-target anyway.
  */
 class ShowPropertiesAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
@@ -401,15 +402,17 @@ class ShowPropertiesAction : AnAction(), DumbAware {
     override fun update(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry
         val tab = FileContextMenuState.clickedTab
-        e.presentation.isEnabledAndVisible = WindowsProperties.isSupported()
+        e.presentation.isEnabledAndVisible = NativeProperties.isSupported()
             && entry != null
             && !entry.isParentLink
             && tab?.isInsideArchive != true
+        val os = System.getProperty("os.name").lowercase()
+        e.presentation.text = if (os.contains("mac")) "Get Info" else "Properties"
     }
 
     override fun actionPerformed(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry ?: return
-        WindowsProperties.showProperties(entry.path)
+        NativeProperties.showProperties(entry.path)
     }
 }
 

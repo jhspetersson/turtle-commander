@@ -6,7 +6,7 @@
 
 ### Added
 
-- Properties context menu on Windows
+- Properties /Get Info context menu
 
 ## [0.5.3] - 2026-05-08
 
