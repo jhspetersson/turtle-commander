@@ -10,6 +10,7 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.vfs.LocalFileSystem
 import io.github.jhspetersson.turtlecommander.dialog.FileSearchDialog
+import io.github.jhspetersson.turtlecommander.dialog.PropertiesDialog
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.ui.*
@@ -387,32 +388,39 @@ class CompareFilesAction : AnAction(), DumbAware {
 
 /**
  * Opens the platform Properties / Get Info dialog for the right-clicked file
- * or directory. Hidden on Linux (no DE-independent equivalent) and inside
- * archives (where `entry.path` is a temp-extracted file).
+ * or directory. Tries the native dialog first (Explorer on Windows, Finder
+ * on macOS, Nautilus / Dolphin on supported Linux DEs); falls back to a
+ * read-only Swing [PropertiesDialog] when no native dialog is available
+ * (unknown Linux DE) or when the entry is mounted inside an archive (where
+ * the path points at a temp-extracted file whose metadata is misleading).
  *
- * Operates on the right-clicked entry only, not on multi-select: both Windows
- * Explorer and macOS Finder show a combined dialog for multiple items only
- * when invoked via lower-level shell APIs (IShellFolder + IDLIST on Windows,
- * a Finder selection on macOS), which we don't bother building. Right-click
- * is implicitly single-target anyway.
+ * Single-target only. Right-click is implicitly single-target, and the
+ * combined multi-item dialog from Explorer / Finder needs lower-level shell
+ * APIs (IShellFolder + IDLIST, or a Finder selection) we don't bother
+ * building.
  */
 class ShowPropertiesAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     override fun update(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry
-        val tab = FileContextMenuState.clickedTab
-        e.presentation.isEnabledAndVisible = NativeProperties.isSupported()
-            && entry != null
-            && !entry.isParentLink
-            && tab?.isInsideArchive != true
+        e.presentation.isEnabledAndVisible = entry != null && !entry.isParentLink
         val os = System.getProperty("os.name").lowercase()
         e.presentation.text = if (os.contains("mac")) "Get Info" else "Properties"
     }
 
     override fun actionPerformed(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry ?: return
-        NativeProperties.showProperties(entry.path)
+        val tab = FileContextMenuState.clickedTab
+        // Inside an archive entry.path is a temp-extracted file — its real
+        // size / dates / owner won't match the archive entry. Skip the
+        // native attempt and use the Swing dialog, which reads from the
+        // FileEntry record we already have.
+        val canUseNative = tab?.isInsideArchive != true
+        val opened = canUseNative && NativeProperties.showProperties(entry.path)
+        if (!opened) {
+            PropertiesDialog(e.project, entry).show()
+        }
     }
 }
 

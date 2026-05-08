@@ -270,7 +270,7 @@
                     class="io.github.jhspetersson.turtlecommander.action.ShowPropertiesAction"
                     text="Properties"
                     icon="AllIcons.Actions.Properties"
-                    description="Show the system Properties (Windows) or Get Info (macOS) dialog"/>
+                    description="Show the system Properties / Get Info dialog (or a built-in fallback on unknown desktops)"/>
             <action id="TurtleCommander.ContextCopy"
                     class="io.github.jhspetersson.turtlecommander.action.ContextCopyAction"
                     text="Copy"

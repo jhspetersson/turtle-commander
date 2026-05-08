@@ -12,12 +12,15 @@ import java.nio.file.Path
  *   command, not a registered shell-execute verb, so without the flag Windows
  *   silently does nothing.
  * - **macOS**: AppleScript `open information window of (POSIX file …)` run
- *   through `osascript`. Spawns one short-lived process per call. The Get
- *   Info window is owned by Finder, which we `activate` so the window comes
- *   to the front instead of opening behind the IDE.
- * - **Linux**: not implemented. There's no DE-independent equivalent —
- *   GNOME Files exposes `org.freedesktop.FileManager1.ShowItemProperties`
- *   over D-Bus, KDE has `kioclient5 properties`, but neither is universal.
+ *   through `osascript`. The Get Info window is owned by Finder, which we
+ *   `activate` so the window comes to the front instead of opening behind the
+ *   IDE.
+ * - **Linux**: dispatch by `XDG_CURRENT_DESKTOP`. KDE → `kioclient6 properties`
+ *   (with `kioclient5` fallback). GNOME-like (GNOME, Unity, Cinnamon, MATE,
+ *   Pantheon, Budgie) → `gdbus call …
+ *   org.freedesktop.FileManager1.ShowItemProperties` against Nautilus / Files
+ *   / Nemo. Anything else returns false; the caller is expected to fall back
+ *   to a Swing dialog.
  */
 object NativeProperties {
 
@@ -27,18 +30,28 @@ object NativeProperties {
     private val osName = System.getProperty("os.name").lowercase()
     private val isWindows = osName.contains("win")
     private val isMac = osName.contains("mac")
+    private val isLinux = !isWindows && !isMac &&
+        (osName.contains("linux") || osName.contains("nix") || osName.contains("bsd"))
 
-    fun isSupported(): Boolean = isWindows || isMac
+    /**
+     * Whether the platform has a known native item-properties dialog. Returns
+     * false on Linux for unknown desktop environments — callers should always
+     * have a fallback path because even on a "supported" Linux DE, the call
+     * can still no-op if the file-manager service isn't running.
+     */
+    fun isSupported(): Boolean = isWindows || isMac || (isLinux && hasKnownLinuxDesktop())
 
     /**
      * Opens the platform Properties / Get Info dialog for [path]. The dialog
-     * runs on its own owner-process thread (Shell on Windows, Finder on
-     * macOS), so this returns immediately. Returns `false` if the platform
-     * is unsupported or the call fails; never throws.
+     * runs on its owner-process thread (Shell on Windows, Finder on macOS,
+     * Nautilus / Dolphin on Linux), so this returns immediately. Returns
+     * `false` if the platform / DE has no native dialog or the call fails;
+     * never throws.
      */
     fun showProperties(path: Path): Boolean = when {
         isWindows -> showOnWindows(path)
         isMac -> showOnMac(path)
+        isLinux -> showOnLinux(path)
         else -> false
     }
 
@@ -81,4 +94,66 @@ object NativeProperties {
             false
         }
     }
+
+    private fun showOnLinux(path: Path): Boolean {
+        val desktop = currentDesktop()
+        return when {
+            desktop.isKde -> tryKde(path)
+            desktop.isGnomeLike -> tryGnome(path)
+            else -> false
+        }
+    }
+
+    private fun tryKde(path: Path): Boolean {
+        // KDE 6 ships kioclient6, KDE 5 ships kioclient5. Try the newer one
+        // first. ProcessBuilder.start() throws IOException synchronously when
+        // the binary isn't on PATH, so we can detect "missing" without waiting.
+        val uri = path.toUri().toString()
+        for (cmd in listOf("kioclient6", "kioclient5")) {
+            try {
+                ProcessBuilder(cmd, "properties", uri).start()
+                return true
+            } catch (_: Throwable) {
+                // Try the next variant.
+            }
+        }
+        return false
+    }
+
+    private fun tryGnome(path: Path): Boolean {
+        // org.freedesktop.FileManager1 is the standardised D-Bus interface
+        // implemented by Nautilus, Nemo, and Caja. ShowItemProperties takes
+        // an array of URIs and a startup id (we pass an empty string).
+        val uri = path.toUri().toString()
+        return try {
+            ProcessBuilder(
+                "gdbus", "call", "--session",
+                "--dest", "org.freedesktop.FileManager1",
+                "--object-path", "/org/freedesktop/FileManager1",
+                "--method", "org.freedesktop.FileManager1.ShowItemProperties",
+                "['$uri']", "",
+            ).start()
+            true
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    private fun hasKnownLinuxDesktop(): Boolean = currentDesktop().isKde || currentDesktop().isGnomeLike
+
+    private fun currentDesktop(): LinuxDesktop {
+        val xdg = (System.getenv("XDG_CURRENT_DESKTOP") ?: "").uppercase()
+        return LinuxDesktop(
+            isKde = xdg.contains("KDE"),
+            // GNOME-like = anything implementing org.freedesktop.FileManager1
+            // via Nautilus or one of its forks (Nemo for Cinnamon, Caja for
+            // MATE). Pantheon and Budgie use Files (Nautilus) directly.
+            isGnomeLike = xdg.split(':').any { token ->
+                token in setOf("GNOME", "UNITY", "CINNAMON", "X-CINNAMON",
+                    "MATE", "PANTHEON", "BUDGIE", "GNOME-CLASSIC")
+            },
+        )
+    }
+
+    private data class LinuxDesktop(val isKde: Boolean, val isGnomeLike: Boolean)
 }
