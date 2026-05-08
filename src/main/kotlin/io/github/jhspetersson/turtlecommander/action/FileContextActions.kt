@@ -13,6 +13,7 @@ import io.github.jhspetersson.turtlecommander.dialog.FileSearchDialog
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.ui.*
+import io.github.jhspetersson.turtlecommander.util.WindowsProperties
 
 object FileContextMenuState {
     var clickedEntry: FileEntry? = null
@@ -381,6 +382,34 @@ class CompareFilesAction : AnAction(), DumbAware {
         }
 
         return null to null
+    }
+}
+
+/**
+ * Opens the Windows Explorer Properties dialog for the right-clicked file or
+ * directory. Hidden on non-Windows hosts — the same verb doesn't exist on
+ * macOS or Linux, and we don't want a non-functional menu item there.
+ *
+ * Operates on the right-clicked entry only, not on multi-select: the Windows
+ * shell shows a single combined dialog for multiple items only when invoked
+ * via IShellFolder + an IDLIST array, which we don't bother building here.
+ * Right-click is implicitly single-target anyway.
+ */
+class ShowPropertiesAction : AnAction(), DumbAware {
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+
+    override fun update(e: AnActionEvent) {
+        val entry = FileContextMenuState.clickedEntry
+        val tab = FileContextMenuState.clickedTab
+        e.presentation.isEnabledAndVisible = WindowsProperties.isSupported()
+            && entry != null
+            && !entry.isParentLink
+            && tab?.isInsideArchive != true
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val entry = FileContextMenuState.clickedEntry ?: return
+        WindowsProperties.showProperties(entry.path)
     }
 }
 
