@@ -132,10 +132,23 @@ class TurtleCommanderConfigurable : Configurable {
             add(panelLayoutCombo!!)
         }
 
-        val thumbnailSizeRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
+        val thumbnailCache = ThumbnailCache.getInstance()
+        val thumbnailCacheSizeLabel = JBLabel(formatSize(thumbnailCache.getCacheSize()))
+        val clearCacheButton = JButton("Clear").apply {
+            addActionListener {
+                thumbnailCache.clearCache()
+                thumbnailCacheSizeLabel.text = formatSize(thumbnailCache.getCacheSize())
+            }
+        }
+        val thumbnailRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
             alignmentX = JComponent.LEFT_ALIGNMENT
             add(JBLabel("Thumbnail size:  "))
             add(thumbnailSizeCombo!!)
+            add(Box.createHorizontalStrut(16))
+            add(JBLabel("Cache: "))
+            add(thumbnailCacheSizeLabel)
+            add(Box.createHorizontalStrut(8))
+            add(clearCacheButton)
         }
 
         val appearancePanel = createAppearancePanel(
@@ -164,22 +177,6 @@ class TurtleCommanderConfigurable : Configurable {
         rulesEditor.resetFrom(settings)
         colorRulesEditor = rulesEditor
 
-        val thumbnailCache = ThumbnailCache.getInstance()
-        val thumbnailCacheSizeLabel = JBLabel(formatSize(thumbnailCache.getCacheSize()))
-        val clearCacheButton = JButton("Clear").apply {
-            addActionListener {
-                thumbnailCache.clearCache()
-                thumbnailCacheSizeLabel.text = formatSize(thumbnailCache.getCacheSize())
-            }
-        }
-        val thumbnailCachePanel = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
-            alignmentX = JComponent.LEFT_ALIGNMENT
-            add(JBLabel("Thumbnail cache: "))
-            add(thumbnailCacheSizeLabel)
-            add(Box.createHorizontalStrut(8))
-            add(clearCacheButton)
-        }
-
         val inner = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             add(highlightingCheckBox)
@@ -193,7 +190,7 @@ class TurtleCommanderConfigurable : Configurable {
             add(Box.createVerticalStrut(8))
             add(viewModeRow)
             add(layoutRow)
-            add(thumbnailSizeRow)
+            add(thumbnailRow)
             add(Box.createVerticalStrut(8))
             add(appearancePanel)
             add(Box.createVerticalStrut(8))
@@ -202,8 +199,6 @@ class TurtleCommanderConfigurable : Configurable {
             add(rulesEditor.panel)
             add(Box.createVerticalStrut(8))
             add(favEditor.panel)
-            add(Box.createVerticalStrut(8))
-            add(thumbnailCachePanel)
         }
 
         return JPanel(BorderLayout()).apply {
