@@ -69,13 +69,22 @@ object NativeProperties {
         // which would otherwise need AppleScript-string escaping. The `--`
         // ends osascript options so a filename starting with `-` isn't
         // mistaken for a flag.
+        //
+        // The `as alias` coercion is load-bearing: `POSIX file "..."` returns
+        // a «class furl» (file URL specifier) that Finder won't accept as a
+        // Finder item, so `open information window of <furl>` silently
+        // degrades to the generic `open` verb — which just reveals the file
+        // in a Finder window without showing Get Info. Coercing to «class
+        // alis» (alias) gives Finder a real item reference and the Get Info
+        // window opens as expected.
         return try {
             ProcessBuilder(
                 "osascript",
                 "-e", "on run argv",
+                "-e",   "set theItem to (POSIX file (item 1 of argv)) as alias",
                 "-e",   "tell application \"Finder\"",
                 "-e",     "activate",
-                "-e",     "open information window of (POSIX file (item 1 of argv))",
+                "-e",     "open information window of theItem",
                 "-e",   "end tell",
                 "-e", "end run",
                 "--",
