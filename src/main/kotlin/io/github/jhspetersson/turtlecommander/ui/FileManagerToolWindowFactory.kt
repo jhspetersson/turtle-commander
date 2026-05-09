@@ -286,10 +286,15 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
             return action.shortcutSet.shortcuts.firstOrNull() as? KeyboardShortcut
         }
 
+        // Meta is included for macOS — the Command key reports as META_DOWN_MASK
+        // and any shortcut a user has rebound to Cmd would otherwise be
+        // bucketed as "no modifier" and pressing Cmd wouldn't refresh the bar.
+        val modifierMask = InputEvent.SHIFT_DOWN_MASK or InputEvent.CTRL_DOWN_MASK or
+            InputEvent.ALT_DOWN_MASK or InputEvent.META_DOWN_MASK
+
         fun modifierOf(actionId: String): Int {
             val shortcut = getShortcut(actionId) ?: return 0
-            val m = shortcut.firstKeyStroke.modifiers
-            return m and (InputEvent.SHIFT_DOWN_MASK or InputEvent.CTRL_DOWN_MASK or InputEvent.ALT_DOWN_MASK)
+            return shortcut.firstKeyStroke.modifiers and modifierMask
         }
 
         fun shortcutText(actionId: String): String {
@@ -376,10 +381,9 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
             if (bar.isShowing) {
                 if (e.id == KeyEvent.KEY_PRESSED || e.id == KeyEvent.KEY_RELEASED) {
                     when (e.keyCode) {
-                        KeyEvent.VK_SHIFT, KeyEvent.VK_CONTROL, KeyEvent.VK_ALT -> {
-                            val m = e.modifiersEx and
-                                (InputEvent.SHIFT_DOWN_MASK or InputEvent.CTRL_DOWN_MASK or InputEvent.ALT_DOWN_MASK)
-                            updateBar(m)
+                        KeyEvent.VK_SHIFT, KeyEvent.VK_CONTROL,
+                        KeyEvent.VK_ALT, KeyEvent.VK_META -> {
+                            updateBar(e.modifiersEx and modifierMask)
                         }
                     }
                 }
