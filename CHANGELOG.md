@@ -8,6 +8,10 @@
 
 - Properties / Get Info context menu
 
+### Fixed
+
+- Improved macOS keys support
+
 ## [0.5.3] - 2026-05-08
 
 ### Changed
