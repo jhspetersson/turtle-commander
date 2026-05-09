@@ -131,10 +131,11 @@ class CompressedSingleFileVirtualFileSystem(
         result
     }
 
-    override suspend fun renameFile(source: Path, newName: String): Path = withContext(Dispatchers.IO) {
-        val parent = source.parent ?: throw IllegalArgumentException("Cannot rename a root path")
-        val target = parent.resolve(newName)
-        Files.move(source, target)
+    override suspend fun renameFile(source: Path, newName: String): Path {
+        // Single-file compressors wrap one inner file and we expose them as read-only.
+        // A rename in the temp dir would be silently dropped by the next flush(); throw
+        // explicitly so callers don't introduce that data-loss path by mistake.
+        throw UnsupportedOperationException("Cannot rename inside a read-only single-file archive")
     }
 
     override fun flush() {

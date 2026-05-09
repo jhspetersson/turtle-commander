@@ -2,15 +2,18 @@ package io.github.jhspetersson.turtlecommander.service
 
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Assert.fail
 import org.junit.Test
+import org.junit.Assert.fail
 import java.io.FilterInputStream
 import java.io.IOException
 import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 /**
  * Regression test for a file-handle leak in ArchiveService.countArchiveEntriesFast:
@@ -84,5 +87,22 @@ class ArchiveServiceLeakTest {
         tempFiles.add(path)
         Files.write(path, ByteArray(256) { it.toByte() })
         return path
+    }
+
+    @Test
+    fun `countArchiveEntriesFast recognises aar and apkg as zip-format`() {
+        val svc = ArchiveService()
+        // .aar (Android library) and .apkg (Anki deck) are both zip-format. The fast-count
+        // table used to omit them, forcing a full extract via the VFS fallback. Returning
+        // the expected entry count here verifies they take the header-only path.
+        for (suffix in listOf(".aar", ".apkg")) {
+            val zip = Files.createTempFile("fastcount-", suffix)
+            tempFiles.add(zip)
+            ZipOutputStream(Files.newOutputStream(zip)).use { zos ->
+                zos.putNextEntry(ZipEntry("a.txt")); zos.write("a".toByteArray()); zos.closeEntry()
+                zos.putNextEntry(ZipEntry("b.txt")); zos.write("b".toByteArray()); zos.closeEntry()
+            }
+            assertEquals("expected fast-count to recognise $suffix", 2, svc.countArchiveEntriesFast(zip))
+        }
     }
 }

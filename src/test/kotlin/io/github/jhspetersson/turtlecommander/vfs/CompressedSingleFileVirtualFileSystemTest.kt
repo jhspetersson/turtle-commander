@@ -114,6 +114,22 @@ class CompressedSingleFileVirtualFileSystemTest {
     }
 
     @Test
+    fun `renameFile rejects on read-only VFS`() = runBlocking {
+        // The class is isReadOnly = true, but renameFile used to silently move the inner
+        // file in the temp dir; the next flush() would re-extract and lose the rename.
+        // Calling rename on a read-only VFS must surface as an error rather than data loss.
+        val entries = vfs.listFiles(vfs.root).filter { !it.isParentLink }
+        val source = entries[0].path
+        val ex = try {
+            vfs.renameFile(source, "renamed.txt")
+            null
+        } catch (e: UnsupportedOperationException) {
+            e
+        }
+        assertNotNull("expected UnsupportedOperationException on read-only VFS rename", ex)
+    }
+
+    @Test
     fun `inner file name strips mixed-case compression suffix`() = runBlocking {
         val mixedCasePath = Files.createTempFile("test-mixed-", ".FakeGz")
         Files.write(mixedCasePath, "content".toByteArray())

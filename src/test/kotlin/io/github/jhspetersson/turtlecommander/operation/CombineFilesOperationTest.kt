@@ -124,10 +124,12 @@ class CombineFilesOperationTest {
     }
 
     @Test
-    fun `resolveBaseFileName from file without extension but all-digit name returns base`() {
-        // "Makefile" has no dot, substringAfterLast returns "" which is vacuously all-digits
-        // This is an edge case - files without dots won't normally be split chunks
-        assertNotNull(CombineFilesOperation.resolveBaseFileName(Path.of("/dir/123")))
+    fun `resolveBaseFileName returns null for extensionless file`() {
+        // No dot in the file name → not a chunk. Without an explicit ext-non-empty guard
+        // the vacuous-truth bug made `ext.all { isDigit }` return true for "" and
+        // misidentified `Makefile` / `123` as chunks.
+        assertNull(CombineFilesOperation.resolveBaseFileName(Path.of("/dir/Makefile")))
+        assertNull(CombineFilesOperation.resolveBaseFileName(Path.of("/dir/123")))
     }
 
     // --- findChunkFiles ---

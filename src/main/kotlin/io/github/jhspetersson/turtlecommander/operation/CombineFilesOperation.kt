@@ -58,13 +58,12 @@ object CombineFilesOperation {
 
     fun resolveBaseFileName(selectedFile: Path): String? {
         val name = selectedFile.fileName.toString()
-        val ext = name.substringAfterLast('.', "")
-        if (ext == "crc") {
-            return name.substringBeforeLast('.')
-        }
-        if (ext.all { it.isDigit() }) {
-            return name.substringBeforeLast('.')
-        }
+        val dotIndex = name.lastIndexOf('.')
+        if (dotIndex <= 0) return null
+        val ext = name.substring(dotIndex + 1)
+        if (ext.isEmpty()) return null
+        if (ext == "crc") return name.substring(0, dotIndex)
+        if (ext.all { it.isDigit() }) return name.substring(0, dotIndex)
         return null
     }
 

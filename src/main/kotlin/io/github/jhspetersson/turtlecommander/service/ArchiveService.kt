@@ -192,11 +192,12 @@ class ArchiveService {
     }
 
     /** Returns entry count via header-only scan, or -1 if the format isn't recognized. */
-    private fun countArchiveEntriesFast(archivePath: Path): Int {
+    internal fun countArchiveEntriesFast(archivePath: Path): Int {
         val name = archivePath.fileName?.toString()?.lowercase() ?: return -1
         return when {
             name.endsWith(".zip") || name.endsWith(".jar") || name.endsWith(".war") ||
-                name.endsWith(".ear") || name.endsWith(".apk") -> countZipEntries(archivePath)
+                name.endsWith(".ear") || name.endsWith(".apk") ||
+                name.endsWith(".aar") || name.endsWith(".apkg") -> countZipEntries(archivePath)
             name.endsWith(".7z") -> countSevenZEntries(archivePath)
             name.endsWith(".tar.gz") || name.endsWith(".tgz") ->
                 countTarCompressed(archivePath) { GzipCompressorInputStream(it) }

@@ -1449,6 +1449,10 @@ class FileTab(
                 list.ensureIndexIsVisible(listTarget)
             } else if (listModel.size() > 0) {
                 list.selectedIndex = 0
+                // Match the table fallback below: scroll to the selection so it is
+                // visible after navigation, even when the previous viewport was
+                // scrolled further down.
+                list.ensureIndexIsVisible(0)
             }
 
             // Select in thumbnail view too
@@ -1462,6 +1466,7 @@ class FileTab(
                 thumbnailList.ensureIndexIsVisible(thumbTarget)
             } else if (thumbnailListModel.size() > 0) {
                 thumbnailList.selectedIndex = 0
+                thumbnailList.ensureIndexIsVisible(0)
             }
 
             initialized = true

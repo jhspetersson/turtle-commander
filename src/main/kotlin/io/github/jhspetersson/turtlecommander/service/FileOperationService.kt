@@ -634,22 +634,29 @@ class FileOperationService(
         })
     }
 
-    private fun crossFileSystemMove(source: Path, target: Path, vararg options: CopyOption) {
+    internal fun crossFileSystemMove(source: Path, target: Path, vararg options: CopyOption) {
         if (source.fileSystem == target.fileSystem) {
             Files.move(source, target, *options)
-        } else {
-            val replaceExisting = StandardCopyOption.REPLACE_EXISTING in options
-            if (source.isDirectory()) {
-                copyDirectoryRecursive(source, target)
-                deleteDirectoryRecursive(source)
-            } else {
-                if (replaceExisting) {
-                    Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING)
-                } else {
-                    Files.copy(source, target)
-                }
-                Files.delete(source)
+            return
+        }
+        val replaceExisting = StandardCopyOption.REPLACE_EXISTING in options
+        if (source.isDirectory()) {
+            // Same-FS Files.move(..., REPLACE_EXISTING) replaces atomically (or fails on a
+            // non-empty target). copyDirectoryRecursive alone would *merge* into an existing
+            // target, leaving stale entries the user expected to be replaced. Wipe the target
+            // first so cross-FS semantics line up with the same-FS path.
+            if (replaceExisting && Files.exists(target)) {
+                deleteDirectoryRecursive(target)
             }
+            copyDirectoryRecursive(source, target)
+            deleteDirectoryRecursive(source)
+        } else {
+            if (replaceExisting) {
+                Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING)
+            } else {
+                Files.copy(source, target)
+            }
+            Files.delete(source)
         }
     }
 
