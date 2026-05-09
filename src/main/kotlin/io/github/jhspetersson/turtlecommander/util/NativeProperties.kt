@@ -3,6 +3,7 @@ package io.github.jhspetersson.turtlecommander.util
 import com.sun.jna.platform.win32.Shell32
 import com.sun.jna.platform.win32.ShellAPI
 import java.nio.file.Path
+import java.util.concurrent.TimeUnit
 
 /**
  * Native "Properties / Get Info" dialog bridge.
@@ -77,20 +78,41 @@ object NativeProperties {
         // in a Finder window without showing Get Info. Coercing to «class
         // alis» (alias) gives Finder a real item reference and the Get Info
         // window opens as expected.
+        //
+        // Conversion happens inside the `tell application "Finder"` block:
+        // computing the alias in the script's outer scope and then handing
+        // it across to Finder occasionally let Finder re-coerce the value
+        // back to a furl, defeating the fix. Inlining keeps the alias in
+        // Finder's scope for the lifetime of the call.
+        //
+        // `activate` is placed after `open information window` so that an
+        // AppleScript error in the open step (missing automation permission,
+        // unreadable path) aborts the script before Finder is brought forward.
+        // Otherwise the user would see Finder pop to the front with no info
+        // window — exactly the symptom the previous fix was trying to avoid.
         return try {
-            ProcessBuilder(
+            val process = ProcessBuilder(
                 "osascript",
                 "-e", "on run argv",
-                "-e",   "set theItem to (POSIX file (item 1 of argv)) as alias",
                 "-e",   "tell application \"Finder\"",
+                "-e",     "open information window of (POSIX file (item 1 of argv) as alias)",
                 "-e",     "activate",
-                "-e",     "open information window of theItem",
                 "-e",   "end tell",
                 "-e", "end run",
                 "--",
                 path.toAbsolutePath().toString(),
-            ).start()
-            true
+            ).redirectErrorStream(true).start()
+            // A successful Get Info typically completes well under a second.
+            // If osascript exits within the budget with a non-zero code (e.g.
+            // a runtime AppleScript error), surface it as a failure so the
+            // caller can fall back to the Swing PropertiesDialog. If it hasn't
+            // exited yet, assume Finder is still drawing the window and
+            // treat as success — blocking EDT longer would feel laggy.
+            if (process.waitFor(1, TimeUnit.SECONDS)) {
+                process.exitValue() == 0
+            } else {
+                true
+            }
         } catch (_: Throwable) {
             false
         }
