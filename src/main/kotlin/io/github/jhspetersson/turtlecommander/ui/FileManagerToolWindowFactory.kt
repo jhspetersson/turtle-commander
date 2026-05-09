@@ -5,7 +5,6 @@ import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.actionSystem.ex.ActionUtil
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.service
-import io.github.jhspetersson.turtlecommander.service.FileOperationService
 import com.intellij.openapi.keymap.Keymap
 import com.intellij.openapi.keymap.KeymapManagerListener
 import com.intellij.openapi.keymap.KeymapUtil
@@ -18,6 +17,7 @@ import com.intellij.ui.content.ContentFactory
 import io.github.jhspetersson.turtlecommander.action.FileCopyBuffer
 import io.github.jhspetersson.turtlecommander.service.FavoritesChangeListener
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
+import io.github.jhspetersson.turtlecommander.service.FileOperationService
 import io.github.jhspetersson.turtlecommander.service.ThumbnailCache
 import io.github.jhspetersson.turtlecommander.settings.ComponentStyle
 import io.github.jhspetersson.turtlecommander.settings.PanelLayout
@@ -286,9 +286,6 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
             return action.shortcutSet.shortcuts.firstOrNull() as? KeyboardShortcut
         }
 
-        // Meta is included for macOS — the Command key reports as META_DOWN_MASK
-        // and any shortcut a user has rebound to Cmd would otherwise be
-        // bucketed as "no modifier" and pressing Cmd wouldn't refresh the bar.
         val modifierMask = InputEvent.SHIFT_DOWN_MASK or InputEvent.CTRL_DOWN_MASK or
             InputEvent.ALT_DOWN_MASK or InputEvent.META_DOWN_MASK
 
