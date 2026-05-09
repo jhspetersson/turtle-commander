@@ -11,6 +11,7 @@
 ### Fixed
 
 - Improved macOS keys support
+- Improved handling of 7zip archives
 
 ## [0.5.3] - 2026-05-08
 
