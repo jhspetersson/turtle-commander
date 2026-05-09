@@ -18,17 +18,24 @@ fun JTextComponent.installStandardContextMenu() {
     val am = ActionManager.getInstance()
 
     val group = DefaultActionGroup().apply {
-        add(textFieldAction("Cut", AllIcons.Actions.MenuCut, { field.cut() }) { field.selectedText != null })
+        // Cut / Paste / Delete are mutating ops — disable on read-only fields,
+        // where the underlying JTextComponent.cut/paste/replaceSelection are
+        // already no-ops but the menu would otherwise still light up.
+        add(textFieldAction("Cut", AllIcons.Actions.MenuCut, { field.cut() }) {
+            field.isEditable && field.selectedText != null
+        })
         add(textFieldAction("Copy", AllIcons.Actions.Copy, { field.copy() }) { field.selectedText != null })
         add(textFieldAction("Paste", AllIcons.Actions.MenuPaste, { field.paste() }) {
-            try {
+            field.isEditable && try {
                 Toolkit.getDefaultToolkit().systemClipboard.isDataFlavorAvailable(DataFlavor.stringFlavor)
             } catch (_: Exception) {
                 false
             }
         })
         add(Separator.create())
-        add(textFieldAction("Delete", AllIcons.Actions.GC, { field.replaceSelection("") }) { field.selectedText != null })
+        add(textFieldAction("Delete", AllIcons.Actions.GC, { field.replaceSelection("") }) {
+            field.isEditable && field.selectedText != null
+        })
         add(Separator.create())
         add(textFieldAction("Select All", null, { field.selectAll() }) { field.text.isNotEmpty() })
     }

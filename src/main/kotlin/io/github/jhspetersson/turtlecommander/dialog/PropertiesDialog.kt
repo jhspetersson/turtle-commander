@@ -6,10 +6,11 @@ import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.components.JBLabel
-import com.intellij.ui.components.JBTabbedPane
+import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.JBUI
 import io.github.jhspetersson.turtlecommander.model.FileEntry
+import io.github.jhspetersson.turtlecommander.ui.installStandardContextMenu
 import io.github.jhspetersson.turtlecommander.util.formatSize
 import java.awt.BorderLayout
 import java.awt.Dimension
@@ -31,12 +32,15 @@ import javax.swing.SwingUtilities
 /**
  * Cross-platform fallback Properties dialog. Shown when no native dialog is
  * available — unknown Linux DE, or any host where the path isn't a real
- * filesystem entry (the inside-archive case). Read-only by design: it
- * mirrors what Windows' classic Properties dialog shows on the General /
- * Permissions tabs and nothing more.
+ * filesystem entry (the inside-archive case). Read-only by design.
+ *
+ * All values are rendered as transparent, non-editable [JBTextField]s so the
+ * user can select text and copy it (Ctrl+C, or right-click → Copy via
+ * [installStandardContextMenu]). Visually they read as labels — no border, no
+ * filled background.
  *
  * For directories the recursive size + file/folder count is computed on a
- * pooled thread; the label is updated when the walk finishes (or stays at
+ * pooled thread; the field is updated when the walk finishes (or stays at
  * "Calculating…" if the dialog is closed first — the [cancelled] flag
  * short-circuits the visitor).
  */
@@ -45,7 +49,7 @@ class PropertiesDialog(
     private val entry: FileEntry,
 ) : DialogWrapper(project) {
 
-    private val sizeLabel = JBLabel(initialSizeText())
+    private val sizeField = copyableField(initialSizeText())
     private val cancelled = AtomicBoolean(false)
 
     init {
@@ -62,18 +66,33 @@ class PropertiesDialog(
     }
 
     /** Single Close button — this dialog is read-only. */
-    override fun createActions(): Array<Action> = arrayOf(okAction.also { it.putValue(Action.NAME, "Close") })
+    override fun createActions(): Array<Action> =
+        arrayOf(okAction.also { it.putValue(Action.NAME, "Close") })
 
     override fun createCenterPanel(): JComponent {
-        val tabs = JBTabbedPane().apply {
-            add("General", generalTab())
-            add("Permissions", permissionsTab())
+        val accessTime = readAccessTime(entry.path)
+        val builder = FormBuilder.createFormBuilder()
+            .addLabeledComponent("Type:", copyableField(typeDescription()))
+            .addLabeledComponent("Path:", copyableField(entry.path.toAbsolutePath().toString()))
+            .addLabeledComponent("Location:", copyableField(locationText()))
+            .addLabeledComponent("Size:", sizeField)
+            .addLabeledComponent("Created:", copyableField(formatTime(entry.creationTime?.toMillis())))
+            .addLabeledComponent("Modified:", copyableField(formatTime(entry.lastModified?.toMillis())))
+        if (accessTime != null) {
+            builder.addLabeledComponent("Accessed:", copyableField(formatTime(accessTime)))
         }
+        builder.addLabeledComponent("Owner:", copyableField(entry.owner.ifEmpty { "-" }))
+        builder.addLabeledComponent("Group:", copyableField(entry.group.ifEmpty { "-" }))
+        builder.addLabeledComponent("Permissions:", copyableField(entry.permissions.ifEmpty { "-" }))
+
         return JPanel(BorderLayout(0, 12)).apply {
-            preferredSize = Dimension(460, 320)
+            preferredSize = Dimension(520, 320)
             border = JBUI.Borders.empty(8, 4, 0, 4)
             add(headerPanel(), BorderLayout.NORTH)
-            add(tabs, BorderLayout.CENTER)
+            add(JPanel(BorderLayout()).apply {
+                border = JBUI.Borders.empty(8)
+                add(builder.panel, BorderLayout.NORTH)
+            }, BorderLayout.CENTER)
         }
     }
 
@@ -81,41 +100,32 @@ class PropertiesDialog(
         val icon = if (entry.isDirectory) AllIcons.Nodes.Folder
         else FileTypeManager.getInstance().getFileTypeByFileName(entry.name).icon
             ?: AllIcons.FileTypes.Any_type
-        val name = JBLabel(entry.name).apply {
-            this.icon = icon
-            iconTextGap = 8
+        // Filename gets the same copy-friendly treatment, just bold/larger.
+        val nameField = copyableField(entry.name).apply {
             font = font.deriveFont(Font.BOLD, font.size2D + 2f)
+        }
+        val iconLabel = JBLabel(icon).apply {
+            border = JBUI.Borders.emptyRight(8)
         }
         return JPanel(BorderLayout()).apply {
             border = JBUI.Borders.empty(0, 4, 8, 0)
-            add(name, BorderLayout.WEST)
+            add(iconLabel, BorderLayout.WEST)
+            add(nameField, BorderLayout.CENTER)
         }
     }
 
-    private fun generalTab(): JComponent {
-        val builder = FormBuilder.createFormBuilder()
-            .addLabeledComponent("Type:", JBLabel(typeDescription()))
-            .addLabeledComponent("Location:", JBLabel(locationText()))
-            .addLabeledComponent("Size:", sizeLabel)
-            .addLabeledComponent("Created:", JBLabel(formatTime(entry.creationTime?.toMillis())))
-            .addLabeledComponent("Modified:", JBLabel(formatTime(entry.lastModified?.toMillis())))
-        readAccessTime(entry.path)?.let { millis ->
-            builder.addLabeledComponent("Accessed:", JBLabel(formatTime(millis)))
-        }
-        return wrap(builder.panel)
-    }
-
-    private fun permissionsTab(): JComponent {
-        val builder = FormBuilder.createFormBuilder()
-        if (entry.owner.isNotEmpty()) builder.addLabeledComponent("Owner:", JBLabel(entry.owner))
-        if (entry.group.isNotEmpty()) builder.addLabeledComponent("Group:", JBLabel(entry.group))
-        builder.addLabeledComponent("Permissions:", JBLabel(entry.permissions.ifEmpty { "-" }))
-        return wrap(builder.panel)
-    }
-
-    private fun wrap(panel: JComponent): JComponent = JPanel(BorderLayout()).apply {
-        border = JBUI.Borders.empty(8)
-        add(panel, BorderLayout.NORTH)
+    /**
+     * A label-shaped, non-editable, copyable text field. No border, no fill —
+     * visually reads as a JBLabel but the text can be selected and copied.
+     * The Ctrl+C / right-click → Copy menu come from [installStandardContextMenu].
+     */
+    private fun copyableField(text: String): JBTextField = JBTextField(text).apply {
+        isEditable = false
+        isOpaque = false
+        border = JBUI.Borders.empty()
+        // The blinking caret on a non-editable field is distracting; hide it.
+        caret.isVisible = false
+        installStandardContextMenu()
     }
 
     private fun typeDescription(): String {
@@ -165,7 +175,7 @@ class PropertiesDialog(
         if (cancelled.get()) return
         val text = "${formatSize(bytes)} (${"%,d".format(bytes)} bytes), $files files, $dirs folders"
         SwingUtilities.invokeLater {
-            if (!cancelled.get()) sizeLabel.text = text
+            if (!cancelled.get()) sizeField.text = text
         }
     }
 

@@ -34,14 +34,6 @@ object NativeProperties {
         (osName.contains("linux") || osName.contains("nix") || osName.contains("bsd"))
 
     /**
-     * Whether the platform has a known native item-properties dialog. Returns
-     * false on Linux for unknown desktop environments — callers should always
-     * have a fallback path because even on a "supported" Linux DE, the call
-     * can still no-op if the file-manager service isn't running.
-     */
-    fun isSupported(): Boolean = isWindows || isMac || (isLinux && hasKnownLinuxDesktop())
-
-    /**
      * Opens the platform Properties / Get Info dialog for [path]. The dialog
      * runs on its owner-process thread (Shell on Windows, Finder on macOS,
      * Nautilus / Dolphin on Linux), so this returns immediately. Returns
@@ -138,8 +130,6 @@ object NativeProperties {
             false
         }
     }
-
-    private fun hasKnownLinuxDesktop(): Boolean = currentDesktop().isKde || currentDesktop().isGnomeLike
 
     private fun currentDesktop(): LinuxDesktop {
         val xdg = (System.getenv("XDG_CURRENT_DESKTOP") ?: "").uppercase()
