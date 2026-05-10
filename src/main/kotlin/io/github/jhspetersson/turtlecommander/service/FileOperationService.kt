@@ -257,40 +257,94 @@ class FileOperationService(
         }
     }
 
+    /**
+     * What [resolveOverwriteAction] tells the caller to do for a single existing target.
+     * `CANCEL` aborts the whole loop, `SKIP` continues to the next source, `OVERWRITE`
+     * means "go ahead and replace it now."
+     */
+    internal enum class TargetAction { OVERWRITE, SKIP, CANCEL }
+
+    /** Mutable holder so a single policy var can be threaded through nested helpers. */
+    internal class PolicyHolder(var policy: OverwritePolicy)
+
+    /**
+     * Resolve what to do when [target] already exists, given the current [holder] policy.
+     * For [OverwritePolicy.ASK] we delegate to [onOverwriteConfirm] and translate the
+     * 7-button dialog response into a [TargetAction], possibly upgrading the policy so
+     * subsequent files in the run can answer without prompting.
+     */
+    internal suspend fun resolveOverwriteAction(
+        source: Path,
+        target: Path,
+        holder: PolicyHolder,
+        onOverwriteConfirm: suspend (Path) -> OverwriteResponse,
+    ): TargetAction = when (holder.policy) {
+        OverwritePolicy.OVERWRITE_ALL -> TargetAction.OVERWRITE
+        OverwritePolicy.SKIP_ALL -> TargetAction.SKIP
+        OverwritePolicy.IF_OLDER -> ifOlderAction(source, target)
+        OverwritePolicy.ASK -> when (onOverwriteConfirm(target)) {
+            OverwriteResponse.OVERWRITE -> TargetAction.OVERWRITE
+            OverwriteResponse.SKIP -> TargetAction.SKIP
+            OverwriteResponse.OVERWRITE_ALL -> {
+                holder.policy = OverwritePolicy.OVERWRITE_ALL
+                TargetAction.OVERWRITE
+            }
+            OverwriteResponse.SKIP_ALL -> {
+                holder.policy = OverwritePolicy.SKIP_ALL
+                TargetAction.SKIP
+            }
+            OverwriteResponse.OVERWRITE_IF_OLDER -> ifOlderAction(source, target)
+            OverwriteResponse.OVERWRITE_ALL_IF_OLDER -> {
+                holder.policy = OverwritePolicy.IF_OLDER
+                ifOlderAction(source, target)
+            }
+            OverwriteResponse.CANCEL -> TargetAction.CANCEL
+        }
+    }
+
+    private fun ifOlderAction(source: Path, target: Path): TargetAction {
+        val sourceNewer = try {
+            Files.getLastModifiedTime(source) > Files.getLastModifiedTime(target)
+        } catch (_: Exception) {
+            // mtime unreadable on either side — fall through to overwrite so the user's
+            // intent ("replace stale targets") wins over a transient stat failure.
+            true
+        }
+        return if (sourceNewer) TargetAction.OVERWRITE else TargetAction.SKIP
+    }
+
     suspend fun copyFilesWithProgress(
         sources: List<Path>,
         destination: Path,
-        overwriteAll: Boolean,
+        initialPolicy: OverwritePolicy,
         onProgress: suspend (copiedCount: Int, currentFile: String) -> Unit,
         onOverwriteConfirm: suspend (path: Path) -> OverwriteResponse,
         onError: suspend (path: Path, error: Exception) -> Unit,
         isCancelled: () -> Boolean,
     ): Unit = withContext(Dispatchers.IO) {
         var copiedCount = 0
-        var autoOverwrite = overwriteAll
-        var autoSkip = false
+        val holder = PolicyHolder(initialPolicy)
 
-        for (source in sources) {
+        loop@ for (source in sources) {
             if (isCancelled()) break
             val target = destination.resolve(source.name)
             try {
                 if (source.isDirectory()) {
-                    copiedCount = copyDirectoryWithProgress(
-                        source, target, copiedCount,
-                        autoOverwrite, autoSkip,
+                    val (newCount, cancelled) = copyDirectoryWithProgress(
+                        source, target, copiedCount, holder,
                         onProgress, onOverwriteConfirm, onError, isCancelled,
-                        { autoOverwrite = true },
-                        { autoSkip = true },
                     )
+                    copiedCount = newCount
+                    if (cancelled) break@loop
                 } else {
-                    val copied = copyFileWithOverwrite(
-                        source, target, autoOverwrite, autoSkip, onOverwriteConfirm,
-                        { autoOverwrite = true },
-                        { autoSkip = true },
-                    )
-                    if (copied) {
-                        copiedCount++
-                        onProgress(copiedCount, source.name)
+                    when (val action = copyFileWithOverwrite(source, target, holder, onOverwriteConfirm)) {
+                        TargetAction.OVERWRITE, TargetAction.SKIP -> {
+                            if (action == TargetAction.OVERWRITE) {
+                                copiedCount++
+                                onProgress(copiedCount, source.name)
+                            }
+                        }
+                        TargetAction.CANCEL -> break@loop
                     }
                 }
             } catch (e: Exception) {
@@ -301,56 +355,41 @@ class FileOperationService(
         invalidateListingCache(destination)
     }
 
+    /**
+     * Copy a single file honouring [holder]'s policy. Returns [TargetAction.OVERWRITE]
+     * when the file was actually written (so the caller can tick progress), [SKIP] when
+     * the policy chose to skip it, or [CANCEL] when the user aborted via the dialog.
+     */
     private suspend fun copyFileWithOverwrite(
         source: Path,
         target: Path,
-        autoOverwrite: Boolean,
-        autoSkip: Boolean,
+        holder: PolicyHolder,
         onOverwriteConfirm: suspend (Path) -> OverwriteResponse,
-        setAutoOverwrite: () -> Unit,
-        setAutoSkip: () -> Unit,
-    ): Boolean {
-        if (target.exists()) {
-            if (autoOverwrite) {
-                Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING)
-                return true
-            }
-            if (autoSkip) return false
-
-            when (onOverwriteConfirm(target)) {
-                OverwriteResponse.YES -> Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING)
-                OverwriteResponse.NO -> return false
-                OverwriteResponse.YES_TO_ALL -> {
-                    setAutoOverwrite()
-                    Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING)
-                }
-                OverwriteResponse.NO_TO_ALL -> {
-                    setAutoSkip()
-                    return false
-                }
-            }
-        } else {
+    ): TargetAction {
+        if (!target.exists()) {
             Files.copy(source, target)
+            return TargetAction.OVERWRITE
         }
-        return true
+        return when (val action = resolveOverwriteAction(source, target, holder, onOverwriteConfirm)) {
+            TargetAction.OVERWRITE -> {
+                Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING)
+                action
+            }
+            TargetAction.SKIP, TargetAction.CANCEL -> action
+        }
     }
 
     private suspend fun copyDirectoryWithProgress(
         source: Path,
         target: Path,
         startCount: Int,
-        autoOverwrite: Boolean,
-        autoSkip: Boolean,
+        holder: PolicyHolder,
         onProgress: suspend (Int, String) -> Unit,
         onOverwriteConfirm: suspend (Path) -> OverwriteResponse,
         onError: suspend (Path, Exception) -> Unit,
         isCancelled: () -> Boolean,
-        setAutoOverwrite: () -> Unit,
-        setAutoSkip: () -> Unit,
-    ): Int {
+    ): Pair<Int, Boolean> {
         var copiedCount = startCount
-        var currentAutoOverwrite = autoOverwrite
-        var currentAutoSkip = autoSkip
 
         try {
             Files.createDirectories(target)
@@ -359,7 +398,7 @@ class FileOperationService(
         } catch (e: Exception) {
             thisLogger().warn("Failed to create directory $target: ${e.message}")
             onError(source, e)
-            return copiedCount
+            return copiedCount to false
         }
 
         try {
@@ -368,25 +407,21 @@ class FileOperationService(
                     if (isCancelled()) break
                     val entryTarget = target.resolve(entry.name)
                     if (entry.isDirectory()) {
-                        copiedCount = copyDirectoryWithProgress(
-                            entry, entryTarget, copiedCount,
-                            currentAutoOverwrite, currentAutoSkip,
+                        val (sub, cancelled) = copyDirectoryWithProgress(
+                            entry, entryTarget, copiedCount, holder,
                             onProgress, onOverwriteConfirm, onError, isCancelled,
-                            { currentAutoOverwrite = true; setAutoOverwrite() },
-                            { currentAutoSkip = true; setAutoSkip() },
                         )
+                        copiedCount = sub
+                        if (cancelled) return copiedCount to true
                     } else {
                         try {
-                            val copied = copyFileWithOverwrite(
-                                entry, entryTarget,
-                                currentAutoOverwrite, currentAutoSkip,
-                                onOverwriteConfirm,
-                                { currentAutoOverwrite = true; setAutoOverwrite() },
-                                { currentAutoSkip = true; setAutoSkip() },
-                            )
-                            if (copied) {
-                                copiedCount++
-                                onProgress(copiedCount, entry.name)
+                            when (copyFileWithOverwrite(entry, entryTarget, holder, onOverwriteConfirm)) {
+                                TargetAction.OVERWRITE -> {
+                                    copiedCount++
+                                    onProgress(copiedCount, entry.name)
+                                }
+                                TargetAction.SKIP -> { /* nothing */ }
+                                TargetAction.CANCEL -> return copiedCount to true
                             }
                         } catch (e: Exception) {
                             thisLogger().warn("Failed to copy $entry: ${e.message}")
@@ -399,42 +434,30 @@ class FileOperationService(
             thisLogger().warn("Failed to list directory $source: ${e.message}")
             onError(source, e)
         }
-        return copiedCount
+        return copiedCount to false
     }
 
     suspend fun moveFilesWithProgress(
         sources: List<Path>,
         destination: Path,
-        overwriteAll: Boolean,
+        initialPolicy: OverwritePolicy,
         onProgress: suspend (movedCount: Int, currentFile: String) -> Unit,
         onOverwriteConfirm: suspend (path: Path) -> OverwriteResponse,
         onError: suspend (path: Path, error: Exception) -> Unit,
         isCancelled: () -> Boolean,
     ): Unit = withContext(Dispatchers.IO) {
         var movedCount = 0
-        var autoOverwrite = overwriteAll
-        var autoSkip = false
+        val holder = PolicyHolder(initialPolicy)
 
-        for (source in sources) {
+        loop@ for (source in sources) {
             if (isCancelled()) break
             val target = destination.resolve(source.name)
             try {
                 if (target.exists()) {
-                    if (autoSkip) {
-                        continue
-                    }
-                    if (!autoOverwrite) {
-                        when (onOverwriteConfirm(target)) {
-                            OverwriteResponse.YES -> {}
-                            OverwriteResponse.NO -> {
-                                continue
-                            }
-                            OverwriteResponse.YES_TO_ALL -> { autoOverwrite = true }
-                            OverwriteResponse.NO_TO_ALL -> {
-                                autoSkip = true
-                                continue
-                            }
-                        }
+                    when (resolveOverwriteAction(source, target, holder, onOverwriteConfirm)) {
+                        TargetAction.SKIP -> continue@loop
+                        TargetAction.CANCEL -> break@loop
+                        TargetAction.OVERWRITE -> { /* fall through to move */ }
                     }
                     crossFileSystemMove(source, target, StandardCopyOption.REPLACE_EXISTING)
                 } else {

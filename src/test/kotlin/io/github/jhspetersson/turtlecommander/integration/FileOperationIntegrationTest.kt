@@ -3,6 +3,7 @@ package io.github.jhspetersson.turtlecommander.integration
 import com.intellij.openapi.components.service
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import io.github.jhspetersson.turtlecommander.service.FileOperationService
+import io.github.jhspetersson.turtlecommander.service.OverwritePolicy
 import io.github.jhspetersson.turtlecommander.service.OverwriteResponse
 import io.github.jhspetersson.turtlecommander.util.countFiles
 import io.github.jhspetersson.turtlecommander.vfs.ZipVirtualFileSystem
@@ -45,9 +46,9 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         fileOps.copyFilesWithProgress(
             sources = listOf(source),
             destination = dest,
-            overwriteAll = false,
+            initialPolicy = OverwritePolicy.ASK,
             onProgress = { count, _ -> progressCount = count },
-            onOverwriteConfirm = { OverwriteResponse.NO },
+            onOverwriteConfirm = { OverwriteResponse.SKIP },
             onError = { _, e -> fail("Unexpected error: $e") },
             isCancelled = { false },
         )
@@ -67,9 +68,9 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         fileOps.copyFilesWithProgress(
             sources = listOf(srcDir),
             destination = dest,
-            overwriteAll = false,
+            initialPolicy = OverwritePolicy.ASK,
             onProgress = { _, _ -> },
-            onOverwriteConfirm = { OverwriteResponse.NO },
+            onOverwriteConfirm = { OverwriteResponse.SKIP },
             onError = { _, e -> fail("Unexpected error: $e") },
             isCancelled = { false },
         )
@@ -87,9 +88,9 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         fileOps.copyFilesWithProgress(
             sources = listOf(source),
             destination = dest,
-            overwriteAll = false,
+            initialPolicy = OverwritePolicy.ASK,
             onProgress = { _, _ -> },
-            onOverwriteConfirm = { OverwriteResponse.YES },
+            onOverwriteConfirm = { OverwriteResponse.OVERWRITE },
             onError = { _, e -> fail("Unexpected error: $e") },
             isCancelled = { false },
         )
@@ -105,9 +106,9 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         fileOps.copyFilesWithProgress(
             sources = listOf(source),
             destination = dest,
-            overwriteAll = false,
+            initialPolicy = OverwritePolicy.ASK,
             onProgress = { _, _ -> },
-            onOverwriteConfirm = { OverwriteResponse.NO },
+            onOverwriteConfirm = { OverwriteResponse.SKIP },
             onError = { _, e -> fail("Unexpected error: $e") },
             isCancelled = { false },
         )
@@ -125,9 +126,9 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         fileOps.copyFilesWithProgress(
             sources = listOf(tempDir.resolve("a.txt"), tempDir.resolve("b.txt")),
             destination = dest,
-            overwriteAll = true,
+            initialPolicy = OverwritePolicy.OVERWRITE_ALL,
             onProgress = { _, _ -> },
-            onOverwriteConfirm = { fail("Should not prompt when overwriteAll=true"); OverwriteResponse.NO },
+            onOverwriteConfirm = { fail("Should not prompt when overwriteAll=true"); OverwriteResponse.SKIP },
             onError = { _, e -> fail("Unexpected error: $e") },
             isCancelled = { false },
         )
@@ -144,9 +145,9 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         fileOps.copyFilesWithProgress(
             sources = listOf(tempDir.resolve("a.txt"), tempDir.resolve("b.txt")),
             destination = dest,
-            overwriteAll = false,
+            initialPolicy = OverwritePolicy.ASK,
             onProgress = { _, _ -> },
-            onOverwriteConfirm = { OverwriteResponse.NO },
+            onOverwriteConfirm = { OverwriteResponse.SKIP },
             onError = { _, e -> fail("Unexpected error: $e") },
             isCancelled = { true }, // immediately cancelled
         )
@@ -165,9 +166,9 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         fileOps.moveFilesWithProgress(
             sources = listOf(source),
             destination = dest,
-            overwriteAll = false,
+            initialPolicy = OverwritePolicy.ASK,
             onProgress = { _, _ -> },
-            onOverwriteConfirm = { OverwriteResponse.NO },
+            onOverwriteConfirm = { OverwriteResponse.SKIP },
             onError = { _, e -> fail("Unexpected error: $e") },
             isCancelled = { false },
         )
@@ -185,9 +186,9 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         fileOps.moveFilesWithProgress(
             sources = listOf(source),
             destination = dest,
-            overwriteAll = false,
+            initialPolicy = OverwritePolicy.ASK,
             onProgress = { _, _ -> },
-            onOverwriteConfirm = { OverwriteResponse.NO },
+            onOverwriteConfirm = { OverwriteResponse.SKIP },
             onError = { _, _ -> },
             isCancelled = { false },
         )
@@ -665,9 +666,9 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         fileOps.moveFilesWithProgress(
             sources = listOf(source1, source2),
             destination = dest,
-            overwriteAll = false,
+            initialPolicy = OverwritePolicy.ASK,
             onProgress = { count, _ -> progressCount = count },
-            onOverwriteConfirm = { OverwriteResponse.NO },
+            onOverwriteConfirm = { OverwriteResponse.SKIP },
             onError = { _, e -> fail("Unexpected error: $e") },
             isCancelled = { false },
         )
@@ -691,9 +692,9 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         fileOps.moveFilesWithProgress(
             sources = listOf(source1, source2, source3),
             destination = dest,
-            overwriteAll = false,
+            initialPolicy = OverwritePolicy.ASK,
             onProgress = { count, _ -> progressCount = count },
-            onOverwriteConfirm = { OverwriteResponse.NO_TO_ALL },
+            onOverwriteConfirm = { OverwriteResponse.SKIP_ALL },
             onError = { _, e -> fail("Unexpected error: $e") },
             isCancelled = { false },
         )
@@ -743,9 +744,9 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         fileOps.moveFilesWithProgress(
             sources = emptyList(),
             destination = dest,
-            overwriteAll = false,
+            initialPolicy = OverwritePolicy.ASK,
             onProgress = { count, _ -> progressCount = count },
-            onOverwriteConfirm = { OverwriteResponse.NO },
+            onOverwriteConfirm = { OverwriteResponse.SKIP },
             onError = { _, e -> fail("Unexpected error: $e") },
             isCancelled = { false },
         )
@@ -758,9 +759,9 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         fileOps.copyFilesWithProgress(
             sources = emptyList(),
             destination = dest,
-            overwriteAll = false,
+            initialPolicy = OverwritePolicy.ASK,
             onProgress = { count, _ -> progressCount = count },
-            onOverwriteConfirm = { OverwriteResponse.NO },
+            onOverwriteConfirm = { OverwriteResponse.SKIP },
             onError = { _, e -> fail("Unexpected error: $e") },
             isCancelled = { false },
         )
@@ -776,9 +777,9 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         fileOps.copyFilesWithProgress(
             sources = listOf(src),
             destination = dest,
-            overwriteAll = false,
+            initialPolicy = OverwritePolicy.ASK,
             onProgress = { count, _ -> progressCount = count },
-            onOverwriteConfirm = { OverwriteResponse.NO },
+            onOverwriteConfirm = { OverwriteResponse.SKIP },
             onError = { _, e -> fail("Unexpected error: $e") },
             isCancelled = { false },
         )
@@ -797,9 +798,9 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         fileOps.copyFilesWithProgress(
             sources = listOf(src1, src2),
             destination = dest,
-            overwriteAll = false,
+            initialPolicy = OverwritePolicy.ASK,
             onProgress = { count, _ -> progressCount = count },
-            onOverwriteConfirm = { OverwriteResponse.NO_TO_ALL },
+            onOverwriteConfirm = { OverwriteResponse.SKIP_ALL },
             onError = { _, e -> fail("Unexpected error: $e") },
             isCancelled = { false },
         )
@@ -819,9 +820,9 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         fileOps.copyFilesWithProgress(
             sources = listOf(srcDir),
             destination = dest,
-            overwriteAll = false,
+            initialPolicy = OverwritePolicy.ASK,
             onProgress = { count, _ -> progressCount = count },
-            onOverwriteConfirm = { OverwriteResponse.YES },
+            onOverwriteConfirm = { OverwriteResponse.OVERWRITE },
             onError = { _, _ -> errorCount++ },
             isCancelled = { false },
         )
@@ -853,9 +854,9 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
             fileOps.copyFilesWithProgress(
                 sources = listOf(source),
                 destination = vfs.root,
-                overwriteAll = false,
+                initialPolicy = OverwritePolicy.ASK,
                 onProgress = { count, _ -> progressCount = count },
-                onOverwriteConfirm = { OverwriteResponse.NO },
+                onOverwriteConfirm = { OverwriteResponse.SKIP },
                 onError = { path, e -> fail("Copy into zip failed for $path: $e") },
                 isCancelled = { false },
             )
@@ -889,9 +890,9 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
             fileOps.copyFilesWithProgress(
                 sources = listOf(srcDir),
                 destination = vfs.root,
-                overwriteAll = false,
+                initialPolicy = OverwritePolicy.ASK,
                 onProgress = { count, _ -> progressCount = count },
-                onOverwriteConfirm = { OverwriteResponse.NO },
+                onOverwriteConfirm = { OverwriteResponse.SKIP },
                 onError = { path, e -> fail("Copy into zip failed for $path: $e") },
                 isCancelled = { false },
             )
@@ -919,9 +920,9 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
             fileOps.moveFilesWithProgress(
                 sources = listOf(source),
                 destination = vfs.root,
-                overwriteAll = false,
+                initialPolicy = OverwritePolicy.ASK,
                 onProgress = { count, _ -> progressCount = count },
-                onOverwriteConfirm = { OverwriteResponse.NO },
+                onOverwriteConfirm = { OverwriteResponse.SKIP },
                 onError = { path, e -> fail("Move into zip failed for $path: $e") },
                 isCancelled = { false },
             )

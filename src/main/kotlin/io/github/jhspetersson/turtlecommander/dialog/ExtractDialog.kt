@@ -1,17 +1,19 @@
 package io.github.jhspetersson.turtlecommander.dialog
+import io.github.jhspetersson.turtlecommander.service.OverwritePolicy
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
 import io.github.jhspetersson.turtlecommander.ui.installStandardContextMenu
 import java.awt.BorderLayout
 import java.awt.Dimension
+import javax.swing.Box
 import javax.swing.BorderFactory
 import javax.swing.BoxLayout
-import javax.swing.JCheckBox
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.JScrollPane
@@ -24,13 +26,17 @@ class ExtractDialog(
 ) : DialogWrapper(project) {
 
     val destinationPath: String get() = destinationField.text.trim()
-    val overwriteExisting: Boolean get() = overwriteCheckBox.isSelected
+    val policy: OverwritePolicy get() = policyCombo.item
 
     private val destinationField = JBTextField(defaultDestination)
-    private val overwriteCheckBox = JCheckBox(
-        "Overwrite existing files",
-        TurtleCommanderSettings.getInstance().state.alwaysOverwriteFiles,
-    )
+    private val policyCombo = ComboBox(OverwritePolicy.entries.toTypedArray()).apply {
+        renderer = OverwritePolicyRenderer
+        item = if (TurtleCommanderSettings.getInstance().state.alwaysOverwriteFiles) {
+            OverwritePolicy.OVERWRITE_ALL
+        } else {
+            OverwritePolicy.ASK
+        }
+    }
 
     init {
         title = "Extract Files"
@@ -42,8 +48,8 @@ class ExtractDialog(
     override fun createCenterPanel(): JComponent {
         val panel = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
-            minimumSize = Dimension(500, 150)
-            preferredSize = Dimension(500, 150)
+            minimumSize = Dimension(500, 170)
+            preferredSize = Dimension(500, 170)
         }
 
         val label = if (sources.size == 1) {
@@ -74,9 +80,16 @@ class ExtractDialog(
         }
         panel.add(fieldWrapper)
 
-        panel.add(overwriteCheckBox.apply {
+        val policyRow = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.X_AXIS)
             alignmentX = JComponent.LEFT_ALIGNMENT
-        })
+            add(JBLabel("If a target file already exists:"))
+            add(Box.createHorizontalStrut(8))
+            add(policyCombo.apply {
+                maximumSize = Dimension(260, preferredSize.height)
+            })
+        }
+        panel.add(policyRow)
 
         return panel
     }

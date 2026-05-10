@@ -3,6 +3,7 @@ package io.github.jhspetersson.turtlecommander.integration
 import com.intellij.openapi.components.service
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import io.github.jhspetersson.turtlecommander.service.ArchiveService
+import io.github.jhspetersson.turtlecommander.service.OverwritePolicy
 import io.github.jhspetersson.turtlecommander.service.OverwriteResponse
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
 import kotlinx.coroutines.runBlocking
@@ -139,9 +140,9 @@ class ArchiveIntegrationTest : BasePlatformTestCase() {
         archiveService.extractArchiveWithProgress(
             archivePath = archivePath,
             destination = extractDir,
-            overwriteAll = false,
+            initialPolicy = OverwritePolicy.ASK,
             onProgress = { _, _ -> },
-            onOverwriteConfirm = { OverwriteResponse.YES },
+            onOverwriteConfirm = { OverwriteResponse.OVERWRITE },
             onError = { _, e -> fail("Extract error: $e") },
             isCancelled = { false },
         )
@@ -302,9 +303,9 @@ class ArchiveIntegrationTest : BasePlatformTestCase() {
         archiveService.extractArchiveWithProgress(
             archivePath = archivePath,
             destination = extractDir,
-            overwriteAll = false,
+            initialPolicy = OverwritePolicy.ASK,
             onProgress = { _, _ -> },
-            onOverwriteConfirm = { OverwriteResponse.NO },
+            onOverwriteConfirm = { OverwriteResponse.SKIP },
             onError = { _, _ -> },
             isCancelled = { false },
         )
@@ -343,9 +344,9 @@ class ArchiveIntegrationTest : BasePlatformTestCase() {
         archiveService.extractArchiveWithProgress(
             archivePath = archivePath,
             destination = extractDir,
-            overwriteAll = false,
+            initialPolicy = OverwritePolicy.ASK,
             onProgress = { _, _ -> },
-            onOverwriteConfirm = { OverwriteResponse.YES },
+            onOverwriteConfirm = { OverwriteResponse.OVERWRITE },
             onError = { _, e -> fail("Extract error: $e") },
             isCancelled = { false },
         )

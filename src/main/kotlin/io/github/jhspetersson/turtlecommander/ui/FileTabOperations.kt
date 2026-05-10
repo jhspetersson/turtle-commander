@@ -21,6 +21,7 @@ import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.operation.CombineFilesOperation
 import io.github.jhspetersson.turtlecommander.operation.SplitFileOperation
 import io.github.jhspetersson.turtlecommander.service.ArchiveService
+import io.github.jhspetersson.turtlecommander.service.OverwritePolicy
 import io.github.jhspetersson.turtlecommander.service.OverwriteResponse
 import io.github.jhspetersson.turtlecommander.service.VfsTempCleanup
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
@@ -53,7 +54,7 @@ internal fun FileTab.performCopyEntries(selected: List<FileEntry>, destination: 
     val displayPath = destinationDisplayPath ?: getOtherPanelDisplayPath() ?: destination.toString()
     val copyDialog = CopyDialog(project, selected, destination, displayPath)
     if (!copyDialog.showAndGet()) return
-    val overwriteAll = copyDialog.overwriteExisting
+    val initialPolicy = copyDialog.policy
     val finalDestination = copyDialog.targetDirectory
     val sourcePaths = selected.map { it.path }
 
@@ -69,7 +70,7 @@ internal fun FileTab.performCopyEntries(selected: List<FileEntry>, destination: 
                 fileOps.copyFilesWithProgress(
                     sources = sourcePaths,
                     destination = finalDestination,
-                    overwriteAll = overwriteAll,
+                    initialPolicy = initialPolicy,
                     onProgress = { count, name ->
                         indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
                         indicator.text = "Copying $count / $totalFiles"
@@ -111,7 +112,7 @@ internal fun FileTab.performMoveEntries(selected: List<FileEntry>, destination: 
     val displayPath = destinationDisplayPath ?: getOtherPanelDisplayPath() ?: destination.toString()
     val moveDialog = MoveDialog(project, selected, destination, displayPath)
     if (!moveDialog.showAndGet()) return
-    val overwriteAll = moveDialog.overwriteExisting
+    val initialPolicy = moveDialog.policy
     val finalDestination = moveDialog.targetDirectory
     val sourcePaths = selected.map { it.path }
 
@@ -127,7 +128,7 @@ internal fun FileTab.performMoveEntries(selected: List<FileEntry>, destination: 
                 fileOps.moveFilesWithProgress(
                     sources = sourcePaths,
                     destination = finalDestination,
-                    overwriteAll = overwriteAll,
+                    initialPolicy = initialPolicy,
                     onProgress = { count, name ->
                         indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
                         indicator.text = "Moving $count / $totalFiles"
@@ -607,15 +608,14 @@ internal fun FileTab.performExtract() {
     if (!destPath.isAbsolute) {
         destPath = currentPath.resolve(destPath)
     }
-    val overwriteAll = dialog.overwriteExisting
 
-    extractArchives(selected.map { it.path }, destPath, overwriteAll)
+    extractArchives(selected.map { it.path }, destPath, dialog.policy)
 }
 
 internal fun FileTab.performExtractHere() {
     val selected = getSelectedEntries().filter { isArchiveFile(it) }
     if (selected.isEmpty()) return
-    extractArchives(selected.map { it.path }, currentPath, overwriteAll = false)
+    extractArchives(selected.map { it.path }, currentPath, OverwritePolicy.ASK)
 }
 
 internal fun FileTab.performExtractToSubdir() {
@@ -631,9 +631,8 @@ internal fun FileTab.performExtractToSubdir() {
     if (!destPath.isAbsolute) {
         destPath = currentPath.resolve(destPath)
     }
-    val overwriteAll = dialog.overwriteExisting
 
-    extractArchives(selected.map { it.path }, destPath, overwriteAll)
+    extractArchives(selected.map { it.path }, destPath, dialog.policy)
 }
 
 /**
@@ -652,7 +651,7 @@ internal fun archiveBaseName(archiveName: String): String {
     }
 }
 
-internal fun FileTab.extractArchives(archivePaths: List<Path>, destination: Path, overwriteAll: Boolean) {
+internal fun FileTab.extractArchives(archivePaths: List<Path>, destination: Path, initialPolicy: OverwritePolicy) {
     val archiveService = project.service<ArchiveService>()
 
     ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Extracting files", true) {
@@ -670,7 +669,7 @@ internal fun FileTab.extractArchives(archivePaths: List<Path>, destination: Path
                     archiveService.extractArchiveWithProgress(
                         archivePath = archivePath,
                         destination = destination,
-                        overwriteAll = overwriteAll,
+                        initialPolicy = initialPolicy,
                         onProgress = { count, name ->
                             indicator.fraction = if (totalEntries > 0) count.toDouble() / totalEntries else 1.0
                             indicator.text = "Extracting $count / $totalEntries"
@@ -1073,20 +1072,34 @@ private fun askArchiveExistsAction(
 
 private suspend fun askOverwriteConfirm(path: Path): OverwriteResponse {
     return withContext(Dispatchers.EDT) {
+        // Order matches the array index returned by Messages.showDialog. Messages.CANCEL_BUTTON
+        // (Esc / X) maps to the same OverwriteResponse.CANCEL slot at index 6 so the user can't
+        // accidentally fall into a stale default.
+        val labels = arrayOf(
+            "Overwrite",
+            "Skip",
+            "Overwrite All",
+            "Skip All",
+            "Overwrite if Older",
+            "Overwrite All Older",
+            "Cancel",
+        )
         val result = Messages.showDialog(
             null,
-            "File already exists:\n${path.fileName}\n\nOverwrite?",
+            "File already exists:\n${path.fileName}\n\nWhat would you like to do?",
             "File Exists",
-            arrayOf("Yes", "No", "Yes to All", "No to All"),
+            labels,
             0,
             Messages.getQuestionIcon(),
         )
         when (result) {
-            0 -> OverwriteResponse.YES
-            1 -> OverwriteResponse.NO
-            2 -> OverwriteResponse.YES_TO_ALL
-            3 -> OverwriteResponse.NO_TO_ALL
-            else -> OverwriteResponse.NO
+            0 -> OverwriteResponse.OVERWRITE
+            1 -> OverwriteResponse.SKIP
+            2 -> OverwriteResponse.OVERWRITE_ALL
+            3 -> OverwriteResponse.SKIP_ALL
+            4 -> OverwriteResponse.OVERWRITE_IF_OLDER
+            5 -> OverwriteResponse.OVERWRITE_ALL_IF_OLDER
+            else -> OverwriteResponse.CANCEL
         }
     }
 }

@@ -27,7 +27,29 @@ import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.BasicFileAttributes
 import java.util.zip.GZIPOutputStream
 
-enum class OverwriteResponse { YES, NO, YES_TO_ALL, NO_TO_ALL }
+/**
+ * One-shot decision returned by the per-file overwrite prompt. The seven values cover
+ * the practical Total-Commander-style button set: act on this one, act on all, the
+ * mtime-aware "if older" variants, and a global cancel.
+ */
+enum class OverwriteResponse {
+    OVERWRITE,
+    SKIP,
+    OVERWRITE_ALL,
+    SKIP_ALL,
+    /** Overwrite this single file iff source mtime is strictly newer than target. */
+    OVERWRITE_IF_OLDER,
+    /** Apply the if-older rule to the current file and every remaining file in the run. */
+    OVERWRITE_ALL_IF_OLDER,
+    /** Abort the whole copy/move/extract operation immediately. */
+    CANCEL,
+}
+
+/**
+ * Long-lived policy carried across the whole copy/move/extract loop. The per-file dialog
+ * may upgrade [ASK] to one of the other values; once set, the loop stops asking.
+ */
+enum class OverwritePolicy { ASK, OVERWRITE_ALL, SKIP_ALL, IF_OLDER }
 
 @Service(Service.Level.PROJECT)
 class ArchiveService {
@@ -290,15 +312,14 @@ class ArchiveService {
     suspend fun extractArchiveWithProgress(
         archivePath: Path,
         destination: Path,
-        overwriteAll: Boolean,
+        initialPolicy: OverwritePolicy,
         onProgress: suspend (extractedCount: Int, currentFile: String) -> Unit,
         onOverwriteConfirm: suspend (path: Path) -> OverwriteResponse,
         onError: suspend (path: Path, error: Exception) -> Unit,
         isCancelled: () -> Boolean,
     ): Unit = withContext(Dispatchers.IO) {
         var extractedCount = 0
-        var autoOverwrite = overwriteAll
-        var autoSkip = false
+        var policy = initialPolicy
 
         try {
             VirtualFileSystemRegistry.create(archivePath).use { vfs ->
@@ -317,7 +338,7 @@ class ArchiveService {
                         return FileVisitResult.CONTINUE
                     }
                 })
-                for (entry in entries) {
+                loop@ for (entry in entries) {
                     if (isCancelled()) break
                     if (entry.isDirectory) {
                         val targetDir = destination.resolve(entry.relativePath)
@@ -331,21 +352,14 @@ class ArchiveService {
                         try {
                             Files.createDirectories(targetFile.parent)
                             if (Files.exists(targetFile)) {
-                                if (autoOverwrite) {
-                                    Files.copy(entry.sourcePath, targetFile, StandardCopyOption.REPLACE_EXISTING)
-                                } else if (!autoSkip) {
-                                    val response = onOverwriteConfirm(targetFile)
-                                    when (response) {
-                                        OverwriteResponse.YES -> Files.copy(entry.sourcePath, targetFile, StandardCopyOption.REPLACE_EXISTING)
-                                        OverwriteResponse.NO -> {}
-                                        OverwriteResponse.YES_TO_ALL -> {
-                                            autoOverwrite = true
-                                            Files.copy(entry.sourcePath, targetFile, StandardCopyOption.REPLACE_EXISTING)
-                                        }
-                                        OverwriteResponse.NO_TO_ALL -> {
-                                            autoSkip = true
-                                        }
-                                    }
+                                val action = resolveExtractAction(
+                                    entry.sourcePath, targetFile, policy, onOverwriteConfirm,
+                                ) { policy = it }
+                                when (action) {
+                                    ExtractAction.OVERWRITE ->
+                                        Files.copy(entry.sourcePath, targetFile, StandardCopyOption.REPLACE_EXISTING)
+                                    ExtractAction.SKIP -> { /* nothing */ }
+                                    ExtractAction.CANCEL -> break@loop
                                 }
                             } else {
                                 Files.copy(entry.sourcePath, targetFile)
@@ -362,5 +376,49 @@ class ArchiveService {
             thisLogger().warn("Failed to extract archive $archivePath: ${e.message}")
             onError(archivePath, e)
         }
+    }
+
+    private enum class ExtractAction { OVERWRITE, SKIP, CANCEL }
+
+    /**
+     * Mirror of FileOperationService.resolveOverwriteAction for the extract path. The
+     * service is in the same module but extract is the only consumer that can't sit
+     * on the FileOperationService instance directly (it works through a VFS), so the
+     * decision logic is duplicated rather than dragged through another dependency.
+     */
+    private suspend fun resolveExtractAction(
+        source: Path,
+        target: Path,
+        policy: OverwritePolicy,
+        onOverwriteConfirm: suspend (Path) -> OverwriteResponse,
+        setPolicy: (OverwritePolicy) -> Unit,
+    ): ExtractAction = when (policy) {
+        OverwritePolicy.OVERWRITE_ALL -> ExtractAction.OVERWRITE
+        OverwritePolicy.SKIP_ALL -> ExtractAction.SKIP
+        OverwritePolicy.IF_OLDER -> ifOlder(source, target)
+        OverwritePolicy.ASK -> when (onOverwriteConfirm(target)) {
+            OverwriteResponse.OVERWRITE -> ExtractAction.OVERWRITE
+            OverwriteResponse.SKIP -> ExtractAction.SKIP
+            OverwriteResponse.OVERWRITE_ALL -> {
+                setPolicy(OverwritePolicy.OVERWRITE_ALL); ExtractAction.OVERWRITE
+            }
+            OverwriteResponse.SKIP_ALL -> {
+                setPolicy(OverwritePolicy.SKIP_ALL); ExtractAction.SKIP
+            }
+            OverwriteResponse.OVERWRITE_IF_OLDER -> ifOlder(source, target)
+            OverwriteResponse.OVERWRITE_ALL_IF_OLDER -> {
+                setPolicy(OverwritePolicy.IF_OLDER); ifOlder(source, target)
+            }
+            OverwriteResponse.CANCEL -> ExtractAction.CANCEL
+        }
+    }
+
+    private fun ifOlder(source: Path, target: Path): ExtractAction {
+        val sourceNewer = try {
+            Files.getLastModifiedTime(source) > Files.getLastModifiedTime(target)
+        } catch (_: Exception) {
+            true
+        }
+        return if (sourceNewer) ExtractAction.OVERWRITE else ExtractAction.SKIP
     }
 }
