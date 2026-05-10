@@ -50,48 +50,18 @@ internal fun FileTab.performCopy() {
 
 internal fun FileTab.performCopyEntries(selected: List<FileEntry>, destination: Path, destinationDisplayPath: String? = null) {
     if (selected.isEmpty()) return
-
     val displayPath = destinationDisplayPath ?: getOtherPanelDisplayPath() ?: destination.toString()
-    val copyDialog = CopyDialog(project, selected, destination, displayPath)
-    if (!copyDialog.showAndGet()) return
-    val initialPolicy = copyDialog.policy
-    val finalDestination = copyDialog.targetDirectory
-    val sourcePaths = selected.map { it.path }
-
-    ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Copying files", true) {
-        override fun run(indicator: ProgressIndicator) {
-            indicator.isIndeterminate = true
-            indicator.text = "Counting files..."
-
-            runBlocking {
-                val totalFiles = countFiles(sourcePaths)
-                indicator.isIndeterminate = false
-
-                fileOps.copyFilesWithProgress(
-                    sources = sourcePaths,
-                    destination = finalDestination,
-                    initialPolicy = initialPolicy,
-                    onProgress = { count, name ->
-                        indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
-                        indicator.text = "Copying $count / $totalFiles"
-                        indicator.text2 = name
-                    },
-                    onOverwriteConfirm = { path ->
-                        askOverwriteConfirm(path)
-                    },
-                    onError = { path, error ->
-                        fileErrorNotification("Failed to copy ${path.fileName}: ${fileErrorMessage(error)}")
-                    },
-                    isCancelled = { indicator.isCanceled },
-                )
-
-                refreshAfterVfsChange()
-                withContext(Dispatchers.EDT) {
-                    onRefreshOtherPanel()
-                }
-            }
-        }
-    })
+    val dialog = CopyDialog(project, selected, destination, displayPath)
+    if (!dialog.showAndGet()) return
+    runTransfer(
+        sources = selected.map { it.path },
+        destination = dialog.targetDirectory,
+        initialPolicy = dialog.policy,
+        taskTitle = "Copying files",
+        progressVerb = "Copying",
+        errorVerb = "copy",
+        op = fileOps::copyFilesWithProgress,
+    )
 }
 
 internal fun FileTab.performMove() {
@@ -108,39 +78,74 @@ internal fun FileTab.performMove() {
 
 internal fun FileTab.performMoveEntries(selected: List<FileEntry>, destination: Path, destinationDisplayPath: String? = null) {
     if (selected.isEmpty()) return
-
     val displayPath = destinationDisplayPath ?: getOtherPanelDisplayPath() ?: destination.toString()
-    val moveDialog = MoveDialog(project, selected, destination, displayPath)
-    if (!moveDialog.showAndGet()) return
-    val initialPolicy = moveDialog.policy
-    val finalDestination = moveDialog.targetDirectory
-    val sourcePaths = selected.map { it.path }
+    val dialog = MoveDialog(project, selected, destination, displayPath)
+    if (!dialog.showAndGet()) return
+    runTransfer(
+        sources = selected.map { it.path },
+        destination = dialog.targetDirectory,
+        initialPolicy = dialog.policy,
+        taskTitle = "Moving files",
+        progressVerb = "Moving",
+        errorVerb = "move",
+        op = fileOps::moveFilesWithProgress,
+    )
+}
 
-    ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Moving files", true) {
+/**
+ * Shape that `FileOperationService.copyFilesWithProgress` and `moveFilesWithProgress` share —
+ * the only thing that differs between copy and move at this layer is which method gets called.
+ * Extracting the alias keeps [runTransfer]'s signature readable.
+ */
+private typealias TransferOp = suspend (
+    sources: List<Path>,
+    destination: Path,
+    initialPolicy: OverwritePolicy,
+    onProgress: suspend (Int, String) -> Unit,
+    onOverwriteConfirm: suspend (Path) -> OverwriteResponse,
+    onError: suspend (Path, Exception) -> Unit,
+    isCancelled: () -> Boolean,
+) -> Unit
+
+/**
+ * Shared `Task.Backgroundable` driver for copy and move: count the files, kick off [op] with a
+ * progress-bound `onProgress`, wire the per-file overwrite prompt, surface errors as notifications,
+ * and refresh both panels when done. Caller picks the dialog, the operation, and the user-facing
+ * verbs ([taskTitle] for the task header, [progressVerb] for the bar text, [errorVerb] for the
+ * "Failed to … foo.txt" notification).
+ */
+private fun FileTab.runTransfer(
+    sources: List<Path>,
+    destination: Path,
+    initialPolicy: OverwritePolicy,
+    taskTitle: String,
+    progressVerb: String,
+    errorVerb: String,
+    op: TransferOp,
+) {
+    ProgressManager.getInstance().run(object : Task.Backgroundable(project, taskTitle, true) {
         override fun run(indicator: ProgressIndicator) {
             indicator.isIndeterminate = true
             indicator.text = "Counting files..."
 
             runBlocking {
-                val totalFiles = countFiles(sourcePaths)
+                val totalFiles = countFiles(sources)
                 indicator.isIndeterminate = false
 
-                fileOps.moveFilesWithProgress(
-                    sources = sourcePaths,
-                    destination = finalDestination,
-                    initialPolicy = initialPolicy,
-                    onProgress = { count, name ->
+                op(
+                    sources,
+                    destination,
+                    initialPolicy,
+                    { count, name ->
                         indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
-                        indicator.text = "Moving $count / $totalFiles"
+                        indicator.text = "$progressVerb $count / $totalFiles"
                         indicator.text2 = name
                     },
-                    onOverwriteConfirm = { path ->
-                        askOverwriteConfirm(path)
+                    { path -> askOverwriteConfirm(path) },
+                    { path, error ->
+                        fileErrorNotification("Failed to $errorVerb ${path.fileName}: ${fileErrorMessage(error)}")
                     },
-                    onError = { path, error ->
-                        fileErrorNotification("Failed to move ${path.fileName}: ${fileErrorMessage(error)}")
-                    },
-                    isCancelled = { indicator.isCanceled },
+                    { indicator.isCanceled },
                 )
 
                 refreshAfterVfsChange()
