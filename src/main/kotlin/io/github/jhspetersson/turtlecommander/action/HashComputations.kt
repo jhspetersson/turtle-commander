@@ -18,15 +18,35 @@ internal object HashComputations {
         return sb.toString()
     }
 
-    fun crc16(input: InputStream, total: Long = -1L, indicator: ProgressIndicator? = null): String {
-        var crc = 0xFFFF
-        val polynomial = 0x1021
+    /**
+     * Read [input] into a 64 KiB buffer in a tight loop, calling [process] for each chunk
+     * and ticking [indicator] (both cancel and fraction) along the way. Inline so the
+     * lambda captures variables — notably crc16's running `crc` accumulator — without
+     * allocating a Function object per call.
+     */
+    private inline fun streamWithProgress(
+        input: InputStream,
+        total: Long,
+        indicator: ProgressIndicator?,
+        process: (buffer: ByteArray, length: Int) -> Unit,
+    ) {
         var processed = 0L
         val buffer = ByteArray(64 * 1024)
         while (true) {
             indicator?.checkCanceled()
             val n = input.read(buffer)
             if (n <= 0) break
+            process(buffer, n)
+            processed += n
+            if (total > 0 && indicator != null) indicator.fraction = processed.toDouble() / total
+        }
+    }
+
+    fun crc16(input: InputStream, total: Long = -1L, indicator: ProgressIndicator? = null): String {
+        // CRC-16/CCITT-FALSE: seed 0xFFFF, polynomial 0x1021, no reflection.
+        var crc = 0xFFFF
+        val polynomial = 0x1021
+        streamWithProgress(input, total, indicator) { buffer, n ->
             for (i in 0 until n) {
                 crc = crc xor ((buffer[i].toInt() and 0xFF) shl 8)
                 repeat(8) {
@@ -34,39 +54,19 @@ internal object HashComputations {
                     else (crc shl 1) and 0xFFFF
                 }
             }
-            processed += n
-            if (total > 0 && indicator != null) indicator.fraction = processed.toDouble() / total
         }
         return "%04X".format(crc and 0xFFFF)
     }
 
     fun crc32(input: InputStream, total: Long = -1L, indicator: ProgressIndicator? = null): String {
         val crc = CRC32()
-        var processed = 0L
-        val buffer = ByteArray(64 * 1024)
-        while (true) {
-            indicator?.checkCanceled()
-            val n = input.read(buffer)
-            if (n <= 0) break
-            crc.update(buffer, 0, n)
-            processed += n
-            if (total > 0 && indicator != null) indicator.fraction = processed.toDouble() / total
-        }
+        streamWithProgress(input, total, indicator) { buffer, n -> crc.update(buffer, 0, n) }
         return "%08X".format(crc.value)
     }
 
     fun digest(input: InputStream, algorithm: String, total: Long = -1L, indicator: ProgressIndicator? = null): String {
         val md = MessageDigest.getInstance(algorithm)
-        var processed = 0L
-        val buffer = ByteArray(64 * 1024)
-        while (true) {
-            indicator?.checkCanceled()
-            val n = input.read(buffer)
-            if (n <= 0) break
-            md.update(buffer, 0, n)
-            processed += n
-            if (total > 0 && indicator != null) indicator.fraction = processed.toDouble() / total
-        }
+        streamWithProgress(input, total, indicator) { buffer, n -> md.update(buffer, 0, n) }
         return toHex(md.digest())
     }
 
