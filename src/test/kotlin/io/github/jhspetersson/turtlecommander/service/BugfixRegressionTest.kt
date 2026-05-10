@@ -10,11 +10,18 @@ import java.nio.file.Path
 
 /**
  * Regression tests for thumbnail cache hash collision fix.
+ *
+ * The single-arg `getCachePath(sourcePath)` overload reads `TurtleCommanderSettings`
+ * for the active thumbnail size, which fails in a plain JUnit context (no
+ * `ApplicationManager`). Hash behaviour is independent of the size segment, so
+ * these tests pin the size explicitly via the two-arg overload.
  */
 class ThumbnailCacheHashTest {
 
     private fun newCache(): ThumbnailCache =
         ThumbnailCache(CoroutineScope(SupervisorJob() + Dispatchers.IO))
+
+    private fun ThumbnailCache.cachePath(path: Path) = getCachePath(path, CACHE_SIZE)
 
     @Test
     fun `different paths same filename get different cache paths`() {
@@ -22,8 +29,8 @@ class ThumbnailCacheHashTest {
         val path1 = Path.of("C:/photos/img.jpg")
         val path2 = Path.of("D:/backup/img.jpg")
 
-        val cache1 = cache.getCachePath(path1)
-        val cache2 = cache.getCachePath(path2)
+        val cache1 = cache.cachePath(path1)
+        val cache2 = cache.cachePath(path2)
 
         assertNotNull("Cache path 1 should not be null", cache1)
         assertNotNull("Cache path 2 should not be null", cache2)
@@ -35,8 +42,8 @@ class ThumbnailCacheHashTest {
         val cache = newCache()
         val path = Path.of("C:/photos/img.jpg")
 
-        val cache1 = cache.getCachePath(path)
-        val cache2 = cache.getCachePath(path)
+        val cache1 = cache.cachePath(path)
+        val cache2 = cache.cachePath(path)
 
         assertEquals("Same source path must produce same cache path", cache1, cache2)
     }
@@ -47,8 +54,8 @@ class ThumbnailCacheHashTest {
         val path1 = Path.of("C:/Photos/IMG.jpg")
         val path2 = Path.of("C:/photos/img.jpg")
 
-        val cache1 = cache.getCachePath(path1)
-        val cache2 = cache.getCachePath(path2)
+        val cache1 = cache.cachePath(path1)
+        val cache2 = cache.cachePath(path2)
 
         // On case-sensitive systems these are different files
         assertNotNull(cache1)
@@ -60,9 +67,13 @@ class ThumbnailCacheHashTest {
     fun `cache path for path without filename returns null`() {
         val cache = newCache()
         val root = Path.of("/")
-        val result = cache.getCachePath(root)
+        val result = cache.cachePath(root)
         // Root path has no fileName, should return null gracefully
         assertNull("Root path should produce null cache path", result)
+    }
+
+    companion object {
+        private const val CACHE_SIZE = 128
     }
 }
 
