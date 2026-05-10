@@ -182,7 +182,11 @@ internal fun globToRegex(glob: String): String {
                     if (j < end && glob[j] == '!') { sb.append('^'); j++ }
                     while (j < end) {
                         val ch = glob[j]
-                        if (ch == '\\' || ch == ']') sb.append('\\')
+                        // `&` is regex-class metacharacter only when doubled (`&&` is
+                        // intersection in Java regex). A glob that contains `&` inside
+                        // `[...]` always means literal — escape every occurrence so the
+                        // doubled case can't trigger intersection.
+                        if (ch == '\\' || ch == ']' || ch == '&') sb.append('\\')
                         sb.append(ch)
                         j++
                     }

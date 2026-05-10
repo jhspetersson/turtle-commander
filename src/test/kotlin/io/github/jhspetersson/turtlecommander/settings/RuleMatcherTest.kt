@@ -254,4 +254,16 @@ class RuleMatcherTest {
         assertTrue(m.matches(file("*literal"), ContainsEvaluator.EMPTY))
         assertFalse(m.matches(file("Xliteral"), ContainsEvaluator.EMPTY))
     }
+
+    @Test
+    fun `globToRegex treats double ampersand inside char class as literal`() {
+        // Glob `[a&&b]` is just three literal members. Java regex would otherwise read
+        // `&&` as character-class intersection (`[a] ∩ [b]` → empty), which used to
+        // make this glob match nothing.
+        val m = RuleMatcher.Name(PatternKind.GLOB, "[a&&b]", caseSensitive = true)
+        assertTrue(m.matches(file("a"), ContainsEvaluator.EMPTY))
+        assertTrue(m.matches(file("b"), ContainsEvaluator.EMPTY))
+        assertTrue(m.matches(file("&"), ContainsEvaluator.EMPTY))
+        assertFalse(m.matches(file("c"), ContainsEvaluator.EMPTY))
+    }
 }
