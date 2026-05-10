@@ -198,6 +198,284 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         assertEquals("old", Files.readString(dest.resolve("x.txt")))
     }
 
+    // --- Overwrite policies ---
+    //
+    // These cover the seven OverwriteResponse values and the four OverwritePolicy values added
+    // when the per-file prompt grew from the original Yes/No/Yes-to-All/No-to-All to the
+    // richer Total-Commander-style button set. mtime is set explicitly with
+    // Files.setLastModifiedTime so the IF_OLDER comparison is deterministic regardless of how
+    // close together the writes happen.
+
+    private fun writeWithMtime(path: Path, content: String, millis: Long): Path {
+        val p = Files.writeString(path, content)
+        Files.setLastModifiedTime(p, FileTime.fromMillis(millis))
+        return p
+    }
+
+    fun testCopyIfOlderPolicyOverwritesNewerSource() = runBlocking {
+        val source = writeWithMtime(tempDir.resolve("a.txt"), "new", 20_000)
+        val dest = Files.createDirectory(tempDir.resolve("dest"))
+        writeWithMtime(dest.resolve("a.txt"), "old", 10_000)
+
+        fileOps.copyFilesWithProgress(
+            sources = listOf(source),
+            destination = dest,
+            initialPolicy = OverwritePolicy.IF_OLDER,
+            onProgress = { _, _ -> },
+            onOverwriteConfirm = { fail("IF_OLDER policy must not prompt"); OverwriteResponse.SKIP },
+            onError = { _, e -> fail("Unexpected error: $e") },
+            isCancelled = { false },
+        )
+
+        assertEquals("Newer source must overwrite older target", "new", Files.readString(dest.resolve("a.txt")))
+    }
+
+    fun testCopyIfOlderPolicySkipsOlderSource() = runBlocking {
+        val source = writeWithMtime(tempDir.resolve("a.txt"), "stale", 10_000)
+        val dest = Files.createDirectory(tempDir.resolve("dest"))
+        writeWithMtime(dest.resolve("a.txt"), "fresh", 20_000)
+
+        fileOps.copyFilesWithProgress(
+            sources = listOf(source),
+            destination = dest,
+            initialPolicy = OverwritePolicy.IF_OLDER,
+            onProgress = { _, _ -> },
+            onOverwriteConfirm = { fail("IF_OLDER policy must not prompt"); OverwriteResponse.SKIP },
+            onError = { _, e -> fail("Unexpected error: $e") },
+            isCancelled = { false },
+        )
+
+        assertEquals("Older source must not clobber newer target", "fresh", Files.readString(dest.resolve("a.txt")))
+    }
+
+    fun testCopyIfOlderPolicySkipsEqualMtime() = runBlocking {
+        // Equal mtime is treated as "not strictly newer" → skip. Matches Total Commander's
+        // "Overwrite all older and of the same age" being the *separate* option in the original
+        // dialog; the plain "if older" rule deliberately excludes ties.
+        val source = writeWithMtime(tempDir.resolve("a.txt"), "src", 15_000)
+        val dest = Files.createDirectory(tempDir.resolve("dest"))
+        writeWithMtime(dest.resolve("a.txt"), "tgt", 15_000)
+
+        fileOps.copyFilesWithProgress(
+            sources = listOf(source),
+            destination = dest,
+            initialPolicy = OverwritePolicy.IF_OLDER,
+            onProgress = { _, _ -> },
+            onOverwriteConfirm = { fail("IF_OLDER policy must not prompt"); OverwriteResponse.SKIP },
+            onError = { _, e -> fail("Unexpected error: $e") },
+            isCancelled = { false },
+        )
+
+        assertEquals("Equal mtime → skip", "tgt", Files.readString(dest.resolve("a.txt")))
+    }
+
+    fun testCopySkipAllPolicyDoesNotPromptAndDoesNotClobber() = runBlocking {
+        val sourceA = Files.writeString(tempDir.resolve("a.txt"), "newA")
+        val sourceB = Files.writeString(tempDir.resolve("b.txt"), "newB")
+        val dest = Files.createDirectory(tempDir.resolve("dest"))
+        Files.writeString(dest.resolve("a.txt"), "oldA")
+        Files.writeString(dest.resolve("b.txt"), "oldB")
+
+        fileOps.copyFilesWithProgress(
+            sources = listOf(sourceA, sourceB),
+            destination = dest,
+            initialPolicy = OverwritePolicy.SKIP_ALL,
+            onProgress = { _, _ -> },
+            onOverwriteConfirm = { fail("SKIP_ALL policy must not prompt"); OverwriteResponse.SKIP },
+            onError = { _, e -> fail("Unexpected error: $e") },
+            isCancelled = { false },
+        )
+
+        assertEquals("oldA", Files.readString(dest.resolve("a.txt")))
+        assertEquals("oldB", Files.readString(dest.resolve("b.txt")))
+    }
+
+    fun testCopyOverwriteIfOlderResponseAppliesPerFile() = runBlocking {
+        // ASK policy + per-file OVERWRITE_IF_OLDER response. The policy must stay ASK after the
+        // response — subsequent files trigger the prompt again.
+        val sourceA = writeWithMtime(tempDir.resolve("a.txt"), "newA", 20_000)
+        val sourceB = writeWithMtime(tempDir.resolve("b.txt"), "staleB", 10_000)
+        val dest = Files.createDirectory(tempDir.resolve("dest"))
+        writeWithMtime(dest.resolve("a.txt"), "oldA", 10_000)
+        writeWithMtime(dest.resolve("b.txt"), "freshB", 20_000)
+
+        var prompts = 0
+        fileOps.copyFilesWithProgress(
+            sources = listOf(sourceA, sourceB),
+            destination = dest,
+            initialPolicy = OverwritePolicy.ASK,
+            onProgress = { _, _ -> },
+            onOverwriteConfirm = { prompts++; OverwriteResponse.OVERWRITE_IF_OLDER },
+            onError = { _, e -> fail("Unexpected error: $e") },
+            isCancelled = { false },
+        )
+
+        assertEquals("Both existing files should prompt", 2, prompts)
+        assertEquals("Newer source overwrites older target", "newA", Files.readString(dest.resolve("a.txt")))
+        assertEquals("Older source leaves newer target alone", "freshB", Files.readString(dest.resolve("b.txt")))
+    }
+
+    fun testCopyOverwriteAllIfOlderResponseUpgradesPolicy() = runBlocking {
+        // ASK policy + OVERWRITE_ALL_IF_OLDER response. After the first prompt, the policy
+        // should upgrade to IF_OLDER so the second file is decided without prompting.
+        val sourceA = writeWithMtime(tempDir.resolve("a.txt"), "newA", 20_000)
+        val sourceB = writeWithMtime(tempDir.resolve("b.txt"), "staleB", 10_000)
+        val dest = Files.createDirectory(tempDir.resolve("dest"))
+        writeWithMtime(dest.resolve("a.txt"), "oldA", 10_000)
+        writeWithMtime(dest.resolve("b.txt"), "freshB", 20_000)
+
+        var prompts = 0
+        fileOps.copyFilesWithProgress(
+            sources = listOf(sourceA, sourceB),
+            destination = dest,
+            initialPolicy = OverwritePolicy.ASK,
+            onProgress = { _, _ -> },
+            onOverwriteConfirm = { prompts++; OverwriteResponse.OVERWRITE_ALL_IF_OLDER },
+            onError = { _, e -> fail("Unexpected error: $e") },
+            isCancelled = { false },
+        )
+
+        assertEquals("Policy upgrade after first response should silence further prompts", 1, prompts)
+        assertEquals("newA", Files.readString(dest.resolve("a.txt")))
+        assertEquals("freshB", Files.readString(dest.resolve("b.txt")))
+    }
+
+    fun testCopyOverwriteAllResponseUpgradesPolicy() = runBlocking {
+        // ASK + OVERWRITE_ALL: first prompt sets policy to OVERWRITE_ALL, subsequent files
+        // overwrite without prompting.
+        val sourceA = Files.writeString(tempDir.resolve("a.txt"), "newA")
+        val sourceB = Files.writeString(tempDir.resolve("b.txt"), "newB")
+        val dest = Files.createDirectory(tempDir.resolve("dest"))
+        Files.writeString(dest.resolve("a.txt"), "oldA")
+        Files.writeString(dest.resolve("b.txt"), "oldB")
+
+        var prompts = 0
+        fileOps.copyFilesWithProgress(
+            sources = listOf(sourceA, sourceB),
+            destination = dest,
+            initialPolicy = OverwritePolicy.ASK,
+            onProgress = { _, _ -> },
+            onOverwriteConfirm = { prompts++; OverwriteResponse.OVERWRITE_ALL },
+            onError = { _, e -> fail("Unexpected error: $e") },
+            isCancelled = { false },
+        )
+
+        assertEquals(1, prompts)
+        assertEquals("newA", Files.readString(dest.resolve("a.txt")))
+        assertEquals("newB", Files.readString(dest.resolve("b.txt")))
+    }
+
+    fun testCopySkipAllResponseUpgradesPolicy() = runBlocking {
+        // ASK + SKIP_ALL: first prompt sets policy to SKIP_ALL, second file skipped silently.
+        val sourceA = Files.writeString(tempDir.resolve("a.txt"), "newA")
+        val sourceB = Files.writeString(tempDir.resolve("b.txt"), "newB")
+        val dest = Files.createDirectory(tempDir.resolve("dest"))
+        Files.writeString(dest.resolve("a.txt"), "oldA")
+        Files.writeString(dest.resolve("b.txt"), "oldB")
+
+        var prompts = 0
+        fileOps.copyFilesWithProgress(
+            sources = listOf(sourceA, sourceB),
+            destination = dest,
+            initialPolicy = OverwritePolicy.ASK,
+            onProgress = { _, _ -> },
+            onOverwriteConfirm = { prompts++; OverwriteResponse.SKIP_ALL },
+            onError = { _, e -> fail("Unexpected error: $e") },
+            isCancelled = { false },
+        )
+
+        assertEquals(1, prompts)
+        assertEquals("oldA", Files.readString(dest.resolve("a.txt")))
+        assertEquals("oldB", Files.readString(dest.resolve("b.txt")))
+    }
+
+    fun testCopyCancelResponseAbortsLoop() = runBlocking {
+        // CANCEL on the first existing file: subsequent files (existing OR not) must be untouched.
+        val sourceA = Files.writeString(tempDir.resolve("a.txt"), "newA")
+        val sourceB = Files.writeString(tempDir.resolve("b.txt"), "newB")
+        val sourceC = Files.writeString(tempDir.resolve("c.txt"), "newC")
+        val dest = Files.createDirectory(tempDir.resolve("dest"))
+        Files.writeString(dest.resolve("a.txt"), "oldA")
+        // b.txt and c.txt do NOT exist in dest — the cancel must still stop them being copied.
+
+        var prompts = 0
+        fileOps.copyFilesWithProgress(
+            sources = listOf(sourceA, sourceB, sourceC),
+            destination = dest,
+            initialPolicy = OverwritePolicy.ASK,
+            onProgress = { _, _ -> },
+            onOverwriteConfirm = { prompts++; OverwriteResponse.CANCEL },
+            onError = { _, e -> fail("Unexpected error: $e") },
+            isCancelled = { false },
+        )
+
+        assertEquals("Only one prompt before cancel aborts", 1, prompts)
+        assertEquals("oldA", Files.readString(dest.resolve("a.txt")))
+        assertFalse("CANCEL must stop processing later sources", Files.exists(dest.resolve("b.txt")))
+        assertFalse("CANCEL must stop processing later sources", Files.exists(dest.resolve("c.txt")))
+    }
+
+    fun testMoveIfOlderPolicyOverwritesNewerSource() = runBlocking {
+        val source = writeWithMtime(tempDir.resolve("m.txt"), "fresh", 20_000)
+        val dest = Files.createDirectory(tempDir.resolve("dest"))
+        writeWithMtime(dest.resolve("m.txt"), "stale", 10_000)
+
+        fileOps.moveFilesWithProgress(
+            sources = listOf(source),
+            destination = dest,
+            initialPolicy = OverwritePolicy.IF_OLDER,
+            onProgress = { _, _ -> },
+            onOverwriteConfirm = { fail("IF_OLDER must not prompt"); OverwriteResponse.SKIP },
+            onError = { _, e -> fail("Unexpected error: $e") },
+            isCancelled = { false },
+        )
+
+        assertFalse("Source removed after successful move", Files.exists(source))
+        assertEquals("fresh", Files.readString(dest.resolve("m.txt")))
+    }
+
+    fun testMoveIfOlderPolicyLeavesOlderSourceInPlace() = runBlocking {
+        val source = writeWithMtime(tempDir.resolve("m.txt"), "stale", 10_000)
+        val dest = Files.createDirectory(tempDir.resolve("dest"))
+        writeWithMtime(dest.resolve("m.txt"), "fresh", 20_000)
+
+        fileOps.moveFilesWithProgress(
+            sources = listOf(source),
+            destination = dest,
+            initialPolicy = OverwritePolicy.IF_OLDER,
+            onProgress = { _, _ -> },
+            onOverwriteConfirm = { fail("IF_OLDER must not prompt"); OverwriteResponse.SKIP },
+            onError = { _, e -> fail("Unexpected error: $e") },
+            isCancelled = { false },
+        )
+
+        // Skipped — source must still be at its original location, target unchanged.
+        assertTrue("Source left in place when skipped", Files.exists(source))
+        assertEquals("fresh", Files.readString(dest.resolve("m.txt")))
+    }
+
+    fun testMoveCancelResponseAbortsLoop() = runBlocking {
+        val sourceA = Files.writeString(tempDir.resolve("a.txt"), "A")
+        val sourceB = Files.writeString(tempDir.resolve("b.txt"), "B")
+        val dest = Files.createDirectory(tempDir.resolve("dest"))
+        Files.writeString(dest.resolve("a.txt"), "oldA")
+
+        fileOps.moveFilesWithProgress(
+            sources = listOf(sourceA, sourceB),
+            destination = dest,
+            initialPolicy = OverwritePolicy.ASK,
+            onProgress = { _, _ -> },
+            onOverwriteConfirm = { OverwriteResponse.CANCEL },
+            onError = { _, e -> fail("Unexpected error: $e") },
+            isCancelled = { false },
+        )
+
+        assertTrue("Cancelled source remains in place", Files.exists(sourceA))
+        assertTrue("Subsequent source remains in place", Files.exists(sourceB))
+        assertEquals("Target untouched after cancel", "oldA", Files.readString(dest.resolve("a.txt")))
+        assertFalse("Later target never created", Files.exists(dest.resolve("b.txt")))
+    }
+
     // --- Delete ---
 
     fun testDeleteSingleFile() = runBlocking {
