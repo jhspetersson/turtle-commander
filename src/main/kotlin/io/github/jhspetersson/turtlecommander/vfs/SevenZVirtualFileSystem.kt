@@ -198,16 +198,12 @@ class SevenZipVirtualFileSystem(
             // Substrings come from commons-compress 1.28's SevenZFile / Coders error sites
             // — every one of these signals a decoder gap the system 7-Zip CLI can typically
             // bridge (BCJ2 stacks, missing XZ-for-Java, codecs not yet implemented, archives
-            // using header features the library refuses). Older keys "Unsupported Codec" /
-            // "BCJ2" no longer appear in this version but stay listed defensively in case a
-            // patched / vendored library still emits them.
+            // using header features the library refuses).
             if ("Multi input/output stream coders" in msg ||
                 "Unsupported compression method" in msg ||
                 "BCJ filter" in msg ||
                 "Alternative methods are unsupported" in msg ||
-                "Additional streams unsupported" in msg ||
-                "Unsupported Codec" in msg ||
-                "BCJ2" in msg
+                "Additional streams unsupported" in msg
             ) return true
             current = current.cause
         }
