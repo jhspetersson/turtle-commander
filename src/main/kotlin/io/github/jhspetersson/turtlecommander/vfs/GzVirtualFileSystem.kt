@@ -1,9 +1,5 @@
 package io.github.jhspetersson.turtlecommander.vfs
-import io.github.jhspetersson.turtlecommander.model.FileEntry
 
-import com.intellij.openapi.diagnostic.thisLogger
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
@@ -87,67 +83,23 @@ class CompressedSingleFileVirtualFileSystem(
     override val archivePath: Path,
     private val compressionSuffix: String,
     private val decompressorFactory: (InputStream) -> InputStream,
-) : VirtualFileSystem {
+) : AbstractTempDirVirtualFileSystem("turtle-decompress-") {
 
-    private var tempDir: Path = extractFile()
-
-    override val root: Path get() = tempDir
     override val isReadOnly: Boolean get() = true
 
-    private fun extractFile(): Path {
-        val dir = Files.createTempDirectory("turtle-decompress-")
-        try {
-            val originalName = archivePath.fileName?.toString() ?: "file"
-            val innerName = if (originalName.endsWith(compressionSuffix, ignoreCase = true))
-                originalName.dropLast(compressionSuffix.length)
-            else
-                originalName
-            val destPath = dir.resolve(innerName)
-            decompressorFactory(Files.newInputStream(archivePath)).use { stream ->
-                Files.copy(stream, destPath)
-            }
-        } catch (e: Exception) {
-            dir.toFile().deleteRecursively()
-            throw e
-        }
-        return dir
+    init {
+        openTempDir()
     }
 
-    override fun isRoot(path: Path): Boolean {
-        return path.normalize() == tempDir.normalize()
-    }
-
-    override fun getPath(relativePath: String): Path {
-        val clean = relativePath.removePrefix("/").removePrefix("\\")
-        return if (clean.isEmpty()) tempDir else tempDir.resolve(clean)
-    }
-
-    override suspend fun listFiles(directory: Path): List<FileEntry> = withContext(Dispatchers.IO) {
-        val result = mutableListOf<FileEntry>()
-
-        result.add(parentEntry(archivePath.parent ?: archivePath))
-        result.addAll(readDirectoryEntries(directory))
-
-        result
-    }
-
-    override suspend fun renameFile(source: Path, newName: String): Path {
-        // Single-file compressors wrap one inner file and we expose them as read-only.
-        // A rename in the temp dir would be silently dropped by the next flush(); throw
-        // explicitly so callers don't introduce that data-loss path by mistake.
-        throw UnsupportedOperationException("Cannot rename inside a read-only single-file archive")
-    }
-
-    override fun flush() {
-        tempDir.toFile().deleteRecursively()
-        tempDir = extractFile()
-    }
-
-    override fun close() {
-        try {
-            tempDir.toFile().deleteRecursively()
-        } catch (e: Exception) {
-            thisLogger().debug("Failed to clean up temp dir $tempDir: ${e.message}")
+    override fun extract(into: Path) {
+        val originalName = archivePath.fileName?.toString() ?: "file"
+        val innerName = if (originalName.endsWith(compressionSuffix, ignoreCase = true))
+            originalName.dropLast(compressionSuffix.length)
+        else
+            originalName
+        val destPath = into.resolve(innerName)
+        decompressorFactory(Files.newInputStream(archivePath)).use { stream ->
+            Files.copy(stream, destPath)
         }
     }
 }

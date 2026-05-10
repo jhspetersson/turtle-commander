@@ -3,9 +3,6 @@ package io.github.jhspetersson.turtlecommander.vfs
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
-import io.github.jhspetersson.turtlecommander.model.FileEntry
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry
 import org.apache.commons.compress.archivers.sevenz.SevenZFile
 import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile
@@ -34,33 +31,32 @@ class SevenZipFileSystemProvider : VirtualFileSystemProvider {
 
 class SevenZipVirtualFileSystem(
     override val archivePath: Path,
-) : VirtualFileSystem {
+) : AbstractTempDirVirtualFileSystem("turtle-7z-") {
 
-    private var tempDir: Path = extractArchive()
+    init {
+        openTempDir()
+    }
 
-    override val root: Path get() = tempDir
-
-    private fun extractArchive(): Path {
+    override fun extract(into: Path) {
         val indicator = ProgressManager.getGlobalProgressIndicator()
-        val dir = Files.createTempDirectory("turtle-7z-")
         try {
-            extractWithCommonsCompress(dir, indicator)
+            extractWithCommonsCompress(into, indicator)
         } catch (e: Exception) {
             // commons-compress can't decode multi-stream coders (BCJ2, certain
             // delta variants, some encrypted modes). Fall back to invoking the
             // user's installed 7-Zip CLI before giving up — it handles
             // everything 7-Zip itself can produce.
             if (looksLikeUnsupportedCoder(e)) {
+                // Wipe whatever commons-compress wrote before falling back to the
+                // system tool. openTempDir will clean up on a final throw, but the
+                // retry happens inside extract() so we have to clear partial state
+                // ourselves before the second attempt.
+                into.toFile().deleteRecursively()
+                Files.createDirectory(into)
                 try {
-                    // Wipe whatever commons-compress wrote before failing —
-                    // mixing partial output with the system tool's full
-                    // extract would be a mess.
-                    dir.toFile().deleteRecursively()
-                    Files.createDirectory(dir)
-                    extractWithSystem7z(dir, indicator)
-                    return dir
+                    extractWithSystem7z(into, indicator)
+                    return
                 } catch (toolError: Exception) {
-                    dir.toFile().deleteRecursively()
                     throw IOException(
                         "This 7z archive uses a coder commons-compress doesn't support " +
                             "(e.g. BCJ2). Tried system 7-Zip but: " +
@@ -69,10 +65,8 @@ class SevenZipVirtualFileSystem(
                     )
                 }
             }
-            dir.toFile().deleteRecursively()
             throw e
         }
-        return dir
     }
 
     private fun extractWithCommonsCompress(dir: Path, indicator: ProgressIndicator?) {
@@ -214,38 +208,7 @@ class SevenZipVirtualFileSystem(
         return false
     }
 
-    override fun isRoot(path: Path): Boolean {
-        return path.normalize() == tempDir.normalize()
-    }
-
-    override fun getPath(relativePath: String): Path {
-        val clean = relativePath.removePrefix("/").removePrefix("\\")
-        return if (clean.isEmpty()) tempDir else tempDir.resolve(clean)
-    }
-
-    override suspend fun listFiles(directory: Path): List<FileEntry> = withContext(Dispatchers.IO) {
-        val result = mutableListOf<FileEntry>()
-
-        if (!isRoot(directory)) {
-            result.add(parentEntry(directory.parent ?: tempDir))
-        } else {
-            result.add(parentEntry(archivePath.parent ?: archivePath))
-        }
-
-        result.addAll(readDirectoryEntries(directory))
-
-        result
-    }
-
-    override suspend fun renameFile(source: Path, newName: String): Path = withContext(Dispatchers.IO) {
-        val parent = source.parent ?: throw IllegalArgumentException("Cannot rename a root path")
-        val target = parent.resolve(newName)
-        Files.move(source, target)
-        repackArchive()
-        target
-    }
-
-    private fun repackArchive() {
+    override fun repack(from: Path) {
         SevenZOutputFile(archivePath.toFile()).use { out ->
             // SevenZOutputFile duck-types as an OutputStream (write(int)/write(byte[])/
             // write(byte[],int,int)) but doesn't actually extend it, so we can't hand it
@@ -255,7 +218,7 @@ class SevenZipVirtualFileSystem(
                 override fun write(b: Int) = out.write(b)
                 override fun write(b: ByteArray, off: Int, len: Int) = out.write(b, off, len)
             }
-            forEachArchiveEntry(tempDir) { path, relativeName ->
+            forEachArchiveEntry(from) { path, relativeName ->
                 val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
                 val entry = SevenZArchiveEntry().apply {
                     name = relativeName + if (attrs.isDirectory) "/" else ""
@@ -271,20 +234,6 @@ class SevenZipVirtualFileSystem(
                 }
                 out.closeArchiveEntry()
             }
-        }
-    }
-
-    override fun flush() {
-        repackArchive()
-        tempDir.toFile().deleteRecursively()
-        tempDir = extractArchive()
-    }
-
-    override fun close() {
-        try {
-            tempDir.toFile().deleteRecursively()
-        } catch (e: Exception) {
-            thisLogger().debug("Failed to clean up temp dir $tempDir: ${e.message}")
         }
     }
 }

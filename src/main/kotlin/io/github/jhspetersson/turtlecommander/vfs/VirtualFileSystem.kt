@@ -1,7 +1,10 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.diagnostic.thisLogger
 import io.github.jhspetersson.turtlecommander.model.FileEntry
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.Closeable
 import java.nio.file.*
 import java.nio.file.attribute.BasicFileAttributes
@@ -152,6 +155,110 @@ internal fun vfsRelativePath(root: Path, path: Path): String {
     } catch (_: IllegalArgumentException) {
         // Fallback if paths have different roots (e.g. different drives on Windows)
         path.toString()
+    }
+}
+
+/**
+ * Common scaffolding for VFS implementations that materialise an archive into a temp
+ * directory on disk and operate on it from there. Tar / Ar / SevenZ / ZipExtract /
+ * single-file (Gz/Bz2/Xz) all follow the same pattern: extract once at construction,
+ * answer [listFiles] / [getPath] / [isRoot] from the temp dir, repack into [archivePath]
+ * on flush, delete the temp dir on close.
+ *
+ * Subclasses provide the format-specific bits via [extract] (mandatory) and [repack]
+ * (no-op default for read-only formats). They are responsible for calling [openTempDir]
+ * **from their own `init` block** — not from this base class — because the abstract
+ * [extract] method needs the subclass's primary-constructor properties (factories,
+ * metadata maps, etc.) to be initialised, which in Kotlin only happens after the
+ * super-class constructor finishes.
+ */
+abstract class AbstractTempDirVirtualFileSystem(
+    private val tempDirPrefix: String,
+) : VirtualFileSystem {
+
+    protected lateinit var tempDir: Path
+        private set
+
+    /**
+     * Extract the archive at [archivePath] into [into], an empty temp directory provided
+     * by [openTempDir]. Throwing from here aborts initialisation; [openTempDir] handles
+     * cleanup of [into] before propagating.
+     */
+    protected abstract fun extract(into: Path)
+
+    /**
+     * Repack [from] (the temp dir) back into [archivePath]. Default no-op suits read-only
+     * formats; the base [flush] only invokes this when [isReadOnly] is `false`.
+     */
+    protected open fun repack(from: Path) {}
+
+    /**
+     * Hook fired after a successful [renameFile] move but before [repack]. Subclasses
+     * that maintain rename-aware bookkeeping (e.g. [ArVirtualFileSystem]'s per-entry
+     * mode/uid/gid map) override this to migrate state from the old name to the new.
+     */
+    protected open fun onRenamed(source: Path, target: Path) {}
+
+    /**
+     * Creates a new temp directory and runs [extract] into it. On any failure the
+     * partial directory is wiped before the exception propagates so we don't leak
+     * temp files when an archive is malformed.
+     */
+    protected fun openTempDir() {
+        val dir = Files.createTempDirectory(tempDirPrefix)
+        try {
+            extract(dir)
+        } catch (e: Exception) {
+            dir.toFile().deleteRecursively()
+            throw e
+        }
+        tempDir = dir
+    }
+
+    override val root: Path get() = tempDir
+
+    override fun isRoot(path: Path): Boolean = path.normalize() == tempDir.normalize()
+
+    override fun getPath(relativePath: String): Path {
+        val clean = relativePath.removePrefix("/").removePrefix("\\")
+        return if (clean.isEmpty()) tempDir else tempDir.resolve(clean)
+    }
+
+    override suspend fun listFiles(directory: Path): List<FileEntry> = withContext(Dispatchers.IO) {
+        val result = mutableListOf<FileEntry>()
+        if (!isRoot(directory)) {
+            result.add(parentEntry(directory.parent ?: tempDir))
+        } else {
+            result.add(parentEntry(archivePath.parent ?: archivePath))
+        }
+        result.addAll(readDirectoryEntries(directory))
+        result
+    }
+
+    override suspend fun renameFile(source: Path, newName: String): Path = withContext(Dispatchers.IO) {
+        if (isReadOnly) {
+            throw UnsupportedOperationException("Cannot rename inside a read-only archive")
+        }
+        val parent = source.parent ?: throw IllegalArgumentException("Cannot rename a root path")
+        val target = parent.resolve(newName)
+        Files.move(source, target)
+        onRenamed(source, target)
+        repack(tempDir)
+        target
+    }
+
+    override fun flush() {
+        if (!isReadOnly) repack(tempDir)
+        tempDir.toFile().deleteRecursively()
+        openTempDir()
+    }
+
+    override fun close() {
+        try {
+            tempDir.toFile().deleteRecursively()
+        } catch (e: Exception) {
+            thisLogger().debug("Failed to clean up temp dir $tempDir: ${e.message}")
+        }
     }
 }
 

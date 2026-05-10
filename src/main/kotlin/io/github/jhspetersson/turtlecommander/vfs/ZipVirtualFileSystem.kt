@@ -105,99 +105,61 @@ class ZipVirtualFileSystem(override val archivePath: Path) : VirtualFileSystem {
  */
 class ZipExtractVirtualFileSystem(
     override val archivePath: Path,
-) : VirtualFileSystem {
+) : AbstractTempDirVirtualFileSystem("turtle-zip-") {
 
-    private var tempDir: Path = extractArchive()
+    init {
+        openTempDir()
+    }
 
-    override val root: Path get() = tempDir
-
-    private fun extractArchive(): Path {
+    override fun extract(into: Path) {
         val indicator = ProgressManager.getGlobalProgressIndicator()
-        val dir = Files.createTempDirectory("turtle-zip-")
-        try {
-            ZipFile.builder().setPath(archivePath).get().use { zip ->
-                // Previously we called zip.entries.toList() just to know the total for
-                // the progress fraction, which allocated an O(n) reference list for
-                // archives that can contain millions of entries (fat JARs, etc.). The
-                // central directory is already parsed in memory, so iterating twice
-                // is cheap and lets us keep determinate progress without the extra copy.
-                var total = 0
-                val counter = zip.entries
-                while (counter.hasMoreElements()) {
-                    counter.nextElement()
-                    total++
-                }
-                if (total > 0) indicator?.isIndeterminate = false
-                val iter = zip.entries
-                var index = 0
-                while (iter.hasMoreElements()) {
-                    val entry = iter.nextElement()
-                    if (indicator?.isCanceled == true) break
-                    index++
-                    if (total > 0) indicator?.fraction = index.toDouble() / total
-                    indicator?.text2 = entry.name
-                    val entryPath = resolveEntryPath(dir, entry.name) ?: continue
-                    try {
-                        if (entry.isDirectory) {
-                            Files.createDirectories(entryPath)
-                        } else {
-                            Files.createDirectories(entryPath.parent)
-                            zip.getInputStream(entry).use { input ->
-                                Files.copy(input, entryPath)
-                            }
+        ZipFile.builder().setPath(archivePath).get().use { zip ->
+            // Previously we called zip.entries.toList() just to know the total for
+            // the progress fraction, which allocated an O(n) reference list for
+            // archives that can contain millions of entries (fat JARs, etc.). The
+            // central directory is already parsed in memory, so iterating twice
+            // is cheap and lets us keep determinate progress without the extra copy.
+            var total = 0
+            val counter = zip.entries
+            while (counter.hasMoreElements()) {
+                counter.nextElement()
+                total++
+            }
+            if (total > 0) indicator?.isIndeterminate = false
+            val iter = zip.entries
+            var index = 0
+            while (iter.hasMoreElements()) {
+                val entry = iter.nextElement()
+                if (indicator?.isCanceled == true) break
+                index++
+                if (total > 0) indicator?.fraction = index.toDouble() / total
+                indicator?.text2 = entry.name
+                val entryPath = resolveEntryPath(into, entry.name) ?: continue
+                try {
+                    if (entry.isDirectory) {
+                        Files.createDirectories(entryPath)
+                    } else {
+                        Files.createDirectories(entryPath.parent)
+                        zip.getInputStream(entry).use { input ->
+                            Files.copy(input, entryPath)
                         }
-                        if (entry.lastModifiedDate != null) {
-                            Files.setLastModifiedTime(
-                                entryPath,
-                                java.nio.file.attribute.FileTime.fromMillis(entry.lastModifiedDate.time),
-                            )
-                        }
-                    } catch (e: Exception) {
-                        thisLogger().debug("Failed to extract zip entry: ${entry.name}", e)
                     }
+                    if (entry.lastModifiedDate != null) {
+                        Files.setLastModifiedTime(
+                            entryPath,
+                            java.nio.file.attribute.FileTime.fromMillis(entry.lastModifiedDate.time),
+                        )
+                    }
+                } catch (e: Exception) {
+                    thisLogger().debug("Failed to extract zip entry: ${entry.name}", e)
                 }
             }
-        } catch (e: Exception) {
-            dir.toFile().deleteRecursively()
-            throw e
         }
-        return dir
     }
 
-    override fun isRoot(path: Path): Boolean {
-        return path.normalize() == tempDir.normalize()
-    }
-
-    override fun getPath(relativePath: String): Path {
-        val clean = relativePath.removePrefix("/").removePrefix("\\")
-        return if (clean.isEmpty()) tempDir else tempDir.resolve(clean)
-    }
-
-    override suspend fun listFiles(directory: Path): List<FileEntry> = withContext(Dispatchers.IO) {
-        val result = mutableListOf<FileEntry>()
-
-        if (!isRoot(directory)) {
-            result.add(parentEntry(directory.parent ?: tempDir))
-        } else {
-            result.add(parentEntry(archivePath.parent ?: archivePath))
-        }
-
-        result.addAll(readDirectoryEntries(directory))
-
-        result
-    }
-
-    override suspend fun renameFile(source: Path, newName: String): Path = withContext(Dispatchers.IO) {
-        val parent = source.parent ?: throw IllegalArgumentException("Cannot rename a root path")
-        val target = parent.resolve(newName)
-        Files.move(source, target)
-        repackArchive()
-        target
-    }
-
-    private fun repackArchive() {
+    override fun repack(from: Path) {
         ZipArchiveOutputStream(Files.newOutputStream(archivePath)).use { zip ->
-            forEachArchiveEntry(tempDir) { path, relativeName ->
+            forEachArchiveEntry(from) { path, relativeName ->
                 val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
                 val entryName = if (attrs.isDirectory) "$relativeName/" else relativeName
                 val entry = ZipArchiveEntry(entryName)
@@ -211,20 +173,6 @@ class ZipExtractVirtualFileSystem(
                 }
                 zip.closeArchiveEntry()
             }
-        }
-    }
-
-    override fun flush() {
-        repackArchive()
-        tempDir.toFile().deleteRecursively()
-        tempDir = extractArchive()
-    }
-
-    override fun close() {
-        try {
-            tempDir.toFile().deleteRecursively()
-        } catch (e: Exception) {
-            thisLogger().debug("Failed to clean up temp dir $tempDir: ${e.message}")
         }
     }
 }
