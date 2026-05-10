@@ -191,15 +191,21 @@ class SevenZipVirtualFileSystem(
         return null
     }
 
-    private fun looksLikeUnsupportedCoder(e: Throwable): Boolean {
+    internal fun looksLikeUnsupportedCoder(e: Throwable): Boolean {
         var current: Throwable? = e
         while (current != null) {
             val msg = current.message.orEmpty()
-            // "Multi input/output stream coders are not yet supported" is the
-            // canonical commons-compress message for BCJ2 et al.; the other
-            // strings cover related decoder gaps that the system tool can also
-            // handle.
+            // Substrings come from commons-compress 1.28's SevenZFile / Coders error sites
+            // — every one of these signals a decoder gap the system 7-Zip CLI can typically
+            // bridge (BCJ2 stacks, missing XZ-for-Java, codecs not yet implemented, archives
+            // using header features the library refuses). Older keys "Unsupported Codec" /
+            // "BCJ2" no longer appear in this version but stay listed defensively in case a
+            // patched / vendored library still emits them.
             if ("Multi input/output stream coders" in msg ||
+                "Unsupported compression method" in msg ||
+                "BCJ filter" in msg ||
+                "Alternative methods are unsupported" in msg ||
+                "Additional streams unsupported" in msg ||
                 "Unsupported Codec" in msg ||
                 "BCJ2" in msg
             ) return true
