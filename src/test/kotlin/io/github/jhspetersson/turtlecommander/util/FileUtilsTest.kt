@@ -133,4 +133,51 @@ class FileUtilsTest {
         assertEquals("", readFilePermissions(missing, isWindows = false))
         assertEquals("", readFilePermissions(missing, isWindows = true))
     }
+
+    // --- wrapAsSubstringGlobIfPlain ---
+    //
+    // Plain text → substring wrap with `*…*`. Anything that looks like a glob (`*`, `?`, `[`)
+    // or carries an extension dot is passed through verbatim. Both the FileTab quick filter
+    // and the search dialog's glob mode share this rule so `foo?` and `foo.txt` behave the
+    // same in both UIs.
+
+    @Test
+    fun `wrapAsSubstringGlobIfPlain wraps plain text with substring stars`() {
+        assertEquals("*foo*", wrapAsSubstringGlobIfPlain("foo"))
+    }
+
+    @Test
+    fun `wrapAsSubstringGlobIfPlain wraps empty string`() {
+        // Empty input is harmless; the matcher upstream will either not run or just match
+        // anything. Behaviour pinned here so the helper stays total.
+        assertEquals("**", wrapAsSubstringGlobIfPlain(""))
+    }
+
+    @Test
+    fun `wrapAsSubstringGlobIfPlain leaves star globs alone`() {
+        assertEquals("*.txt", wrapAsSubstringGlobIfPlain("*.txt"))
+        assertEquals("foo*", wrapAsSubstringGlobIfPlain("foo*"))
+        assertEquals("*foo*", wrapAsSubstringGlobIfPlain("*foo*"))
+    }
+
+    @Test
+    fun `wrapAsSubstringGlobIfPlain leaves question-mark globs alone`() {
+        assertEquals("foo?", wrapAsSubstringGlobIfPlain("foo?"))
+        assertEquals("?foo", wrapAsSubstringGlobIfPlain("?foo"))
+        assertEquals("foo??bar", wrapAsSubstringGlobIfPlain("foo??bar"))
+    }
+
+    @Test
+    fun `wrapAsSubstringGlobIfPlain leaves character class globs alone`() {
+        assertEquals("[abc]", wrapAsSubstringGlobIfPlain("[abc]"))
+        assertEquals("file[0-9]", wrapAsSubstringGlobIfPlain("file[0-9]"))
+    }
+
+    @Test
+    fun `wrapAsSubstringGlobIfPlain treats dot as an extension hint and skips wrap`() {
+        // `report.pdf` is meant to find a file literally named that, not match
+        // `oldreport.pdf.bak` as a substring would.
+        assertEquals("report.pdf", wrapAsSubstringGlobIfPlain("report.pdf"))
+        assertEquals(".gitignore", wrapAsSubstringGlobIfPlain(".gitignore"))
+    }
 }

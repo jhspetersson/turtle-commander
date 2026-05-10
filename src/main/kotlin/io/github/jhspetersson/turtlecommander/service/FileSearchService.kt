@@ -4,6 +4,7 @@ import io.github.jhspetersson.turtlecommander.util.readFileGroup
 import io.github.jhspetersson.turtlecommander.util.readFileOwner
 import io.github.jhspetersson.turtlecommander.util.readFilePermissionFlags
 import io.github.jhspetersson.turtlecommander.util.readFilePermissions
+import io.github.jhspetersson.turtlecommander.util.wrapAsSubstringGlobIfPlain
 import io.github.jhspetersson.turtlecommander.dialog.DateFilterMode
 import io.github.jhspetersson.turtlecommander.dialog.DateFilter
 import io.github.jhspetersson.turtlecommander.dialog.PermissionsFilter
@@ -47,7 +48,7 @@ class FileSearchService(
         val nameMatcher: ((String) -> Boolean)? = criteria.namePattern?.let { pattern ->
             when (criteria.namePatternMode) {
                 NamePatternMode.GLOB -> {
-                    val wrappedPattern = if ('.' !in pattern && '*' !in pattern) "*$pattern*" else pattern
+                    val wrappedPattern = wrapAsSubstringGlobIfPlain(pattern)
                     val effectivePattern = if (criteria.caseSensitive) wrappedPattern else wrappedPattern.lowercase()
                     val pathMatcher = try {
                         FileSystems.getDefault().getPathMatcher("glob:$effectivePattern")

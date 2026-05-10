@@ -33,6 +33,26 @@ suspend fun countFiles(sources: List<Path>): Int = withContext(Dispatchers.IO) {
     count
 }
 
+/**
+ * If [pattern] looks like plain text (contains none of `* ? [ .`), wrap it with `*…*` so a
+ * substring match works through `glob:` `PathMatcher.matches`. Otherwise return it verbatim
+ * so the user's intent — wildcards, character classes, or a literal filename with an
+ * extension — is respected as an anchored full match.
+ *
+ * Used by both the FileTab quick filter and the search dialog so typing `foo?` or `foo.txt`
+ * behaves the same in both places. The union of metacharacters (`* ? [`) plus `.` covers the
+ * historical rules of both call sites:
+ *
+ *  - `* ? [` are glob metacharacters — when present the user typed a real glob and substring
+ *    wrapping would either be redundant or actively wrong.
+ *  - `.` is treated as a "this is an exact filename, not a substring" hint — `report.pdf`
+ *    matches a file literally named that, not `oldreport.pdf.bak`.
+ */
+fun wrapAsSubstringGlobIfPlain(pattern: String): String {
+    val hasGlobMeta = pattern.any { it == '*' || it == '?' || it == '[' || it == '.' }
+    return if (hasGlobMeta) pattern else "*$pattern*"
+}
+
 fun fileErrorMessage(error: Exception): String {
     return when (error) {
         is AccessDeniedException -> "Access denied: ${error.file}"

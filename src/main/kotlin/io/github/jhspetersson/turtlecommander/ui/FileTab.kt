@@ -33,6 +33,7 @@ import io.github.jhspetersson.turtlecommander.settings.ThumbnailSize
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
 import io.github.jhspetersson.turtlecommander.util.formatSize
+import io.github.jhspetersson.turtlecommander.util.wrapAsSubstringGlobIfPlain
 import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
@@ -1054,7 +1055,7 @@ class FileTab(
             setFilterFieldError(false)
             allEntries
         } else {
-            val glob = if (pattern.contains('*') || pattern.contains('?') || pattern.contains('[')) pattern else "*$pattern*"
+            val glob = wrapAsSubstringGlobIfPlain(pattern)
             val cached = cachedFilterMatcher
             val matcher = if (glob == cachedFilterGlob && cached != null) {
                 setFilterFieldError(false)
