@@ -1019,7 +1019,6 @@ internal fun FileTab.performMultiRenameUndo() {
         return
     }
     fileOps.launch {
-        val restored = mutableListOf<Pair<Path, Path>>()
         try {
             // Reverse via the same two-phase trick.
             val temps = mutableListOf<Triple<Path, Path, Path>>() // final, temp, original
@@ -1032,7 +1031,6 @@ internal fun FileTab.performMultiRenameUndo() {
             }
             for ((_, temp, original) in temps) {
                 Files.move(temp, original)
-                restored.add(original to temp)
             }
             (batch.mapNotNull { it.first.parent } + batch.mapNotNull { it.second.parent })
                 .toSet()
