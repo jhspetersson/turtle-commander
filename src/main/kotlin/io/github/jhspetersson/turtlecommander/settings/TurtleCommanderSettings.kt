@@ -6,6 +6,7 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import com.intellij.util.messages.Topic
+import io.github.jhspetersson.turtlecommander.service.OverwritePolicy
 import java.awt.Color
 import java.awt.Font
 
@@ -200,7 +201,15 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
         var showCommandBar: Boolean = true
         var hideDriveSelector: Boolean = false
         var hideStatusBar: Boolean = false
+        /**
+         * Legacy boolean. Superseded by [defaultOverwritePolicy]. Kept as a field so
+         * IntelliJ XmlSerializer can still read pre-migration settings; the value is
+         * folded into [defaultOverwritePolicy] in [loadState] and then cleared.
+         */
+        @Deprecated("Migrated to defaultOverwritePolicy")
         var alwaysOverwriteFiles: Boolean = false
+        /** One of [OverwritePolicy] names; "ASK" keeps the per-file prompt. */
+        var defaultOverwritePolicy: String = OverwritePolicy.ASK.name
         var deleteToRecycleBin: Boolean = false
         var panelFontFamily: String = ""
         var panelFontSize: Int = 0
@@ -312,6 +321,31 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
 
     override fun loadState(state: State) {
         myState = state
+        migrateOverwritePolicy(state)
+    }
+
+    /**
+     * Pre-existing settings stored the boolean [State.alwaysOverwriteFiles]. After the
+     * richer policy combo landed, the canonical field is [State.defaultOverwritePolicy].
+     * Translate the legacy bool exactly once on load: only when the legacy bool is set
+     * AND the new field is still at its default — otherwise we'd clobber a deliberately
+     * chosen policy with a stale `true` left from before migration.
+     */
+    @Suppress("DEPRECATION")
+    private fun migrateOverwritePolicy(state: State) {
+        if (state.alwaysOverwriteFiles && state.defaultOverwritePolicy == OverwritePolicy.ASK.name) {
+            state.defaultOverwritePolicy = OverwritePolicy.OVERWRITE_ALL.name
+        }
+        state.alwaysOverwriteFiles = false
+    }
+
+    /** Parse [State.defaultOverwritePolicy] as the enum, falling back to ASK on garbage. */
+    fun getDefaultOverwritePolicy(): OverwritePolicy =
+        runCatching { OverwritePolicy.valueOf(myState.defaultOverwritePolicy) }
+            .getOrDefault(OverwritePolicy.ASK)
+
+    fun setDefaultOverwritePolicy(policy: OverwritePolicy) {
+        myState.defaultOverwritePolicy = policy.name
     }
 
     fun fireSettingsChanged() {

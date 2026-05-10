@@ -200,7 +200,7 @@ class XmlSerializationTest {
             showCommandBar = false
             hideDriveSelector = true
             hideStatusBar = true
-            alwaysOverwriteFiles = true
+            defaultOverwritePolicy = "OVERWRITE_ALL"
             sortWithDirectories = true
             calculateDirectorySize = false
         }
@@ -209,7 +209,7 @@ class XmlSerializationTest {
         assertFalse(restored.showCommandBar)
         assertTrue(restored.hideDriveSelector)
         assertTrue(restored.hideStatusBar)
-        assertTrue(restored.alwaysOverwriteFiles)
+        assertEquals("OVERWRITE_ALL", restored.defaultOverwritePolicy)
         assertTrue(restored.sortWithDirectories)
         assertFalse(restored.calculateDirectorySize)
     }

@@ -34,11 +34,7 @@ class MoveDialog(
 
     private val policyCombo = ComboBox(OverwritePolicy.entries.toTypedArray()).apply {
         renderer = OverwritePolicyRenderer
-        item = if (TurtleCommanderSettings.getInstance().state.alwaysOverwriteFiles) {
-            OverwritePolicy.OVERWRITE_ALL
-        } else {
-            OverwritePolicy.ASK
-        }
+        item = TurtleCommanderSettings.getInstance().getDefaultOverwritePolicy()
     }
 
     private val destinationField = JBTextField(destinationDisplayPath)

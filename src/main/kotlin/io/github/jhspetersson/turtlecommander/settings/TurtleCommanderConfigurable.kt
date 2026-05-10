@@ -12,6 +12,8 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
 import com.intellij.util.ui.JBUI
 import io.github.jhspetersson.turtlecommander.dialog.InputDialog
+import io.github.jhspetersson.turtlecommander.dialog.OverwritePolicyRenderer
+import io.github.jhspetersson.turtlecommander.service.OverwritePolicy
 import io.github.jhspetersson.turtlecommander.service.ThumbnailCache
 import io.github.jhspetersson.turtlecommander.util.formatSize
 import java.awt.*
@@ -24,7 +26,7 @@ class TurtleCommanderConfigurable : Configurable {
     private var commandBarCheckBox: JCheckBox? = null
     private var hideDriveSelectorCheckBox: JCheckBox? = null
     private var hideStatusBarCheckBox: JCheckBox? = null
-    private var overwriteCheckBox: JCheckBox? = null
+    private var overwritePolicyCombo: ComboBox<OverwritePolicy>? = null
     private var deleteToRecycleBinCheckBox: JCheckBox? = null
     private var sortWithDirectoriesCheckBox: JCheckBox? = null
     private var calculateDirectorySizeCheckBox: JCheckBox? = null
@@ -55,7 +57,10 @@ class TurtleCommanderConfigurable : Configurable {
         commandBarCheckBox = JCheckBox("Show command bar (F5 Copy, F6 Move, etc.)", settings.showCommandBar)
         hideDriveSelectorCheckBox = JCheckBox("Hide drive selector", settings.hideDriveSelector)
         hideStatusBarCheckBox = JCheckBox("Hide status bar", settings.hideStatusBar)
-        overwriteCheckBox = JCheckBox("Always overwrite existing files during copy/move", settings.alwaysOverwriteFiles)
+        overwritePolicyCombo = ComboBox(OverwritePolicy.entries.toTypedArray()).apply {
+            renderer = OverwritePolicyRenderer
+            selectedItem = TurtleCommanderSettings.getInstance().getDefaultOverwritePolicy()
+        }
         deleteToRecycleBinCheckBox = JCheckBox("Delete to Recycle Bin (Shift+Delete bypasses)", settings.deleteToRecycleBin)
         sortWithDirectoriesCheckBox = JCheckBox("Sort directories together with files", settings.sortWithDirectories)
         calculateDirectorySizeCheckBox = JCheckBox("Calculate directory size on selection", settings.calculateDirectorySize)
@@ -159,7 +164,6 @@ class TurtleCommanderConfigurable : Configurable {
         commandBarCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         hideDriveSelectorCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         hideStatusBarCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
-        overwriteCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         deleteToRecycleBinCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         sortWithDirectoriesCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         calculateDirectorySizeCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
@@ -177,17 +181,23 @@ class TurtleCommanderConfigurable : Configurable {
         rulesEditor.resetFrom(settings)
         colorRulesEditor = rulesEditor
 
+        val overwritePolicyRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
+            alignmentX = JComponent.LEFT_ALIGNMENT
+            add(JBLabel("Default copy/move policy:  "))
+            add(overwritePolicyCombo!!)
+        }
+
         val inner = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             add(highlightingCheckBox)
             add(commandBarCheckBox)
             add(hideDriveSelectorCheckBox)
             add(hideStatusBarCheckBox)
-            add(overwriteCheckBox)
             add(deleteToRecycleBinCheckBox)
             add(sortWithDirectoriesCheckBox)
             add(calculateDirectorySizeCheckBox)
             add(Box.createVerticalStrut(8))
+            add(overwritePolicyRow)
             add(viewModeRow)
             add(layoutRow)
             add(thumbnailRow)
@@ -591,7 +601,7 @@ class TurtleCommanderConfigurable : Configurable {
             || commandBarCheckBox?.isSelected != settings.showCommandBar
             || hideDriveSelectorCheckBox?.isSelected != settings.hideDriveSelector
             || hideStatusBarCheckBox?.isSelected != settings.hideStatusBar
-            || overwriteCheckBox?.isSelected != settings.alwaysOverwriteFiles
+            || (overwritePolicyCombo?.item ?: OverwritePolicy.ASK).name != settings.defaultOverwritePolicy
             || deleteToRecycleBinCheckBox?.isSelected != settings.deleteToRecycleBin
             || sortWithDirectoriesCheckBox?.isSelected != settings.sortWithDirectories
             || calculateDirectorySizeCheckBox?.isSelected != settings.calculateDirectorySize
@@ -619,7 +629,8 @@ class TurtleCommanderConfigurable : Configurable {
         settings.showCommandBar = commandBarCheckBox?.isSelected ?: settings.showCommandBar
         settings.hideDriveSelector = hideDriveSelectorCheckBox?.isSelected ?: settings.hideDriveSelector
         settings.hideStatusBar = hideStatusBarCheckBox?.isSelected ?: settings.hideStatusBar
-        settings.alwaysOverwriteFiles = overwriteCheckBox?.isSelected ?: settings.alwaysOverwriteFiles
+        settings.defaultOverwritePolicy =
+            (overwritePolicyCombo?.item ?: OverwritePolicy.valueOf(settings.defaultOverwritePolicy)).name
         settings.deleteToRecycleBin = deleteToRecycleBinCheckBox?.isSelected ?: settings.deleteToRecycleBin
         settings.sortWithDirectories = sortWithDirectoriesCheckBox?.isSelected ?: settings.sortWithDirectories
         settings.calculateDirectorySize = calculateDirectorySizeCheckBox?.isSelected ?: settings.calculateDirectorySize
@@ -658,7 +669,7 @@ class TurtleCommanderConfigurable : Configurable {
         commandBarCheckBox?.isSelected = settings.showCommandBar
         hideDriveSelectorCheckBox?.isSelected = settings.hideDriveSelector
         hideStatusBarCheckBox?.isSelected = settings.hideStatusBar
-        overwriteCheckBox?.isSelected = settings.alwaysOverwriteFiles
+        overwritePolicyCombo?.item = TurtleCommanderSettings.getInstance().getDefaultOverwritePolicy()
         deleteToRecycleBinCheckBox?.isSelected = settings.deleteToRecycleBin
         sortWithDirectoriesCheckBox?.isSelected = settings.sortWithDirectories
         calculateDirectorySizeCheckBox?.isSelected = settings.calculateDirectorySize
@@ -697,7 +708,7 @@ class TurtleCommanderConfigurable : Configurable {
         commandBarCheckBox = null
         hideDriveSelectorCheckBox = null
         hideStatusBarCheckBox = null
-        overwriteCheckBox = null
+        overwritePolicyCombo = null
         deleteToRecycleBinCheckBox = null
         sortWithDirectoriesCheckBox = null
         calculateDirectorySizeCheckBox = null

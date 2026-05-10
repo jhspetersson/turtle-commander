@@ -34,13 +34,9 @@ class CopyDialog(
 
     private val policyCombo = ComboBox(OverwritePolicy.entries.toTypedArray()).apply {
         renderer = OverwritePolicyRenderer
-        // Preserve the user's "always overwrite" pref as the default when set, otherwise
-        // start on ASK so a fresh install doesn't silently overwrite without prompting.
-        item = if (TurtleCommanderSettings.getInstance().state.alwaysOverwriteFiles) {
-            OverwritePolicy.OVERWRITE_ALL
-        } else {
-            OverwritePolicy.ASK
-        }
+        // Preselect the user's saved default policy. ASK on a fresh install means the
+        // dialog still prompts per file — overwrite-without-asking has to be opted into.
+        item = TurtleCommanderSettings.getInstance().getDefaultOverwritePolicy()
     }
 
     private val destinationField = JBTextField(destinationDisplayPath)

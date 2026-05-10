@@ -25,7 +25,7 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
             it.showCommandBar = s.showCommandBar
             it.hideDriveSelector = s.hideDriveSelector
             it.hideStatusBar = s.hideStatusBar
-            it.alwaysOverwriteFiles = s.alwaysOverwriteFiles
+            it.defaultOverwritePolicy = s.defaultOverwritePolicy
             it.defaultViewMode = s.defaultViewMode
             it.sortWithDirectories = s.sortWithDirectories
             it.calculateDirectorySize = s.calculateDirectorySize
@@ -52,7 +52,7 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
         assertTrue("Command bar should default to visible", state.showCommandBar)
         assertFalse("Drive selector should not be hidden by default", state.hideDriveSelector)
         assertFalse("Status bar should not be hidden by default", state.hideStatusBar)
-        assertFalse("Overwrite should not default to always", state.alwaysOverwriteFiles)
+        assertEquals("Default overwrite policy should be ASK", "ASK", state.defaultOverwritePolicy)
         assertEquals("Default view mode should be TABLE", "TABLE", state.defaultViewMode)
         assertFalse("Sort with directories should default to false", state.sortWithDirectories)
         assertTrue("Calculate directory size should default to true", state.calculateDirectorySize)
@@ -67,7 +67,7 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
         state.showCommandBar = false
         state.hideDriveSelector = true
         state.hideStatusBar = true
-        state.alwaysOverwriteFiles = true
+        state.defaultOverwritePolicy = "OVERWRITE_ALL"
         state.defaultViewMode = "LIST"
         state.sortWithDirectories = true
         state.calculateDirectorySize = false
@@ -77,10 +77,37 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
         assertFalse(settings.state.showCommandBar)
         assertTrue(settings.state.hideDriveSelector)
         assertTrue(settings.state.hideStatusBar)
-        assertTrue(settings.state.alwaysOverwriteFiles)
+        assertEquals("OVERWRITE_ALL", settings.state.defaultOverwritePolicy)
         assertEquals("LIST", settings.state.defaultViewMode)
         assertTrue(settings.state.sortWithDirectories)
         assertFalse(settings.state.calculateDirectorySize)
+    }
+
+    @Suppress("DEPRECATION")
+    fun testLegacyAlwaysOverwriteMigratesToPolicy() {
+        // Pre-migration state: legacy boolean set to true, new field still at its default.
+        val newState = TurtleCommanderSettings.State().apply {
+            alwaysOverwriteFiles = true
+        }
+
+        settings.loadState(newState)
+
+        // loadState's migration step folds the bool into the new field and clears it.
+        assertEquals("OVERWRITE_ALL", settings.state.defaultOverwritePolicy)
+        assertFalse("legacy bool should be cleared after migration", settings.state.alwaysOverwriteFiles)
+    }
+
+    @Suppress("DEPRECATION")
+    fun testLegacyAlwaysOverwriteDoesNotClobberExplicitPolicy() {
+        // If the user already saved a non-default policy, the legacy bool must not win.
+        val newState = TurtleCommanderSettings.State().apply {
+            alwaysOverwriteFiles = true
+            defaultOverwritePolicy = "SKIP_ALL"
+        }
+
+        settings.loadState(newState)
+
+        assertEquals("SKIP_ALL", settings.state.defaultOverwritePolicy)
     }
 
     fun testLoadStateOverwritesExisting() {
