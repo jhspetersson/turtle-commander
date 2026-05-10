@@ -1,5 +1,7 @@
 package io.github.jhspetersson.turtlecommander.ui
 
+import com.intellij.ide.util.DeleteHandler
+import com.intellij.notification.NotificationAction.createSimpleExpiring
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.EDT
@@ -7,11 +9,10 @@ import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.ui.Messages
-import io.github.jhspetersson.turtlecommander.dialog.InputDialog
-import com.intellij.ide.util.DeleteHandler
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
@@ -205,8 +206,7 @@ internal fun allUnderProjectBase(paths: List<Path>, basePathStr: String?): Boole
     val basePath = basePathStr?.let {
         runCatching { Path.of(it).toAbsolutePath().normalize() }.getOrNull()
     } ?: return false
-    if (paths.isEmpty()) return false
-    return paths.all { p ->
+    return paths.isNotEmpty() && paths.all { p ->
         runCatching { p.toAbsolutePath().normalize().startsWith(basePath) }.getOrDefault(false)
     }
 }
@@ -490,30 +490,10 @@ internal fun FileTab.performPack() {
     var appendToExisting = false
 
     if (archiveExists) {
-        val options = if (format == ArchiveFormat.ZIP) {
-            arrayOf("Overwrite", "Add to Existing", "Cancel")
-        } else {
-            arrayOf("Overwrite", "Cancel")
-        }
-        val result = Messages.showDialog(
-            project,
-            "Archive already exists:\n${archivePath.fileName}\n\nWhat would you like to do?",
-            "Archive Exists",
-            options,
-            0,
-            Messages.getQuestionIcon(),
-        )
-        if (format == ArchiveFormat.ZIP) {
-            when (result) {
-                0 -> {} // overwrite
-                1 -> appendToExisting = true
-                else -> return
-            }
-        } else {
-            when (result) {
-                0 -> {} // overwrite
-                else -> return
-            }
+        when (askArchiveExistsAction(project, archivePath, format)) {
+            ArchiveExistsAction.OVERWRITE -> {}
+            ArchiveExistsAction.APPEND -> appendToExisting = true
+            ArchiveExistsAction.CANCEL -> return
         }
     }
 
@@ -994,7 +974,7 @@ private fun FileTab.runMultiRename(pairs: List<Pair<FileEntry, String>>) {
                 NotificationGroupManager.getInstance()
                     .getNotificationGroup("Turtle Commander")
                     .createNotification(content, NotificationType.INFORMATION)
-                    .addAction(com.intellij.notification.NotificationAction.createSimpleExpiring("Undo") {
+                    .addAction(createSimpleExpiring("Undo") {
                         tab.performMultiRenameUndo()
                     })
                     .notify(project)
@@ -1049,6 +1029,45 @@ private fun uniqueTemp(parent: Path, seed: String): Path {
         val candidate = parent.resolve(".tc-multirename-$seed.$i.tmp")
         if (!Files.exists(candidate)) return candidate
         i++
+    }
+}
+
+/**
+ * Outcome of the "archive already exists" prompt in [performPack]. Distinct from the
+ * raw button index so the dispatch in performPack reads as a typed three-way decision
+ * regardless of which format-specific button set was actually shown.
+ */
+private enum class ArchiveExistsAction { OVERWRITE, APPEND, CANCEL }
+
+/**
+ * Show the "archive already exists" dialog and translate the chosen button into
+ * an [ArchiveExistsAction]. Append is only offered for formats that support it
+ * (currently ZIP); for other formats the dialog is reduced to Overwrite / Cancel
+ * and "1" maps to Cancel rather than Append.
+ */
+private fun askArchiveExistsAction(
+    project: Project,
+    archivePath: Path,
+    format: ArchiveFormat,
+): ArchiveExistsAction {
+    val supportsAppend = format == ArchiveFormat.ZIP
+    val options = if (supportsAppend) {
+        arrayOf("Overwrite", "Add to Existing", "Cancel")
+    } else {
+        arrayOf("Overwrite", "Cancel")
+    }
+    val result = Messages.showDialog(
+        project,
+        "Archive already exists:\n${archivePath.fileName}\n\nWhat would you like to do?",
+        "Archive Exists",
+        options,
+        0,
+        Messages.getQuestionIcon(),
+    )
+    return when {
+        result == 0 -> ArchiveExistsAction.OVERWRITE
+        result == 1 && supportsAppend -> ArchiveExistsAction.APPEND
+        else -> ArchiveExistsAction.CANCEL
     }
 }
 
