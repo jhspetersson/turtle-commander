@@ -21,6 +21,7 @@ import io.github.jhspetersson.turtlecommander.operation.CombineFilesOperation
 import io.github.jhspetersson.turtlecommander.operation.SplitFileOperation
 import io.github.jhspetersson.turtlecommander.service.ArchiveService
 import io.github.jhspetersson.turtlecommander.service.OverwriteResponse
+import io.github.jhspetersson.turtlecommander.service.VfsTempCleanup
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.util.countFiles
 import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
@@ -754,6 +755,25 @@ internal fun FileTab.openFile(entry: FileEntry) {
     }
 }
 
+/**
+ * Copy a VFS-internal file out to a fresh local temp directory so external code
+ * (LocalFileSystem-backed editors, the OS file association handler) can see a
+ * real path. Marks both the temp file and its parent dir for delete-on-exit and
+ * runs the periodic stale-temp sweep so abandoned previous extractions don't
+ * accumulate. [prefix] disambiguates the dir name purely for forensic use when
+ * a leak shows up in /var/folders or %TEMP%.
+ */
+private suspend fun materializeVfsEntryToTemp(entry: FileEntry, prefix: String): Path =
+    withContext(Dispatchers.IO) {
+        VfsTempCleanup.cleanupOnce()
+        val tempDir = Files.createTempDirectory(prefix)
+        val tempPath = tempDir.resolve(entry.path.fileName.toString())
+        Files.copy(entry.path, tempPath)
+        tempPath.toFile().deleteOnExit()
+        tempDir.toFile().deleteOnExit()
+        tempPath
+    }
+
 private fun FileTab.openVfsFileReadOnly(entry: FileEntry) {
     val vfs = currentVfs ?: return
     val isTempDirVfs = vfs !is ZipVirtualFileSystem
@@ -762,17 +782,7 @@ private fun FileTab.openVfsFileReadOnly(entry: FileEntry) {
             val filePath = if (isTempDirVfs) {
                 entry.path
             } else {
-                val tempDir = withContext(Dispatchers.IO) {
-                    io.github.jhspetersson.turtlecommander.service.VfsTempCleanup.cleanupOnce()
-                    Files.createTempDirectory("turtle-vfs-view-")
-                }
-                val tempPath = tempDir.resolve(entry.path.fileName.toString())
-                withContext(Dispatchers.IO) {
-                    Files.copy(entry.path, tempPath)
-                }
-                tempPath.toFile().deleteOnExit()
-                tempDir.toFile().deleteOnExit()
-                tempPath
+                materializeVfsEntryToTemp(entry, "turtle-vfs-view-")
             }
             val virtualFile = withContext(Dispatchers.IO) {
                 val vf = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(filePath)
@@ -794,16 +804,7 @@ private fun FileTab.openVfsFileEditable(entry: FileEntry) {
     val stackRef = vfsStack.toMutableList()
     fileOps.launch {
         try {
-            val tempDir = withContext(Dispatchers.IO) {
-                io.github.jhspetersson.turtlecommander.service.VfsTempCleanup.cleanupOnce()
-                Files.createTempDirectory("turtle-vfs-edit-")
-            }
-            val tempPath = tempDir.resolve(entry.path.fileName.toString())
-            withContext(Dispatchers.IO) {
-                Files.copy(entry.path, tempPath)
-            }
-            tempPath.toFile().deleteOnExit()
-            tempDir.toFile().deleteOnExit()
+            val tempPath = materializeVfsEntryToTemp(entry, "turtle-vfs-edit-")
             val virtualFile = withContext(Dispatchers.IO) {
                 val vf = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(tempPath)
                 vf?.fileType
@@ -842,15 +843,7 @@ internal fun FileTab.openSelectedInAssociatedApp() {
         fileOps.launch {
             try {
                 val filePath = if (isZipVfs) {
-                    val tempDir = withContext(Dispatchers.IO) {
-                        io.github.jhspetersson.turtlecommander.service.VfsTempCleanup.cleanupOnce()
-                        Files.createTempDirectory("turtle-vfs-app-")
-                    }
-                    val tempPath = tempDir.resolve(entry.path.fileName.toString())
-                    withContext(Dispatchers.IO) { Files.copy(entry.path, tempPath) }
-                    tempPath.toFile().deleteOnExit()
-                    tempDir.toFile().deleteOnExit()
-                    tempPath
+                    materializeVfsEntryToTemp(entry, "turtle-vfs-app-")
                 } else {
                     entry.path
                 }
