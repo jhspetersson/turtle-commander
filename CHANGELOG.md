@@ -7,6 +7,7 @@
 ### Added
 
 - Properties / Get Info context menu
+- More overwrite options for `Copy` and `Move` actions
 
 ### Fixed
 
