@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-05-11
+
 ### Added
 
 - Properties / Get Info context menu
