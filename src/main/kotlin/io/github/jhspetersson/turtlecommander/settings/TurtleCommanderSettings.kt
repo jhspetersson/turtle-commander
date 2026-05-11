@@ -17,6 +17,32 @@ interface TurtleCommanderSettingsListener {
 enum class PanelLayout { HORIZONTAL, VERTICAL, SINGLE }
 
 /**
+ * Human-readable file size rendering options. The two auto modes are kept
+ * deliberately distinct — different divisor *and* different labels — so users can
+ * see at a glance which one they picked:
+ *
+ *  - [AUTO_BINARY]: 1024-based with standards-correct binary prefixes
+ *    "KiB / MiB / GiB / TiB". Default.
+ *  - [AUTO_SI]:     1000-based with SI prefixes "kB / MB / GB / TB" — what disk
+ *    vendors and most non-OS tooling use.
+ *  - [BYTES]:       no scaling, comma-grouped raw byte count (e.g. `1,234,567 B`).
+ */
+enum class FileSizeFormat(val label: String) {
+    AUTO_BINARY("Auto — 1024-based (KiB, MiB, GiB)"),
+    AUTO_SI("Auto — 1000-based (kB, MB, GB)"),
+    BYTES("Bytes (raw)");
+
+    companion object {
+        const val DEFAULT_NAME = "AUTO_BINARY"
+        fun fromName(name: String): FileSizeFormat =
+            entries.firstOrNull { it.name == name } ?: AUTO_BINARY
+    }
+}
+
+/** Default pattern for date/time columns. Matches the historical hardcoded value. */
+const val DEFAULT_DATE_TIME_FORMAT = "yyyy-MM-dd HH:mm"
+
+/**
  * Preset sizes for the Thumbnail view's cells.
  *
  * - [displaySize] is the icon's logical size in the cell.
@@ -220,6 +246,8 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
         var calculateDirectorySize: Boolean = true
         var panelLayout: String = PanelLayout.HORIZONTAL.name
         var thumbnailSize: String = ThumbnailSize.SMALL.name
+        var fileSizeFormat: String = FileSizeFormat.DEFAULT_NAME
+        var dateTimeFormat: String = DEFAULT_DATE_TIME_FORMAT
 
         var styles: StyleSet = StyleSet()
         var themeName: String = ""
@@ -343,6 +371,15 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
     fun getDefaultOverwritePolicy(): OverwritePolicy =
         runCatching { OverwritePolicy.valueOf(myState.defaultOverwritePolicy) }
             .getOrDefault(OverwritePolicy.ASK)
+
+    fun getFileSizeFormat(): FileSizeFormat = FileSizeFormat.fromName(myState.fileSizeFormat)
+
+    /**
+     * Returns the user-configured date/time pattern, or [DEFAULT_DATE_TIME_FORMAT] when
+     * the stored value is blank. The pattern is *not* validated here — callers must
+     * tolerate `DateTimeFormatter.ofPattern` rejecting it.
+     */
+    fun getDateTimeFormat(): String = myState.dateTimeFormat.ifBlank { DEFAULT_DATE_TIME_FORMAT }
 
     fun setDefaultOverwritePolicy(policy: OverwritePolicy) {
         myState.defaultOverwritePolicy = policy.name

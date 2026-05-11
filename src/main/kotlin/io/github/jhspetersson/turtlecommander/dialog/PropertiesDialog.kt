@@ -11,6 +11,7 @@ import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.JBUI
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.ui.installStandardContextMenu
+import io.github.jhspetersson.turtlecommander.util.DateTimeFormatters
 import io.github.jhspetersson.turtlecommander.util.formatSize
 import java.awt.BorderLayout
 import java.awt.Dimension
@@ -21,7 +22,6 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.SimpleFileVisitor
 import java.nio.file.attribute.BasicFileAttributes
-import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.swing.Action
@@ -187,6 +187,6 @@ class PropertiesDialog(
 
     private fun formatTime(millis: Long?): String {
         if (millis == null || millis <= 0) return "-"
-        return SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Date(millis))
+        return DateTimeFormatters.format(millis)
     }
 }

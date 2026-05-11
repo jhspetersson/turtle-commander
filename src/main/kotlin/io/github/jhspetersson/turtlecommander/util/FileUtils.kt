@@ -1,5 +1,7 @@
 package io.github.jhspetersson.turtlecommander.util
 
+import io.github.jhspetersson.turtlecommander.settings.FileSizeFormat
+import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
@@ -8,6 +10,7 @@ import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.DosFileAttributes
 import java.nio.file.attribute.PosixFileAttributeView
 import java.nio.file.attribute.PosixFilePermissions
+import java.util.Locale
 
 suspend fun countFiles(sources: List<Path>): Int = withContext(Dispatchers.IO) {
     var count = 0
@@ -60,16 +63,36 @@ fun fileErrorMessage(error: Exception): String {
     }
 }
 
+/**
+ * Default-overload caller. Reads the user-configured [FileSizeFormat] from settings,
+ * falling back to [FileSizeFormat.AUTO_BINARY] when the application service isn't
+ * available (e.g. headless unit tests). The fallback matches the historical hardcoded
+ * behavior so existing tests and external consumers see unchanged output by default.
+ */
 fun formatSize(bytes: Long): String {
-    if (bytes < 1024) return "$bytes B"
-    val kb = bytes / 1024.0
-    if (kb < 1024) return "%.1f KB".format(kb)
-    val mb = kb / 1024.0
-    if (mb < 1024) return "%.1f MB".format(mb)
-    val gb = mb / 1024.0
-    if (gb < 1024) return "%.1f GB".format(gb)
-    val tb = gb / 1024.0
-    return "%.1f TB".format(tb)
+    val format = runCatching { TurtleCommanderSettings.getInstance().getFileSizeFormat() }
+        .getOrDefault(FileSizeFormat.AUTO_BINARY)
+    return formatSize(bytes, format)
+}
+
+fun formatSize(bytes: Long, format: FileSizeFormat): String = when (format) {
+    FileSizeFormat.BYTES -> "%,d".format(bytes)
+    FileSizeFormat.AUTO_BINARY -> autoFormatSize(bytes, 1024.0, BINARY_UNITS)
+    FileSizeFormat.AUTO_SI -> autoFormatSize(bytes, 1000.0, SI_UNITS)
+}
+
+private val BINARY_UNITS = arrayOf("B", "KiB", "MiB", "GiB", "TiB")
+private val SI_UNITS = arrayOf("B", "kB", "MB", "GB", "TB")
+
+private fun autoFormatSize(bytes: Long, base: Double, units: Array<String>): String {
+    if (bytes < base) return "$bytes ${units[0]}"
+    var size = bytes / base
+    var i = 1
+    while (size >= base && i < units.size - 1) {
+        size /= base
+        i++
+    }
+    return String.format(Locale.ROOT, "%.1f %s", size, units[i])
 }
 
 fun readFileOwner(path: Path): String {

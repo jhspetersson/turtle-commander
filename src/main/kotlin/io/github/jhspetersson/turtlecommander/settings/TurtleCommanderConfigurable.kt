@@ -10,6 +10,7 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
+import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
 import io.github.jhspetersson.turtlecommander.dialog.InputDialog
 import io.github.jhspetersson.turtlecommander.dialog.OverwritePolicyRenderer
@@ -18,7 +19,12 @@ import io.github.jhspetersson.turtlecommander.service.ThumbnailCache
 import io.github.jhspetersson.turtlecommander.util.formatSize
 import java.awt.*
 import java.io.File
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import javax.swing.*
+import javax.swing.event.DocumentEvent
+import javax.swing.event.DocumentListener
 
 class TurtleCommanderConfigurable : Configurable {
 
@@ -33,6 +39,9 @@ class TurtleCommanderConfigurable : Configurable {
     private var defaultViewModeCombo: ComboBox<String>? = null
     private var panelLayoutCombo: ComboBox<String>? = null
     private var thumbnailSizeCombo: ComboBox<ThumbnailSize>? = null
+    private var fileSizeFormatCombo: ComboBox<FileSizeFormat>? = null
+    private var dateTimeFormatField: JBTextField? = null
+    private var dateTimePreviewLabel: JBLabel? = null
     private var columnsEditor: ColumnsEditor? = null
     private var favoritesEditor: FavoritesEditor? = null
     private var colorRulesEditor: ColorRulesEditor? = null
@@ -93,6 +102,31 @@ class TurtleCommanderConfigurable : Configurable {
                 }
             }
         }
+
+        fileSizeFormatCombo = ComboBox(DefaultComboBoxModel(FileSizeFormat.entries.toTypedArray())).apply {
+            selectedItem = FileSizeFormat.fromName(settings.fileSizeFormat)
+            renderer = object : DefaultListCellRenderer() {
+                override fun getListCellRendererComponent(
+                    list: JList<*>?, value: Any?, index: Int,
+                    isSelected: Boolean, cellHasFocus: Boolean,
+                ): Component {
+                    val c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
+                    if (value is FileSizeFormat) text = value.label
+                    return c
+                }
+            }
+        }
+
+        dateTimePreviewLabel = JBLabel("")
+        dateTimeFormatField = JBTextField(settings.dateTimeFormat.ifBlank { DEFAULT_DATE_TIME_FORMAT }, 20).apply {
+            toolTipText = "Java DateTimeFormatter pattern, e.g. yyyy-MM-dd HH:mm, dd/MM/yyyy, MMM d yyyy h:mm a"
+            document.addDocumentListener(object : DocumentListener {
+                override fun insertUpdate(e: DocumentEvent?) = updateDateTimePreview()
+                override fun removeUpdate(e: DocumentEvent?) = updateDateTimePreview()
+                override fun changedUpdate(e: DocumentEvent?) = updateDateTimePreview()
+            })
+        }
+        updateDateTimePreview()
 
         val defaultLabel = "(Default)"
         val fontItems = arrayOf(defaultLabel) + fontFamilies
@@ -156,6 +190,20 @@ class TurtleCommanderConfigurable : Configurable {
             add(clearCacheButton)
         }
 
+        val fileSizeFormatRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
+            alignmentX = JComponent.LEFT_ALIGNMENT
+            add(JBLabel("File size format:  "))
+            add(fileSizeFormatCombo!!)
+        }
+
+        val dateTimeFormatRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
+            alignmentX = JComponent.LEFT_ALIGNMENT
+            add(JBLabel("Date/time format:  "))
+            add(dateTimeFormatField!!)
+            add(Box.createHorizontalStrut(8))
+            add(dateTimePreviewLabel!!)
+        }
+
         val appearancePanel = createAppearancePanel(
             listOf(tabEditor, driveSelectorEditor, pathBarEditor, columnHeaderEditor, panelEditor, statusBarEditor, commandBarEditor, commandButtonEditor)
         )
@@ -201,6 +249,8 @@ class TurtleCommanderConfigurable : Configurable {
             add(viewModeRow)
             add(layoutRow)
             add(thumbnailRow)
+            add(fileSizeFormatRow)
+            add(dateTimeFormatRow)
             add(Box.createVerticalStrut(8))
             add(appearancePanel)
             add(Box.createVerticalStrut(8))
@@ -608,6 +658,8 @@ class TurtleCommanderConfigurable : Configurable {
             || getSelectedViewMode() != settings.defaultViewMode
             || getSelectedPanelLayout() != settings.panelLayout
             || getSelectedThumbnailSize() != settings.thumbnailSize
+            || getSelectedFileSizeFormat() != settings.fileSizeFormat
+            || getEnteredDateTimeFormat() != settings.dateTimeFormat
             || styleEditors["panel"]?.isModified(settings.styles.panelStyle, effectivePanelFamily(settings), effectivePanelSize(settings)) == true
             || styleEditors["tab"]?.isModified(settings.styles.tabStyle, effectiveTabFamily(settings), effectiveTabSize(settings)) == true
             || styleEditors["pathBar"]?.isModified(settings.styles.pathBarStyle) == true
@@ -637,6 +689,8 @@ class TurtleCommanderConfigurable : Configurable {
         settings.defaultViewMode = getSelectedViewMode()
         settings.panelLayout = getSelectedPanelLayout()
         settings.thumbnailSize = getSelectedThumbnailSize()
+        settings.fileSizeFormat = getSelectedFileSizeFormat()
+        settings.dateTimeFormat = getEnteredDateTimeFormat()
 
         styleEditors["panel"]?.applyTo(settings.styles.panelStyle)
         styleEditors["tab"]?.applyTo(settings.styles.tabStyle)
@@ -681,6 +735,9 @@ class TurtleCommanderConfigurable : Configurable {
         }
         panelLayoutCombo?.selectedItem = layoutLabelFor(settings.panelLayout)
         thumbnailSizeCombo?.selectedItem = ThumbnailSize.fromName(settings.thumbnailSize)
+        fileSizeFormatCombo?.selectedItem = FileSizeFormat.fromName(settings.fileSizeFormat)
+        dateTimeFormatField?.text = settings.dateTimeFormat.ifBlank { DEFAULT_DATE_TIME_FORMAT }
+        updateDateTimePreview()
 
         styleEditors["panel"]?.resetFrom(settings.styles.panelStyle, effectivePanelFamily(settings), effectivePanelSize(settings))
         styleEditors["tab"]?.resetFrom(settings.styles.tabStyle, effectiveTabFamily(settings), effectiveTabSize(settings))
@@ -719,6 +776,9 @@ class TurtleCommanderConfigurable : Configurable {
         defaultViewModeCombo = null
         panelLayoutCombo = null
         thumbnailSizeCombo = null
+        fileSizeFormatCombo = null
+        dateTimeFormatField = null
+        dateTimePreviewLabel = null
         columnsEditor = null
         favoritesEditor = null
         colorRulesEditor = null
@@ -763,6 +823,32 @@ class TurtleCommanderConfigurable : Configurable {
     private fun getSelectedThumbnailSize(): String {
         val selected = thumbnailSizeCombo?.selectedItem as? ThumbnailSize ?: ThumbnailSize.SMALL
         return selected.name
+    }
+
+    private fun getSelectedFileSizeFormat(): String {
+        val selected = fileSizeFormatCombo?.selectedItem as? FileSizeFormat ?: FileSizeFormat.AUTO_BINARY
+        return selected.name
+    }
+
+    private fun getEnteredDateTimeFormat(): String {
+        val text = dateTimeFormatField?.text?.trim().orEmpty()
+        return text.ifEmpty { DEFAULT_DATE_TIME_FORMAT }
+    }
+
+    /**
+     * Render a sample timestamp next to the pattern field so the user gets immediate
+     * feedback on what the rendered date will look like — and an inline error when
+     * the pattern doesn't parse rather than waiting for apply().
+     */
+    private fun updateDateTimePreview() {
+        val label = dateTimePreviewLabel ?: return
+        val pattern = dateTimeFormatField?.text?.trim().orEmpty().ifEmpty { DEFAULT_DATE_TIME_FORMAT }
+        val sample = Instant.parse("2023-11-14T22:13:20Z").toEpochMilli()
+        val text = runCatching {
+            DateTimeFormatter.ofPattern(pattern).withZone(ZoneId.systemDefault())
+                .format(Instant.ofEpochMilli(sample))
+        }.getOrElse { "invalid pattern" }
+        label.text = "→ $text"
     }
 
     private fun layoutLabelFor(name: String): String = when (name) {

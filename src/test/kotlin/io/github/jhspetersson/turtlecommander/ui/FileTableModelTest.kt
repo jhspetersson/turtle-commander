@@ -153,21 +153,21 @@ class FileTableModelTest {
     }
 
     @Test
-    fun testDisplaySizeKB() {
+    fun testDisplaySizeKiB() {
         model.setEntries(listOf(fileEntry("file.txt", size = 2048)))
-        assertEquals("2.0 KB", model.getDisplayValue(0, FileTableModel.COL_SIZE))
+        assertEquals("2.0 KiB", model.getDisplayValue(0, FileTableModel.COL_SIZE))
     }
 
     @Test
-    fun testDisplaySizeMB() {
+    fun testDisplaySizeMiB() {
         model.setEntries(listOf(fileEntry("file.txt", size = 5 * 1024 * 1024)))
-        assertEquals("5.0 MB", model.getDisplayValue(0, FileTableModel.COL_SIZE))
+        assertEquals("5.0 MiB", model.getDisplayValue(0, FileTableModel.COL_SIZE))
     }
 
     @Test
-    fun testDisplaySizeGB() {
+    fun testDisplaySizeGiB() {
         model.setEntries(listOf(fileEntry("file.txt", size = 2L * 1024 * 1024 * 1024)))
-        assertEquals("2.0 GB", model.getDisplayValue(0, FileTableModel.COL_SIZE))
+        assertEquals("2.0 GiB", model.getDisplayValue(0, FileTableModel.COL_SIZE))
     }
 
     @Test
