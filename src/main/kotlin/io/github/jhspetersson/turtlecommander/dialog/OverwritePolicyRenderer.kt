@@ -7,7 +7,7 @@ import javax.swing.JList
 
 /**
  * Maps the [OverwritePolicy] enum to user-facing labels for the Copy / Move / Extract
- * default-policy combo box. Centralised so the four call sites use the exact same
+ * default-policy combo box. Centralized so the four call sites use the exact same
  * wording.
  */
 internal object OverwritePolicyRenderer : DefaultListCellRenderer() {

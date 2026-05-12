@@ -51,57 +51,47 @@ class SevenZUnsupportedCoderTest {
     @Test
     fun `multi-stream coder message matches`() {
         val vfs = newVfs()
-        try {
+        vfs.use { vfs ->
             assertTrue(vfs.looksLikeUnsupportedCoder(IOException("Multi input/output stream coders are not yet supported")))
-        } finally {
-            vfs.close()
         }
     }
 
     @Test
     fun `unsupported compression method message matches`() {
         val vfs = newVfs()
-        try {
+        vfs.use { vfs ->
             assertTrue(vfs.looksLikeUnsupportedCoder(IOException("Unsupported compression method [33] used in foo.7z")))
             assertTrue(vfs.looksLikeUnsupportedCoder(IOException("Unsupported compression method LZMA2")))
-        } finally {
-            vfs.close()
         }
     }
 
     @Test
     fun `BCJ filter without XZ-for-Java message matches`() {
         val vfs = newVfs()
-        try {
+        vfs.use { vfs ->
             assertTrue(
                 vfs.looksLikeUnsupportedCoder(
                     IOException("BCJ filter used in foo.7z needs XZ for Java > 1.4 - see https://commons.apache.org/proper/commons-compress/limitations.html"),
                 ),
             )
-        } finally {
-            vfs.close()
         }
     }
 
     @Test
     fun `library-level feature gaps match`() {
         val vfs = newVfs()
-        try {
+        vfs.use { vfs ->
             assertTrue(vfs.looksLikeUnsupportedCoder(IOException("Alternative methods are unsupported, please report.")))
             assertTrue(vfs.looksLikeUnsupportedCoder(IOException("Additional streams unsupported")))
-        } finally {
-            vfs.close()
         }
     }
 
     @Test
     fun `unrelated IO error does not match`() {
         val vfs = newVfs()
-        try {
+        vfs.use { vfs ->
             assertFalse(vfs.looksLikeUnsupportedCoder(IOException("Disk full")))
             assertFalse(vfs.looksLikeUnsupportedCoder(IOException("CRC mismatch")))
-        } finally {
-            vfs.close()
         }
     }
 }

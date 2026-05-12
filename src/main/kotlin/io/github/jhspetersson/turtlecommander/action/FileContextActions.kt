@@ -321,8 +321,7 @@ class CombineFilesAction : AnAction(), DumbAware {
 
     private fun isSplitChunkOrCrc(name: String): Boolean {
         val ext = name.substringAfterLast('.', "")
-        if (ext == "crc") return true
-        return ext.length in 3..6 && ext.all { it.isDigit() }
+        return ext == "crc" || ext.length in 3..6 && ext.all { it.isDigit() }
     }
 }
 

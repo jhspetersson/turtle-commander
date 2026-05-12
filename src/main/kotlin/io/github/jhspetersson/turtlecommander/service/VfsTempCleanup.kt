@@ -48,8 +48,7 @@ internal object VfsTempCleanup {
     }
 
     private fun deleteRecursive(path: Path): Boolean {
-        if (!Files.exists(path)) return false
-        return runCatching {
+        return Files.exists(path) && runCatching {
             Files.walk(path).use { stream ->
                 stream.sorted(Comparator.reverseOrder()).forEach { runCatching { Files.deleteIfExists(it) } }
             }

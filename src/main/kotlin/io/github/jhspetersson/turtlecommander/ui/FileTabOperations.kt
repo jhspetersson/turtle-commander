@@ -9,9 +9,9 @@ import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.project.Project
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.psi.PsiElement
@@ -1068,9 +1068,9 @@ private fun askArchiveExistsAction(
         0,
         Messages.getQuestionIcon(),
     )
-    return when {
-        result == 0 -> ArchiveExistsAction.OVERWRITE
-        result == 1 && supportsAppend -> ArchiveExistsAction.APPEND
+    return when (result) {
+        0 -> ArchiveExistsAction.OVERWRITE
+        1 if supportsAppend -> ArchiveExistsAction.APPEND
         else -> ArchiveExistsAction.CANCEL
     }
 }

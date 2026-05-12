@@ -1555,8 +1555,7 @@ class FileTab(
     }
 
     private fun isEntryBrowsableArchive(entry: FileEntry): Boolean {
-        if (entry.isDirectory || entry.isParentLink) return false
-        return if (currentVfs != null) {
+        return !(entry.isDirectory || entry.isParentLink) && if (currentVfs != null) {
             VirtualFileSystemRegistry.supportsByExtension(entry.name)
         } else {
             VirtualFileSystemRegistry.supports(entry.path)
@@ -1777,8 +1776,7 @@ class FileTab(
 }
 
 fun isArchiveFile(entry: FileEntry): Boolean {
-    if (entry.isDirectory) return false
-    return VirtualFileSystemRegistry.supportsByExtension(entry.name)
+    return !entry.isDirectory && VirtualFileSystemRegistry.supportsByExtension(entry.name)
 }
 
 fun fileEntryIcon(

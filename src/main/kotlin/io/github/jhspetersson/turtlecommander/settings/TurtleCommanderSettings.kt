@@ -77,8 +77,7 @@ class ColumnConfig {
     var style: ComponentStyle = ComponentStyle()
 
     override fun equals(other: Any?): Boolean {
-        if (other !is ColumnConfig) return false
-        return id == other.id && visible == other.visible && style == other.style
+        return other is ColumnConfig && id == other.id && visible == other.visible && style == other.style
     }
 
     override fun hashCode(): Int {
@@ -148,12 +147,11 @@ class ComponentStyle {
             && selectedColor.isEmpty() && activeSelectedColor.isEmpty()
 
     override fun equals(other: Any?): Boolean {
-        if (other !is ComponentStyle) return false
-        return fontFamily == other.fontFamily && fontSize == other.fontSize
-            && fontStyle == other.fontStyle && fontColor == other.fontColor
-            && backgroundColor == other.backgroundColor
-            && selectedColor == other.selectedColor
-            && activeSelectedColor == other.activeSelectedColor
+        return other is ComponentStyle && (fontFamily == other.fontFamily && fontSize == other.fontSize
+                && fontStyle == other.fontStyle && fontColor == other.fontColor
+                && backgroundColor == other.backgroundColor
+                && selectedColor == other.selectedColor
+                && activeSelectedColor == other.activeSelectedColor)
     }
 
     override fun hashCode(): Int {
@@ -190,11 +188,10 @@ class StyleSet {
     }
 
     override fun equals(other: Any?): Boolean {
-        if (other !is StyleSet) return false
-        return panelStyle == other.panelStyle && tabStyle == other.tabStyle
-            && pathBarStyle == other.pathBarStyle && statusBarStyle == other.statusBarStyle
-            && commandBarStyle == other.commandBarStyle && commandButtonStyle == other.commandButtonStyle
-            && driveSelectorStyle == other.driveSelectorStyle && columnHeaderStyle == other.columnHeaderStyle
+        return other is StyleSet && (panelStyle == other.panelStyle && tabStyle == other.tabStyle
+                && pathBarStyle == other.pathBarStyle && statusBarStyle == other.statusBarStyle
+                && commandBarStyle == other.commandBarStyle && commandButtonStyle == other.commandButtonStyle
+                && driveSelectorStyle == other.driveSelectorStyle && columnHeaderStyle == other.columnHeaderStyle)
     }
 
     override fun hashCode(): Int {
@@ -380,10 +377,6 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
      * tolerate `DateTimeFormatter.ofPattern` rejecting it.
      */
     fun getDateTimeFormat(): String = myState.dateTimeFormat.ifBlank { DEFAULT_DATE_TIME_FORMAT }
-
-    fun setDefaultOverwritePolicy(policy: OverwritePolicy) {
-        myState.defaultOverwritePolicy = policy.name
-    }
 
     fun fireSettingsChanged() {
         ApplicationManager.getApplication().messageBus
