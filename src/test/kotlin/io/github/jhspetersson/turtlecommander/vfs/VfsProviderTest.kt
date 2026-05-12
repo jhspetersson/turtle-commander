@@ -30,6 +30,32 @@ class VfsProviderTest {
     }
 
     @Test
+    fun `zip provider supports office open xml extensions`() {
+        assertTrue(zipProvider.supportsExtension("docx"))
+        assertTrue(zipProvider.supportsExtension("xlsx"))
+        assertTrue(zipProvider.supportsExtension("pptx"))
+    }
+
+    @Test
+    fun `zip provider supports opendocument extensions`() {
+        assertTrue(zipProvider.supportsExtension("odt"))
+        assertTrue(zipProvider.supportsExtension("ods"))
+        assertTrue(zipProvider.supportsExtension("odp"))
+        assertTrue(zipProvider.supportsExtension("odg"))
+    }
+
+    @Test
+    fun `zip provider supports ebook extensions`() {
+        assertTrue(zipProvider.supportsExtension("epub"))
+        assertTrue(zipProvider.supportsExtension("cbz"))
+    }
+
+    @Test
+    fun `zip provider supports nupkg extension`() {
+        assertTrue(zipProvider.supportsExtension("nupkg"))
+    }
+
+    @Test
     fun `zip provider does not support tar`() {
         assertFalse(zipProvider.supportsExtension("tar"))
     }

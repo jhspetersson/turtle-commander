@@ -17,7 +17,18 @@ import java.nio.file.attribute.BasicFileAttributes
 
 class ZipFileSystemProvider : VirtualFileSystemProvider {
     companion object {
-        val ARCHIVE_EXTENSIONS = setOf("zip", "jar", "war", "ear", "apk", "aar", "apkg")
+        val ARCHIVE_EXTENSIONS = setOf(
+            // Plain ZIP and Java/Android variants
+            "zip", "jar", "war", "ear", "apk", "aar", "apkg",
+            // Microsoft Office Open XML
+            "docx", "xlsx", "pptx",
+            // OpenDocument
+            "odt", "ods", "odp", "odg",
+            // eBooks / comics
+            "epub", "cbz",
+            // NuGet
+            "nupkg",
+        )
     }
 
     override fun supportsExtension(ext: String): Boolean {

@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### Added
+
+- Recognize ZIP-based document, eBook, and package formats as browsable archives: Office Open XML
+  (`.docx`, `.xlsx`, `.pptx`), OpenDocument (`.odt`, `.ods`, `.odp`, `.odg`), eBooks (`.epub`),
+  comic-book archives (`.cbz`), and NuGet packages (`.nupkg`)
+
 ## [0.5.5] - 2026-05-12
 
 ### Added
