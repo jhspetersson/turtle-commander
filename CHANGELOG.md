@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-05-12
+
 ### Added
 
 - Configurable datetime and file size formats
