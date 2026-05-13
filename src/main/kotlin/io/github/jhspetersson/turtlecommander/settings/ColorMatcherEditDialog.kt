@@ -33,10 +33,14 @@ internal class ColorMatcherEditDialog(
         }
     }
 
-    private val kindCombo = ComboBox(DefaultComboBoxModel(Kind.entries.toTypedArray()))
+    private val kindCombo = ComboBox(DefaultComboBoxModel(Kind.entries.toTypedArray())).apply {
+        renderer = labelRenderer { (it as? Kind)?.label() ?: it?.toString().orEmpty() }
+    }
 
     // Size fields
-    private val sizeOpCombo = ComboBox(DefaultComboBoxModel(SizeOp.entries.toTypedArray()))
+    private val sizeOpCombo = ComboBox(DefaultComboBoxModel(SizeOp.entries.toTypedArray())).apply {
+        renderer = labelRenderer { (it as? SizeOp)?.label() ?: it?.toString().orEmpty() }
+    }
     private val sizeValueSpinner = JSpinner(SpinnerNumberModel(1L, 0L, Long.MAX_VALUE, 1L))
     private val sizeMaxSpinner = JSpinner(SpinnerNumberModel(1L, 0L, Long.MAX_VALUE, 1L))
     private val sizeUnitCombo = ComboBox(DefaultComboBoxModel(arrayOf("B", "KB", "MB", "GB")))
@@ -44,13 +48,19 @@ internal class ColorMatcherEditDialog(
     private val sizeMaxLabel = JBLabel("And ≤:")
 
     // Name fields
-    private val nameKindCombo = ComboBox(DefaultComboBoxModel(PatternKind.entries.toTypedArray()))
+    private val nameKindCombo = ComboBox(DefaultComboBoxModel(PatternKind.entries.toTypedArray())).apply {
+        renderer = labelRenderer { (it as? PatternKind)?.label() ?: it?.toString().orEmpty() }
+    }
     private val namePatternField = JBTextField(24)
     private val nameCaseCheck = JCheckBox("Case sensitive")
-    private val nameAppliesCombo = ComboBox(DefaultComboBoxModel(AppliesTo.entries.toTypedArray()))
+    private val nameAppliesCombo = ComboBox(DefaultComboBoxModel(AppliesTo.entries.toTypedArray())).apply {
+        renderer = labelRenderer { (it as? AppliesTo)?.label() ?: it?.toString().orEmpty() }
+    }
 
     // Contains fields
-    private val containsKindCombo = ComboBox(DefaultComboBoxModel(PatternKind.entries.toTypedArray()))
+    private val containsKindCombo = ComboBox(DefaultComboBoxModel(PatternKind.entries.toTypedArray())).apply {
+        renderer = labelRenderer { (it as? PatternKind)?.label() ?: it?.toString().orEmpty() }
+    }
     private val containsPatternField = JBTextField(24)
     private val containsCaseCheck = JCheckBox("Case sensitive")
 
@@ -299,6 +309,43 @@ internal fun RuleMatcher.describe(): String = when (this) {
         val case = if (caseSensitive) ", Aa" else ""
         "contains $kindStr \"$pattern\"$case"
     }
+}
+
+private fun labelRenderer(label: (Any?) -> String): DefaultListCellRenderer = object : DefaultListCellRenderer() {
+    override fun getListCellRendererComponent(
+        list: JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean,
+    ): Component {
+        val c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
+        text = label(value)
+        return c
+    }
+}
+
+private fun ColorMatcherEditDialog.Kind.label(): String = when (this) {
+    ColorMatcherEditDialog.Kind.SIZE -> "Size"
+    ColorMatcherEditDialog.Kind.NAME -> "Name"
+    ColorMatcherEditDialog.Kind.CONTAINS -> "Directory contains"
+}
+
+private fun SizeOp.label(): String = when (this) {
+    SizeOp.LT -> "Less than (<)"
+    SizeOp.LE -> "At most (≤)"
+    SizeOp.EQ -> "Equal to (=)"
+    SizeOp.GE -> "At least (≥)"
+    SizeOp.GT -> "Greater than (>)"
+    SizeOp.BETWEEN -> "Between"
+}
+
+private fun PatternKind.label(): String = when (this) {
+    PatternKind.EXACT -> "Exact match"
+    PatternKind.GLOB -> "Glob pattern"
+    PatternKind.REGEX -> "Regular expression"
+}
+
+private fun AppliesTo.label(): String = when (this) {
+    AppliesTo.FILE -> "Files only"
+    AppliesTo.DIR -> "Directories only"
+    AppliesTo.BOTH -> "Files and directories"
 }
 
 private fun humanBytes(b: Long): String {
