@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.5.6] - 2026-05-13
+
 ### Added
 
 - Recognize ZIP-based document, eBook, and package formats as browsable archives: Office Open XML
