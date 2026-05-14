@@ -110,12 +110,20 @@ class SearchResultsPanel(
                     if (!e.isPopupTrigger) return
                     val row = table.rowAtPoint(e.point)
                     if (row >= 0) {
-                        table.setRowSelectionInterval(row, row)
+                        // Keep an existing multi-row selection when the right-click
+                        // lands inside it; only replace the selection when the user
+                        // right-clicked an unselected row.
+                        if (!table.isRowSelected(row)) {
+                            table.setRowSelectionInterval(row, row)
+                        }
                         val modelRow = table.convertRowIndexToModel(row)
                         SearchContextMenuState.clickedEntry = tableModel.getEntryAt(modelRow)
                     } else {
                         SearchContextMenuState.clickedEntry = null
                     }
+                    SearchContextMenuState.selectedEntries = table.selectedRows
+                        .map { table.convertRowIndexToModel(it) }
+                        .mapNotNull { tableModel.getEntryAt(it) }
                     val am = ActionManager.getInstance()
                     val group = am.getAction("TurtleCommander.SearchContextMenu") as? ActionGroup ?: return
                     val popupMenu = am.createActionPopupMenu("TurtleCommander.SearchContextMenu", group)

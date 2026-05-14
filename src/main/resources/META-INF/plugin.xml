@@ -418,6 +418,14 @@
         <action id="TurtleCommander.CopyAsSha3_512"
                 class="io.github.jhspetersson.turtlecommander.action.CopyAsSha3_512Action"
                 text="SHA3-512"/>
+        <action id="TurtleCommander.CopyAsCsv"
+                class="io.github.jhspetersson.turtlecommander.action.CopyAsCsvAction"
+                text="CSV"
+                description="Copy selected entries as CSV (filename, path, plus the configured columns)"/>
+        <action id="TurtleCommander.CopyAsJson"
+                class="io.github.jhspetersson.turtlecommander.action.CopyAsJsonAction"
+                text="JSON"
+                description="Copy selected entries as JSON (filename, path, plus the configured columns)"/>
         <group id="TurtleCommander.CopyAsHashGroup" text="Hash" popup="true" icon="AllIcons.General.Hashtag">
             <reference ref="TurtleCommander.CopyAsCrc16"/>
             <reference ref="TurtleCommander.CopyAsCrc32"/>
@@ -435,6 +443,9 @@
             <reference ref="TurtleCommander.CopyAsName"/>
             <reference ref="TurtleCommander.CopyAsFullPath"/>
             <reference ref="TurtleCommander.CopyAsParentPath"/>
+            <separator/>
+            <reference ref="TurtleCommander.CopyAsCsv"/>
+            <reference ref="TurtleCommander.CopyAsJson"/>
             <separator/>
             <reference ref="TurtleCommander.CopyAsHashGroup"/>
         </group>
@@ -523,10 +534,21 @@
         <action id="TurtleCommander.SearchCopyAsParentPath"
                 class="io.github.jhspetersson.turtlecommander.action.SearchCopyAsParentPathAction"
                 text="Parent Path"/>
+        <action id="TurtleCommander.SearchCopyAsCsv"
+                class="io.github.jhspetersson.turtlecommander.action.SearchCopyAsCsvAction"
+                text="CSV"
+                description="Copy selected search results as CSV (filename, path, plus the configured columns)"/>
+        <action id="TurtleCommander.SearchCopyAsJson"
+                class="io.github.jhspetersson.turtlecommander.action.SearchCopyAsJsonAction"
+                text="JSON"
+                description="Copy selected search results as JSON (filename, path, plus the configured columns)"/>
         <group id="TurtleCommander.SearchCopyAsGroup" text="Copy as" popup="true" icon="AllIcons.Actions.Copy">
             <reference ref="TurtleCommander.SearchCopyAsName"/>
             <reference ref="TurtleCommander.SearchCopyAsFullPath"/>
             <reference ref="TurtleCommander.SearchCopyAsParentPath"/>
+            <separator/>
+            <reference ref="TurtleCommander.SearchCopyAsCsv"/>
+            <reference ref="TurtleCommander.SearchCopyAsJson"/>
         </group>
         <group id="TurtleCommander.SearchContextMenu" text="Search Context Menu" popup="true">
             <reference ref="TurtleCommander.SearchCopyAsGroup"/>
