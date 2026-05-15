@@ -1527,6 +1527,9 @@ class FileTab(
     // Persistent marks (Insert/Space) keyed by absolute path so they survive sort changes
     // and view-mode switches. Each renderer/apply helper translates back to view rows on the fly.
     internal val markedPaths = mutableSetOf<Path>()
+    // Snapshot of markedPaths captured by "Save Selection". `null` means nothing has been saved yet.
+    // Restoring with no snapshot is a no-op so the Restore action can stay enabled-checked cheaply.
+    internal var savedMarkedPaths: MutableSet<Path>? = null
     internal var insideToggle = false
     // Set while a selection listener is restoring the marked rows after Swing's default
     // arrow / click handler clobbered them. Prevents the restore from triggering itself.

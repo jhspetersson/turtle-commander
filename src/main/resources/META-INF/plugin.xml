@@ -145,6 +145,61 @@
                     description="Toggle selection of the current entry and move to the next one">
                 <keyboard-shortcut first-keystroke="INSERT" keymap="$default"/>
             </action>
+            <action id="TurtleCommander.SelectAll"
+                    class="io.github.jhspetersson.turtlecommander.action.SelectAllAction"
+                    text="Select All"
+                    description="Mark every entry in the current view">
+                <keyboard-shortcut first-keystroke="ctrl ADD" keymap="$default"/>
+                <keyboard-shortcut first-keystroke="ctrl A" keymap="$default"/>
+            </action>
+            <action id="TurtleCommander.UnselectAll"
+                    class="io.github.jhspetersson.turtlecommander.action.UnselectAllAction"
+                    text="Unselect All"
+                    description="Clear all marks in the current view">
+                <keyboard-shortcut first-keystroke="ctrl SUBTRACT" keymap="$default"/>
+            </action>
+            <action id="TurtleCommander.InvertSelection"
+                    class="io.github.jhspetersson.turtlecommander.action.InvertSelectionAction"
+                    text="Invert Selection"
+                    description="Flip marks for every entry in the current view">
+                <keyboard-shortcut first-keystroke="MULTIPLY" keymap="$default"/>
+            </action>
+            <action id="TurtleCommander.SelectByPattern"
+                    class="io.github.jhspetersson.turtlecommander.action.SelectByPatternAction"
+                    text="Select by Pattern..."
+                    description="Mark files matching a wildcard mask (e.g. *.txt)">
+                <keyboard-shortcut first-keystroke="ADD" keymap="$default"/>
+            </action>
+            <action id="TurtleCommander.UnselectByPattern"
+                    class="io.github.jhspetersson.turtlecommander.action.UnselectByPatternAction"
+                    text="Unselect by Pattern..."
+                    description="Unmark files matching a wildcard mask (e.g. *.txt)">
+                <keyboard-shortcut first-keystroke="SUBTRACT" keymap="$default"/>
+            </action>
+            <action id="TurtleCommander.SelectSameExtension"
+                    class="io.github.jhspetersson.turtlecommander.action.SelectSameExtensionAction"
+                    text="Select Same Extension"
+                    description="Mark all files sharing the focused entry's extension">
+                <keyboard-shortcut first-keystroke="alt ADD" keymap="$default"/>
+            </action>
+            <action id="TurtleCommander.UnselectSameExtension"
+                    class="io.github.jhspetersson.turtlecommander.action.UnselectSameExtensionAction"
+                    text="Unselect Same Extension"
+                    description="Unmark all files sharing the focused entry's extension">
+                <keyboard-shortcut first-keystroke="alt SUBTRACT" keymap="$default"/>
+            </action>
+            <action id="TurtleCommander.SaveSelection"
+                    class="io.github.jhspetersson.turtlecommander.action.SaveSelectionAction"
+                    text="Save Selection"
+                    description="Remember the current marks so they can be restored later">
+                <keyboard-shortcut first-keystroke="ctrl MULTIPLY" keymap="$default"/>
+            </action>
+            <action id="TurtleCommander.RestoreSelection"
+                    class="io.github.jhspetersson.turtlecommander.action.RestoreSelectionAction"
+                    text="Restore Selection"
+                    description="Restore the marks captured by Save Selection">
+                <keyboard-shortcut first-keystroke="DIVIDE" keymap="$default"/>
+            </action>
             <action id="TurtleCommander.Quit"
                     class="io.github.jhspetersson.turtlecommander.action.QuitAction"
                     text="Quit"
@@ -449,6 +504,20 @@
             <separator/>
             <reference ref="TurtleCommander.CopyAsHashGroup"/>
         </group>
+        <group id="TurtleCommander.SelectionGroup" text="Selection" popup="true" icon="AllIcons.Actions.ListFiles">
+            <reference ref="TurtleCommander.SelectAll"/>
+            <reference ref="TurtleCommander.UnselectAll"/>
+            <reference ref="TurtleCommander.InvertSelection"/>
+            <separator/>
+            <reference ref="TurtleCommander.SelectByPattern"/>
+            <reference ref="TurtleCommander.UnselectByPattern"/>
+            <separator/>
+            <reference ref="TurtleCommander.SelectSameExtension"/>
+            <reference ref="TurtleCommander.UnselectSameExtension"/>
+            <separator/>
+            <reference ref="TurtleCommander.SaveSelection"/>
+            <reference ref="TurtleCommander.RestoreSelection"/>
+        </group>
         <group id="TurtleCommander.FileContextMenu" text="File Context Menu" popup="true">
             <reference ref="TurtleCommander.OpenInNewTab"/>
             <reference ref="TurtleCommander.OpenFile"/>
@@ -461,6 +530,8 @@
             <reference ref="TurtleCommander.ContextPasteInto"/>
             <separator/>
             <reference ref="TurtleCommander.CopyAsGroup"/>
+            <separator/>
+            <reference ref="TurtleCommander.SelectionGroup"/>
             <separator/>
             <reference ref="TurtleCommander.ContextRename"/>
             <reference ref="TurtleCommander.ContextMultiRename"/>
@@ -523,6 +594,8 @@
             <reference ref="TurtleCommander.DuplicateTab"/>
             <separator/>
             <reference ref="TurtleCommander.TabCopyAsGroup"/>
+            <separator/>
+            <reference ref="TurtleCommander.SelectionGroup"/>
             <separator/>
             <reference ref="TurtleCommander.TabOpenInExplorer"/>
             <reference ref="TurtleCommander.TabSearchInDirectory"/>

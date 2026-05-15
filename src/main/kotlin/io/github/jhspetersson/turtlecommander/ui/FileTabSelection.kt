@@ -20,17 +20,25 @@ import javax.swing.JList
 import javax.swing.tree.DefaultMutableTreeNode
 
 internal fun FileTab.getSelectedEntry(): FileEntry? {
+    // Prefer the lead selection index ("cursor") over the minimum selected index. With
+    // multi-selection (Select All, Shift-click ranges, or restored marks), `selectedRow` /
+    // `selectedValue` would return the topmost marked row — not the row the cursor is on —
+    // making Enter open the first file instead of the focused one.
     if (viewMode == ViewMode.LIST) {
-        return list.selectedValue
+        val lead = list.selectionModel.leadSelectionIndex
+        return if (lead in 0 until listModel.size()) listModel.getElementAt(lead) else list.selectedValue
     }
     if (viewMode == ViewMode.THUMBNAIL) {
-        return thumbnailList.selectedValue
+        val lead = thumbnailList.selectionModel.leadSelectionIndex
+        return if (lead in 0 until thumbnailListModel.size()) thumbnailListModel.getElementAt(lead) else thumbnailList.selectedValue
     }
     if (viewMode == ViewMode.TREE) {
-        val node = tree.lastSelectedPathComponent as? DefaultMutableTreeNode ?: return null
+        val leadPath = tree.leadSelectionPath ?: tree.selectionPath
+        val node = leadPath?.lastPathComponent as? DefaultMutableTreeNode ?: return null
         return node.userObject as? FileEntry
     }
-    val viewRow = table.selectedRow
+    val leadRow = table.selectionModel.leadSelectionIndex
+    val viewRow = if (leadRow in 0 until table.rowCount) leadRow else table.selectedRow
     if (viewRow < 0) return null
     val modelRow = table.convertRowIndexToModel(viewRow)
     return tableModel.getEntryAt(modelRow)
@@ -253,6 +261,173 @@ internal fun FileTab.restoreTreeMarks() {
 
 internal fun FileTab.clearAllToggledMarks() {
     markedPaths.clear()
+}
+
+/**
+ * Entries currently visible in the active view, excluding the ".." parent link.
+ * Honors the quick-filter — only entries actually rendered are returned.
+ */
+internal fun FileTab.getDisplayedEntries(): List<FileEntry> {
+    return when (viewMode) {
+        ViewMode.TABLE -> (0 until tableModel.rowCount)
+            .mapNotNull { tableModel.getEntryAt(it) }
+            .filter { !it.isParentLink }
+        ViewMode.LIST -> (0 until listModel.size())
+            .map { listModel.getElementAt(it) }
+            .filter { !it.isParentLink }
+        ViewMode.THUMBNAIL -> (0 until thumbnailListModel.size())
+            .map { thumbnailListModel.getElementAt(it) }
+            .filter { !it.isParentLink }
+        ViewMode.TREE -> (0 until tree.rowCount).mapNotNull { row ->
+            val node = tree.getPathForRow(row)?.lastPathComponent as? DefaultMutableTreeNode
+            node?.userObject as? FileEntry
+        }.filter { !it.isParentLink }
+    }
+}
+
+fun FileTab.selectAllEntries() {
+    for (entry in getDisplayedEntries()) {
+        markedPaths.add(entry.path)
+        if (entry.isDirectory) calculateDirectorySize(entry)
+    }
+    applyMarksForCurrentView()
+}
+
+fun FileTab.unselectAllEntries() {
+    if (markedPaths.isEmpty()) return
+    markedPaths.clear()
+    applyMarksForCurrentView()
+}
+
+fun FileTab.invertSelectionEntries() {
+    for (entry in getDisplayedEntries()) {
+        if (entry.path in markedPaths) {
+            markedPaths.remove(entry.path)
+        } else {
+            markedPaths.add(entry.path)
+            if (entry.isDirectory) calculateDirectorySize(entry)
+        }
+    }
+    applyMarksForCurrentView()
+}
+
+/**
+ * TC-style glob mask. Each comma- or semicolon-separated token becomes a glob pattern matched
+ * against the entry's filename. Empty mask matches nothing. By convention directories are
+ * included only when [includeDirectories] is true — TC's "Select Group" defaults to files only.
+ */
+internal fun parseSelectionMaskPatterns(mask: String): List<java.nio.file.PathMatcher> {
+    val fs = java.nio.file.FileSystems.getDefault()
+    return mask.split(',', ';')
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .map { token -> fs.getPathMatcher("glob:$token") }
+}
+
+private fun matchesMask(name: String, patterns: List<java.nio.file.PathMatcher>): Boolean {
+    if (patterns.isEmpty()) return false
+    val asPath = Path.of(name)
+    return patterns.any { it.matches(asPath) }
+}
+
+fun FileTab.selectByMask(mask: String, includeDirectories: Boolean = false) {
+    val patterns = parseSelectionMaskPatterns(mask)
+    if (patterns.isEmpty()) return
+    for (entry in getDisplayedEntries()) {
+        if (!includeDirectories && entry.isDirectory) continue
+        if (matchesMask(entry.name, patterns)) {
+            markedPaths.add(entry.path)
+            if (entry.isDirectory) calculateDirectorySize(entry)
+        }
+    }
+    applyMarksForCurrentView()
+}
+
+fun FileTab.unselectByMask(mask: String, includeDirectories: Boolean = false) {
+    val patterns = parseSelectionMaskPatterns(mask)
+    if (patterns.isEmpty()) return
+    for (entry in getDisplayedEntries()) {
+        if (!includeDirectories && entry.isDirectory) continue
+        if (matchesMask(entry.name, patterns)) {
+            markedPaths.remove(entry.path)
+        }
+    }
+    applyMarksForCurrentView()
+}
+
+internal fun extensionOf(entry: FileEntry): String? {
+    if (entry.isDirectory) return null
+    val dot = entry.name.lastIndexOf('.')
+    // Leading-dot files like ".gitignore" have no extension in TC's sense.
+    return if (dot > 0 && dot < entry.name.length - 1) entry.name.substring(dot + 1) else ""
+}
+
+/** True when at least one displayed (non-parent-link) entry exists. */
+internal fun FileTab.hasAnyDisplayedEntries(): Boolean {
+    return getDisplayedEntries().isNotEmpty()
+}
+
+/** True when at least one displayed entry is not yet in [markedPaths]. */
+internal fun FileTab.hasAnyDisplayedUnmarked(): Boolean {
+    return getDisplayedEntries().any { it.path !in markedPaths }
+}
+
+/** True when at least one displayed non-directory entry is not yet in [markedPaths]. */
+internal fun FileTab.hasAnyDisplayedUnmarkedFile(): Boolean {
+    return getDisplayedEntries().any { !it.isDirectory && it.path !in markedPaths }
+}
+
+/**
+ * Resolves the focused entry's extension and reports whether there is at least one displayed
+ * file with that extension that is not yet marked. Returns false when no entry is focused, or
+ * the focus is a directory / parent link.
+ */
+internal fun FileTab.hasUnmarkedFileWithFocusedExtension(): Boolean {
+    val focus = getSelectedEntry() ?: return false
+    if (focus.isParentLink || focus.isDirectory) return false
+    val ext = extensionOf(focus) ?: return false
+    return getDisplayedEntries().any { !it.isDirectory && extensionOf(it) == ext && it.path !in markedPaths }
+}
+
+/** True when at least one displayed file matches the focused entry's extension and is marked. */
+internal fun FileTab.hasMarkedFileWithFocusedExtension(): Boolean {
+    val focus = getSelectedEntry() ?: return false
+    if (focus.isParentLink || focus.isDirectory) return false
+    val ext = extensionOf(focus) ?: return false
+    return getDisplayedEntries().any { !it.isDirectory && extensionOf(it) == ext && it.path in markedPaths }
+}
+
+fun FileTab.selectSameExtension() {
+    val focus = getSelectedEntry() ?: return
+    if (focus.isParentLink) return
+    val ext = extensionOf(focus) ?: return
+    for (entry in getDisplayedEntries()) {
+        if (entry.isDirectory) continue
+        if (extensionOf(entry) == ext) markedPaths.add(entry.path)
+    }
+    applyMarksForCurrentView()
+}
+
+fun FileTab.unselectSameExtension() {
+    val focus = getSelectedEntry() ?: return
+    if (focus.isParentLink) return
+    val ext = extensionOf(focus) ?: return
+    for (entry in getDisplayedEntries()) {
+        if (entry.isDirectory) continue
+        if (extensionOf(entry) == ext) markedPaths.remove(entry.path)
+    }
+    applyMarksForCurrentView()
+}
+
+fun FileTab.saveCurrentSelection() {
+    savedMarkedPaths = markedPaths.toMutableSet()
+}
+
+fun FileTab.restoreSavedSelection() {
+    val snapshot = savedMarkedPaths ?: return
+    markedPaths.clear()
+    markedPaths.addAll(snapshot)
+    applyMarksForCurrentView()
 }
 
 internal fun FileTab.calculateDirectorySize(entry: FileEntry) {
