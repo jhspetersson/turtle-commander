@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [0.5.8] - 2026-05-15
+
+### Added
+
+- `Open in Explorer` action for tabs
+
 ## [0.5.7] - 2026-05-15
 
 ### Added
