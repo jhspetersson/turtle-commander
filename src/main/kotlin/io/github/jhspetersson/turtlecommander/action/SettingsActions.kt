@@ -1,6 +1,6 @@
 package io.github.jhspetersson.turtlecommander.action
 
-import com.intellij.ide.plugins.PluginManagerCore
+import com.intellij.ide.plugins.PluginManager
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -158,7 +158,7 @@ private class AboutDialog(project: com.intellij.openapi.project.Project?) : Dial
     }
 
     override fun createCenterPanel(): JComponent {
-        val plugin = PluginManagerCore.getPlugin(PluginId.getId("io.github.jhspetersson.turtlecommander"))
+        val plugin = PluginManager.getInstance().findEnabledPlugin(PluginId.getId("io.github.jhspetersson.turtlecommander"))
         val version = plugin?.version ?: "unknown"
         val vendor = plugin?.vendorEmail ?: ""
 
