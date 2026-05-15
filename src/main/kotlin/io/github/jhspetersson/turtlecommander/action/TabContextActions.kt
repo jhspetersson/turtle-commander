@@ -8,6 +8,7 @@ import com.intellij.openapi.project.DumbAware
 import io.github.jhspetersson.turtlecommander.dialog.FileSearchDialog
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
+import io.github.jhspetersson.turtlecommander.ui.openDirectoryInSystemExplorer
 
 object TabContextMenuState {
     var clickedTabIndex: Int = -1
@@ -134,6 +135,26 @@ class TabSearchInDirectoryAction : TabContextAction() {
         if (!dialog.showAndGet()) return
         val criteria = dialog.getCriteria()
         panel.openSearchTab(criteria)
+    }
+}
+
+class TabOpenInExplorerAction : TabContextAction() {
+    override fun update(e: AnActionEvent) {
+        val (panel, tabIndex) = resolveTabContext(e)
+        val tab = panel?.getTabAt(tabIndex)
+        e.presentation.isEnabledAndVisible = tab != null && tab.currentVfs == null
+        val os = System.getProperty("os.name").lowercase()
+        e.presentation.text = when {
+            os.contains("win") -> "Open in Explorer"
+            os.contains("mac") -> "Reveal in Finder"
+            else -> "Open in File Manager"
+        }
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val (panel, tabIndex) = resolveTabContext(e)
+        val tab = panel?.getTabAt(tabIndex) ?: return
+        tab.openDirectoryInSystemExplorer(tab.currentPath)
     }
 }
 

@@ -717,6 +717,20 @@ internal fun FileTab.openInSystemExplorer(entry: FileEntry) {
     }
 }
 
+internal fun FileTab.openDirectoryInSystemExplorer(path: java.nio.file.Path) {
+    val os = System.getProperty("os.name").lowercase()
+    val command = when {
+        os.contains("win") -> arrayOf("explorer.exe", path.toString())
+        os.contains("mac") -> arrayOf("open", path.toString())
+        else -> arrayOf("xdg-open", path.toString())
+    }
+    try {
+        Runtime.getRuntime().exec(command)
+    } catch (e: Exception) {
+        fileErrorNotification("Failed to open in explorer: ${fileErrorMessage(e)}")
+    }
+}
+
 internal fun FileTab.openFile(entry: FileEntry) {
     val vfs = currentVfs
     if (vfs != null) {

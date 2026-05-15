@@ -482,6 +482,10 @@
             <separator/>
             <reference ref="TurtleCommander.ShowProperties"/>
         </group>
+        <action id="TurtleCommander.TabOpenInExplorer"
+                class="io.github.jhspetersson.turtlecommander.action.TabOpenInExplorerAction"
+                text="Open in Explorer"
+                description="Open the tab directory in the system file manager"/>
         <action id="TurtleCommander.TabSearchInDirectory"
                 class="io.github.jhspetersson.turtlecommander.action.TabSearchInDirectoryAction"
                 text="Search in Directory..."
@@ -520,6 +524,7 @@
             <separator/>
             <reference ref="TurtleCommander.TabCopyAsGroup"/>
             <separator/>
+            <reference ref="TurtleCommander.TabOpenInExplorer"/>
             <reference ref="TurtleCommander.TabSearchInDirectory"/>
             <separator/>
             <reference ref="TurtleCommander.TabAddToFavorites"/>
