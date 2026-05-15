@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.5.7] - 2026-05-15
+
 ### Added
 
 - Copy As CSV and JSON actions
