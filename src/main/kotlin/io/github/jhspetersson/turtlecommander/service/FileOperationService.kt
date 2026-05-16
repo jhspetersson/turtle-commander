@@ -352,7 +352,31 @@ class FileOperationService(
                 onError(source, e)
             }
         }
+        invalidateDestinationTree(destination, sources)
+    }
+
+    /**
+     * Invalidate the listing cache for [destination] and every nested directory the
+     * copy actually wrote into. Without this, a tab viewing a sub-directory of the
+     * destination keeps serving the pre-copy listing.
+     */
+    private fun invalidateDestinationTree(destination: Path, sources: List<Path>) {
         invalidateListingCache(destination)
+        for (source in sources) {
+            if (!source.isDirectory()) continue
+            val target = destination.resolve(source.name)
+            if (!target.isDirectory()) continue
+            try {
+                walkFileTree(target, object : SimpleFileVisitor<Path>() {
+                    override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
+                        invalidateListingCache(dir)
+                        return FileVisitResult.CONTINUE
+                    }
+                })
+            } catch (e: Exception) {
+                thisLogger().debug("Failed to walk $target for cache invalidation: ${e.message}")
+            }
+        }
     }
 
     /**
@@ -453,25 +477,126 @@ class FileOperationService(
             if (isCancelled()) break
             val target = destination.resolve(source.name)
             try {
-                if (target.exists()) {
-                    when (resolveOverwriteAction(source, target, holder, onOverwriteConfirm)) {
-                        TargetAction.SKIP -> continue@loop
-                        TargetAction.CANCEL -> break@loop
-                        TargetAction.OVERWRITE -> { /* fall through to move */ }
-                    }
-                    crossFileSystemMove(source, target, StandardCopyOption.REPLACE_EXISTING)
+                if (source.isDirectory()) {
+                    // Enumerate every entry under [source] up-front and move them one
+                    // by one so each file ticks the progress bar — the historical
+                    // single-call Files.move(REPLACE_EXISTING) on a directory only
+                    // reported one step regardless of size.
+                    val (newCount, cancelled) = moveDirectoryWithProgress(
+                        source, target, movedCount, holder,
+                        onProgress, onOverwriteConfirm, onError, isCancelled,
+                    )
+                    movedCount = newCount
+                    if (cancelled) break@loop
                 } else {
-                    crossFileSystemMove(source, target)
+                    when (val action = moveFileWithOverwrite(source, target, holder, onOverwriteConfirm)) {
+                        TargetAction.OVERWRITE -> {
+                            movedCount++
+                            onProgress(movedCount, source.name)
+                        }
+                        TargetAction.SKIP -> { /* nothing */ }
+                        TargetAction.CANCEL -> break@loop
+                    }
                 }
-                movedCount++
-                onProgress(movedCount, source.name)
             } catch (e: Exception) {
                 thisLogger().warn("Failed to move $source to $destination: ${e.message}")
                 onError(source, e)
             }
         }
-        invalidateListingCache(destination)
+        invalidateDestinationTree(destination, sources)
         sources.mapNotNull { it.parent }.toSet().forEach { invalidateListingCache(it) }
+    }
+
+    /**
+     * Move a single file honouring [holder]'s policy. Returns [TargetAction.OVERWRITE]
+     * when the file was actually moved, [SKIP] when the policy chose to skip it, or
+     * [CANCEL] when the user aborted.
+     */
+    private suspend fun moveFileWithOverwrite(
+        source: Path,
+        target: Path,
+        holder: PolicyHolder,
+        onOverwriteConfirm: suspend (Path) -> OverwriteResponse,
+    ): TargetAction {
+        if (!target.exists()) {
+            crossFileSystemMove(source, target)
+            return TargetAction.OVERWRITE
+        }
+        return when (val action = resolveOverwriteAction(source, target, holder, onOverwriteConfirm)) {
+            TargetAction.OVERWRITE -> {
+                crossFileSystemMove(source, target, StandardCopyOption.REPLACE_EXISTING)
+                action
+            }
+            TargetAction.SKIP, TargetAction.CANCEL -> action
+        }
+    }
+
+    private suspend fun moveDirectoryWithProgress(
+        source: Path,
+        target: Path,
+        startCount: Int,
+        holder: PolicyHolder,
+        onProgress: suspend (Int, String) -> Unit,
+        onOverwriteConfirm: suspend (Path) -> OverwriteResponse,
+        onError: suspend (Path, Exception) -> Unit,
+        isCancelled: () -> Boolean,
+    ): Pair<Int, Boolean> {
+        var movedCount = startCount
+
+        try {
+            Files.createDirectories(target)
+            movedCount++
+            onProgress(movedCount, source.name)
+        } catch (e: Exception) {
+            thisLogger().warn("Failed to create directory $target: ${e.message}")
+            onError(source, e)
+            return movedCount to false
+        }
+
+        try {
+            Files.newDirectoryStream(source).use { stream ->
+                for (entry in stream) {
+                    if (isCancelled()) return movedCount to true
+                    val entryTarget = target.resolve(entry.name)
+                    if (entry.isDirectory()) {
+                        val (sub, cancelled) = moveDirectoryWithProgress(
+                            entry, entryTarget, movedCount, holder,
+                            onProgress, onOverwriteConfirm, onError, isCancelled,
+                        )
+                        movedCount = sub
+                        if (cancelled) return movedCount to true
+                    } else {
+                        try {
+                            when (moveFileWithOverwrite(entry, entryTarget, holder, onOverwriteConfirm)) {
+                                TargetAction.OVERWRITE -> {
+                                    movedCount++
+                                    onProgress(movedCount, entry.name)
+                                }
+                                TargetAction.SKIP -> { /* nothing */ }
+                                TargetAction.CANCEL -> return movedCount to true
+                            }
+                        } catch (e: Exception) {
+                            thisLogger().warn("Failed to move $entry: ${e.message}")
+                            onError(entry, e)
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            thisLogger().warn("Failed to list directory $source: ${e.message}")
+            onError(source, e)
+            return movedCount to false
+        }
+
+        // Source directory is now empty; remove it so the overall move semantics match
+        // the previous single-call Files.move behaviour.
+        try {
+            Files.deleteIfExists(source)
+        } catch (e: Exception) {
+            thisLogger().warn("Failed to remove emptied source directory $source: ${e.message}")
+            onError(source, e)
+        }
+        return movedCount to false
     }
 
     suspend fun deleteFilesWithProgress(

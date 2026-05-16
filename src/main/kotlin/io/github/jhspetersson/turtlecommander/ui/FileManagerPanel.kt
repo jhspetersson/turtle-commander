@@ -773,7 +773,7 @@ class FileManagerPanel(
             return selected.hasTableFocus()
         }
         val tab = getActiveTab() ?: return false
-        return tab.table.hasFocus() || tab.list.hasFocus() || tab.thumbnailList.hasFocus() || tab.tree.hasFocus()
+        return tab.hasAnyViewFocus()
     }
 
     fun refreshActiveTab(requestFocus: Boolean = true) {

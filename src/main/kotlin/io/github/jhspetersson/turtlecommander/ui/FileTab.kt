@@ -1595,6 +1595,10 @@ class FileTab(
         vfsStack.clear()
     }
 
+    /** True when keyboard focus is inside any of the four view components owned by this tab. */
+    fun hasAnyViewFocus(): Boolean =
+        table.hasFocus() || list.hasFocus() || thumbnailList.hasFocus() || tree.hasFocus()
+
     internal fun getOtherPanelDisplayPath(): String? {
         return getOtherPanelTab()?.getDisplayPath()
     }

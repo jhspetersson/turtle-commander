@@ -20,8 +20,15 @@ import javax.swing.JPanel
 import javax.swing.JScrollPane
 import javax.swing.JTextArea
 
-class CopyDialog(
+/**
+ * Shared destination / overwrite-policy dialog used for both Copy and Move. The two flows are
+ * structurally identical — only the window title, OK-button label, and a few wording bits
+ * change — so they're parameterized via [verb] (e.g. "Copy" / "Move") instead of being two
+ * near-identical [DialogWrapper] subclasses.
+ */
+class TransferDialog(
     project: Project,
+    private val verb: String,
     private val sources: List<FileEntry>,
     private val destination: Path,
     private val destinationDisplayPath: String = destination.toString(),
@@ -42,8 +49,8 @@ class CopyDialog(
     private val destinationField = JBTextField(destinationDisplayPath)
 
     init {
-        title = "Copy"
-        setOKButtonText("Copy")
+        title = verb
+        setOKButtonText(verb)
         init()
     }
 
@@ -55,9 +62,9 @@ class CopyDialog(
         }
 
         val label = if (sources.size == 1) {
-            "Copy \"${sources[0].name}\" to:"
+            "$verb \"${sources[0].name}\" to:"
         } else {
-            "Copy ${sources.size} items to:"
+            "$verb ${sources.size} items to:"
         }
 
         panel.add(JBLabel(label).apply {
@@ -100,7 +107,7 @@ class CopyDialog(
     override fun doOKAction() {
         val text = destinationField.text.trim()
         if (text.isEmpty()) {
-            Messages.showErrorDialog(contentPanel, "Destination cannot be empty.", "Copy")
+            Messages.showErrorDialog(contentPanel, "Destination cannot be empty.", verb)
             return
         }
 
@@ -110,7 +117,7 @@ class CopyDialog(
             val parsed = try {
                 Path.of(text)
             } catch (e: InvalidPathException) {
-                Messages.showErrorDialog(contentPanel, "Invalid destination path: ${e.message}", "Copy")
+                Messages.showErrorDialog(contentPanel, "Invalid destination path: ${e.message}", verb)
                 return
             }
             if (parsed.isAbsolute) parsed.normalize() else destination.resolve(parsed).normalize()
@@ -118,14 +125,14 @@ class CopyDialog(
 
         if (Files.exists(resolved)) {
             if (!Files.isDirectory(resolved)) {
-                Messages.showErrorDialog(contentPanel, "Destination is not a directory:\n$resolved", "Copy")
+                Messages.showErrorDialog(contentPanel, "Destination is not a directory:\n$resolved", verb)
                 return
             }
         } else {
             try {
                 Files.createDirectories(resolved)
             } catch (e: Exception) {
-                Messages.showErrorDialog(contentPanel, "Failed to create destination directory:\n${e.message}", "Copy")
+                Messages.showErrorDialog(contentPanel, "Failed to create destination directory:\n${e.message}", verb)
                 return
             }
         }

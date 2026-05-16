@@ -51,7 +51,7 @@ internal fun FileTab.performCopy() {
 internal fun FileTab.performCopyEntries(selected: List<FileEntry>, destination: Path, destinationDisplayPath: String? = null) {
     if (selected.isEmpty()) return
     val displayPath = destinationDisplayPath ?: getOtherPanelDisplayPath() ?: destination.toString()
-    val dialog = CopyDialog(project, selected, destination, displayPath)
+    val dialog = TransferDialog(project, "Copy", selected, destination, displayPath)
     if (!dialog.showAndGet()) return
     runTransfer(
         sources = selected.map { it.path },
@@ -79,7 +79,7 @@ internal fun FileTab.performMove() {
 internal fun FileTab.performMoveEntries(selected: List<FileEntry>, destination: Path, destinationDisplayPath: String? = null) {
     if (selected.isEmpty()) return
     val displayPath = destinationDisplayPath ?: getOtherPanelDisplayPath() ?: destination.toString()
-    val dialog = MoveDialog(project, selected, destination, displayPath)
+    val dialog = TransferDialog(project, "Move", selected, destination, displayPath)
     if (!dialog.showAndGet()) return
     runTransfer(
         sources = selected.map { it.path },
