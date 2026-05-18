@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.5.9] - 2026-05-16
+
 ### Added
 
 - Various selection actions
