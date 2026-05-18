@@ -28,6 +28,8 @@ class ZipFileSystemProvider : VirtualFileSystemProvider {
             "epub", "cbz",
             // NuGet
             "nupkg",
+            // Firefox / Mozilla browser extensions (plain ZIPs)
+            "xpi",
         )
     }
 

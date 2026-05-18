@@ -56,6 +56,18 @@ class VfsProviderTest {
     }
 
     @Test
+    fun `zip provider supports xpi extension`() {
+        // Firefox extensions are plain ZIPs.
+        assertTrue(zipProvider.supportsExtension("xpi"))
+    }
+
+    @Test
+    fun `zip provider does not support crx`() {
+        // Chrome .crx has a signed header in front of the ZIP — handled by CrxFileSystemProvider.
+        assertFalse(zipProvider.supportsExtension("crx"))
+    }
+
+    @Test
     fun `zip provider does not support tar`() {
         assertFalse(zipProvider.supportsExtension("tar"))
     }
@@ -232,6 +244,26 @@ class VfsProviderTest {
     @Test
     fun `xz provider does not support zip`() {
         assertFalse(xzProvider.supportsExtension("zip"))
+    }
+
+    // --- CrxFileSystemProvider ---
+
+    private val crxProvider = CrxFileSystemProvider()
+
+    @Test
+    fun `crx provider supports crx extension`() {
+        assertTrue(crxProvider.supportsExtension("crx"))
+    }
+
+    @Test
+    fun `crx provider does not support zip`() {
+        assertFalse(crxProvider.supportsExtension("zip"))
+    }
+
+    @Test
+    fun `crx provider does not support xpi`() {
+        // .xpi is plain ZIP, routed through ZipFileSystemProvider.
+        assertFalse(crxProvider.supportsExtension("xpi"))
     }
 
     // --- forEachArchiveEntry ---

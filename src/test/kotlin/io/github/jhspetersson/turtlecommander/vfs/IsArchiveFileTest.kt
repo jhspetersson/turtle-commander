@@ -98,6 +98,16 @@ class IsArchiveFileTest {
     }
 
     @Test
+    fun `crx file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("extension.crx")))
+    }
+
+    @Test
+    fun `xpi file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("addon.xpi")))
+    }
+
+    @Test
     fun `txt file is not archive`() {
         assertFalse(isArchiveFile(fileEntry("readme.txt")))
     }

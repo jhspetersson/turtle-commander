@@ -273,6 +273,7 @@ object VirtualFileSystemRegistry {
         register(SevenZipFileSystemProvider())
         register(ArFileSystemProvider())
         register(XzFileSystemProvider())
+        register(CrxFileSystemProvider())
     }
 
     fun register(provider: VirtualFileSystemProvider) {

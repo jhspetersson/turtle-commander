@@ -62,6 +62,16 @@ class VirtualFileSystemRegistryTest {
     }
 
     @Test
+    fun `supports crx extension`() {
+        assertTrue(VirtualFileSystemRegistry.supportsByExtension("extension.crx"))
+    }
+
+    @Test
+    fun `supports xpi extension`() {
+        assertTrue(VirtualFileSystemRegistry.supportsByExtension("addon.xpi"))
+    }
+
+    @Test
     fun `does not support unknown extension`() {
         assertFalse(VirtualFileSystemRegistry.supportsByExtension("document.pdf"))
     }
