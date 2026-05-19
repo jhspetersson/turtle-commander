@@ -158,6 +158,20 @@ class TabOpenInExplorerAction : TabContextAction() {
     }
 }
 
+class TabRefreshAction : TabContextAction() {
+    override fun update(e: AnActionEvent) {
+        val (panel, tabIndex) = resolveTabContext(e)
+        val tab = panel?.getTabAt(tabIndex)
+        e.presentation.isEnabledAndVisible = tab != null
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val (panel, tabIndex) = resolveTabContext(e)
+        val tab = panel?.getTabAt(tabIndex) ?: return
+        tab.refresh()
+    }
+}
+
 class TabAddToFavoritesAction : TabContextAction() {
     override fun update(e: AnActionEvent) {
         val (panel, tabIndex) = resolveTabContext(e)
