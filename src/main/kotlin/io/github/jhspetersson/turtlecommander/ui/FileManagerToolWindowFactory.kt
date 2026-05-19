@@ -1,6 +1,7 @@
 package io.github.jhspetersson.turtlecommander.ui
 
 import com.intellij.icons.AllIcons
+import com.intellij.ide.DataManager
 import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.actionSystem.ex.ActionUtil
 import com.intellij.openapi.application.ApplicationManager
@@ -303,7 +304,9 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
 
         fun invokeById(actionId: String) {
             val action = ActionManager.getInstance().getAction(actionId) ?: return
-            ActionUtil.invokeAction(action, bar, "CommandBar", null, null)
+            val dataContext = DataManager.getInstance().getDataContext(bar)
+            val event = AnActionEvent.createEvent(action, dataContext, null, "CommandBar", ActionUiKind.NONE, null)
+            ActionUtil.performAction(action, event)
         }
 
         val buttonDefs = listOf(
