@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.5.10] - 2026-05-19
+
 ### Added
 
 - Support Chrome (`.crx`, read-only) and Firefox (`.xpi`) extensions as browsable archives
