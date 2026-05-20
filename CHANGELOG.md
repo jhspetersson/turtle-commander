@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.5.11] - 2026-05-20
+
 ### Added
 
 - `Refresh` action in the tab context menu
