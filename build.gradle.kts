@@ -36,6 +36,7 @@ repositories {
 
 dependencies {
     implementation(libs.commonsCompress)
+    implementation(libs.zstdJni)
     testImplementation(libs.junit)
     testImplementation(libs.opentest4j)
 

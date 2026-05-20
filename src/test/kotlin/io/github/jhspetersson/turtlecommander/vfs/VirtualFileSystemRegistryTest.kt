@@ -72,6 +72,16 @@ class VirtualFileSystemRegistryTest {
     }
 
     @Test
+    fun `supports rpm extension`() {
+        assertTrue(VirtualFileSystemRegistry.supportsByExtension("package.rpm"))
+    }
+
+    @Test
+    fun `supports srpm extension`() {
+        assertTrue(VirtualFileSystemRegistry.supportsByExtension("package.srpm"))
+    }
+
+    @Test
     fun `does not support unknown extension`() {
         assertFalse(VirtualFileSystemRegistry.supportsByExtension("document.pdf"))
     }
