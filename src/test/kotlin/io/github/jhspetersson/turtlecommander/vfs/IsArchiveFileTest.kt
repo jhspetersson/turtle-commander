@@ -108,6 +108,16 @@ class IsArchiveFileTest {
     }
 
     @Test
+    fun `rpm file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("package.rpm")))
+    }
+
+    @Test
+    fun `srpm file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("package.srpm")))
+    }
+
+    @Test
     fun `txt file is not archive`() {
         assertFalse(isArchiveFile(fileEntry("readme.txt")))
     }

@@ -274,6 +274,7 @@ object VirtualFileSystemRegistry {
         register(ArFileSystemProvider())
         register(XzFileSystemProvider())
         register(CrxFileSystemProvider())
+        register(RpmFileSystemProvider())
     }
 
     fun register(provider: VirtualFileSystemProvider) {
