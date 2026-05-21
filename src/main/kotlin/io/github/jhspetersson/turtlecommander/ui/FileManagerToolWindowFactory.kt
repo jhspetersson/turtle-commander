@@ -121,6 +121,7 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
         layoutGroup.add(LayoutToggleAction(PanelLayout.SINGLE, "Single-panel"))
         gearActions.add(layoutGroup)
         gearActions.addSeparator()
+        am.getAction("TurtleCommander.UserManual")?.let { gearActions.add(it) }
         am.getAction("TurtleCommander.About")?.let { gearActions.add(it) }
         toolWindow.setAdditionalGearActions(gearActions)
 

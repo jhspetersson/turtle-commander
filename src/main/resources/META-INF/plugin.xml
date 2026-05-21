@@ -653,6 +653,10 @@
                 icon="AllIcons.General.GearPlain"
                 text="Settings..."
                 description="Open Turtle Commander settings"/>
+        <action id="TurtleCommander.UserManual"
+                class="io.github.jhspetersson.turtlecommander.action.UserManualAction"
+                text="User Manual"
+                description="Open the Turtle Commander user manual in your browser"/>
         <action id="TurtleCommander.About"
                 class="io.github.jhspetersson.turtlecommander.action.AboutAction"
                 text="About..."

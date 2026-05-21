@@ -1,5 +1,6 @@
 package io.github.jhspetersson.turtlecommander.action
 
+import com.intellij.ide.BrowserUtil
 import com.intellij.ide.plugins.PluginManager
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
@@ -147,6 +148,14 @@ class AboutAction : AnAction(), DumbAware {
 
     override fun actionPerformed(e: AnActionEvent) {
         AboutDialog(e.project).show()
+    }
+}
+
+class UserManualAction : AnAction(), DumbAware {
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
+
+    override fun actionPerformed(e: AnActionEvent) {
+        BrowserUtil.browse("https://plugins.jetbrains.com/plugin/30863-turtle-commander/user-manual")
     }
 }
 
