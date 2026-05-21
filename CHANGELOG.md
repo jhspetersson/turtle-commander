@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.5.12] - 2026-05-21
+
 ### Added
 
 - Readonly support for `.rpm` files as archives
