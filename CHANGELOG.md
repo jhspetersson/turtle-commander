@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Add the `User Manual` menu item
+
 ## [0.5.12] - 2026-05-21
 
 ### Added
