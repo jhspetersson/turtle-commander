@@ -20,10 +20,14 @@ class ZipFileSystemProvider : VirtualFileSystemProvider {
         val ARCHIVE_EXTENSIONS = setOf(
             // Plain ZIP and Java/Android variants
             "zip", "jar", "war", "ear", "apk", "aar", "apkg",
-            // Microsoft Office Open XML
-            "docx", "xlsx", "pptx",
-            // OpenDocument
-            "odt", "ods", "odp", "odg",
+            // Microsoft Office Open XML (incl. macro-enabled / template / Visio variants)
+            "docx", "docm", "dotx", "dotm",
+            "xlsx", "xlsm", "xltx", "xltm", "xlsb", "xlam",
+            "pptx", "pptm", "potx", "potm", "ppsx", "ppsm", "ppam",
+            "vsdx", "vsdm", "vstx", "vstm", "thmx",
+            // OpenDocument (documents + templates)
+            "odt", "ods", "odp", "odg", "odf", "odb", "odc", "odm",
+            "ott", "ots", "otp", "otg",
             // eBooks / comics
             "epub", "cbz",
             // NuGet

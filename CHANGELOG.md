@@ -7,6 +7,7 @@
 ### Added
 
 - Add the `User Manual` menu item
+- Support more OOXML and OpenDocument variants as archives
 
 ## [0.5.12] - 2026-05-21
 
