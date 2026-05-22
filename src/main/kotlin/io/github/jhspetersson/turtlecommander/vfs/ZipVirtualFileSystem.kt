@@ -34,6 +34,8 @@ class ZipFileSystemProvider : VirtualFileSystemProvider {
             "nupkg",
             // Firefox / Mozilla browser extensions (plain ZIPs)
             "xpi",
+            // Quake 3 / id Tech 3 game data (plain ZIPs)
+            "pk3",
         )
     }
 

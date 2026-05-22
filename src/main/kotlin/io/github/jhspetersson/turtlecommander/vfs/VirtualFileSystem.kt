@@ -35,6 +35,15 @@ interface VirtualFileSystemProvider {
     fun create(archivePath: Path): VirtualFileSystem
 }
 
+/**
+ * Thrown by [VirtualFileSystemProvider.create] when a file's extension is recognised but
+ * its contents match no supported archive format. Callers (e.g. the tool window's
+ * `enterVfs`) treat this as "leave the file as it is": no VFS is opened and no error is
+ * shown. Contrast with the generic exceptions thrown for genuinely corrupt archives, which
+ * *do* surface an error to the user.
+ */
+class SilentVfsOpenException : Exception()
+
 internal fun parentEntry(path: Path) = FileEntry(
     name = "..",
     path = path,
@@ -275,6 +284,7 @@ object VirtualFileSystemRegistry {
         register(XzFileSystemProvider())
         register(CrxFileSystemProvider())
         register(RpmFileSystemProvider())
+        register(PakFileSystemProvider())
     }
 
     fun register(provider: VirtualFileSystemProvider) {

@@ -828,7 +828,7 @@ class FileTab(
                         } else if (entry.isDirectory) {
                             // Handled by tree expansion
                         } else if (isEntryBrowsableArchive(entry)) {
-                            enterVfs(entry.path)
+                            enterVfs(entry)
                         } else {
                             openFile(entry)
                         }
@@ -1551,7 +1551,7 @@ class FileTab(
         if (entry.isDirectory) {
             fileOps.launch { navigateTo(entry.path) }
         } else if (isEntryBrowsableArchive(entry)) {
-            enterVfs(entry.path)
+            enterVfs(entry)
         } else {
             openFile(entry)
         }

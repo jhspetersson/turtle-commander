@@ -3,7 +3,9 @@ package io.github.jhspetersson.turtlecommander.ui
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
+import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
+import io.github.jhspetersson.turtlecommander.vfs.SilentVfsOpenException
 import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
@@ -15,7 +17,8 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 
-internal fun FileTab.enterVfs(archivePath: Path) {
+internal fun FileTab.enterVfs(entry: FileEntry) {
+    val archivePath = entry.path
     val fileName = archivePath.fileName?.toString() ?: "archive"
     ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Opening $fileName\u2026", true) {
         override fun run(indicator: ProgressIndicator) {
@@ -42,6 +45,13 @@ internal fun FileTab.enterVfs(archivePath: Path) {
                         }
                         vfsStack.add(VfsStackEntry(vfs, archivePath, tempFile))
                         runBlocking { navigateTo(vfs.root) }
+                    } catch (_: SilentVfsOpenException) {
+                        // Recognised extension but unrecognised contents (e.g. a .pak that is
+                        // neither PAK nor ZIP): fall through to opening it as a normal file.
+                        tempFile?.let {
+                            try { it.delete(); it.parentFile?.delete() } catch (_: Exception) {}
+                        }
+                        openFile(entry)
                     } catch (e: Exception) {
                         tempFile?.let {
                             try { it.delete(); it.parentFile?.delete() } catch (_: Exception) {}
@@ -49,6 +59,9 @@ internal fun FileTab.enterVfs(archivePath: Path) {
                         fileErrorNotification("Cannot open nested archive: ${fileErrorMessage(e)}")
                     }
                 }
+            } catch (_: SilentVfsOpenException) {
+                // Recognised extension but unrecognised contents: open it as a normal file.
+                openFile(entry)
             } catch (e: Exception) {
                 fileErrorNotification("Cannot open archive: ${fileErrorMessage(e)}")
             }

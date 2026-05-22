@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- Support Quake / Quake 2 `.pak` files as archives
+- Support Quake 3 `.pk3` files as ZIP archives
+
 ## [0.5.13] - 2026-05-22
 
 ### Added
