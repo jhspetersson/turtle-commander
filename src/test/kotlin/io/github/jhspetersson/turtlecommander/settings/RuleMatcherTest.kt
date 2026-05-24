@@ -4,6 +4,7 @@ import io.github.jhspetersson.turtlecommander.model.FileEntry
 import org.junit.Assert.*
 import org.junit.Test
 import java.nio.file.Paths
+import java.nio.file.attribute.FileTime
 
 class RuleMatcherTest {
 
@@ -18,6 +19,26 @@ class RuleMatcherTest {
         size = size,
         lastModified = null,
         permissions = "",
+        isParentLink = parentLink,
+    )
+
+    private fun meta(
+        created: Long? = null,
+        modified: Long? = null,
+        owner: String = "",
+        group: String = "",
+        permissions: String = "",
+        parentLink: Boolean = false,
+    ) = FileEntry(
+        name = "f",
+        path = dummyPath,
+        isDirectory = false,
+        size = 0,
+        creationTime = created?.let { FileTime.fromMillis(it) },
+        lastModified = modified?.let { FileTime.fromMillis(it) },
+        owner = owner,
+        group = group,
+        permissions = permissions,
         isParentLink = parentLink,
     )
 
@@ -236,6 +257,121 @@ class RuleMatcherTest {
         val children = ContainsEvaluator { listOf("pom.xml") }
         assertTrue(insensitive.matches(file("d", isDir = true), children))
         assertFalse(sensitive.matches(file("d", isDir = true), children))
+    }
+
+    // --- Date: absolute ---
+
+    @Test
+    fun `date BEFORE matches strictly earlier timestamps`() {
+        val m = RuleMatcher.Date(DateField.MODIFIED, DateOp.BEFORE, epochMillis = 1_000L)
+        assertTrue(m.matches(meta(modified = 999L), emptyContains))
+        assertFalse(m.matches(meta(modified = 1_000L), emptyContains))
+        assertFalse(m.matches(meta(modified = 1_001L), emptyContains))
+    }
+
+    @Test
+    fun `date AFTER is inclusive of the anchor`() {
+        val m = RuleMatcher.Date(DateField.MODIFIED, DateOp.AFTER, epochMillis = 1_000L)
+        assertTrue(m.matches(meta(modified = 1_000L), emptyContains))
+        assertTrue(m.matches(meta(modified = 5_000L), emptyContains))
+        assertFalse(m.matches(meta(modified = 999L), emptyContains))
+    }
+
+    @Test
+    fun `date BETWEEN is inclusive on both ends`() {
+        val m = RuleMatcher.Date(DateField.CREATED, DateOp.BETWEEN, epochMillis = 100L, epochMillisMax = 200L)
+        assertTrue(m.matches(meta(created = 100L), emptyContains))
+        assertTrue(m.matches(meta(created = 150L), emptyContains))
+        assertTrue(m.matches(meta(created = 200L), emptyContains))
+        assertFalse(m.matches(meta(created = 99L), emptyContains))
+        assertFalse(m.matches(meta(created = 201L), emptyContains))
+    }
+
+    @Test
+    fun `date matcher reads the field it targets`() {
+        val created = RuleMatcher.Date(DateField.CREATED, DateOp.AFTER, epochMillis = 500L)
+        // Only the creation time qualifies; modified is below the anchor.
+        assertTrue(created.matches(meta(created = 600L, modified = 100L), emptyContains))
+        assertFalse(created.matches(meta(created = 100L, modified = 600L), emptyContains))
+    }
+
+    @Test
+    fun `date matcher never matches when the timestamp is absent`() {
+        val m = RuleMatcher.Date(DateField.CREATED, DateOp.AFTER, epochMillis = 0L)
+        assertFalse(m.matches(meta(created = null), emptyContains))
+    }
+
+    // --- Date: relative ---
+
+    @Test
+    fun `date WITHIN_LAST matches recent timestamps`() {
+        val now = System.currentTimeMillis()
+        val m = RuleMatcher.Date(DateField.MODIFIED, DateOp.WITHIN_LAST, amount = 7, unit = DateUnit.DAYS)
+        assertTrue(m.matches(meta(modified = now - DateUnit.DAYS.toMillis(1)), emptyContains))
+        assertFalse(m.matches(meta(modified = now - DateUnit.DAYS.toMillis(30)), emptyContains))
+    }
+
+    @Test
+    fun `date OLDER_THAN matches stale timestamps`() {
+        val now = System.currentTimeMillis()
+        val m = RuleMatcher.Date(DateField.MODIFIED, DateOp.OLDER_THAN, amount = 1, unit = DateUnit.HOURS)
+        assertTrue(m.matches(meta(modified = now - DateUnit.HOURS.toMillis(2)), emptyContains))
+        assertFalse(m.matches(meta(modified = now - DateUnit.MINUTES.toMillis(5)), emptyContains))
+    }
+
+    @Test
+    fun `date relative with non-positive amount never matches`() {
+        val m = RuleMatcher.Date(DateField.MODIFIED, DateOp.WITHIN_LAST, amount = 0, unit = DateUnit.DAYS)
+        assertFalse(m.matches(meta(modified = System.currentTimeMillis()), emptyContains))
+    }
+
+    @Test
+    fun `date matcher skips parent links`() {
+        val m = RuleMatcher.Date(DateField.MODIFIED, DateOp.AFTER, epochMillis = 0L)
+        assertFalse(m.matches(meta(modified = 10L, parentLink = true), emptyContains))
+    }
+
+    // --- Text: owner / group / permissions ---
+
+    @Test
+    fun `text owner exact match is case-insensitive by default`() {
+        val m = RuleMatcher.Text(TextProperty.OWNER, PatternKind.EXACT, "Root")
+        assertTrue(m.matches(meta(owner = "root"), emptyContains))
+        assertFalse(m.matches(meta(owner = "daemon"), emptyContains))
+    }
+
+    @Test
+    fun `text group exact match`() {
+        val m = RuleMatcher.Text(TextProperty.GROUP, PatternKind.EXACT, "staff")
+        assertTrue(m.matches(meta(group = "staff"), emptyContains))
+        assertFalse(m.matches(meta(group = "wheel"), emptyContains))
+    }
+
+    @Test
+    fun `text permissions glob finds world-writable`() {
+        val m = RuleMatcher.Text(TextProperty.PERMISSIONS, PatternKind.GLOB, "*w*", caseSensitive = true)
+        assertTrue(m.matches(meta(permissions = "rwxrwxrwx"), emptyContains))
+        assertFalse(m.matches(meta(permissions = "r-xr-xr-x"), emptyContains))
+    }
+
+    @Test
+    fun `text permissions regex matches`() {
+        val m = RuleMatcher.Text(TextProperty.PERMISSIONS, PatternKind.REGEX, ".{6}rwx")
+        assertTrue(m.matches(meta(permissions = "rwxr-xrwx"), emptyContains))
+        assertFalse(m.matches(meta(permissions = "rwxr-xr-x"), emptyContains))
+    }
+
+    @Test
+    fun `text matcher targets only its own field`() {
+        val ownerRule = RuleMatcher.Text(TextProperty.OWNER, PatternKind.EXACT, "root", caseSensitive = true)
+        // group is "root" but owner is not — must not match on the wrong field.
+        assertFalse(ownerRule.matches(meta(owner = "user", group = "root"), emptyContains))
+    }
+
+    @Test
+    fun `text matcher skips parent links`() {
+        val m = RuleMatcher.Text(TextProperty.OWNER, PatternKind.GLOB, "*")
+        assertFalse(m.matches(meta(owner = "root", parentLink = true), emptyContains))
     }
 
     // --- globToRegex direct coverage ---

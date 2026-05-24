@@ -3,6 +3,9 @@ package io.github.jhspetersson.turtlecommander.service
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import io.github.jhspetersson.turtlecommander.model.FileEntry
+import io.github.jhspetersson.turtlecommander.settings.ColorRuleManager
+import io.github.jhspetersson.turtlecommander.settings.RuleMatcher
+import io.github.jhspetersson.turtlecommander.settings.TextProperty
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.util.readFileGroup
 import io.github.jhspetersson.turtlecommander.util.readFileOwner
@@ -101,14 +104,26 @@ class FileOperationService(
         // Resolve which expensive per-entry lookups are actually displayed. On Windows the
         // User column is hidden by default, so `Files.getOwner(...)` (a slow Win32 security
         // descriptor + SID-to-name lookup) shouldn't run for every file in a large directory.
-        val visibleColumnIds = TurtleCommanderSettings.getInstance()
+        val settings = TurtleCommanderSettings.getInstance()
+        val visibleColumnIds = settings
             .getEffectiveColumns()
             .filter { it.visible }
             .map { it.id }
             .toSet()
-        val needOwner = "User" in visibleColumnIds
-        val needGroup = !isWindows && "Group" in visibleColumnIds
-        val needPermissions = "Permissions" in visibleColumnIds
+        // Owner / group / permissions are also read when an active color rule matches on them,
+        // otherwise such a rule could never fire while its column is hidden. (Created / modified
+        // timestamps come from the same attribute read as size, so they need no opt-in.)
+        val state = settings.state
+        val activeRules = if (state.enableFileNameHighlighting) {
+            ColorRuleManager.getActiveRulesForEvaluation(state)
+        } else {
+            emptyList()
+        }
+        fun rulesMatchOn(prop: TextProperty): Boolean =
+            activeRules.any { rule -> rule.matchers.any { it is RuleMatcher.Text && it.field == prop } }
+        val needOwner = "User" in visibleColumnIds || rulesMatchOn(TextProperty.OWNER)
+        val needGroup = !isWindows && ("Group" in visibleColumnIds || rulesMatchOn(TextProperty.GROUP))
+        val needPermissions = "Permissions" in visibleColumnIds || rulesMatchOn(TextProperty.PERMISSIONS)
 
         // An IOException from Files.newDirectoryStream (e.g. access denied on
         // C:\$Recycle.Bin\S-1-5-18) is allowed to propagate so the UI can show it to the user.

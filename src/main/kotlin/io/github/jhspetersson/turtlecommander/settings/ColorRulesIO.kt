@@ -117,6 +117,22 @@ object ColorRulesIO {
                 sb.appendLine("$prefix.pattern=${matcher.pattern}")
                 if (matcher.caseSensitive) sb.appendLine("$prefix.caseSensitive=true")
             }
+            is RuleMatcher.Date -> {
+                sb.appendLine("$prefix.type=DATE")
+                sb.appendLine("$prefix.dateField=${matcher.field.name}")
+                sb.appendLine("$prefix.dateOp=${matcher.op.name}")
+                if (matcher.epochMillis != 0L) sb.appendLine("$prefix.dateEpochMillis=${matcher.epochMillis}")
+                if (matcher.epochMillisMax != 0L) sb.appendLine("$prefix.dateEpochMillisMax=${matcher.epochMillisMax}")
+                if (matcher.amount != 0L) sb.appendLine("$prefix.dateAmount=${matcher.amount}")
+                sb.appendLine("$prefix.dateUnit=${matcher.unit.name}")
+            }
+            is RuleMatcher.Text -> {
+                sb.appendLine("$prefix.type=TEXT")
+                sb.appendLine("$prefix.textProperty=${matcher.field.name}")
+                sb.appendLine("$prefix.patternKind=${matcher.kind.name}")
+                sb.appendLine("$prefix.pattern=${matcher.pattern}")
+                if (matcher.caseSensitive) sb.appendLine("$prefix.caseSensitive=true")
+            }
         }
     }
 
@@ -180,6 +196,25 @@ object ColorRulesIO {
                 val pattern = props["$prefix.pattern"] ?: return null
                 val caseSensitive = props["$prefix.caseSensitive"]?.equals("true", ignoreCase = true) ?: false
                 RuleMatcher.Contains(kind = kind, pattern = pattern, caseSensitive = caseSensitive)
+            }
+            "DATE" -> {
+                val field = runCatching { DateField.valueOf(props["$prefix.dateField"] ?: "") }.getOrNull() ?: return null
+                val op = runCatching { DateOp.valueOf(props["$prefix.dateOp"] ?: "") }.getOrNull() ?: return null
+                RuleMatcher.Date(
+                    field = field,
+                    op = op,
+                    epochMillis = props["$prefix.dateEpochMillis"]?.toLongOrNull() ?: 0L,
+                    epochMillisMax = props["$prefix.dateEpochMillisMax"]?.toLongOrNull() ?: 0L,
+                    amount = props["$prefix.dateAmount"]?.toLongOrNull() ?: 0L,
+                    unit = runCatching { DateUnit.valueOf(props["$prefix.dateUnit"] ?: "") }.getOrDefault(DateUnit.DAYS),
+                )
+            }
+            "TEXT" -> {
+                val field = runCatching { TextProperty.valueOf(props["$prefix.textProperty"] ?: "") }.getOrNull() ?: return null
+                val kind = runCatching { PatternKind.valueOf(props["$prefix.patternKind"] ?: "") }.getOrNull() ?: return null
+                val pattern = props["$prefix.pattern"] ?: return null
+                val caseSensitive = props["$prefix.caseSensitive"]?.equals("true", ignoreCase = true) ?: false
+                RuleMatcher.Text(field = field, kind = kind, pattern = pattern, caseSensitive = caseSensitive)
             }
             else -> null
         }

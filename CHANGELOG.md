@@ -6,6 +6,7 @@
 
 ### Added
 
+- Color rules can now match on created/modified date, owner, group, and permissions
 - Support Quake / Quake 2 `.pak` files as archives
 - Support Quake 3 `.pk3` files as ZIP archives
 

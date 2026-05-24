@@ -8,12 +8,17 @@ import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
 import io.github.jhspetersson.turtlecommander.ui.installStandardContextMenu
 import java.awt.*
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeParseException
 import javax.swing.*
 
 /**
- * Edit a single [RuleMatcher]. The kind switcher flips between three
- * card-layout forms (Size / Name / Contains); on OK the active card's
- * fields are read out into the appropriate matcher subclass.
+ * Edit a single [RuleMatcher]. The kind switcher flips between card-layout forms
+ * (Size / Name / Created / Modified / Owner / Group / Permissions / Directory contains);
+ * on OK the active card's fields are read out into the appropriate matcher subclass.
+ * Created and Modified share one date card; Owner, Group and Permissions share one text card.
  */
 internal class ColorMatcherEditDialog(
     project: Project?,
@@ -23,12 +28,36 @@ internal class ColorMatcherEditDialog(
     enum class Kind {
         SIZE,
         NAME,
+        CREATED,
+        MODIFIED,
+        OWNER,
+        GROUP,
+        PERMISSIONS,
         CONTAINS;
+
+        /** The card-layout key this kind displays — several kinds share a card. */
+        fun cardName(): String = when (this) {
+            SIZE -> "SIZE"
+            NAME -> "NAME"
+            CREATED, MODIFIED -> "DATE"
+            OWNER, GROUP, PERMISSIONS -> "TEXT"
+            CONTAINS -> "CONTAINS"
+        }
+
         companion object {
             fun from(m: RuleMatcher): Kind = when (m) {
                 is RuleMatcher.Size -> SIZE
                 is RuleMatcher.Name -> NAME
                 is RuleMatcher.Contains -> CONTAINS
+                is RuleMatcher.Date -> when (m.field) {
+                    DateField.CREATED -> CREATED
+                    DateField.MODIFIED -> MODIFIED
+                }
+                is RuleMatcher.Text -> when (m.field) {
+                    TextProperty.OWNER -> OWNER
+                    TextProperty.GROUP -> GROUP
+                    TextProperty.PERMISSIONS -> PERMISSIONS
+                }
             }
         }
     }
@@ -64,6 +93,27 @@ internal class ColorMatcherEditDialog(
     private val containsPatternField = JBTextField(24)
     private val containsCaseCheck = JCheckBox("Case sensitive")
 
+    // Date fields (shared by Created / Modified)
+    private val dateOpCombo = ComboBox(DefaultComboBoxModel(DateOp.entries.toTypedArray())).apply {
+        renderer = labelRenderer { (it as? DateOp)?.label() ?: it?.toString().orEmpty() }
+    }
+    private val dateValueLabel = JBLabel("Date:")
+    private val dateValueField = JBTextField(12)
+    private val dateMaxLabel = JBLabel("And through:")
+    private val dateMaxField = JBTextField(12)
+    private val dateAmountLabel = JBLabel("Amount:")
+    private val dateAmountSpinner = JSpinner(SpinnerNumberModel(7L, 1L, Long.MAX_VALUE, 1L))
+    private val dateUnitCombo = ComboBox(DefaultComboBoxModel(DateUnit.entries.toTypedArray())).apply {
+        renderer = labelRenderer { (it as? DateUnit)?.label() ?: it?.toString().orEmpty() }
+    }
+
+    // Text fields (shared by Owner / Group / Permissions)
+    private val textKindCombo = ComboBox(DefaultComboBoxModel(PatternKind.entries.toTypedArray())).apply {
+        renderer = labelRenderer { (it as? PatternKind)?.label() ?: it?.toString().orEmpty() }
+    }
+    private val textPatternField = JBTextField(24)
+    private val textCaseCheck = JCheckBox("Case sensitive")
+
     private val cards = CardLayout()
     private val cardPanel = JPanel(cards)
 
@@ -74,19 +124,25 @@ internal class ColorMatcherEditDialog(
         title = if (initial == null) "Add matcher" else "Edit matcher"
         namePatternField.installStandardContextMenu()
         containsPatternField.installStandardContextMenu()
+        textPatternField.installStandardContextMenu()
+        dateValueField.installStandardContextMenu()
+        dateMaxField.installStandardContextMenu()
         loadFrom(initial)
         kindCombo.addActionListener { showSelectedCard() }
         sizeOpCombo.addActionListener { updateSizeVisibility() }
+        dateOpCombo.addActionListener { updateDateVisibility() }
         init()
     }
 
     override fun createCenterPanel(): JComponent {
-        cardPanel.add(buildSizePanel(), Kind.SIZE.name)
-        cardPanel.add(buildNamePanel(), Kind.NAME.name)
-        cardPanel.add(buildContainsPanel(), Kind.CONTAINS.name)
+        cardPanel.add(buildSizePanel(), "SIZE")
+        cardPanel.add(buildNamePanel(), "NAME")
+        cardPanel.add(buildDatePanel(), "DATE")
+        cardPanel.add(buildTextPanel(), "TEXT")
+        cardPanel.add(buildContainsPanel(), "CONTAINS")
 
         val root = JPanel(BorderLayout(0, 8)).apply {
-            preferredSize = Dimension(420, 170)
+            preferredSize = Dimension(440, 210)
         }
         val top = JPanel(GridBagLayout())
         val gbc = GridBagConstraints().apply {
@@ -181,10 +237,70 @@ internal class ColorMatcherEditDialog(
         return panel
     }
 
+    private fun buildDatePanel(): JPanel {
+        val panel = JPanel(GridBagLayout())
+        panel.border = BorderFactory.createTitledBorder("Date")
+        val gbc = GridBagConstraints().apply {
+            anchor = GridBagConstraints.WEST
+            insets = JBUI.insets(2, 4)
+        }
+        gbc.gridy = 0
+        gbc.gridx = 0; panel.add(JBLabel("Operator:"), gbc)
+        gbc.gridx = 1; panel.add(dateOpCombo, gbc)
+
+        gbc.gridy = 1
+        gbc.gridx = 0; panel.add(dateValueLabel, gbc)
+        gbc.gridx = 1; panel.add(dateValueField, gbc)
+
+        gbc.gridy = 2
+        gbc.gridx = 0; panel.add(dateMaxLabel, gbc)
+        gbc.gridx = 1; panel.add(dateMaxField, gbc)
+
+        gbc.gridy = 3
+        gbc.gridx = 0; panel.add(dateAmountLabel, gbc)
+        val amountRow = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.X_AXIS)
+            add(dateAmountSpinner.apply { preferredSize = Dimension(90, preferredSize.height) })
+            add(Box.createHorizontalStrut(6))
+            add(dateUnitCombo)
+        }
+        gbc.gridx = 1; panel.add(amountRow, gbc)
+
+        gbc.gridy = 4
+        gbc.gridx = 1; panel.add(JBLabel("Dates are YYYY-MM-DD").apply { foreground = Color.GRAY }, gbc)
+        return panel
+    }
+
+    private fun buildTextPanel(): JPanel {
+        val panel = JPanel(GridBagLayout())
+        panel.border = BorderFactory.createTitledBorder("Value")
+        val gbc = GridBagConstraints().apply {
+            anchor = GridBagConstraints.WEST
+            insets = JBUI.insets(2, 4)
+        }
+        gbc.gridy = 0
+        gbc.gridx = 0; panel.add(JBLabel("Pattern kind:"), gbc)
+        gbc.gridx = 1; panel.add(textKindCombo, gbc)
+
+        gbc.gridy = 1
+        gbc.gridx = 0; panel.add(JBLabel("Pattern:"), gbc)
+        gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0; panel.add(textPatternField, gbc)
+        gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0.0
+
+        gbc.gridy = 2
+        gbc.gridx = 1; panel.add(textCaseCheck, gbc)
+
+        gbc.gridy = 3
+        gbc.gridx = 1
+        panel.add(JBLabel("e.g. perms glob *w* or owner = root").apply { foreground = Color.GRAY }, gbc)
+        return panel
+    }
+
     private fun showSelectedCard() {
         val kind = kindCombo.selectedItem as Kind
-        cards.show(cardPanel, kind.name)
+        cards.show(cardPanel, kind.cardName())
         updateSizeVisibility()
+        updateDateVisibility()
     }
 
     private fun updateSizeVisibility() {
@@ -192,6 +308,20 @@ internal class ColorMatcherEditDialog(
         sizeMaxLabel.isVisible = between
         sizeMaxSpinner.isVisible = between
         sizeMaxUnitCombo.isVisible = between
+    }
+
+    private fun updateDateVisibility() {
+        val op = dateOpCombo.selectedItem as? DateOp ?: return
+        val absolute = op == DateOp.BEFORE || op == DateOp.AFTER || op == DateOp.BETWEEN
+        val between = op == DateOp.BETWEEN
+        val relative = op == DateOp.WITHIN_LAST || op == DateOp.OLDER_THAN
+        dateValueLabel.isVisible = absolute
+        dateValueField.isVisible = absolute
+        dateMaxLabel.isVisible = between
+        dateMaxField.isVisible = between
+        dateAmountLabel.isVisible = relative
+        dateAmountSpinner.isVisible = relative
+        dateUnitCombo.isVisible = relative
     }
 
     private fun loadFrom(matcher: RuleMatcher?) {
@@ -219,12 +349,36 @@ internal class ColorMatcherEditDialog(
                 containsPatternField.text = matcher.pattern
                 containsCaseCheck.isSelected = matcher.caseSensitive
             }
+            is RuleMatcher.Date -> {
+                kindCombo.selectedItem = when (matcher.field) {
+                    DateField.CREATED -> Kind.CREATED
+                    DateField.MODIFIED -> Kind.MODIFIED
+                }
+                dateOpCombo.selectedItem = matcher.op
+                dateValueField.text = if (matcher.epochMillis != 0L) millisToIsoDate(matcher.epochMillis) else ""
+                dateMaxField.text = if (matcher.epochMillisMax != 0L) millisToIsoDate(matcher.epochMillisMax) else ""
+                dateAmountSpinner.value = if (matcher.amount > 0L) matcher.amount else 7L
+                dateUnitCombo.selectedItem = matcher.unit
+            }
+            is RuleMatcher.Text -> {
+                kindCombo.selectedItem = when (matcher.field) {
+                    TextProperty.OWNER -> Kind.OWNER
+                    TextProperty.GROUP -> Kind.GROUP
+                    TextProperty.PERMISSIONS -> Kind.PERMISSIONS
+                }
+                textKindCombo.selectedItem = matcher.kind
+                textPatternField.text = matcher.pattern
+                textCaseCheck.isSelected = matcher.caseSensitive
+            }
             null -> {
                 kindCombo.selectedItem = Kind.CONTAINS
                 containsKindCombo.selectedItem = PatternKind.EXACT
                 sizeUnitCombo.selectedItem = "MB"
                 sizeMaxUnitCombo.selectedItem = "MB"
                 nameAppliesCombo.selectedItem = AppliesTo.BOTH
+                dateOpCombo.selectedItem = DateOp.WITHIN_LAST
+                dateUnitCombo.selectedItem = DateUnit.DAYS
+                textKindCombo.selectedItem = PatternKind.EXACT
             }
         }
     }
@@ -284,8 +438,70 @@ internal class ColorMatcherEditDialog(
                     caseSensitive = containsCaseCheck.isSelected,
                 )
             }
+            Kind.CREATED -> buildDateMatcher(DateField.CREATED) ?: return
+            Kind.MODIFIED -> buildDateMatcher(DateField.MODIFIED) ?: return
+            Kind.OWNER -> buildTextMatcher(TextProperty.OWNER) ?: return
+            Kind.GROUP -> buildTextMatcher(TextProperty.GROUP) ?: return
+            Kind.PERMISSIONS -> buildTextMatcher(TextProperty.PERMISSIONS) ?: return
         }
         super.doOKAction()
+    }
+
+    /** Reads the date card into a matcher, or shows an error and returns null. */
+    private fun buildDateMatcher(field: DateField): RuleMatcher.Date? {
+        return when (val op = dateOpCombo.selectedItem as DateOp) {
+            DateOp.BEFORE, DateOp.AFTER -> {
+                val millis = parseIsoDate(dateValueField)?.let { startOfDayMillis(it) } ?: return null
+                RuleMatcher.Date(field = field, op = op, epochMillis = millis)
+            }
+            DateOp.BETWEEN -> {
+                val lo = parseIsoDate(dateValueField)?.let { startOfDayMillis(it) } ?: return null
+                val hi = parseIsoDate(dateMaxField)?.let { endOfDayMillis(it) } ?: return null
+                if (hi < lo) {
+                    setErrorText("End date is before start date", dateMaxField)
+                    return null
+                }
+                RuleMatcher.Date(field = field, op = op, epochMillis = lo, epochMillisMax = hi)
+            }
+            DateOp.WITHIN_LAST, DateOp.OLDER_THAN -> {
+                val amount = (dateAmountSpinner.value as Number).toLong()
+                if (amount <= 0L) {
+                    setErrorText("Amount must be positive", dateAmountSpinner)
+                    return null
+                }
+                RuleMatcher.Date(field = field, op = op, amount = amount, unit = dateUnitCombo.selectedItem as DateUnit)
+            }
+        }
+    }
+
+    /** Reads the text card into a matcher, or shows an error and returns null. */
+    private fun buildTextMatcher(field: TextProperty): RuleMatcher.Text? {
+        val pattern = textPatternField.text.trim()
+        if (pattern.isEmpty()) {
+            setErrorText("Pattern cannot be empty", textPatternField)
+            return null
+        }
+        return RuleMatcher.Text(
+            field = field,
+            kind = textKindCombo.selectedItem as PatternKind,
+            pattern = pattern,
+            caseSensitive = textCaseCheck.isSelected,
+        )
+    }
+
+    /** Parses `YYYY-MM-DD` from [field], or shows an error on it and returns null. */
+    private fun parseIsoDate(field: JBTextField): LocalDate? {
+        val text = field.text.trim()
+        if (text.isEmpty()) {
+            setErrorText("Enter a date (YYYY-MM-DD)", field)
+            return null
+        }
+        return try {
+            LocalDate.parse(text)
+        } catch (_: DateTimeParseException) {
+            setErrorText("Invalid date, use YYYY-MM-DD", field)
+            null
+        }
     }
 }
 
@@ -309,7 +525,40 @@ internal fun RuleMatcher.describe(): String = when (this) {
         val case = if (caseSensitive) ", Aa" else ""
         "contains $kindStr \"$pattern\"$case"
     }
+    is RuleMatcher.Date -> {
+        val f = when (field) { DateField.CREATED -> "created"; DateField.MODIFIED -> "modified" }
+        when (op) {
+            DateOp.BEFORE -> "$f before ${millisToIsoDate(epochMillis)}"
+            DateOp.AFTER -> "$f on/after ${millisToIsoDate(epochMillis)}"
+            DateOp.BETWEEN -> "$f ${millisToIsoDate(epochMillis)}..${millisToIsoDate(epochMillisMax)}"
+            DateOp.WITHIN_LAST -> "$f within last $amount ${unit.label()}"
+            DateOp.OLDER_THAN -> "$f older than $amount ${unit.label()}"
+        }
+    }
+    is RuleMatcher.Text -> {
+        val f = when (field) {
+            TextProperty.OWNER -> "owner"
+            TextProperty.GROUP -> "group"
+            TextProperty.PERMISSIONS -> "permissions"
+        }
+        val kindStr = when (kind) { PatternKind.EXACT -> "="; PatternKind.GLOB -> "glob"; PatternKind.REGEX -> "regex" }
+        val case = if (caseSensitive) ", Aa" else ""
+        "$f $kindStr \"$pattern\"$case"
+    }
 }
+
+private val SYSTEM_ZONE: ZoneId get() = ZoneId.systemDefault()
+
+private fun startOfDayMillis(date: LocalDate): Long =
+    date.atStartOfDay(SYSTEM_ZONE).toInstant().toEpochMilli()
+
+/** End of [date] (one ms before the next midnight) so BETWEEN ranges are inclusive of the whole day. */
+private fun endOfDayMillis(date: LocalDate): Long =
+    date.plusDays(1).atStartOfDay(SYSTEM_ZONE).toInstant().toEpochMilli() - 1
+
+/** Formats an instant back to `YYYY-MM-DD`; any time-of-day collapses to its calendar day. */
+private fun millisToIsoDate(millis: Long): String =
+    Instant.ofEpochMilli(millis).atZone(SYSTEM_ZONE).toLocalDate().toString()
 
 private fun labelRenderer(label: (Any?) -> String): DefaultListCellRenderer = object : DefaultListCellRenderer() {
     override fun getListCellRendererComponent(
@@ -324,7 +573,27 @@ private fun labelRenderer(label: (Any?) -> String): DefaultListCellRenderer = ob
 private fun ColorMatcherEditDialog.Kind.label(): String = when (this) {
     ColorMatcherEditDialog.Kind.SIZE -> "Size"
     ColorMatcherEditDialog.Kind.NAME -> "Name"
+    ColorMatcherEditDialog.Kind.CREATED -> "Created date"
+    ColorMatcherEditDialog.Kind.MODIFIED -> "Modified date"
+    ColorMatcherEditDialog.Kind.OWNER -> "Owner / user"
+    ColorMatcherEditDialog.Kind.GROUP -> "Group"
+    ColorMatcherEditDialog.Kind.PERMISSIONS -> "Permissions"
     ColorMatcherEditDialog.Kind.CONTAINS -> "Directory contains"
+}
+
+private fun DateOp.label(): String = when (this) {
+    DateOp.BEFORE -> "Before"
+    DateOp.AFTER -> "On or after"
+    DateOp.BETWEEN -> "Between"
+    DateOp.WITHIN_LAST -> "Within last"
+    DateOp.OLDER_THAN -> "Older than"
+}
+
+private fun DateUnit.label(): String = when (this) {
+    DateUnit.MINUTES -> "minutes"
+    DateUnit.HOURS -> "hours"
+    DateUnit.DAYS -> "days"
+    DateUnit.WEEKS -> "weeks"
 }
 
 private fun SizeOp.label(): String = when (this) {

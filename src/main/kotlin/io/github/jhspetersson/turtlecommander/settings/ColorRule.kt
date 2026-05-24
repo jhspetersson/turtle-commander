@@ -15,6 +15,30 @@ enum class PatternKind { EXACT, GLOB, REGEX }
 
 enum class AppliesTo { FILE, DIR, BOTH }
 
+/** Which timestamp a [RuleMatcher.Date] inspects. */
+enum class DateField { CREATED, MODIFIED }
+
+/**
+ * Comparison kinds for [RuleMatcher.Date]. [BEFORE]/[AFTER]/[BETWEEN] compare against
+ * absolute instants stored in the matcher; [WITHIN_LAST]/[OLDER_THAN] compare against a
+ * sliding window of `now - amount * unit`, evaluated at match time.
+ */
+enum class DateOp { BEFORE, AFTER, BETWEEN, WITHIN_LAST, OLDER_THAN }
+
+enum class DateUnit {
+    MINUTES, HOURS, DAYS, WEEKS;
+
+    fun toMillis(amount: Long): Long = when (this) {
+        MINUTES -> amount * 60_000L
+        HOURS -> amount * 3_600_000L
+        DAYS -> amount * 86_400_000L
+        WEEKS -> amount * 604_800_000L
+    }
+}
+
+/** Which string-valued attribute a [RuleMatcher.Text] inspects. */
+enum class TextProperty { OWNER, GROUP, PERMISSIONS }
+
 /**
  * Looks up the top-level entries of a directory. Abstracted so the engine can be
  * exercised without a real filesystem and so callers can cache results.
@@ -92,6 +116,67 @@ sealed class RuleMatcher {
             val children = contains.listChildNames(entry) ?: return false
             val fn = compiled ?: return false
             return children.any(fn)
+        }
+    }
+
+    /**
+     * Matches the creation or last-modified timestamp. Absolute operators
+     * ([DateOp.BEFORE]/[DateOp.AFTER]/[DateOp.BETWEEN]) compare against [epochMillis] /
+     * [epochMillisMax]; relative operators ([DateOp.WITHIN_LAST]/[DateOp.OLDER_THAN])
+     * compare against `now - amount * unit`. Entries whose timestamp is unavailable
+     * (e.g. some VFS entries) never match.
+     */
+    data class Date(
+        val field: DateField,
+        val op: DateOp,
+        val epochMillis: Long = 0L,
+        val epochMillisMax: Long = 0L,
+        val amount: Long = 0L,
+        val unit: DateUnit = DateUnit.DAYS,
+    ) : RuleMatcher() {
+        override val cost: Int get() = 0
+
+        override fun matches(entry: FileEntry, contains: ContainsEvaluator): Boolean {
+            if (entry.isParentLink) return false
+            val fileTime = when (field) {
+                DateField.CREATED -> entry.creationTime
+                DateField.MODIFIED -> entry.lastModified
+            } ?: return false
+            val t = fileTime.toMillis()
+            return when (op) {
+                DateOp.BEFORE -> t < epochMillis
+                DateOp.AFTER -> t >= epochMillis
+                DateOp.BETWEEN -> t in epochMillis..epochMillisMax
+                DateOp.WITHIN_LAST -> amount > 0L && t >= System.currentTimeMillis() - unit.toMillis(amount)
+                DateOp.OLDER_THAN -> amount > 0L && t < System.currentTimeMillis() - unit.toMillis(amount)
+            }
+        }
+    }
+
+    /**
+     * Matches a string-valued attribute — owner, group, or permissions string — with the
+     * same EXACT / GLOB / REGEX matching used by [Name]. On Windows the permissions string
+     * is DOS attribute letters (e.g. `RHSA`) and group is usually empty.
+     */
+    data class Text(
+        val field: TextProperty,
+        val kind: PatternKind,
+        val pattern: String,
+        val caseSensitive: Boolean = false,
+    ) : RuleMatcher() {
+        override val cost: Int get() = 1
+
+        private val compiled: ((String) -> Boolean)? by lazy { compileNameMatcher(kind, pattern, caseSensitive) }
+
+        override fun matches(entry: FileEntry, contains: ContainsEvaluator): Boolean {
+            if (entry.isParentLink) return false
+            val value = when (field) {
+                TextProperty.OWNER -> entry.owner
+                TextProperty.GROUP -> entry.group
+                TextProperty.PERMISSIONS -> entry.permissions
+            }
+            val fn = compiled ?: return false
+            return fn(value)
         }
     }
 }
@@ -268,11 +353,20 @@ class SavedColorMatcher {
     var sizeOp: String = ""
     var sizeBytes: Long = 0L
     var sizeBytesMax: Long = 0L
-    // Name / Contains
+    // Name / Contains / Text
     var patternKind: String = ""
     var pattern: String = ""
     var caseSensitive: Boolean = false
     var appliesTo: String = ""
+    // Date
+    var dateField: String = ""
+    var dateOp: String = ""
+    var dateEpochMillis: Long = 0L
+    var dateEpochMillisMax: Long = 0L
+    var dateAmount: Long = 0L
+    var dateUnit: String = ""
+    // Text (owner / group / permissions)
+    var textProperty: String = ""
 
     fun toMatcher(): RuleMatcher? = when (type) {
         "SIZE" -> runCatching {
@@ -292,6 +386,24 @@ class SavedColorMatcher {
         }.getOrNull()
         "CONTAINS" -> runCatching {
             RuleMatcher.Contains(
+                kind = PatternKind.valueOf(patternKind),
+                pattern = pattern,
+                caseSensitive = caseSensitive,
+            )
+        }.getOrNull()
+        "DATE" -> runCatching {
+            RuleMatcher.Date(
+                field = DateField.valueOf(dateField),
+                op = DateOp.valueOf(dateOp),
+                epochMillis = dateEpochMillis,
+                epochMillisMax = dateEpochMillisMax,
+                amount = dateAmount,
+                unit = runCatching { DateUnit.valueOf(dateUnit) }.getOrDefault(DateUnit.DAYS),
+            )
+        }.getOrNull()
+        "TEXT" -> runCatching {
+            RuleMatcher.Text(
+                field = TextProperty.valueOf(textProperty),
                 kind = PatternKind.valueOf(patternKind),
                 pattern = pattern,
                 caseSensitive = caseSensitive,
@@ -318,6 +430,22 @@ class SavedColorMatcher {
                 }
                 is RuleMatcher.Contains -> {
                     type = "CONTAINS"
+                    patternKind = m.kind.name
+                    pattern = m.pattern
+                    caseSensitive = m.caseSensitive
+                }
+                is RuleMatcher.Date -> {
+                    type = "DATE"
+                    dateField = m.field.name
+                    dateOp = m.op.name
+                    dateEpochMillis = m.epochMillis
+                    dateEpochMillisMax = m.epochMillisMax
+                    dateAmount = m.amount
+                    dateUnit = m.unit.name
+                }
+                is RuleMatcher.Text -> {
+                    type = "TEXT"
+                    textProperty = m.field.name
                     patternKind = m.kind.name
                     pattern = m.pattern
                     caseSensitive = m.caseSensitive

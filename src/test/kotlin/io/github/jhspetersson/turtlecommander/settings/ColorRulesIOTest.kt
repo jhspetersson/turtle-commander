@@ -111,6 +111,52 @@ class ColorRulesIOTest {
     }
 
     @Test
+    fun `export then parse round-trips date and text matchers`() {
+        val config = ColorRulesConfig(
+            name = "Metadata",
+            rules = listOf(
+                ColorRule(
+                    id = "r",
+                    name = "Recent root files",
+                    matchers = listOf(
+                        RuleMatcher.Date(DateField.MODIFIED, DateOp.BETWEEN, epochMillis = 1000L, epochMillisMax = 5000L),
+                        RuleMatcher.Date(DateField.CREATED, DateOp.WITHIN_LAST, amount = 30, unit = DateUnit.DAYS),
+                        RuleMatcher.Text(TextProperty.OWNER, PatternKind.EXACT, "root", caseSensitive = true),
+                        RuleMatcher.Text(TextProperty.PERMISSIONS, PatternKind.GLOB, "*w*"),
+                    ),
+                ),
+            ),
+        )
+        val round = ColorRulesIO.parse(ColorRulesIO.export(config))!!
+        val m = round.rules[0].matchers
+        assertEquals(4, m.size)
+
+        val between = m[0] as RuleMatcher.Date
+        assertEquals(DateField.MODIFIED, between.field)
+        assertEquals(DateOp.BETWEEN, between.op)
+        assertEquals(1000L, between.epochMillis)
+        assertEquals(5000L, between.epochMillisMax)
+
+        val within = m[1] as RuleMatcher.Date
+        assertEquals(DateField.CREATED, within.field)
+        assertEquals(DateOp.WITHIN_LAST, within.op)
+        assertEquals(30L, within.amount)
+        assertEquals(DateUnit.DAYS, within.unit)
+
+        val owner = m[2] as RuleMatcher.Text
+        assertEquals(TextProperty.OWNER, owner.field)
+        assertEquals(PatternKind.EXACT, owner.kind)
+        assertEquals("root", owner.pattern)
+        assertTrue(owner.caseSensitive)
+
+        val perms = m[3] as RuleMatcher.Text
+        assertEquals(TextProperty.PERMISSIONS, perms.field)
+        assertEquals(PatternKind.GLOB, perms.kind)
+        assertEquals("*w*", perms.pattern)
+        assertFalse(perms.caseSensitive)
+    }
+
+    @Test
     fun `export then parse round-trips multiple rules with preserved order`() {
         val config = ColorRulesConfig(
             name = "Ordered",

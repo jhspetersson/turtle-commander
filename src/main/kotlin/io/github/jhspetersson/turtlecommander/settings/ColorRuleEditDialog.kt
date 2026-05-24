@@ -339,6 +339,15 @@ internal class ColorRuleEditDialog(
                     is RuleMatcher.Size -> "Size"
                     is RuleMatcher.Name -> "Name"
                     is RuleMatcher.Contains -> "Contains"
+                    is RuleMatcher.Date -> when (m.field) {
+                        DateField.CREATED -> "Created"
+                        DateField.MODIFIED -> "Modified"
+                    }
+                    is RuleMatcher.Text -> when (m.field) {
+                        TextProperty.OWNER -> "Owner"
+                        TextProperty.GROUP -> "Group"
+                        TextProperty.PERMISSIONS -> "Permissions"
+                    }
                 }
                 1 -> m.describe()
                 else -> ""
