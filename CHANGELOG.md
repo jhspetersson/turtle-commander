@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.5.14] - 2026-05-26
+
 ### Added
 
 - Color rules can now match on created/modified date, owner, group, and permissions
