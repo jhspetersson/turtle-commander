@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Show setuid/setgid/sticky bits in the permissions string (`ls`-style) on Linux and macOS
+
 ## [0.5.14] - 2026-05-26
 
 ### Added

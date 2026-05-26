@@ -123,10 +123,61 @@ fun readFilePermissions(path: Path, isWindows: Boolean): String {
                 if (attrs.isArchive) append('A')
             }
         } else {
-            val perms = Files.getPosixFilePermissions(path)
-            PosixFilePermissions.toString(perms)
+            // Prefer the raw mode so setuid/setgid/sticky bits show up in ls style
+            // (e.g. `rwsr-xr-t`). The `unix` attribute view is available on Linux and macOS;
+            // if it isn't, fall back to the standard 9-bit permission set, which renders the
+            // same rwx string minus the special bits.
+            val mode = try {
+                Files.getAttribute(path, "unix:mode") as? Int
+            } catch (_: Exception) {
+                null
+            }
+            if (mode != null) {
+                formatPosixMode(mode)
+            } else {
+                PosixFilePermissions.toString(Files.getPosixFilePermissions(path))
+            }
         }
     } catch (_: Exception) {
         ""
     }
+}
+
+// POSIX mode bits (octal in comments) used to render the permissions string.
+private const val S_ISUID = 0x800 // 04000 setuid
+private const val S_ISGID = 0x400 // 02000 setgid
+private const val S_ISVTX = 0x200 // 01000 sticky
+private const val S_IRUSR = 0x100 // 0400
+private const val S_IWUSR = 0x080 // 0200
+private const val S_IXUSR = 0x040 // 0100
+private const val S_IRGRP = 0x020 // 0040
+private const val S_IWGRP = 0x010 // 0020
+private const val S_IXGRP = 0x008 // 0010
+private const val S_IROTH = 0x004 // 0004
+private const val S_IWOTH = 0x002 // 0002
+private const val S_IXOTH = 0x001 // 0001
+
+/**
+ * Renders a Unix file mode as the 9-character `ls`-style permission string, including the
+ * setuid/setgid/sticky substitutions in the execute positions: `s`/`S` for setuid (owner)
+ * and setgid (group), `t`/`T` for the sticky bit (others). Uppercase means the special bit
+ * is set but the underlying execute bit is not. Only the low permission bits are read; the
+ * file-type bits in the high nibble are ignored.
+ */
+internal fun formatPosixMode(mode: Int): String = buildString(9) {
+    append(if (mode and S_IRUSR != 0) 'r' else '-')
+    append(if (mode and S_IWUSR != 0) 'w' else '-')
+    append(specialExecChar(mode and S_IXUSR != 0, mode and S_ISUID != 0, 's', 'S'))
+    append(if (mode and S_IRGRP != 0) 'r' else '-')
+    append(if (mode and S_IWGRP != 0) 'w' else '-')
+    append(specialExecChar(mode and S_IXGRP != 0, mode and S_ISGID != 0, 's', 'S'))
+    append(if (mode and S_IROTH != 0) 'r' else '-')
+    append(if (mode and S_IWOTH != 0) 'w' else '-')
+    append(specialExecChar(mode and S_IXOTH != 0, mode and S_ISVTX != 0, 't', 'T'))
+}
+
+private fun specialExecChar(executeSet: Boolean, specialSet: Boolean, onChar: Char, offChar: Char): Char = when {
+    specialSet -> if (executeSet) onChar else offChar
+    executeSet -> 'x'
+    else -> '-'
 }

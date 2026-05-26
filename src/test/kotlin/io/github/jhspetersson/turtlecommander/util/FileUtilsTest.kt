@@ -134,6 +134,48 @@ class FileUtilsTest {
         assertEquals("", readFilePermissions(missing, isWindows = true))
     }
 
+    // --- formatPosixMode (ls-style rendering, including setuid/setgid/sticky) ---
+
+    private fun octal(s: String) = Integer.parseInt(s, 8)
+
+    @Test
+    fun `formatPosixMode renders plain rwx bits`() {
+        assertEquals("rwxr-xr-x", formatPosixMode(octal("755")))
+        assertEquals("rw-r--r--", formatPosixMode(octal("644")))
+        assertEquals("---------", formatPosixMode(octal("000")))
+        assertEquals("rwxrwxrwx", formatPosixMode(octal("777")))
+    }
+
+    @Test
+    fun `formatPosixMode renders setuid in owner-execute position`() {
+        assertEquals("rwsr-xr-x", formatPosixMode(octal("4755"))) // exec set -> lowercase s
+        assertEquals("rwSr--r--", formatPosixMode(octal("4644"))) // exec unset -> uppercase S
+    }
+
+    @Test
+    fun `formatPosixMode renders setgid in group-execute position`() {
+        assertEquals("rwxr-sr-x", formatPosixMode(octal("2755")))
+        assertEquals("rw-r-Sr--", formatPosixMode(octal("2644")))
+    }
+
+    @Test
+    fun `formatPosixMode renders sticky bit in others-execute position`() {
+        assertEquals("rwxrwxrwt", formatPosixMode(octal("1777")))
+        assertEquals("rw-rw-rwT", formatPosixMode(octal("1666")))
+    }
+
+    @Test
+    fun `formatPosixMode renders all special bits together`() {
+        assertEquals("rwsrwsrwt", formatPosixMode(octal("7777")))
+        assertEquals("--S--S--T", formatPosixMode(octal("7000")))
+    }
+
+    @Test
+    fun `formatPosixMode ignores high file-type bits`() {
+        // 0o100644 (regular file) should render the same as 0o644.
+        assertEquals("rw-r--r--", formatPosixMode(octal("100644")))
+    }
+
     // --- wrapAsSubstringGlobIfPlain ---
     //
     // Plain text → substring wrap with `*…*`. Anything that looks like a glob (`*`, `?`, `[`)
