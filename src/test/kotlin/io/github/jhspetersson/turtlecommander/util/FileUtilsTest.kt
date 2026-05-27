@@ -176,6 +176,45 @@ class FileUtilsTest {
         assertEquals("rw-r--r--", formatPosixMode(octal("100644")))
     }
 
+    // --- posixModeToFlags (raw mode -> filterable PermissionFlag set, incl. special bits) ---
+
+    @Test
+    fun `posixModeToFlags maps plain rwx bits`() {
+        assertEquals(
+            setOf(
+                PermissionFlag.OWNER_READ, PermissionFlag.OWNER_WRITE, PermissionFlag.OWNER_EXECUTE,
+                PermissionFlag.GROUP_READ, PermissionFlag.GROUP_EXECUTE,
+                PermissionFlag.OTHERS_READ, PermissionFlag.OTHERS_EXECUTE,
+            ),
+            posixModeToFlags(octal("755")),
+        )
+        assertEquals(emptySet<PermissionFlag>(), posixModeToFlags(octal("000")))
+    }
+
+    @Test
+    fun `posixModeToFlags includes setuid setgid and sticky`() {
+        assertTrue(PermissionFlag.SETUID in posixModeToFlags(octal("4755")))
+        assertTrue(PermissionFlag.SETGID in posixModeToFlags(octal("2755")))
+        assertTrue(PermissionFlag.STICKY in posixModeToFlags(octal("1755")))
+    }
+
+    @Test
+    fun `posixModeToFlags reports special bits even when the execute bit is unset`() {
+        // 0o4644: setuid set, owner-execute clear (renders as uppercase S). The special flag is
+        // independent of OWNER_EXECUTE, which must remain absent.
+        val flags = posixModeToFlags(octal("4644"))
+        assertTrue(PermissionFlag.SETUID in flags)
+        assertTrue(PermissionFlag.OWNER_EXECUTE !in flags)
+    }
+
+    @Test
+    fun `posixModeToFlags omits special bits when unset`() {
+        val flags = posixModeToFlags(octal("755"))
+        assertTrue(PermissionFlag.SETUID !in flags)
+        assertTrue(PermissionFlag.SETGID !in flags)
+        assertTrue(PermissionFlag.STICKY !in flags)
+    }
+
     // --- wrapAsSubstringGlobIfPlain ---
     //
     // Plain text → substring wrap with `*…*`. Anything that looks like a glob (`*`, `?`, `[`)

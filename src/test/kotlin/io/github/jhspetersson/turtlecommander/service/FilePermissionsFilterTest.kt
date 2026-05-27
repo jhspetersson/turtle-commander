@@ -132,6 +132,27 @@ class FilePermissionsFilterTest {
     }
 
     @Test
+    fun `posix ALL_OF filters on the setuid setgid and sticky bits`() {
+        val dir = createTempDir()
+        Files.write(dir.resolve("suid.txt"), ByteArray(1))
+        Files.write(dir.resolve("sticky.txt"), ByteArray(1))
+        Files.write(dir.resolve("plain.txt"), ByteArray(1))
+
+        val flags = mapOf(
+            "suid.txt" to setOf(PermissionFlag.OWNER_EXECUTE, PermissionFlag.SETUID),
+            "sticky.txt" to setOf(PermissionFlag.OTHERS_EXECUTE, PermissionFlag.STICKY),
+            "plain.txt" to setOf(PermissionFlag.OWNER_EXECUTE),
+        )
+
+        val results = search(
+            baseCriteria(dir, PermissionsFilter(PermissionsFilterMode.ALL_OF, setOf(PermissionFlag.SETUID))),
+            flagsByName = flags,
+        ).map { it.name }
+
+        assertEquals(listOf("suid.txt"), results)
+    }
+
+    @Test
     fun `posix ANY_OF returns files sharing at least one flag`() {
         val dir = createTempDir()
         Files.write(dir.resolve("match.txt"), ByteArray(1))

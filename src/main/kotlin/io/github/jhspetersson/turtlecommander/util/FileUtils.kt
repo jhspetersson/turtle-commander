@@ -181,3 +181,24 @@ private fun specialExecChar(executeSet: Boolean, specialSet: Boolean, onChar: Ch
     executeSet -> 'x'
     else -> '-'
 }
+
+/**
+ * Maps a raw Unix file mode to the OS-agnostic [PermissionFlag] set used by the search
+ * permissions filter, including the setuid/setgid/sticky special bits. The fallback path in
+ * [readFilePermissionFlags] uses [java.nio.file.Files.getPosixFilePermissions], which cannot
+ * represent the special bits; this raw-mode path is preferred so they can be filtered on.
+ */
+internal fun posixModeToFlags(mode: Int): Set<PermissionFlag> = buildSet {
+    if (mode and S_IRUSR != 0) add(PermissionFlag.OWNER_READ)
+    if (mode and S_IWUSR != 0) add(PermissionFlag.OWNER_WRITE)
+    if (mode and S_IXUSR != 0) add(PermissionFlag.OWNER_EXECUTE)
+    if (mode and S_IRGRP != 0) add(PermissionFlag.GROUP_READ)
+    if (mode and S_IWGRP != 0) add(PermissionFlag.GROUP_WRITE)
+    if (mode and S_IXGRP != 0) add(PermissionFlag.GROUP_EXECUTE)
+    if (mode and S_IROTH != 0) add(PermissionFlag.OTHERS_READ)
+    if (mode and S_IWOTH != 0) add(PermissionFlag.OTHERS_WRITE)
+    if (mode and S_IXOTH != 0) add(PermissionFlag.OTHERS_EXECUTE)
+    if (mode and S_ISUID != 0) add(PermissionFlag.SETUID)
+    if (mode and S_ISGID != 0) add(PermissionFlag.SETGID)
+    if (mode and S_ISVTX != 0) add(PermissionFlag.STICKY)
+}

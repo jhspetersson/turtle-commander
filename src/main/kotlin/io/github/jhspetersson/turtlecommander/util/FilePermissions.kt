@@ -15,6 +15,7 @@ enum class PermissionFlag {
     OWNER_READ, OWNER_WRITE, OWNER_EXECUTE,
     GROUP_READ, GROUP_WRITE, GROUP_EXECUTE,
     OTHERS_READ, OTHERS_WRITE, OTHERS_EXECUTE,
+    SETUID, SETGID, STICKY,
     DOS_READ_ONLY, DOS_HIDDEN, DOS_SYSTEM, DOS_ARCHIVE;
 
     companion object {
@@ -22,6 +23,7 @@ enum class PermissionFlag {
             OWNER_READ, OWNER_WRITE, OWNER_EXECUTE,
             GROUP_READ, GROUP_WRITE, GROUP_EXECUTE,
             OTHERS_READ, OTHERS_WRITE, OTHERS_EXECUTE,
+            SETUID, SETGID, STICKY,
         )
         val DOS_FLAGS: List<PermissionFlag> = listOf(
             DOS_READ_ONLY, DOS_HIDDEN, DOS_SYSTEM, DOS_ARCHIVE,
@@ -52,7 +54,18 @@ fun readFilePermissionFlags(path: Path, isWindows: Boolean): Set<PermissionFlag>
                 if (attrs.isArchive) add(PermissionFlag.DOS_ARCHIVE)
             }
         } else {
-            Files.getPosixFilePermissions(path).mapTo(mutableSetOf()) { it.toFlag() }
+            // Prefer the raw mode so the setuid/setgid/sticky bits are filterable (the
+            // PosixFilePermission set below omits them). Mirrors readFilePermissions.
+            val mode = try {
+                Files.getAttribute(path, "unix:mode") as? Int
+            } catch (_: Exception) {
+                null
+            }
+            if (mode != null) {
+                posixModeToFlags(mode)
+            } else {
+                Files.getPosixFilePermissions(path).mapTo(mutableSetOf()) { it.toFlag() }
+            }
         }
     } catch (_: Exception) {
         emptySet()

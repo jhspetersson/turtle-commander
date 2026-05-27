@@ -325,9 +325,9 @@ class FileSearchDialog(
     }
 
     override fun createCenterPanel(): JComponent {
-        // POSIX permissions add an Owner/Group/Others legend row under the checkboxes, so the
-        // dialog needs a bit more vertical room than on Windows.
-        val extraHeight = if (isHostWindows) 0 else 20
+        // POSIX permissions add an Owner/Group/Others legend row plus a setuid/setgid/sticky
+        // row under the rwx checkboxes, so the dialog needs more vertical room than on Windows.
+        val extraHeight = if (isHostWindows) 0 else 50
         val panel = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             minimumSize = Dimension(550, 420 + extraHeight)
@@ -414,8 +414,9 @@ class FileSearchDialog(
             gbc.gridx = 0; gbc.gridy = 0
             add(permissionsModeCombo, gbc)
 
-            // DOS: 4 flags in one row. POSIX: 9 flags in one row with short r/w/x labels and
-            // an Owner/Group/Others legend underneath each triplet.
+            // DOS: 4 flags in one row. POSIX: 9 rwx flags in one row with short r/w/x labels
+            // and an Owner/Group/Others legend underneath each triplet, then a third row with
+            // the setuid/setgid/sticky special bits aligned under the group they belong to.
             if (isHostWindows) {
                 var col = 1
                 for (flag in permissionFlagsForOs) {
@@ -428,28 +429,37 @@ class FileSearchDialog(
                     anchor = GridBagConstraints.CENTER
                     insets = JBUI.insets(2, 4)
                 }
-                val triplets = listOf(
-                    "Owner" to Triple(PermissionFlag.OWNER_READ, PermissionFlag.OWNER_WRITE, PermissionFlag.OWNER_EXECUTE),
-                    "Group" to Triple(PermissionFlag.GROUP_READ, PermissionFlag.GROUP_WRITE, PermissionFlag.GROUP_EXECUTE),
-                    "Others" to Triple(PermissionFlag.OTHERS_READ, PermissionFlag.OTHERS_WRITE, PermissionFlag.OTHERS_EXECUTE),
+                // Each group carries its special bit so it lands under the same column block:
+                // setuid under Owner, setgid under Group, sticky under Others.
+                data class PermGroup(val legend: String, val rwx: Triple<PermissionFlag, PermissionFlag, PermissionFlag>, val special: PermissionFlag)
+                val groups = listOf(
+                    PermGroup("Owner", Triple(PermissionFlag.OWNER_READ, PermissionFlag.OWNER_WRITE, PermissionFlag.OWNER_EXECUTE), PermissionFlag.SETUID),
+                    PermGroup("Group", Triple(PermissionFlag.GROUP_READ, PermissionFlag.GROUP_WRITE, PermissionFlag.GROUP_EXECUTE), PermissionFlag.SETGID),
+                    PermGroup("Others", Triple(PermissionFlag.OTHERS_READ, PermissionFlag.OTHERS_WRITE, PermissionFlag.OTHERS_EXECUTE), PermissionFlag.STICKY),
                 )
-                for ((groupIdx, entry) in triplets.withIndex()) {
+                for ((groupIdx, group) in groups.withIndex()) {
                     val baseCol = groupIdx * 3
                     fg.gridy = 0
                     fg.gridwidth = 1
                     fg.fill = GridBagConstraints.NONE
                     fg.gridx = baseCol
-                    flagsPanel.add(permissionFlagCheckBoxes.getValue(entry.second.first), fg)
+                    flagsPanel.add(permissionFlagCheckBoxes.getValue(group.rwx.first), fg)
                     fg.gridx = baseCol + 1
-                    flagsPanel.add(permissionFlagCheckBoxes.getValue(entry.second.second), fg)
+                    flagsPanel.add(permissionFlagCheckBoxes.getValue(group.rwx.second), fg)
                     fg.gridx = baseCol + 2
-                    flagsPanel.add(permissionFlagCheckBoxes.getValue(entry.second.third), fg)
+                    flagsPanel.add(permissionFlagCheckBoxes.getValue(group.rwx.third), fg)
 
                     fg.gridy = 1
                     fg.gridx = baseCol
                     fg.gridwidth = 3
                     fg.fill = GridBagConstraints.HORIZONTAL
-                    flagsPanel.add(JBLabel(entry.first, SwingConstants.CENTER), fg)
+                    flagsPanel.add(JBLabel(group.legend, SwingConstants.CENTER), fg)
+
+                    fg.gridy = 2
+                    fg.gridx = baseCol
+                    fg.gridwidth = 3
+                    fg.fill = GridBagConstraints.NONE
+                    flagsPanel.add(permissionFlagCheckBoxes.getValue(group.special), fg)
                 }
                 gbc.gridx = 1
                 add(flagsPanel, gbc)
@@ -462,6 +472,9 @@ class FileSearchDialog(
         PermissionFlag.OWNER_READ, PermissionFlag.GROUP_READ, PermissionFlag.OTHERS_READ -> "r"
         PermissionFlag.OWNER_WRITE, PermissionFlag.GROUP_WRITE, PermissionFlag.OTHERS_WRITE -> "w"
         PermissionFlag.OWNER_EXECUTE, PermissionFlag.GROUP_EXECUTE, PermissionFlag.OTHERS_EXECUTE -> "x"
+        PermissionFlag.SETUID -> "setuid"
+        PermissionFlag.SETGID -> "setgid"
+        PermissionFlag.STICKY -> "sticky"
         PermissionFlag.DOS_READ_ONLY -> "Read-only"
         PermissionFlag.DOS_HIDDEN -> "Hidden"
         PermissionFlag.DOS_SYSTEM -> "System"

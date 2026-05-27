@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Search permissions filter can now match on the setuid/setgid/sticky bits (Linux and macOS)
+
 ## [0.5.15] - 2026-05-27
 
 ### Added
