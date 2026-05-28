@@ -177,6 +177,10 @@ class ThumbnailCache(private val scope: CoroutineScope) {
     }
 
     private fun readSubsampledThumbnail(path: Path, targetSize: Int): BufferedImage? {
+        // ImageIO.createImageInputStream goes through java.io.FileInputStream — a sparse-stub
+        // file in a lazy VFS would yield zero bytes and no readable thumbnail. Materialise
+        // the bytes first; no-op for files outside any VFS or in fully-extracted VFSs.
+        io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry.materializeIfNeeded(path)
         val stream = try {
             ImageIO.createImageInputStream(path.toFile())
         } catch (_: Exception) {

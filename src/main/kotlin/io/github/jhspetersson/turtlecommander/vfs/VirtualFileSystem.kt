@@ -18,6 +18,54 @@ interface VirtualFileSystem : Closeable {
     fun getPath(relativePath: String): Path
     fun flush()
     suspend fun renameFile(source: Path, newName: String): Path
+
+    /**
+     * Whether [path] was produced by this VFS — used by [OpenVfsRegistry] to dispatch a
+     * materialization call to the right instance. Default: prefix-matches against [root],
+     * which is correct for every existing temp-dir-backed implementation.
+     */
+    fun owns(path: Path): Boolean = path.normalize().startsWith(root.normalize())
+
+    /**
+     * Lazy-VFS hook: ensure the bytes for [path] are actually present on disk. The default
+     * is a no-op because most VFS implementations extract everything up-front in `extract()`
+     * and the temp-dir copies are already real files. [IsoVirtualFileSystem] overrides this
+     * to stream content from the source disc image only when something actually needs it,
+     * so opening a 5 GB ISO doesn't pre-extract 5 GB of files into temp.
+     */
+    fun materialize(path: Path) {}
+}
+
+/**
+ * Global registry of currently-open VFS instances, used by consumer sites that hold a
+ * `java.nio.file.Path` but don't know which VFS produced it (content search, hash
+ * computation, generic copy). Each [AbstractTempDirVirtualFileSystem] auto-registers itself
+ * after its temp dir is ready and unregisters on [close]; callers go through
+ * [materializeIfNeeded] which fans out to whichever VFS owns the path.
+ *
+ * Lookup is `O(n)` over open VFSs — `n` is the number of archives the user has nested into,
+ * typically 1–3, so this is trivial. The structure is a `CopyOnWriteArraySet` so reads
+ * don't take a lock; register/unregister are rare relative to materialize calls.
+ */
+object OpenVfsRegistry {
+    private val instances: MutableSet<VirtualFileSystem> = java.util.concurrent.CopyOnWriteArraySet()
+
+    fun register(vfs: VirtualFileSystem) { instances.add(vfs) }
+    fun unregister(vfs: VirtualFileSystem) { instances.remove(vfs) }
+
+    /**
+     * Forward [path] to whichever registered VFS claims it via [VirtualFileSystem.owns].
+     * Safe to call with any path, including ones outside every VFS — the lookup returns
+     * silently in that case, so callers don't need to guard with `if (isInsideVfs)`.
+     */
+    fun materializeIfNeeded(path: Path) {
+        for (vfs in instances) {
+            if (vfs.owns(path)) {
+                vfs.materialize(path)
+                return
+            }
+        }
+    }
 }
 
 interface VirtualFileSystemProvider {
@@ -222,6 +270,11 @@ abstract class AbstractTempDirVirtualFileSystem(
             throw e
         }
         tempDir = dir
+        // Register only after the temp dir is fully populated (or stub-populated) so
+        // materializeIfNeeded never dispatches to a half-initialised VFS. The matching
+        // unregister lives in close(), not in flush(), because flush() rebuilds the temp
+        // dir while the VFS itself stays alive.
+        OpenVfsRegistry.register(this)
     }
 
     override val root: Path get() = tempDir
@@ -263,6 +316,7 @@ abstract class AbstractTempDirVirtualFileSystem(
     }
 
     override fun close() {
+        OpenVfsRegistry.unregister(this)
         try {
             tempDir.toFile().deleteRecursively()
         } catch (e: Exception) {
@@ -285,6 +339,7 @@ object VirtualFileSystemRegistry {
         register(CrxFileSystemProvider())
         register(RpmFileSystemProvider())
         register(PakFileSystemProvider())
+        register(IsoFileSystemProvider())
     }
 
     fun register(provider: VirtualFileSystemProvider) {

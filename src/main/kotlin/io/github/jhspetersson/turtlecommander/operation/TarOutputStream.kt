@@ -28,6 +28,7 @@ class TarOutputStream(private val out: OutputStream) : AutoCloseable {
     }
 
     fun putFileEntry(name: String, file: Path, modTimeMillis: Long) {
+        io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry.materializeIfNeeded(file)
         val actualSize = Files.size(file)
         if (actualSize > maxFileSize) {
             throw IllegalArgumentException(

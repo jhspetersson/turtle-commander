@@ -118,6 +118,11 @@ class IsArchiveFileTest {
     }
 
     @Test
+    fun `iso file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("disc.iso")))
+    }
+
+    @Test
     fun `txt file is not archive`() {
         assertFalse(isArchiveFile(fileEntry("readme.txt")))
     }

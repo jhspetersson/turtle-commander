@@ -5,6 +5,7 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
+import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 import io.github.jhspetersson.turtlecommander.vfs.SilentVfsOpenException
 import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
@@ -33,6 +34,11 @@ internal fun FileTab.enterVfs(entry: FileEntry) {
                     var tempFile: java.io.File? = null
                     try {
                         io.github.jhspetersson.turtlecommander.service.VfsTempCleanup.cleanupOnce()
+                        // If the parent VFS is lazy (an .iso), the entry we're about to nest into
+                        // is still a sparse stub on disk — stream the actual bytes from the disc
+                        // image first so the Files.copy below sees real content. No-op for any
+                        // VFS that already extracted everything in extract().
+                        OpenVfsRegistry.materializeIfNeeded(archivePath)
                         val tempDir = Files.createTempDirectory("turtle-vfs-")
                         val tempPath = tempDir.resolve(fileName)
                         Files.copy(archivePath, tempPath)

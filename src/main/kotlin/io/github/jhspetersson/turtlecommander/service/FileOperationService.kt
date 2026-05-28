@@ -405,6 +405,9 @@ class FileOperationService(
         holder: PolicyHolder,
         onOverwriteConfirm: suspend (Path) -> OverwriteResponse,
     ): TargetAction {
+        // Stream bytes onto the stub if [source] lives in a lazy VFS (currently only .iso).
+        // No-op for ordinary files and for VFSs that extract eagerly.
+        io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry.materializeIfNeeded(source)
         if (!target.exists()) {
             Files.copy(source, target)
             return TargetAction.OVERWRITE
@@ -785,6 +788,7 @@ class FileOperationService(
             }
 
             override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry.materializeIfNeeded(file)
                 val relativePath = source.relativize(file).toString()
                 Files.copy(file, target.resolve(relativePath), StandardCopyOption.REPLACE_EXISTING)
                 return FileVisitResult.CONTINUE
@@ -814,6 +818,7 @@ class FileOperationService(
             copyDirectoryRecursive(source, target)
             deleteDirectoryRecursive(source)
         } else {
+            io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry.materializeIfNeeded(source)
             if (replaceExisting) {
                 Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING)
             } else {

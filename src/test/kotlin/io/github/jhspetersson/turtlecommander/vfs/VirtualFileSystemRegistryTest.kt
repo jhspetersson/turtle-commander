@@ -82,6 +82,11 @@ class VirtualFileSystemRegistryTest {
     }
 
     @Test
+    fun `supports iso extension`() {
+        assertTrue(VirtualFileSystemRegistry.supportsByExtension("disc.iso"))
+    }
+
+    @Test
     fun `does not support unknown extension`() {
         assertFalse(VirtualFileSystemRegistry.supportsByExtension("document.pdf"))
     }

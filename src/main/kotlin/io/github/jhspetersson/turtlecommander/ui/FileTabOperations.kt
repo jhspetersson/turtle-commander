@@ -28,6 +28,7 @@ import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.util.countFiles
 import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
 import io.github.jhspetersson.turtlecommander.util.formatSize
+import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 import io.github.jhspetersson.turtlecommander.vfs.VfsEditEntry
 import io.github.jhspetersson.turtlecommander.vfs.VfsEditService
 import io.github.jhspetersson.turtlecommander.vfs.ZipVirtualFileSystem
@@ -764,6 +765,10 @@ internal fun FileTab.openFile(entry: FileEntry) {
 private suspend fun materializeVfsEntryToTemp(entry: FileEntry, prefix: String): Path =
     withContext(Dispatchers.IO) {
         VfsTempCleanup.cleanupOnce()
+        // Pull bytes from the source archive into the stub first if this VFS does lazy
+        // materialization (currently just .iso) — otherwise Files.copy below sees an empty
+        // sparse file and the user opens a zero-byte view of their file.
+        OpenVfsRegistry.materializeIfNeeded(entry.path)
         val tempDir = Files.createTempDirectory(prefix)
         val tempPath = tempDir.resolve(entry.path.fileName.toString())
         Files.copy(entry.path, tempPath)
@@ -778,6 +783,9 @@ private fun FileTab.openVfsFileReadOnly(entry: FileEntry) {
     fileOps.launch {
         try {
             val filePath = if (isTempDirVfs) {
+                // Force a lazy VFS to stream this file's bytes onto the stub before the
+                // editor opens it. No-op for fully-materialised VFSs (Tar/Crx/Rpm/Pak/Ar).
+                withContext(Dispatchers.IO) { vfs.materialize(entry.path) }
                 entry.path
             } else {
                 materializeVfsEntryToTemp(entry, "turtle-vfs-view-")

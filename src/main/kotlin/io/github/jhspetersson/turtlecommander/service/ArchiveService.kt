@@ -98,6 +98,7 @@ class ArchiveService {
                             override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                                 if (isCancelled()) return FileVisitResult.TERMINATE
                                 try {
+                                    io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry.materializeIfNeeded(file)
                                     val relativePath = (source.parent ?: source).relativize(file).toString().replace("\\", "/")
                                     val zipEntry = zipFs.getPath(relativePath)
                                     Files.copy(file, zipEntry, StandardCopyOption.REPLACE_EXISTING)
@@ -117,6 +118,7 @@ class ArchiveService {
                         })
                     } else {
                         try {
+                            io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry.materializeIfNeeded(source)
                             val zipEntry = zipFs.getPath(source.fileName.toString())
                             Files.copy(source, zipEntry, StandardCopyOption.REPLACE_EXISTING)
                             successCount++
@@ -215,6 +217,9 @@ class ArchiveService {
 
     /** Returns entry count via header-only scan, or -1 if the format isn't recognized. */
     internal fun countArchiveEntriesFast(archivePath: Path): Int {
+        // A `.tar`/`.ar`/`.zip` etc. that lives as a stub inside a lazy parent VFS (.iso)
+        // must be streamed to disk before the header-only readers can inspect it.
+        io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry.materializeIfNeeded(archivePath)
         val name = archivePath.fileName?.toString()?.lowercase() ?: return -1
         return when {
             name.endsWith(".zip") || name.endsWith(".jar") || name.endsWith(".war") ||

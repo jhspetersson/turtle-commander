@@ -90,6 +90,7 @@ object CombineFilesOperation {
             for ((idx, chunk) in chunkFiles.withIndex()) {
                 if (isCancelled()) { cancelled = true; break }
 
+                io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry.materializeIfNeeded(chunk)
                 BufferedInputStream(Files.newInputStream(chunk), BUFFER_SIZE).use { input ->
                     while (true) {
                         if (isCancelled()) { cancelled = true; return@use }

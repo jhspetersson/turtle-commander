@@ -209,6 +209,10 @@ class FileSearchService(
     }
 
     private fun matchesContent(path: Path, pattern: String, caseSensitive: Boolean): Boolean {
+        // Stream the bytes from the source VFS if [path] points at a lazy-VFS stub
+        // (currently only .iso entries); harmless no-op for regular files and the other
+        // VFS implementations that extract eagerly.
+        io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry.materializeIfNeeded(path)
         try {
             val reader: BufferedReader = Files.newBufferedReader(path, Charsets.UTF_8)
             reader.use { br ->

@@ -37,6 +37,7 @@ repositories {
 dependencies {
     implementation(libs.commonsCompress)
     implementation(libs.zstdJni)
+    implementation(libs.isoFileReader)
     testImplementation(libs.junit)
     testImplementation(libs.opentest4j)
 

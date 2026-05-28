@@ -28,6 +28,7 @@ object SplitFileOperation {
         val writtenFiles = mutableListOf<Path>()
         var cancelled = false
 
+        io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry.materializeIfNeeded(sourceFile)
         BufferedInputStream(Files.newInputStream(sourceFile), BUFFER_SIZE).use { input ->
             if (fileSize == 0L) {
                 // Create a single empty chunk file for zero-byte files
