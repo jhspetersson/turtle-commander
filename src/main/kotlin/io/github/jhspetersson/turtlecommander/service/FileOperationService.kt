@@ -10,6 +10,7 @@ import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.util.readFileGroup
 import io.github.jhspetersson.turtlecommander.util.readFileOwner
 import io.github.jhspetersson.turtlecommander.util.readFilePermissions
+import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 import io.github.jhspetersson.turtlecommander.vfs.parentEntry
 import kotlinx.coroutines.*
 import java.io.File
@@ -407,7 +408,7 @@ class FileOperationService(
     ): TargetAction {
         // Stream bytes onto the stub if [source] lives in a lazy VFS (currently only .iso).
         // No-op for ordinary files and for VFSs that extract eagerly.
-        io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry.materializeIfNeeded(source)
+        OpenVfsRegistry.materializeIfNeeded(source)
         if (!target.exists()) {
             Files.copy(source, target)
             return TargetAction.OVERWRITE
@@ -788,7 +789,7 @@ class FileOperationService(
             }
 
             override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
-                io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry.materializeIfNeeded(file)
+                OpenVfsRegistry.materializeIfNeeded(file)
                 val relativePath = source.relativize(file).toString()
                 Files.copy(file, target.resolve(relativePath), StandardCopyOption.REPLACE_EXISTING)
                 return FileVisitResult.CONTINUE
@@ -818,7 +819,7 @@ class FileOperationService(
             copyDirectoryRecursive(source, target)
             deleteDirectoryRecursive(source)
         } else {
-            io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry.materializeIfNeeded(source)
+            OpenVfsRegistry.materializeIfNeeded(source)
             if (replaceExisting) {
                 Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING)
             } else {

@@ -718,7 +718,7 @@ internal fun FileTab.openInSystemExplorer(entry: FileEntry) {
     }
 }
 
-internal fun FileTab.openDirectoryInSystemExplorer(path: java.nio.file.Path) {
+internal fun FileTab.openDirectoryInSystemExplorer(path: Path) {
     val os = System.getProperty("os.name").lowercase()
     val command = when {
         os.contains("win") -> arrayOf("explorer.exe", path.toString())

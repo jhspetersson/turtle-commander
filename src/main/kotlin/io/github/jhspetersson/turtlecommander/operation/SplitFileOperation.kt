@@ -1,5 +1,6 @@
 package io.github.jhspetersson.turtlecommander.operation
 
+import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.nio.file.Files
@@ -28,7 +29,7 @@ object SplitFileOperation {
         val writtenFiles = mutableListOf<Path>()
         var cancelled = false
 
-        io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry.materializeIfNeeded(sourceFile)
+        OpenVfsRegistry.materializeIfNeeded(sourceFile)
         BufferedInputStream(Files.newInputStream(sourceFile), BUFFER_SIZE).use { input ->
             if (fileSize == 0L) {
                 // Create a single empty chunk file for zero-byte files

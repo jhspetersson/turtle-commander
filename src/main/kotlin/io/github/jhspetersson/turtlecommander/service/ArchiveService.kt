@@ -1,9 +1,10 @@
 package io.github.jhspetersson.turtlecommander.service
-import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
-import io.github.jhspetersson.turtlecommander.operation.TarOutputStream
 
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
+import io.github.jhspetersson.turtlecommander.operation.TarOutputStream
+import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
+import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.commons.compress.archivers.ar.ArArchiveInputStream
@@ -17,13 +18,7 @@ import java.io.BufferedOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.net.URI
-import java.nio.file.FileAlreadyExistsException
-import java.nio.file.FileSystems
-import java.nio.file.FileVisitResult
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.SimpleFileVisitor
-import java.nio.file.StandardCopyOption
+import java.nio.file.*
 import java.nio.file.attribute.BasicFileAttributes
 import java.util.zip.GZIPOutputStream
 
@@ -98,7 +93,7 @@ class ArchiveService {
                             override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                                 if (isCancelled()) return FileVisitResult.TERMINATE
                                 try {
-                                    io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry.materializeIfNeeded(file)
+                                    OpenVfsRegistry.materializeIfNeeded(file)
                                     val relativePath = (source.parent ?: source).relativize(file).toString().replace("\\", "/")
                                     val zipEntry = zipFs.getPath(relativePath)
                                     Files.copy(file, zipEntry, StandardCopyOption.REPLACE_EXISTING)
@@ -118,7 +113,7 @@ class ArchiveService {
                         })
                     } else {
                         try {
-                            io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry.materializeIfNeeded(source)
+                            OpenVfsRegistry.materializeIfNeeded(source)
                             val zipEntry = zipFs.getPath(source.fileName.toString())
                             Files.copy(source, zipEntry, StandardCopyOption.REPLACE_EXISTING)
                             successCount++
@@ -219,7 +214,7 @@ class ArchiveService {
     internal fun countArchiveEntriesFast(archivePath: Path): Int {
         // A `.tar`/`.ar`/`.zip` etc. that lives as a stub inside a lazy parent VFS (.iso)
         // must be streamed to disk before the header-only readers can inspect it.
-        io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry.materializeIfNeeded(archivePath)
+        OpenVfsRegistry.materializeIfNeeded(archivePath)
         val name = archivePath.fileName?.toString()?.lowercase() ?: return -1
         return when {
             name.endsWith(".zip") || name.endsWith(".jar") || name.endsWith(".war") ||
@@ -343,38 +338,38 @@ class ArchiveService {
                         return FileVisitResult.CONTINUE
                     }
                 })
-                loop@ for (entry in entries) {
+                loop@ for ((sourcePath, relativePath, isDirectory) in entries) {
                     if (isCancelled()) break
-                    if (entry.isDirectory) {
-                        val targetDir = destination.resolve(entry.relativePath)
+                    if (isDirectory) {
+                        val targetDir = destination.resolve(relativePath)
                         try {
                             Files.createDirectories(targetDir)
                         } catch (e: Exception) {
                             onError(targetDir, e)
                         }
                     } else {
-                        val targetFile = destination.resolve(entry.relativePath)
+                        val targetFile = destination.resolve(relativePath)
                         try {
                             Files.createDirectories(targetFile.parent)
                             if (Files.exists(targetFile)) {
                                 val action = resolveExtractAction(
-                                    entry.sourcePath, targetFile, policy, onOverwriteConfirm,
+                                    sourcePath, targetFile, policy, onOverwriteConfirm,
                                 ) { policy = it }
                                 when (action) {
                                     ExtractAction.OVERWRITE ->
-                                        Files.copy(entry.sourcePath, targetFile, StandardCopyOption.REPLACE_EXISTING)
+                                        Files.copy(sourcePath, targetFile, StandardCopyOption.REPLACE_EXISTING)
                                     ExtractAction.SKIP -> { /* nothing */ }
                                     ExtractAction.CANCEL -> break@loop
                                 }
                             } else {
-                                Files.copy(entry.sourcePath, targetFile)
+                                Files.copy(sourcePath, targetFile)
                             }
                         } catch (e: Exception) {
                             onError(targetFile, e)
                         }
                     }
                     extractedCount++
-                    onProgress(extractedCount, entry.relativePath)
+                    onProgress(extractedCount, relativePath)
                 }
             }
         } catch (e: Exception) {

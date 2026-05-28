@@ -111,11 +111,9 @@ class PakVirtualFileSystemTest {
 
         // Re-open from disk to confirm the change was persisted and the directory is consistent.
         val reopened = PakVirtualFileSystem(pakPath)
-        try {
+        reopened.use { reopened ->
             assertEquals("a much longer replacement body", Files.readString(reopened.getPath("/readme.txt")))
             assertArrayEquals(byteArrayOf(1, 2, 3, 4), Files.readAllBytes(reopened.getPath("/maps/e1m1.bsp")))
-        } finally {
-            reopened.close()
         }
     }
 
@@ -131,11 +129,9 @@ class PakVirtualFileSystemTest {
         pakVfs.flush()
 
         val reopened = PakVirtualFileSystem(pakPath)
-        try {
+        reopened.use { reopened ->
             assertArrayEquals(byteArrayOf(9, 8, 7), Files.readAllBytes(reopened.getPath("/sounds/blip.wav")))
             assertEquals("x", Files.readString(reopened.getPath("/a.txt")))
-        } finally {
-            reopened.close()
         }
     }
 
@@ -148,13 +144,11 @@ class PakVirtualFileSystemTest {
         pakVfs.renameFile(pakVfs.getPath("/old.txt"), "new.txt")
 
         val reopened = PakVirtualFileSystem(pakPath)
-        try {
+        reopened.use { reopened ->
             val names = reopened.listFiles(reopened.root).filter { !it.isParentLink }.map { it.name }
             assertTrue(names.contains("new.txt"))
             assertFalse(names.contains("old.txt"))
             assertEquals("data", Files.readString(reopened.getPath("/new.txt")))
-        } finally {
-            reopened.close()
         }
     }
 

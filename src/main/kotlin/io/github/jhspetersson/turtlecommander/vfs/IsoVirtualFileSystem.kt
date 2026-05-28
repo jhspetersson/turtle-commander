@@ -87,7 +87,7 @@ class IsoVirtualFileSystem(
             throw IOException("Not an ISO 9660 or UDF disc image: ${archivePath.fileName}")
         }
         try {
-            val tree = newReader.getAllFiles()
+            val tree = newReader.allFiles
             val files = newReader.convertTreeFilesToFlatList(tree)
             if (files.isNotEmpty()) indicator?.isIndeterminate = false
             files.forEachIndexed { index, entry ->

@@ -1,6 +1,7 @@
 package io.github.jhspetersson.turtlecommander.action
 
 import com.intellij.openapi.progress.ProgressIndicator
+import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Path
@@ -71,19 +72,19 @@ internal object HashComputations {
     }
 
     fun crc16(path: Path, indicator: ProgressIndicator): String {
-        io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry.materializeIfNeeded(path)
+        OpenVfsRegistry.materializeIfNeeded(path)
         val total = runCatching { Files.size(path) }.getOrDefault(-1L)
         return Files.newInputStream(path).use { crc16(it, total, indicator) }
     }
 
     fun crc32(path: Path, indicator: ProgressIndicator): String {
-        io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry.materializeIfNeeded(path)
+        OpenVfsRegistry.materializeIfNeeded(path)
         val total = runCatching { Files.size(path) }.getOrDefault(-1L)
         return Files.newInputStream(path).use { crc32(it, total, indicator) }
     }
 
     fun digest(path: Path, algorithm: String, indicator: ProgressIndicator): String {
-        io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry.materializeIfNeeded(path)
+        OpenVfsRegistry.materializeIfNeeded(path)
         val total = runCatching { Files.size(path) }.getOrDefault(-1L)
         return Files.newInputStream(path).use { digest(it, algorithm, total, indicator) }
     }

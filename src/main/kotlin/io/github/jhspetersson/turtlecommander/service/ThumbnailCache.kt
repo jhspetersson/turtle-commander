@@ -7,6 +7,7 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import io.github.jhspetersson.turtlecommander.settings.ThumbnailSize
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
+import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -180,7 +181,7 @@ class ThumbnailCache(private val scope: CoroutineScope) {
         // ImageIO.createImageInputStream goes through java.io.FileInputStream — a sparse-stub
         // file in a lazy VFS would yield zero bytes and no readable thumbnail. Materialise
         // the bytes first; no-op for files outside any VFS or in fully-extracted VFSs.
-        io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry.materializeIfNeeded(path)
+        OpenVfsRegistry.materializeIfNeeded(path)
         val stream = try {
             ImageIO.createImageInputStream(path.toFile())
         } catch (_: Exception) {

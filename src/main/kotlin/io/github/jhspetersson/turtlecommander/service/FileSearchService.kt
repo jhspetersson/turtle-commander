@@ -15,6 +15,7 @@ import io.github.jhspetersson.turtlecommander.dialog.SizeFilter
 import io.github.jhspetersson.turtlecommander.dialog.NamePatternMode
 import io.github.jhspetersson.turtlecommander.dialog.FileSearchCriteria
 import io.github.jhspetersson.turtlecommander.model.FileEntry
+import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 
 import java.io.BufferedReader
 import java.io.IOException
@@ -212,7 +213,7 @@ class FileSearchService(
         // Stream the bytes from the source VFS if [path] points at a lazy-VFS stub
         // (currently only .iso entries); harmless no-op for regular files and the other
         // VFS implementations that extract eagerly.
-        io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry.materializeIfNeeded(path)
+        OpenVfsRegistry.materializeIfNeeded(path)
         try {
             val reader: BufferedReader = Files.newBufferedReader(path, Charsets.UTF_8)
             reader.use { br ->

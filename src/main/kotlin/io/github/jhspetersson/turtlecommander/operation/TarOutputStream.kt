@@ -1,5 +1,6 @@
 package io.github.jhspetersson.turtlecommander.operation
 
+import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 import java.io.IOException
 import java.io.OutputStream
 import java.nio.charset.StandardCharsets
@@ -28,7 +29,7 @@ class TarOutputStream(private val out: OutputStream) : AutoCloseable {
     }
 
     fun putFileEntry(name: String, file: Path, modTimeMillis: Long) {
-        io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry.materializeIfNeeded(file)
+        OpenVfsRegistry.materializeIfNeeded(file)
         val actualSize = Files.size(file)
         if (actualSize > maxFileSize) {
             throw IllegalArgumentException(
