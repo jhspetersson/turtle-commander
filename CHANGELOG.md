@@ -4,9 +4,11 @@
 
 ## [Unreleased]
 
+## [0.5.17] - 2026-05-29
+
 ### Added
 
-- Open `.iso` disc images as browsable archives (read-only) — supports ISO 9660 (with Joliet/Rock Ridge) and UDF, including the UDF half of bridge-format DVD/BD and Windows install ISOs. Opens lazily: only the directory tree is walked up-front, with file content streamed from the image when something actually reads it, so a 5 GB Windows ISO is browsable instantly without extracting `install.wim`
+- Open `.iso` disc images (ISO 9660 and UDF) as browsable archives (read-only)
 
 ## [0.5.16] - 2026-05-28
 
