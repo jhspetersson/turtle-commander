@@ -108,6 +108,16 @@ class IsArchiveFileTest {
     }
 
     @Test
+    fun `whl file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("package-1.0-py3-none-any.whl")))
+    }
+
+    @Test
+    fun `egg file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("package-1.0-py3.8.egg")))
+    }
+
+    @Test
     fun `rpm file is archive`() {
         assertTrue(isArchiveFile(fileEntry("package.rpm")))
     }

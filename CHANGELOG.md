@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Support Python `.whl` (wheel) and `.egg` packages as browsable archives
+
 ## [0.5.18] - 2026-05-29
 
 ### Added

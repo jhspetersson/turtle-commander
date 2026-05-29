@@ -36,6 +36,8 @@ class ZipFileSystemProvider : VirtualFileSystemProvider {
             "xpi",
             // Quake 3 / id Tech 3 game data (plain ZIPs)
             "pk3",
+            // Python wheels (PEP 427) and legacy setuptools eggs
+            "whl", "egg",
         )
     }
 

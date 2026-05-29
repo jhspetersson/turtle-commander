@@ -72,6 +72,16 @@ class VirtualFileSystemRegistryTest {
     }
 
     @Test
+    fun `supports whl extension`() {
+        assertTrue(VirtualFileSystemRegistry.supportsByExtension("package-1.0-py3-none-any.whl"))
+    }
+
+    @Test
+    fun `supports egg extension`() {
+        assertTrue(VirtualFileSystemRegistry.supportsByExtension("package-1.0-py3.8.egg"))
+    }
+
+    @Test
     fun `supports rpm extension`() {
         assertTrue(VirtualFileSystemRegistry.supportsByExtension("package.rpm"))
     }
