@@ -4,6 +4,8 @@ import com.intellij.icons.AllIcons
 import com.intellij.ide.DataManager
 import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.actionSystem.ex.ActionUtil
+import com.intellij.openapi.actionSystem.ex.CustomComponentAction
+import com.intellij.openapi.actionSystem.impl.ActionButtonWithText
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.service
 import com.intellij.openapi.keymap.Keymap
@@ -25,8 +27,11 @@ import io.github.jhspetersson.turtlecommander.settings.PanelLayout
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettingsListener
 import java.awt.*
+import java.awt.datatransfer.StringSelection
 import java.awt.event.InputEvent
 import java.awt.event.KeyEvent
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
 import java.nio.file.Path
 import javax.swing.*
 
@@ -414,12 +419,21 @@ private class LayoutToggleAction(
     }
 }
 
+private class FavoriteMenuItem(
+    text: String,
+    icon: Icon? = null,
+    private val handler: () -> Unit,
+) : AnAction(text, null, icon), DumbAware {
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+    override fun actionPerformed(e: AnActionEvent) = handler()
+}
+
 private class FavoriteAction(
     val favPath: String,
     index: Int,
     colorHex: String,
     private val project: Project,
-) : AnAction(), DumbAware {
+) : AnAction(), CustomComponentAction, DumbAware {
     init {
         val path = Path.of(favPath)
         val name = path.fileName?.toString() ?: favPath
@@ -432,10 +446,92 @@ private class FavoriteAction(
 
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
+    override fun createCustomComponent(presentation: Presentation, place: String): JComponent {
+        val button = ActionButtonWithText(this, presentation, place, ActionToolbar.DEFAULT_MINIMUM_BUTTON_SIZE)
+        button.addMouseListener(object : MouseAdapter() {
+            override fun mousePressed(e: MouseEvent) = maybeShowPopup(e)
+            override fun mouseReleased(e: MouseEvent) = maybeShowPopup(e)
+
+            private fun maybeShowPopup(e: MouseEvent) {
+                if (!e.isPopupTrigger) return
+                e.consume()
+                val px = e.x
+                val py = e.y
+                // Defer until the button finishes processing this mouse event; showing the
+                // popup synchronously leaves the button in a transient non-showing state,
+                // which makes the platform abort the chosen menu action.
+                SwingUtilities.invokeLater { showContextMenu(button, px, py) }
+            }
+        })
+        return button
+    }
+
     override fun actionPerformed(e: AnActionEvent) {
-        val stateService = project.service<FileManagerStateService>()
-        val panel = stateService.getActivePanel() ?: return
+        openInNewTab()
+    }
+
+    private fun openInNewTab() {
+        val panel = project.service<FileManagerStateService>().getActivePanel() ?: return
         panel.openDirectoryInNewTab(Path.of(favPath))
+    }
+
+    private fun showContextMenu(component: JComponent, x: Int, y: Int) {
+        val path = Path.of(favPath)
+        val group = DefaultActionGroup()
+
+        group.add(FavoriteMenuItem("Open in New Tab", AllIcons.Actions.OpenNewTab) { openInNewTab() })
+
+        val os = System.getProperty("os.name").lowercase()
+        val explorerText = when {
+            os.contains("win") -> "Open in Explorer"
+            os.contains("mac") -> "Reveal in Finder"
+            else -> "Open in File Manager"
+        }
+        group.add(FavoriteMenuItem(explorerText, AllIcons.Actions.MenuOpen) { openInSystemExplorer(path) })
+
+        group.addSeparator()
+
+        val copyAs = DefaultActionGroup("Copy as", true).apply {
+            templatePresentation.icon = AllIcons.Actions.Copy
+        }
+        copyAs.add(FavoriteMenuItem("Directory Name") { copyToClipboard(path.fileName?.toString() ?: favPath) })
+        copyAs.add(FavoriteMenuItem("Full Path") { copyToClipboard(favPath) })
+        copyAs.add(FavoriteMenuItem("Parent Path") { copyToClipboard(path.parent?.toString() ?: "") })
+        group.add(copyAs)
+
+        group.addSeparator()
+
+        group.add(FavoriteMenuItem("Remove from Favorites", AllIcons.Actions.Close) {
+            project.service<FileManagerStateService>().removeFavorite(favPath)
+        })
+
+        if (!component.isShowing) return
+        // Anchor the popup's data-context to the (stable) active panel rather than the
+        // toolbar button: the tool-window header recreates its custom-component buttons
+        // when focus moves to the popup, which would otherwise leave the chosen menu
+        // action's target component "not showing" and make the platform abort it.
+        val targetComponent = project.service<FileManagerStateService>().getActivePanel() ?: component
+        val popupMenu = ActionManager.getInstance().createActionPopupMenu(ActionPlaces.POPUP, group)
+        popupMenu.setTargetComponent(targetComponent)
+        popupMenu.component.show(component, x, y)
+    }
+
+    private fun openInSystemExplorer(path: Path) {
+        val os = System.getProperty("os.name").lowercase()
+        val command = when {
+            os.contains("win") -> arrayOf("explorer.exe", path.toString())
+            os.contains("mac") -> arrayOf("open", path.toString())
+            else -> arrayOf("xdg-open", path.toString())
+        }
+        try {
+            Runtime.getRuntime().exec(command)
+        } catch (_: Exception) {
+            // Best-effort: a failure to launch the system file manager is non-critical here.
+        }
+    }
+
+    private fun copyToClipboard(text: String) {
+        Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(text), null)
     }
 }
 
