@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Context menu for the Favorites
+
 ## [0.5.19] - 2026-06-02
 
 ### Added
