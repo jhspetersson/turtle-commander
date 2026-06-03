@@ -1,21 +1,13 @@
 package io.github.jhspetersson.turtlecommander.action
 
-import com.intellij.openapi.actionSystem.ActionUpdateThread
-import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
-import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.ui.Messages
 import io.github.jhspetersson.turtlecommander.model.FileEntry
-import java.awt.Toolkit
-import java.awt.datatransfer.StringSelection
+import io.github.jhspetersson.turtlecommander.util.copyToClipboard
 import java.nio.file.Path
-
-private fun copyToClipboard(text: String) {
-    Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(text), null)
-}
 
 private fun hashableEntry(): FileEntry? {
     val entry = FileContextMenuState.clickedEntry ?: return null
@@ -26,9 +18,7 @@ private fun hashableEntry(): FileEntry? {
 abstract class CopyHashAction(
     private val label: String,
     private val compute: (Path, ProgressIndicator) -> String,
-) : AnAction(), DumbAware {
-
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+) : EdtAction() {
 
     override fun update(e: AnActionEvent) {
         e.presentation.isEnabledAndVisible = hashableEntry() != null

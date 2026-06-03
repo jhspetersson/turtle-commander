@@ -1,4 +1,5 @@
 package io.github.jhspetersson.turtlecommander.service
+import io.github.jhspetersson.turtlecommander.util.Platform
 import io.github.jhspetersson.turtlecommander.util.PermissionFlag
 import io.github.jhspetersson.turtlecommander.util.readFileGroup
 import io.github.jhspetersson.turtlecommander.util.readFileOwner
@@ -31,7 +32,7 @@ import kotlin.math.abs
 
 class FileSearchService(
     private val criteria: FileSearchCriteria,
-    private val isWindows: Boolean = System.getProperty("os.name").lowercase().contains("win"),
+    private val isWindows: Boolean = Platform.isWindows,
     private val ownerReader: (Path) -> String = ::readFileOwner,
     private val groupReader: (Path) -> String = ::readFileGroup,
     private val permissionsFlagReader: (Path) -> Set<PermissionFlag> = { readFilePermissionFlags(it, isWindows) },

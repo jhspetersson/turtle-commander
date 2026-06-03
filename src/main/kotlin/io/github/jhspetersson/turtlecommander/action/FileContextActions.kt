@@ -3,11 +3,8 @@ package io.github.jhspetersson.turtlecommander.action
 import com.intellij.diff.DiffContentFactory
 import com.intellij.diff.DiffManager
 import com.intellij.diff.requests.SimpleDiffRequest
-import com.intellij.openapi.actionSystem.ActionUpdateThread
-import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.components.service
-import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.vfs.LocalFileSystem
 import io.github.jhspetersson.turtlecommander.dialog.FileSearchDialog
 import io.github.jhspetersson.turtlecommander.dialog.PropertiesDialog
@@ -15,6 +12,8 @@ import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.ui.*
 import io.github.jhspetersson.turtlecommander.util.NativeProperties
+import io.github.jhspetersson.turtlecommander.util.Platform
+import io.github.jhspetersson.turtlecommander.util.SystemFileManager
 
 object FileContextMenuState {
     var clickedEntry: FileEntry? = null
@@ -36,9 +35,7 @@ object FileCopyBuffer {
     }
 }
 
-class ContextSearchInDirectoryAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class ContextSearchInDirectoryAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry
         e.presentation.isEnabledAndVisible = entry != null && entry.isDirectory && !entry.isParentLink
@@ -55,9 +52,7 @@ class ContextSearchInDirectoryAction : AnAction(), DumbAware {
     }
 }
 
-class OpenInNewTabAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class OpenInNewTabAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry
         e.presentation.isEnabledAndVisible = entry != null && entry.isDirectory && !entry.isParentLink
@@ -71,9 +66,7 @@ class OpenInNewTabAction : AnAction(), DumbAware {
     }
 }
 
-class OpenFileAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class OpenFileAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry
         e.presentation.isEnabledAndVisible = entry != null && !entry.isDirectory && !entry.isParentLink
@@ -84,9 +77,7 @@ class OpenFileAction : AnAction(), DumbAware {
     }
 }
 
-class OpenInAssociatedAppAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class OpenInAssociatedAppAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry
         e.presentation.isEnabledAndVisible = entry != null && !entry.isDirectory && !entry.isParentLink
@@ -97,18 +88,11 @@ class OpenInAssociatedAppAction : AnAction(), DumbAware {
     }
 }
 
-class OpenInExplorerAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class OpenInExplorerAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry
         e.presentation.isEnabled = entry != null && !entry.isParentLink
-        val os = System.getProperty("os.name").lowercase()
-        e.presentation.text = when {
-            os.contains("win") -> "Open in Explorer"
-            os.contains("mac") -> "Reveal in Finder"
-            else -> "Open in File Manager"
-        }
+        e.presentation.text = SystemFileManager.revealActionText
     }
 
     override fun actionPerformed(e: AnActionEvent) {
@@ -117,9 +101,7 @@ class OpenInExplorerAction : AnAction(), DumbAware {
     }
 }
 
-class ContextCopyAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class ContextCopyAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val tab = FileContextMenuState.clickedTab ?: findActiveTab(e)
         e.presentation.isEnabled = tab != null && tab.getSelectedEntries().isNotEmpty()
@@ -132,9 +114,7 @@ class ContextCopyAction : AnAction(), DumbAware {
     }
 }
 
-class ContextCutAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class ContextCutAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val tab = FileContextMenuState.clickedTab ?: findActiveTab(e)
         e.presentation.isEnabled = tab != null && tab.getSelectedEntries().isNotEmpty()
@@ -147,9 +127,7 @@ class ContextCutAction : AnAction(), DumbAware {
     }
 }
 
-class ContextPasteAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class ContextPasteAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val hasBuffer = FileCopyBuffer.entries.isNotEmpty()
         val tab = FileContextMenuState.clickedTab ?: findActiveTab(e)
@@ -172,9 +150,7 @@ class ContextPasteAction : AnAction(), DumbAware {
     }
 }
 
-class ContextPasteIntoAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class ContextPasteIntoAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val hasBuffer = FileCopyBuffer.entries.isNotEmpty()
         val entry = FileContextMenuState.clickedEntry
@@ -198,9 +174,7 @@ class ContextPasteIntoAction : AnAction(), DumbAware {
     }
 }
 
-class ContextRenameAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class ContextRenameAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry
         e.presentation.isEnabled = entry != null && !entry.isParentLink
@@ -211,9 +185,7 @@ class ContextRenameAction : AnAction(), DumbAware {
     }
 }
 
-class ContextMultiRenameAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class ContextMultiRenameAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val tab = FileContextMenuState.clickedTab
         e.presentation.isEnabled = tab != null && tab.getSelectedEntries().any { !it.isParentLink }
@@ -224,9 +196,7 @@ class ContextMultiRenameAction : AnAction(), DumbAware {
     }
 }
 
-class ContextDeleteAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class ContextDeleteAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val tab = FileContextMenuState.clickedTab
         e.presentation.isEnabled = tab != null && tab.getSelectedEntries().isNotEmpty()
@@ -237,9 +207,7 @@ class ContextDeleteAction : AnAction(), DumbAware {
     }
 }
 
-class PackFilesAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class PackFilesAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val tab = FileContextMenuState.clickedTab
         e.presentation.isEnabled = tab != null && tab.getSelectedEntries().isNotEmpty()
@@ -250,9 +218,7 @@ class PackFilesAction : AnAction(), DumbAware {
     }
 }
 
-class ExtractFilesAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class ExtractFilesAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry
         e.presentation.isEnabledAndVisible = entry != null && isArchiveFile(entry)
@@ -263,9 +229,7 @@ class ExtractFilesAction : AnAction(), DumbAware {
     }
 }
 
-class ExtractHereAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class ExtractHereAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry
         e.presentation.isEnabledAndVisible = entry != null && isArchiveFile(entry)
@@ -276,9 +240,7 @@ class ExtractHereAction : AnAction(), DumbAware {
     }
 }
 
-class ExtractToSubdirAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class ExtractToSubdirAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry
         e.presentation.isEnabledAndVisible = entry != null && isArchiveFile(entry)
@@ -289,9 +251,7 @@ class ExtractToSubdirAction : AnAction(), DumbAware {
     }
 }
 
-class SplitFileAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class SplitFileAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val tab = FileContextMenuState.clickedTab
         val entry = FileContextMenuState.clickedEntry
@@ -304,9 +264,7 @@ class SplitFileAction : AnAction(), DumbAware {
     }
 }
 
-class CombineFilesAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class CombineFilesAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val tab = FileContextMenuState.clickedTab
         val entry = FileContextMenuState.clickedEntry
@@ -325,9 +283,7 @@ class CombineFilesAction : AnAction(), DumbAware {
     }
 }
 
-class CompareFilesAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class CompareFilesAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         e.presentation.isEnabledAndVisible = resolveFiles(e).let { it.first != null && it.second != null }
     }
@@ -398,14 +354,11 @@ class CompareFilesAction : AnAction(), DumbAware {
  * APIs (IShellFolder + IDLIST, or a Finder selection) we don't bother
  * building.
  */
-class ShowPropertiesAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class ShowPropertiesAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry
         e.presentation.isEnabledAndVisible = entry != null && !entry.isParentLink
-        val os = System.getProperty("os.name").lowercase()
-        e.presentation.text = if (os.contains("mac")) "Get Info" else "Properties"
+        e.presentation.text = if (Platform.isMac) "Get Info" else "Properties"
     }
 
     override fun actionPerformed(e: AnActionEvent) {
@@ -423,9 +376,7 @@ class ShowPropertiesAction : AnAction(), DumbAware {
     }
 }
 
-class AddToFavoritesAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class AddToFavoritesAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry
         e.presentation.isEnabledAndVisible = entry != null && entry.isDirectory && !entry.isParentLink

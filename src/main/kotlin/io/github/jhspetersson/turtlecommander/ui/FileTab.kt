@@ -20,7 +20,6 @@ import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
 import com.intellij.ui.treeStructure.Tree
-import io.github.jhspetersson.turtlecommander.action.FileContextMenuState
 import io.github.jhspetersson.turtlecommander.dialog.DriveSpaceDialog
 import io.github.jhspetersson.turtlecommander.dialog.collectDriveInfo
 import io.github.jhspetersson.turtlecommander.model.FileEntry
@@ -681,26 +680,6 @@ class FileTab(
         )
     }
 
-    private fun handleTableContextMenu(e: MouseEvent) {
-        showContextMenu(table, e) {
-            val row = table.rowAtPoint(e.point)
-            if (row >= 0 && !table.isRowSelected(row)) {
-                table.setRowSelectionInterval(row, row)
-            }
-            if (row >= 0) tableModel.getEntryAt(table.convertRowIndexToModel(row)) else null
-        }
-    }
-
-    private fun handleListContextMenu(e: MouseEvent) {
-        showContextMenu(list, e) {
-            val index = list.locationToIndex(e.point)
-            if (index >= 0 && !list.isSelectedIndex(index)) {
-                list.selectedIndex = index
-            }
-            if (index >= 0) listModel.getElementAt(index) else null
-        }
-    }
-
     private fun setupThumbnailList() {
         val initialSize = ThumbnailSize.fromName(TurtleCommanderSettings.getInstance().state.thumbnailSize)
         thumbnailList.apply {
@@ -795,16 +774,6 @@ class FileTab(
         selectLastExtend.registerCustomShortcutSet(
             CustomShortcutSet(KeyStroke.getKeyStroke(KeyEvent.VK_END, InputEvent.SHIFT_DOWN_MASK)), jlist
         )
-    }
-
-    private fun handleThumbnailContextMenu(e: MouseEvent) {
-        showContextMenu(thumbnailList, e) {
-            val index = thumbnailList.locationToIndex(e.point)
-            if (index >= 0 && !thumbnailList.isSelectedIndex(index)) {
-                thumbnailList.selectedIndex = index
-            }
-            if (index >= 0) thumbnailListModel.getElementAt(index) else null
-        }
     }
 
     private fun setupTree() {
@@ -912,26 +881,6 @@ class FileTab(
         )
     }
 
-    private fun handleTreeContextMenu(e: MouseEvent) {
-        showContextMenu(tree, e) {
-            val treePath = tree.getPathForLocation(e.x, e.y)
-            if (treePath != null && !tree.isPathSelected(treePath)) {
-                tree.selectionPath = treePath
-            }
-            (tree.lastSelectedPathComponent as? DefaultMutableTreeNode)?.userObject as? FileEntry
-        }
-    }
-
-    private inline fun showContextMenu(component: JComponent, e: MouseEvent, resolveEntry: () -> FileEntry?) {
-        if (!e.isPopupTrigger) return
-        FileContextMenuState.clickedEntry = resolveEntry()
-        FileContextMenuState.clickedTab = this
-
-        val am = ActionManager.getInstance()
-        val group = am.getAction("TurtleCommander.FileContextMenu") as? ActionGroup ?: return
-        val popupMenu = am.createActionPopupMenu("TurtleCommander.FileContextMenu", group)
-        popupMenu.component.show(component, e.x, e.y)
-    }
 
     private fun setupFilterPanel() {
         filterPanel.border = BorderFactory.createEmptyBorder(2, 4, 2, 4)

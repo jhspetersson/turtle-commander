@@ -1,6 +1,7 @@
 package io.github.jhspetersson.turtlecommander.dialog
 
 import com.intellij.openapi.project.Project
+import io.github.jhspetersson.turtlecommander.util.Platform
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.ValidationInfo
@@ -170,7 +171,7 @@ class FileSearchDialog(
     private val groupCheckBox = JCheckBox("Search by group", initialCriteria?.groupPattern != null)
     private val groupField = JBTextField(initialCriteria?.groupPattern ?: "")
 
-    private val isHostWindows: Boolean = System.getProperty("os.name").lowercase().contains("win")
+    private val isHostWindows: Boolean = Platform.isWindows
     private val permissionFlagsForOs: List<PermissionFlag> =
         if (isHostWindows) PermissionFlag.DOS_FLAGS else PermissionFlag.POSIX_FLAGS
     private val permissionsCheckBox = JCheckBox("Search by permissions", initialCriteria?.permissionsFilter != null)

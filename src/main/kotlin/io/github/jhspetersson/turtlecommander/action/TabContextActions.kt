@@ -1,23 +1,19 @@
 package io.github.jhspetersson.turtlecommander.action
 
-import com.intellij.openapi.actionSystem.ActionUpdateThread
-import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.components.service
-import com.intellij.openapi.project.DumbAware
 import io.github.jhspetersson.turtlecommander.dialog.FileSearchDialog
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
 import io.github.jhspetersson.turtlecommander.ui.openDirectoryInSystemExplorer
+import io.github.jhspetersson.turtlecommander.util.SystemFileManager
 
 object TabContextMenuState {
     var clickedTabIndex: Int = -1
     var clickedPanel: FileManagerPanel? = null
 }
 
-abstract class TabContextAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+abstract class TabContextAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val (panel, _) = resolveTabContext(e)
         e.presentation.isEnabled = panel != null
@@ -143,12 +139,7 @@ class TabOpenInExplorerAction : TabContextAction() {
         val (panel, tabIndex) = resolveTabContext(e)
         val tab = panel?.getTabAt(tabIndex)
         e.presentation.isEnabledAndVisible = tab != null && tab.currentVfs == null
-        val os = System.getProperty("os.name").lowercase()
-        e.presentation.text = when {
-            os.contains("win") -> "Open in Explorer"
-            os.contains("mac") -> "Reveal in Finder"
-            else -> "Open in File Manager"
-        }
+        e.presentation.text = SystemFileManager.revealActionText
     }
 
     override fun actionPerformed(e: AnActionEvent) {

@@ -1,10 +1,7 @@
 package io.github.jhspetersson.turtlecommander.action
 
 import com.intellij.openapi.actionSystem.ActionPlaces
-import com.intellij.openapi.actionSystem.ActionUpdateThread
-import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.ui.Messages
 import io.github.jhspetersson.turtlecommander.ui.FileTab
 import io.github.jhspetersson.turtlecommander.ui.hasAnyDisplayedEntries
@@ -55,9 +52,7 @@ private fun isInvokedFromContextMenu(place: String): Boolean {
     return place == FILE_CONTEXT_PLACE || place == ActionPlaces.POPUP
 }
 
-abstract class SelectionAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+abstract class SelectionAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val tab = resolveSelectionTab(e)
         if (tab == null) {

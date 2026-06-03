@@ -2,18 +2,13 @@ package io.github.jhspetersson.turtlecommander.action
 import io.github.jhspetersson.turtlecommander.ui.FileTab
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 
-import com.intellij.openapi.actionSystem.ActionUpdateThread
-import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.components.service
-import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager
 
-class OpenInTerminalAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class OpenInTerminalAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val tab = FileContextMenuState.clickedTab
         val entry = FileContextMenuState.clickedEntry
@@ -34,9 +29,7 @@ class OpenInTerminalAction : AnAction(), DumbAware {
     }
 }
 
-class OpenTabInTerminalAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class OpenTabInTerminalAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val tab = resolveTab(e)
         e.presentation.isEnabledAndVisible = tab != null && tab.currentVfs == null

@@ -1,6 +1,7 @@
 package io.github.jhspetersson.turtlecommander.dialog
 
 import com.intellij.openapi.project.Project
+import io.github.jhspetersson.turtlecommander.util.Platform
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.JBColor
@@ -190,7 +191,7 @@ class MultiRenameDialog(
             MultiRenameTemplate.Input.from(entry.path, entry.lastModified)
         }
         val targets = MultiRenameTemplate.render(inputs, options)
-        val caseInsensitiveFs = System.getProperty("os.name").startsWith("Windows", ignoreCase = true)
+        val caseInsensitiveFs = Platform.isWindows
         conflictRows = MultiRenameTemplate.detectConflicts(
             sources = entries.map { it.path },
             targetNames = targets,

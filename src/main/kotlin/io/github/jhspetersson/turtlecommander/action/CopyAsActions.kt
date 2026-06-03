@@ -1,114 +1,134 @@
 package io.github.jhspetersson.turtlecommander.action
 
-import com.intellij.openapi.actionSystem.ActionUpdateThread
-import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.project.DumbAware
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.settings.ColumnConfig
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.ui.FileTab
 import io.github.jhspetersson.turtlecommander.ui.getDisplayPath
 import io.github.jhspetersson.turtlecommander.ui.getSelectedEntries
-import java.awt.Toolkit
-import java.awt.datatransfer.StringSelection
+import io.github.jhspetersson.turtlecommander.util.copyToClipboard
 import java.nio.file.attribute.FileTime
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
-
-private fun copyToClipboard(text: String) {
-    val clipboard = Toolkit.getDefaultToolkit().systemClipboard
-    val contents = StringSelection(text)
-    // Windows OpenClipboard rejects with IllegalStateException ("cannot open
-    // system clipboard") whenever another process — clipboard manager,
-    // password manager, browser — holds the clipboard at that instant. The
-    // contention window is typically <100ms, so a short backoff loop turns
-    // a hard failure into a silent retry. Same situation also makes the
-    // CopyAs unit tests flaky on dev machines.
-    var lastError: IllegalStateException? = null
-    var sleep = 20L
-    repeat(5) {
-        try {
-            clipboard.setContents(contents, null)
-            return
-        } catch (e: IllegalStateException) {
-            lastError = e
-            try { Thread.sleep(sleep) } catch (_: InterruptedException) {
-                Thread.currentThread().interrupt()
-                return
-            }
-            sleep *= 2
-        }
-    }
-    // Final attempt — let the exception surface if it still fails so callers
-    // can log or notify rather than silently dropping the user's copy.
-    if (lastError != null) {
-        clipboard.setContents(contents, null)
-    }
-}
 
 private fun resolveEntry(): FileEntry? = FileContextMenuState.clickedEntry
 
 private fun resolveTab(e: AnActionEvent): FileTab? =
     FileContextMenuState.clickedTab ?: findActiveTab(e)
 
+private fun nameLabel(entry: FileEntry?): String =
+    if (entry?.isDirectory == true) "Directory Name" else "Filename"
+
+/**
+ * Full path for [entry]. When the entry lives inside an archive the on-disk
+ * `entry.path` points at a temp-extracted file, so the user-facing path is the
+ * tab's display path joined with the entry name instead.
+ */
+private fun entryFullPath(entry: FileEntry, tab: FileTab?): String =
+    if (tab != null && tab.isInsideArchive) {
+        val displayPath = tab.getDisplayPath()
+        val separator = if (displayPath.contains("\\")) "\\" else "/"
+        displayPath + separator + entry.name
+    } else {
+        entry.path.toString()
+    }
+
+private fun entryParentPath(entry: FileEntry, tab: FileTab?): String =
+    if (tab != null && tab.isInsideArchive) {
+        tab.getDisplayPath()
+    } else {
+        entry.path.parent?.toString() ?: ""
+    }
+
+// --- Shared bases for entry-targeted "Copy as" actions (file context + search results) ---
+
+abstract class EntryCopyNameAction : EdtAction() {
+    protected abstract fun entry(): FileEntry?
+
+    override fun update(e: AnActionEvent) {
+        val entry = entry()
+        e.presentation.isEnabled = entry != null && !entry.isParentLink
+        e.presentation.text = nameLabel(entry)
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        copyToClipboard(entry()?.name ?: return)
+    }
+}
+
+abstract class EntryCopyFullPathAction : EdtAction() {
+    protected abstract fun entry(): FileEntry?
+
+    /** Owning tab, when archive-aware resolution is possible (null for search results). */
+    protected open fun tab(e: AnActionEvent): FileTab? = null
+
+    override fun update(e: AnActionEvent) {
+        val entry = entry()
+        e.presentation.isEnabled = entry != null && !entry.isParentLink
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val entry = entry() ?: return
+        copyToClipboard(entryFullPath(entry, tab(e)))
+    }
+}
+
+abstract class EntryCopyParentPathAction : EdtAction() {
+    protected abstract fun entry(): FileEntry?
+
+    protected open fun tab(e: AnActionEvent): FileTab? = null
+
+    override fun update(e: AnActionEvent) {
+        val entry = entry()
+        e.presentation.isEnabled = entry != null && !entry.isParentLink
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val entry = entry() ?: return
+        copyToClipboard(entryParentPath(entry, tab(e)))
+    }
+}
+
+abstract class EntryCopyExportAction(
+    private val format: (List<FileEntry>) -> String,
+) : EdtAction() {
+    protected abstract fun targets(e: AnActionEvent): List<FileEntry>
+
+    override fun update(e: AnActionEvent) {
+        e.presentation.isEnabled = targets(e).isNotEmpty()
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val entries = targets(e)
+        if (entries.isEmpty()) return
+        copyToClipboard(format(entries))
+    }
+}
+
 // --- File/directory context menu actions ---
 
-class CopyAsNameAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
-    override fun update(e: AnActionEvent) {
-        val entry = resolveEntry()
-        e.presentation.isEnabled = entry != null && !entry.isParentLink
-        e.presentation.text = if (entry?.isDirectory == true) "Directory Name" else "Filename"
-    }
-
-    override fun actionPerformed(e: AnActionEvent) {
-        val entry = resolveEntry() ?: return
-        copyToClipboard(entry.name)
-    }
+class CopyAsNameAction : EntryCopyNameAction() {
+    override fun entry(): FileEntry? = resolveEntry()
 }
 
-class CopyAsFullPathAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
-    override fun update(e: AnActionEvent) {
-        val entry = resolveEntry()
-        e.presentation.isEnabled = entry != null && !entry.isParentLink
-    }
-
-    override fun actionPerformed(e: AnActionEvent) {
-        val entry = resolveEntry() ?: return
-        val tab = resolveTab(e)
-        if (tab != null && tab.isInsideArchive) {
-            // For VFS entries, build the full display path + entry name
-            val displayPath = tab.getDisplayPath()
-            val separator = if (displayPath.contains("\\")) "\\" else "/"
-            copyToClipboard(displayPath + separator + entry.name)
-        } else {
-            copyToClipboard(entry.path.toString())
-        }
-    }
+class CopyAsFullPathAction : EntryCopyFullPathAction() {
+    override fun entry(): FileEntry? = resolveEntry()
+    override fun tab(e: AnActionEvent): FileTab? = resolveTab(e)
 }
 
-class CopyAsParentPathAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+class CopyAsParentPathAction : EntryCopyParentPathAction() {
+    override fun entry(): FileEntry? = resolveEntry()
+    override fun tab(e: AnActionEvent): FileTab? = resolveTab(e)
+}
 
-    override fun update(e: AnActionEvent) {
-        val entry = resolveEntry()
-        e.presentation.isEnabled = entry != null && !entry.isParentLink
-    }
+class CopyAsCsvAction : EntryCopyExportAction({ entriesToCsv(it, exportColumnIds()) }) {
+    override fun targets(e: AnActionEvent): List<FileEntry> = collectTargetEntries(resolveTab(e))
+}
 
-    override fun actionPerformed(e: AnActionEvent) {
-        val entry = resolveEntry() ?: return
-        val tab = resolveTab(e)
-        if (tab != null && tab.isInsideArchive) {
-            copyToClipboard(tab.getDisplayPath())
-        } else {
-            copyToClipboard(entry.path.parent?.toString() ?: "")
-        }
-    }
+class CopyAsJsonAction : EntryCopyExportAction({ entriesToJson(it, exportColumnIds()) }) {
+    override fun targets(e: AnActionEvent): List<FileEntry> = collectTargetEntries(resolveTab(e))
 }
 
 /**
@@ -249,35 +269,7 @@ private fun jsonString(value: String): String {
     return sb.toString()
 }
 
-class CopyAsCsvAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
-    override fun update(e: AnActionEvent) {
-        e.presentation.isEnabled = collectTargetEntries(resolveTab(e)).isNotEmpty()
-    }
-
-    override fun actionPerformed(e: AnActionEvent) {
-        val entries = collectTargetEntries(resolveTab(e))
-        if (entries.isEmpty()) return
-        copyToClipboard(entriesToCsv(entries, exportColumnIds()))
-    }
-}
-
-class CopyAsJsonAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
-    override fun update(e: AnActionEvent) {
-        e.presentation.isEnabled = collectTargetEntries(resolveTab(e)).isNotEmpty()
-    }
-
-    override fun actionPerformed(e: AnActionEvent) {
-        val entries = collectTargetEntries(resolveTab(e))
-        if (entries.isEmpty()) return
-        copyToClipboard(entriesToJson(entries, exportColumnIds()))
-    }
-}
-
-// --- Tab context menu actions ---
+// --- Tab context menu actions (operate on the tab's directory, not a row) ---
 
 class TabCopyAsNameAction : TabContextAction() {
     override fun actionPerformed(e: AnActionEvent) {
@@ -314,45 +306,16 @@ class TabCopyAsParentPathAction : TabContextAction() {
 
 // --- Search results context menu actions ---
 
-class SearchCopyAsNameAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
-    override fun update(e: AnActionEvent) {
-        val entry = SearchContextMenuState.clickedEntry
-        e.presentation.isEnabled = entry != null
-        e.presentation.text = if (entry?.isDirectory == true) "Directory Name" else "Filename"
-    }
-
-    override fun actionPerformed(e: AnActionEvent) {
-        val entry = SearchContextMenuState.clickedEntry ?: return
-        copyToClipboard(entry.name)
-    }
+class SearchCopyAsNameAction : EntryCopyNameAction() {
+    override fun entry(): FileEntry? = SearchContextMenuState.clickedEntry
 }
 
-class SearchCopyAsFullPathAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
-    override fun update(e: AnActionEvent) {
-        e.presentation.isEnabled = SearchContextMenuState.clickedEntry != null
-    }
-
-    override fun actionPerformed(e: AnActionEvent) {
-        val entry = SearchContextMenuState.clickedEntry ?: return
-        copyToClipboard(entry.path.toString())
-    }
+class SearchCopyAsFullPathAction : EntryCopyFullPathAction() {
+    override fun entry(): FileEntry? = SearchContextMenuState.clickedEntry
 }
 
-class SearchCopyAsParentPathAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
-    override fun update(e: AnActionEvent) {
-        e.presentation.isEnabled = SearchContextMenuState.clickedEntry != null
-    }
-
-    override fun actionPerformed(e: AnActionEvent) {
-        val entry = SearchContextMenuState.clickedEntry ?: return
-        copyToClipboard(entry.path.parent?.toString() ?: "")
-    }
+class SearchCopyAsParentPathAction : EntryCopyParentPathAction() {
+    override fun entry(): FileEntry? = SearchContextMenuState.clickedEntry
 }
 
 /**
@@ -366,32 +329,12 @@ internal fun collectSearchTargetEntries(): List<FileEntry> {
     return if (clicked != null && !clicked.isParentLink) listOf(clicked) else emptyList()
 }
 
-class SearchCopyAsCsvAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
-    override fun update(e: AnActionEvent) {
-        e.presentation.isEnabled = collectSearchTargetEntries().isNotEmpty()
-    }
-
-    override fun actionPerformed(e: AnActionEvent) {
-        val entries = collectSearchTargetEntries()
-        if (entries.isEmpty()) return
-        copyToClipboard(entriesToCsv(entries, exportColumnIds()))
-    }
+class SearchCopyAsCsvAction : EntryCopyExportAction({ entriesToCsv(it, exportColumnIds()) }) {
+    override fun targets(e: AnActionEvent): List<FileEntry> = collectSearchTargetEntries()
 }
 
-class SearchCopyAsJsonAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
-    override fun update(e: AnActionEvent) {
-        e.presentation.isEnabled = collectSearchTargetEntries().isNotEmpty()
-    }
-
-    override fun actionPerformed(e: AnActionEvent) {
-        val entries = collectSearchTargetEntries()
-        if (entries.isEmpty()) return
-        copyToClipboard(entriesToJson(entries, exportColumnIds()))
-    }
+class SearchCopyAsJsonAction : EntryCopyExportAction({ entriesToJson(it, exportColumnIds()) }) {
+    override fun targets(e: AnActionEvent): List<FileEntry> = collectSearchTargetEntries()
 }
 
 object SearchContextMenuState {

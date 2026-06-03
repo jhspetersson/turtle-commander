@@ -26,9 +26,7 @@ internal fun isToolWindowActive(e: AnActionEvent): Boolean {
     return toolWindow.isVisible
 }
 
-abstract class FileManagerAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+abstract class FileManagerAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val tab = findActiveTab(e)
         e.presentation.isEnabled = tab != null && tab.hasAnyViewFocus()
@@ -126,9 +124,7 @@ class DeleteFilesAction : FileManagerAction() {
     }
 }
 
-class SwitchPanelAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class SwitchPanelAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         e.presentation.isEnabled = isToolWindowActive(e)
     }
@@ -207,9 +203,7 @@ class RefreshAction : FileManagerAction() {
     }
 }
 
-class LeftDriveSelectorAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class LeftDriveSelectorAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         e.presentation.isEnabled = isToolWindowActive(e)
     }
@@ -221,9 +215,7 @@ class LeftDriveSelectorAction : AnAction(), DumbAware {
     }
 }
 
-class RightDriveSelectorAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class RightDriveSelectorAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         e.presentation.isEnabled = isToolWindowActive(e)
     }
@@ -285,9 +277,7 @@ class PreviousTabAction : FileManagerAction() {
     }
 }
 
-class QuickAccessFavoriteAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class QuickAccessFavoriteAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         e.presentation.isEnabled = isToolWindowActive(e)
         val slot = extractSlot(e) ?: return
@@ -318,9 +308,7 @@ class QuickAccessFavoriteAction : AnAction(), DumbAware {
     }
 }
 
-class QuitAction : AnAction(), DumbAware {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class QuitAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         e.presentation.isEnabled = isToolWindowActive(e)
     }

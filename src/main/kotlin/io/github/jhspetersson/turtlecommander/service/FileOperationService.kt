@@ -3,6 +3,7 @@ package io.github.jhspetersson.turtlecommander.service
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import io.github.jhspetersson.turtlecommander.model.FileEntry
+import io.github.jhspetersson.turtlecommander.util.Platform
 import io.github.jhspetersson.turtlecommander.settings.ColorRuleManager
 import io.github.jhspetersson.turtlecommander.settings.RuleMatcher
 import io.github.jhspetersson.turtlecommander.settings.TextProperty
@@ -28,9 +29,8 @@ import kotlin.io.path.name
 class FileOperationService(
     private val cs: CoroutineScope,
 ) {
-    private val osName = System.getProperty("os.name").lowercase()
-    private val isWindows = osName.contains("win")
-    private val isMac = osName.contains("mac")
+    private val isWindows = Platform.isWindows
+    private val isMac = Platform.isMac
 
     /** Test-only clock override. Defaults to wall clock. */
     internal var clock: () -> Long = System::currentTimeMillis

@@ -25,6 +25,7 @@ import io.github.jhspetersson.turtlecommander.service.OverwritePolicy
 import io.github.jhspetersson.turtlecommander.service.OverwriteResponse
 import io.github.jhspetersson.turtlecommander.service.VfsTempCleanup
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
+import io.github.jhspetersson.turtlecommander.util.SystemFileManager
 import io.github.jhspetersson.turtlecommander.util.countFiles
 import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
 import io.github.jhspetersson.turtlecommander.util.formatSize
@@ -704,29 +705,16 @@ internal fun FileTab.extractArchives(archivePaths: List<Path>, destination: Path
 }
 
 internal fun FileTab.openInSystemExplorer(entry: FileEntry) {
-    val path = if (entry.isDirectory) entry.path else entry.path.parent ?: return
-    val os = System.getProperty("os.name").lowercase()
-    val command = when {
-        os.contains("win") -> arrayOf("explorer.exe", "/select,", entry.path.toString())
-        os.contains("mac") -> arrayOf("open", "-R", entry.path.toString())
-        else -> arrayOf("xdg-open", path.toString())
-    }
     try {
-        Runtime.getRuntime().exec(command)
+        SystemFileManager.reveal(entry.path)
     } catch (e: Exception) {
         fileErrorNotification("Failed to open in explorer: ${fileErrorMessage(e)}")
     }
 }
 
 internal fun FileTab.openDirectoryInSystemExplorer(path: Path) {
-    val os = System.getProperty("os.name").lowercase()
-    val command = when {
-        os.contains("win") -> arrayOf("explorer.exe", path.toString())
-        os.contains("mac") -> arrayOf("open", path.toString())
-        else -> arrayOf("xdg-open", path.toString())
-    }
     try {
-        Runtime.getRuntime().exec(command)
+        SystemFileManager.openDirectory(path)
     } catch (e: Exception) {
         fileErrorNotification("Failed to open in explorer: ${fileErrorMessage(e)}")
     }

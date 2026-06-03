@@ -1,6 +1,7 @@
 package io.github.jhspetersson.turtlecommander.settings
 
 import com.intellij.openapi.application.ApplicationManager
+import io.github.jhspetersson.turtlecommander.util.Platform
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.State
@@ -93,7 +94,7 @@ class ColumnConfig {
         private val UNIX_ONLY_COLUMNS = setOf("User", "Group")
 
         fun defaults(): List<ColumnConfig> {
-            val isWindows = System.getProperty("os.name").lowercase().contains("win")
+            val isWindows = Platform.isWindows
             return ALL_COLUMN_IDS.map { id ->
                 ColumnConfig().apply {
                     this.id = id
