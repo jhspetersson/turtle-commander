@@ -13,9 +13,9 @@ import com.intellij.openapi.actionSystem.impl.ActionButtonWithText
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import io.github.jhspetersson.turtlecommander.action.EdtAction
+import com.intellij.ide.actions.RevealFileAction
+import com.intellij.openapi.ide.CopyPasteManager
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
-import io.github.jhspetersson.turtlecommander.util.SystemFileManager
-import io.github.jhspetersson.turtlecommander.util.copyToClipboard
 import java.awt.Color
 import java.awt.Component
 import java.awt.Graphics
@@ -94,8 +94,8 @@ internal class FavoriteAction(
         val group = DefaultActionGroup()
 
         group.add(FavoriteMenuItem("Open in New Tab", AllIcons.Actions.OpenNewTab) { openInNewTab() })
-        group.add(FavoriteMenuItem(SystemFileManager.revealActionText, AllIcons.Actions.MenuOpen) {
-            runCatching { SystemFileManager.openDirectory(path) }
+        group.add(FavoriteMenuItem(RevealFileAction.getActionName(), AllIcons.Actions.MenuOpen) {
+            RevealFileAction.openDirectory(path)
         })
 
         group.addSeparator()
@@ -103,9 +103,9 @@ internal class FavoriteAction(
         val copyAs = DefaultActionGroup("Copy as", true).apply {
             templatePresentation.icon = AllIcons.Actions.Copy
         }
-        copyAs.add(FavoriteMenuItem("Directory Name") { copyToClipboard(path.fileName?.toString() ?: favPath) })
-        copyAs.add(FavoriteMenuItem("Full Path") { copyToClipboard(favPath) })
-        copyAs.add(FavoriteMenuItem("Parent Path") { copyToClipboard(path.parent?.toString() ?: "") })
+        copyAs.add(FavoriteMenuItem("Directory Name") { CopyPasteManager.copyTextToClipboard(path.fileName?.toString() ?: favPath) })
+        copyAs.add(FavoriteMenuItem("Full Path") { CopyPasteManager.copyTextToClipboard(favPath) })
+        copyAs.add(FavoriteMenuItem("Parent Path") { CopyPasteManager.copyTextToClipboard(path.parent?.toString() ?: "") })
         group.add(copyAs)
 
         group.addSeparator()

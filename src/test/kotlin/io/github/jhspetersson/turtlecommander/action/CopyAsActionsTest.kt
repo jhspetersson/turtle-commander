@@ -1,10 +1,10 @@
 package io.github.jhspetersson.turtlecommander.action
 
+import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.testFramework.TestActionEvent
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import java.awt.GraphicsEnvironment
-import java.awt.Toolkit
 import java.awt.datatransfer.DataFlavor
 import java.nio.file.Path
 import java.nio.file.attribute.FileTime
@@ -240,7 +240,7 @@ class CopyAsActionsTest : BasePlatformTestCase() {
     }
 
     private fun clipboardText(): String =
-        Toolkit.getDefaultToolkit().systemClipboard.getData(DataFlavor.stringFlavor) as String
+        CopyPasteManager.getInstance().getContents<String>(DataFlavor.stringFlavor) ?: ""
 
     // --- CopyAsCsv / CopyAsJson: enablement ---
 

@@ -25,7 +25,7 @@ import io.github.jhspetersson.turtlecommander.service.OverwritePolicy
 import io.github.jhspetersson.turtlecommander.service.OverwriteResponse
 import io.github.jhspetersson.turtlecommander.service.VfsTempCleanup
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
-import io.github.jhspetersson.turtlecommander.util.SystemFileManager
+import com.intellij.ide.actions.RevealFileAction
 import io.github.jhspetersson.turtlecommander.util.countFiles
 import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
 import io.github.jhspetersson.turtlecommander.util.formatSize
@@ -705,19 +705,11 @@ internal fun FileTab.extractArchives(archivePaths: List<Path>, destination: Path
 }
 
 internal fun FileTab.openInSystemExplorer(entry: FileEntry) {
-    try {
-        SystemFileManager.reveal(entry.path)
-    } catch (e: Exception) {
-        fileErrorNotification("Failed to open in explorer: ${fileErrorMessage(e)}")
-    }
+    RevealFileAction.openFile(entry.path)
 }
 
 internal fun FileTab.openDirectoryInSystemExplorer(path: Path) {
-    try {
-        SystemFileManager.openDirectory(path)
-    } catch (e: Exception) {
-        fileErrorNotification("Failed to open in explorer: ${fileErrorMessage(e)}")
-    }
+    RevealFileAction.openDirectory(path)
 }
 
 internal fun FileTab.openFile(entry: FileEntry) {

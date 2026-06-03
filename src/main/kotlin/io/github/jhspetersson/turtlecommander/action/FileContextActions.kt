@@ -11,9 +11,9 @@ import io.github.jhspetersson.turtlecommander.dialog.PropertiesDialog
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.ui.*
+import com.intellij.ide.actions.RevealFileAction
+import com.intellij.openapi.util.SystemInfo
 import io.github.jhspetersson.turtlecommander.util.NativeProperties
-import io.github.jhspetersson.turtlecommander.util.Platform
-import io.github.jhspetersson.turtlecommander.util.SystemFileManager
 
 object FileContextMenuState {
     var clickedEntry: FileEntry? = null
@@ -92,7 +92,7 @@ class OpenInExplorerAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry
         e.presentation.isEnabled = entry != null && !entry.isParentLink
-        e.presentation.text = SystemFileManager.revealActionText
+        e.presentation.text = RevealFileAction.getActionName()
     }
 
     override fun actionPerformed(e: AnActionEvent) {
@@ -358,7 +358,7 @@ class ShowPropertiesAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry
         e.presentation.isEnabledAndVisible = entry != null && !entry.isParentLink
-        e.presentation.text = if (Platform.isMac) "Get Info" else "Properties"
+        e.presentation.text = if (SystemInfo.isMac) "Get Info" else "Properties"
     }
 
     override fun actionPerformed(e: AnActionEvent) {

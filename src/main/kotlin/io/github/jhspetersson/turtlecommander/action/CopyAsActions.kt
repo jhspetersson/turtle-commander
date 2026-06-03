@@ -1,13 +1,13 @@
 package io.github.jhspetersson.turtlecommander.action
 
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.ide.CopyPasteManager
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.settings.ColumnConfig
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.ui.FileTab
 import io.github.jhspetersson.turtlecommander.ui.getDisplayPath
 import io.github.jhspetersson.turtlecommander.ui.getSelectedEntries
-import io.github.jhspetersson.turtlecommander.util.copyToClipboard
 import java.nio.file.attribute.FileTime
 import java.time.Instant
 import java.time.ZoneOffset
@@ -54,7 +54,7 @@ abstract class EntryCopyNameAction : EdtAction() {
     }
 
     override fun actionPerformed(e: AnActionEvent) {
-        copyToClipboard(entry()?.name ?: return)
+        CopyPasteManager.copyTextToClipboard(entry()?.name ?: return)
     }
 }
 
@@ -71,7 +71,7 @@ abstract class EntryCopyFullPathAction : EdtAction() {
 
     override fun actionPerformed(e: AnActionEvent) {
         val entry = entry() ?: return
-        copyToClipboard(entryFullPath(entry, tab(e)))
+        CopyPasteManager.copyTextToClipboard(entryFullPath(entry, tab(e)))
     }
 }
 
@@ -87,7 +87,7 @@ abstract class EntryCopyParentPathAction : EdtAction() {
 
     override fun actionPerformed(e: AnActionEvent) {
         val entry = entry() ?: return
-        copyToClipboard(entryParentPath(entry, tab(e)))
+        CopyPasteManager.copyTextToClipboard(entryParentPath(entry, tab(e)))
     }
 }
 
@@ -103,7 +103,7 @@ abstract class EntryCopyExportAction(
     override fun actionPerformed(e: AnActionEvent) {
         val entries = targets(e)
         if (entries.isEmpty()) return
-        copyToClipboard(format(entries))
+        CopyPasteManager.copyTextToClipboard(format(entries))
     }
 }
 
@@ -276,7 +276,7 @@ class TabCopyAsNameAction : TabContextAction() {
         val (panel, tabIndex) = resolveTabContext(e)
         val tab = panel?.getTabAt(tabIndex) ?: return
         val name = tab.currentPath.fileName?.toString() ?: tab.currentPath.toString()
-        copyToClipboard(name)
+        CopyPasteManager.copyTextToClipboard(name)
     }
 }
 
@@ -285,9 +285,9 @@ class TabCopyAsFullPathAction : TabContextAction() {
         val (panel, tabIndex) = resolveTabContext(e)
         val tab = panel?.getTabAt(tabIndex) ?: return
         if (tab.isInsideArchive) {
-            copyToClipboard(tab.getDisplayPath())
+            CopyPasteManager.copyTextToClipboard(tab.getDisplayPath())
         } else {
-            copyToClipboard(tab.currentPath.toString())
+            CopyPasteManager.copyTextToClipboard(tab.currentPath.toString())
         }
     }
 }
@@ -297,9 +297,9 @@ class TabCopyAsParentPathAction : TabContextAction() {
         val (panel, tabIndex) = resolveTabContext(e)
         val tab = panel?.getTabAt(tabIndex) ?: return
         if (tab.isInsideArchive) {
-            copyToClipboard(tab.realFilesystemPath.toString())
+            CopyPasteManager.copyTextToClipboard(tab.realFilesystemPath.toString())
         } else {
-            copyToClipboard(tab.currentPath.parent?.toString() ?: "")
+            CopyPasteManager.copyTextToClipboard(tab.currentPath.parent?.toString() ?: "")
         }
     }
 }

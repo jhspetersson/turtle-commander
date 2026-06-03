@@ -6,7 +6,7 @@ import io.github.jhspetersson.turtlecommander.dialog.FileSearchDialog
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
 import io.github.jhspetersson.turtlecommander.ui.openDirectoryInSystemExplorer
-import io.github.jhspetersson.turtlecommander.util.SystemFileManager
+import com.intellij.ide.actions.RevealFileAction
 
 object TabContextMenuState {
     var clickedTabIndex: Int = -1
@@ -139,7 +139,7 @@ class TabOpenInExplorerAction : TabContextAction() {
         val (panel, tabIndex) = resolveTabContext(e)
         val tab = panel?.getTabAt(tabIndex)
         e.presentation.isEnabledAndVisible = tab != null && tab.currentVfs == null
-        e.presentation.text = SystemFileManager.revealActionText
+        e.presentation.text = RevealFileAction.getActionName()
     }
 
     override fun actionPerformed(e: AnActionEvent) {

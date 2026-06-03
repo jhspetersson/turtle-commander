@@ -6,7 +6,7 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.ui.Messages
 import io.github.jhspetersson.turtlecommander.model.FileEntry
-import io.github.jhspetersson.turtlecommander.util.copyToClipboard
+import com.intellij.openapi.ide.CopyPasteManager
 import java.nio.file.Path
 
 private fun hashableEntry(): FileEntry? {
@@ -47,7 +47,7 @@ abstract class CopyHashAction(
                 val value = result
                 val err = error
                 if (value != null) {
-                    copyToClipboard(value)
+                    CopyPasteManager.copyTextToClipboard(value)
                 } else if (err != null) {
                     Messages.showErrorDialog(project, "Failed to compute $label: ${err.message}", "Copy $label")
                 }

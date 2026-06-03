@@ -1,7 +1,7 @@
 package io.github.jhspetersson.turtlecommander.dialog
 
 import com.intellij.openapi.project.Project
-import io.github.jhspetersson.turtlecommander.util.Platform
+import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
@@ -44,7 +44,7 @@ fun collectDriveInfo(): List<DriveInfo> {
     }
 
     // On Unix, also add mounted volumes
-    if (!Platform.isWindows) {
+    if (!SystemInfo.isWindows) {
         val mountDirs = listOf("/Volumes", "/media", "/mnt")
         for (mountDir in mountDirs) {
             val dir = Path.of(mountDir)

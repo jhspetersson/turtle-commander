@@ -1,7 +1,7 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
 import com.intellij.openapi.diagnostic.thisLogger
-import io.github.jhspetersson.turtlecommander.util.Platform
+import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry
@@ -154,7 +154,7 @@ class SevenZipVirtualFileSystem(
     }
 
     private fun findSystem7zBinary(): String? {
-        val candidates = if (Platform.isWindows) {
+        val candidates = if (SystemInfo.isWindows) {
             listOf("7z.exe", "7zz.exe", "7za.exe")
         } else {
             // Order: 7z (full), 7zz (newer p7zip-zstd builds, macOS Homebrew),
@@ -174,7 +174,7 @@ class SevenZipVirtualFileSystem(
         }
         // Windows: the 7-Zip MSI doesn't add itself to PATH by default, so
         // probe the standard install locations.
-        if (Platform.isWindows) {
+        if (SystemInfo.isWindows) {
             val roots = listOf(
                 System.getenv("ProgramW6432"),
                 System.getenv("ProgramFiles"),

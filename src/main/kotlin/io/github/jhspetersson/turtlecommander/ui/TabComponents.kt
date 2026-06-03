@@ -1,7 +1,7 @@
 package io.github.jhspetersson.turtlecommander.ui
 
 import com.intellij.icons.AllIcons
-import io.github.jhspetersson.turtlecommander.util.Platform
+import com.intellij.openapi.util.SystemInfo
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBTabbedPane
 import com.intellij.util.ui.JBUI
@@ -25,7 +25,7 @@ internal class DriveComboRenderer : DefaultListCellRenderer() {
     }
 
     companion object {
-        private val isWindows = Platform.isWindows
+        private val isWindows = SystemInfo.isWindows
         private val labelCache = ConcurrentHashMap<String, String>()
 
         fun getDisplayText(path: String): String {
