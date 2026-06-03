@@ -5,6 +5,7 @@ opentest4j = "1.3.0"
 commonsCompress = "1.28.0"
 zstdJni = "1.5.7-9"
 isoFileReader = "1.0.0"
+junrar = "7.5.5"
 
 # plugins
 changelog = "2.5.0"
@@ -19,6 +20,7 @@ opentest4j = { group = "org.opentest4j", name = "opentest4j", version.ref = "ope
 commonsCompress = { group = "org.apache.commons", name = "commons-compress", version.ref = "commonsCompress" }
 zstdJni = { group = "com.github.luben", name = "zstd-jni", version.ref = "zstdJni" }
 isoFileReader = { group = "com.palantir.isofilereader", name = "isofilereader", version.ref = "isoFileReader" }
+junrar = { group = "com.github.junrar", name = "junrar", version.ref = "junrar" }
 
 [plugins]
 changelog = { id = "org.jetbrains.changelog", version.ref = "changelog" }

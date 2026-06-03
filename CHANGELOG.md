@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Read support for RAR archives (`.rar`, `.cbr`)
+
 ## [0.5.20] - 2026-06-03
 
 ### Added

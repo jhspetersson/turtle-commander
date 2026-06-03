@@ -38,6 +38,11 @@ dependencies {
     implementation(libs.commonsCompress)
     implementation(libs.zstdJni)
     implementation(libs.isoFileReader)
+    // junrar pulls slf4j-api transitively; the IntelliJ Platform already ships slf4j, so
+    // exclude it to avoid bundling a duplicate binding into the plugin.
+    implementation(libs.junrar) {
+        exclude(group = "org.slf4j", module = "slf4j-api")
+    }
     testImplementation(libs.junit)
     testImplementation(libs.opentest4j)
 

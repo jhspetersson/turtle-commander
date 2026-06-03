@@ -334,6 +334,7 @@ object VirtualFileSystemRegistry {
         register(Bz2FileSystemProvider())
         register(TarFileSystemProvider())
         register(SevenZipFileSystemProvider())
+        register(RarFileSystemProvider())
         register(ArFileSystemProvider())
         register(XzFileSystemProvider())
         register(CrxFileSystemProvider())

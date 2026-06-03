@@ -266,6 +266,61 @@ class VfsProviderTest {
         assertFalse(crxProvider.supportsExtension("xpi"))
     }
 
+    // --- RarFileSystemProvider ---
+
+    private val rarProvider = RarFileSystemProvider()
+
+    @Test
+    fun `rar provider supports rar extension`() {
+        assertTrue(rarProvider.supportsExtension("rar"))
+    }
+
+    @Test
+    fun `rar provider supports cbr extension`() {
+        // Comic-book RAR.
+        assertTrue(rarProvider.supportsExtension("cbr"))
+    }
+
+    @Test
+    fun `rar provider does not support zip`() {
+        assertFalse(rarProvider.supportsExtension("zip"))
+    }
+
+    @Test
+    fun `rar provider does not support 7z`() {
+        assertFalse(rarProvider.supportsExtension("7z"))
+    }
+
+    @Test
+    fun `rar create on non-rar content throws SilentVfsOpenException`() {
+        // Recognised extension but the bytes aren't a RAR — the sniff returns NOT_RAR and the
+        // VFS bows out silently so the caller leaves the file as-is.
+        val dir = java.nio.file.Files.createTempDirectory("rar-test-")
+        try {
+            val f = java.nio.file.Files.write(dir.resolve("fake.rar"), "not a rar archive".toByteArray())
+            assertThrows(SilentVfsOpenException::class.java) { rarProvider.create(f) }
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `rar create on corrupt rar4 fails without a SilentVfsOpenException`() {
+        // A bare RAR4 marker with no body: junrar can't parse it. Because it isn't encrypted,
+        // no password dialog is reached — it surfaces as a plain (non-Silent) failure.
+        val dir = java.nio.file.Files.createTempDirectory("rar-test-")
+        try {
+            val f = java.nio.file.Files.write(
+                dir.resolve("broken.rar"),
+                byteArrayOf(0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x00),
+            )
+            val ex = assertThrows(Exception::class.java) { rarProvider.create(f) }
+            assertFalse("corrupt RAR4 must not be treated as 'leave file as-is'", ex is SilentVfsOpenException)
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
     // --- forEachArchiveEntry ---
 
     @Test
