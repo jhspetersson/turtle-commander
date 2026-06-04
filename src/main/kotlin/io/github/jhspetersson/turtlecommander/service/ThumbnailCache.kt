@@ -5,6 +5,7 @@ import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
+import com.intellij.util.ui.ImageUtil
 import io.github.jhspetersson.turtlecommander.settings.ThumbnailSize
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
@@ -228,19 +229,9 @@ class ThumbnailCache(private val scope: CoroutineScope) {
         val scale = targetSize.toDouble() / maxOf(srcW, srcH)
         val dstW = maxOf(1, (srcW * scale).toInt())
         val dstH = maxOf(1, (srcH * scale).toInt())
-
-        @Suppress("UndesirableClassUsage")
-        val thumb = BufferedImage(dstW, dstH, BufferedImage.TYPE_INT_ARGB)
-        val g = thumb.createGraphics()
-        try {
-            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
-            g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-            g.drawImage(source, 0, 0, dstW, dstH, null)
-        } finally {
-            g.dispose()
-        }
-        return thumb
+        // Use the platform's high-quality (multi-step) scaler instead of a single hand-rolled
+        // bicubic pass; toBufferedImage gives us back a writable raster for the PNG disk cache.
+        return ImageUtil.toBufferedImage(ImageUtil.scaleImage(source, dstW, dstH))
     }
 
     /**
