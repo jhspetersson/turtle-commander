@@ -1,4 +1,5 @@
 package io.github.jhspetersson.turtlecommander.service
+import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.util.SystemInfo
 import io.github.jhspetersson.turtlecommander.util.PermissionFlag
 import io.github.jhspetersson.turtlecommander.util.readFileGroup
@@ -234,6 +235,15 @@ class FileSearchService(
         // (currently only .iso entries); harmless no-op for regular files and the other
         // VFS implementations that extract eagerly.
         OpenVfsRegistry.materializeIfNeeded(path)
+        // Skip files the IDE classifies as binary up front: cheaper and more accurate than
+        // inferring it from a UTF-8 decode failure (which both over-skips valid non-UTF-8 text
+        // and needlessly scans UTF-8-clean binaries). Guarded so headless callers without the
+        // platform application fall back to the decode-based heuristic below.
+        val binary = runCatching {
+            val name = path.fileName?.toString() ?: return@runCatching false
+            FileTypeManager.getInstance().getFileTypeByFileName(name).isBinary
+        }.getOrDefault(false)
+        if (binary) return false
         try {
             val reader: BufferedReader = Files.newBufferedReader(path, Charsets.UTF_8)
             reader.use { br ->
