@@ -324,7 +324,9 @@ class ColorRuleEngineTest {
         assertTrue(slugs.contains("default:gradle"))
         assertTrue(slugs.contains("default:idea-project"))
         assertTrue(slugs.contains("default:dotnet"))
-        assertEquals(9, ColorRuleDefaults.builtinRules().size)
+        assertTrue(slugs.contains("default:symlink-valid"))
+        assertTrue(slugs.contains("default:symlink-broken"))
+        assertEquals(11, ColorRuleDefaults.builtinRules().size)
     }
 
     @Test

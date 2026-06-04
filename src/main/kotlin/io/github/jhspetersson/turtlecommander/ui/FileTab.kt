@@ -1,6 +1,7 @@
 package io.github.jhspetersson.turtlecommander.ui
 
 import com.intellij.icons.AllIcons
+import com.intellij.ui.LayeredIcon
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.*
@@ -1740,17 +1741,25 @@ fun fileEntryIcon(
     enableFileNameHighlighting: Boolean,
     resolved: ResolvedStyle = ResolvedStyle.EMPTY,
 ): Icon? {
-    return when {
+    val base = when {
         entry.isParentLink -> AllIcons.Nodes.UpLevel
         entry.isDirectory -> {
-            if (!enableFileNameHighlighting) return AllIcons.Nodes.Folder
-            val dot = resolved.iconDotJBColor()
-            if (dot != null) DirectoryIcons.folderIconWithDot(dot) else AllIcons.Nodes.Folder
+            if (!enableFileNameHighlighting) AllIcons.Nodes.Folder
+            else {
+                val dot = resolved.iconDotJBColor()
+                if (dot != null) DirectoryIcons.folderIconWithDot(dot) else AllIcons.Nodes.Folder
+            }
         }
         isArchiveFile(entry) -> AllIcons.FileTypes.Archive
         else -> FileTypeManager.getInstance().getFileTypeByFileName(entry.name).icon
             ?: AllIcons.FileTypes.Any_type
     }
+    // Badge symbolic links with the platform's link-arrow overlay so they read as links in
+    // every view. Color (the valid/broken default rules) conveys whether the target resolves.
+    if (entry.isSymbolicLink) {
+        return LayeredIcon.layeredIcon(arrayOf(base, AllIcons.Nodes.Symlink))
+    }
+    return base
 }
 
 enum class ViewMode { TABLE, LIST, THUMBNAIL, TREE }

@@ -12,7 +12,7 @@ class ColorizationMigrationTest {
         }
         ColorRuleManager.ensureInitialRules(state)
         assertTrue(state.colorRulesInitialized)
-        assertEquals(9, state.colorRules.size)
+        assertEquals(11, state.colorRules.size)
         assertTrue(state.colorRules.all { it.active })
     }
 
@@ -23,7 +23,7 @@ class ColorizationMigrationTest {
         }
         ColorRuleManager.ensureInitialRules(state)
         assertTrue(state.colorRulesInitialized)
-        assertEquals(9, state.colorRules.size)
+        assertEquals(11, state.colorRules.size)
         assertTrue(state.colorRules.none { it.active })
     }
 
@@ -72,10 +72,43 @@ class ColorizationMigrationTest {
     }
 
     @Test
+    fun `seeded rules include symlink defaults`() {
+        val state = TurtleCommanderSettings.State()
+        ColorRuleManager.ensureInitialRules(state)
+        val ids = state.colorRules.map { it.id }.toSet()
+        assertTrue("default:symlink-valid" in ids)
+        assertTrue("default:symlink-broken" in ids)
+        assertTrue(state.symlinkColorRulesSeeded)
+    }
+
+    @Test
+    fun `upgrade adds symlink defaults to a pre-existing ruleset`() {
+        // An install seeded before the symlink defaults existed.
+        val state = TurtleCommanderSettings.State().apply {
+            colorRulesInitialized = true
+            symlinkColorRulesSeeded = false
+        }
+        ColorRuleManager.ensureInitialRules(state)
+        val ids = state.colorRules.map { it.id }.toSet()
+        assertTrue("default:symlink-valid" in ids)
+        assertTrue("default:symlink-broken" in ids)
+        assertTrue(state.symlinkColorRulesSeeded)
+    }
+
+    @Test
+    fun `upgrade does not re-add deleted symlink defaults`() {
+        val state = TurtleCommanderSettings.State()
+        ColorRuleManager.ensureInitialRules(state)
+        state.colorRules.removeIf { it.id.startsWith("default:symlink") }
+        ColorRuleManager.ensureInitialRules(state)
+        assertTrue(state.colorRules.none { it.id.startsWith("default:symlink") })
+    }
+
+    @Test
     fun `getAllRules seeds on first call`() {
         val state = TurtleCommanderSettings.State()
         val all = ColorRuleManager.getAllRules(state)
-        assertEquals(9, all.size)
+        assertEquals(11, all.size)
         assertTrue(state.colorRulesInitialized)
     }
 
@@ -88,7 +121,7 @@ class ColorizationMigrationTest {
             ColorRule(id = "custom-1", name = "custom", matchers = listOf(RuleMatcher.Name(PatternKind.GLOB, "*.x")))
         ))
         ColorRuleManager.resetToDefaults(state)
-        assertEquals(9, state.colorRules.size)
+        assertEquals(11, state.colorRules.size)
         assertTrue(state.colorRules.none { it.id == "custom-1" })
     }
 

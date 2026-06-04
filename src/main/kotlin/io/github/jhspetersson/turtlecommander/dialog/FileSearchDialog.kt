@@ -35,7 +35,11 @@ data class FileSearchCriteria(
     val ownerPattern: String? = null,
     val groupPattern: String? = null,
     val permissionsFilter: PermissionsFilter? = null,
+    val symlinkFilter: SymlinkSearchFilter = SymlinkSearchFilter.ANY,
 )
+
+/** Whether a search includes, requires, or excludes symbolic links. */
+enum class SymlinkSearchFilter { ANY, ONLY, EXCLUDE }
 
 enum class NamePatternMode { GLOB, REGEXP }
 
@@ -106,6 +110,13 @@ class FileSearchDialog(
     private val resultKindAllRadio = JRadioButton("All", initialCriteria?.resultKind != ResultKind.FILES && initialCriteria?.resultKind != ResultKind.DIRS)
     private val resultKindFilesRadio = JRadioButton("Files", initialCriteria?.resultKind == ResultKind.FILES)
     private val resultKindDirsRadio = JRadioButton("Dirs", initialCriteria?.resultKind == ResultKind.DIRS)
+    private val symlinkFilterCombo = ComboBox(arrayOf("Any", "Only symlinks", "Exclude symlinks")).apply {
+        selectedIndex = when (initialCriteria?.symlinkFilter) {
+            SymlinkSearchFilter.ONLY -> 1
+            SymlinkSearchFilter.EXCLUDE -> 2
+            else -> 0
+        }
+    }
 
     private val contentCheckBox = JCheckBox("Search by content", initialCriteria?.contentPattern != null)
     private val contentCombo = ComboBox<String>().apply {
@@ -331,8 +342,8 @@ class FileSearchDialog(
         val extraHeight = if (isHostWindows) 0 else 50
         val panel = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
-            minimumSize = Dimension(550, 420 + extraHeight)
-            preferredSize = Dimension(550, 570 + extraHeight)
+            minimumSize = Dimension(700, 440 + extraHeight)
+            preferredSize = Dimension(700, 590 + extraHeight)
         }
 
         // Search root
@@ -497,6 +508,10 @@ class FileSearchDialog(
             add(resultKindAllRadio)
             add(resultKindFilesRadio)
             add(resultKindDirsRadio)
+            add(Box.createHorizontalStrut(12))
+            add(JLabel("Symlinks:"))
+            add(Box.createHorizontalStrut(4))
+            add(symlinkFilterCombo)
         }
 
         return JPanel(GridBagLayout()).apply {
@@ -684,6 +699,11 @@ class FileSearchDialog(
             ownerPattern = owner,
             groupPattern = group,
             permissionsFilter = permissions,
+            symlinkFilter = when (symlinkFilterCombo.selectedIndex) {
+                1 -> SymlinkSearchFilter.ONLY
+                2 -> SymlinkSearchFilter.EXCLUDE
+                else -> SymlinkSearchFilter.ANY
+            },
         )
     }
 

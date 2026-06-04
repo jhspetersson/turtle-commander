@@ -106,6 +106,12 @@
                     description="Create a new file and open it in editor">
                 <keyboard-shortcut first-keystroke="shift F4" keymap="$default"/>
             </action>
+            <action id="TurtleCommander.CreateSymlink"
+                    class="io.github.jhspetersson.turtlecommander.action.CreateSymlinkAction"
+                    text="Create Symbolic Link"
+                    description="Create symbolic links to the selection in the other panel">
+                <keyboard-shortcut first-keystroke="alt F6" keymap="$default"/>
+            </action>
             <action id="TurtleCommander.DeleteFiles"
                     class="io.github.jhspetersson.turtlecommander.action.DeleteFilesAction"
                     text="Delete Files"
@@ -357,6 +363,10 @@
                     text="Rename"
                     icon="AllIcons.Actions.Edit"
                     description="Rename selected file or directory"/>
+            <action id="TurtleCommander.ContextCreateSymlink"
+                    class="io.github.jhspetersson.turtlecommander.action.ContextCreateSymlinkAction"
+                    text="Create Symbolic Link..."
+                    description="Create symbolic links to the selection in the other panel"/>
             <action id="TurtleCommander.ContextDelete"
                     class="io.github.jhspetersson.turtlecommander.action.ContextDeleteAction"
                     text="Delete"
@@ -535,6 +545,7 @@
             <separator/>
             <reference ref="TurtleCommander.ContextRename"/>
             <reference ref="TurtleCommander.ContextMultiRename"/>
+            <reference ref="TurtleCommander.ContextCreateSymlink"/>
             <separator/>
             <reference ref="TurtleCommander.ContextDelete"/>
             <separator/>

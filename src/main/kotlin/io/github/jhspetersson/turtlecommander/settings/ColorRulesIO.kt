@@ -133,6 +133,10 @@ object ColorRulesIO {
                 sb.appendLine("$prefix.pattern=${matcher.pattern}")
                 if (matcher.caseSensitive) sb.appendLine("$prefix.caseSensitive=true")
             }
+            is RuleMatcher.Symlink -> {
+                sb.appendLine("$prefix.type=SYMLINK")
+                sb.appendLine("$prefix.symlinkState=${matcher.state.name}")
+            }
         }
     }
 
@@ -215,6 +219,11 @@ object ColorRulesIO {
                 val pattern = props["$prefix.pattern"] ?: return null
                 val caseSensitive = props["$prefix.caseSensitive"]?.equals("true", ignoreCase = true) ?: false
                 RuleMatcher.Text(field = field, kind = kind, pattern = pattern, caseSensitive = caseSensitive)
+            }
+            "SYMLINK" -> {
+                val state = runCatching { SymlinkState.valueOf(props["$prefix.symlinkState"] ?: "") }
+                    .getOrDefault(SymlinkState.ANY)
+                RuleMatcher.Symlink(state = state)
             }
             else -> null
         }

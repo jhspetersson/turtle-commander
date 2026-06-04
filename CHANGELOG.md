@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Symbolic link support (also, create them with `Alt+F6`)
+
 ## [0.5.21] - 2026-06-04
 
 ### Added

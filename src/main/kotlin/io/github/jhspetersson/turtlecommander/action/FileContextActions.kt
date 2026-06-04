@@ -376,6 +376,19 @@ class ShowPropertiesAction : EdtAction() {
     }
 }
 
+class ContextCreateSymlinkAction : EdtAction() {
+    override fun update(e: AnActionEvent) {
+        val entry = FileContextMenuState.clickedEntry
+        val tab = FileContextMenuState.clickedTab
+        e.presentation.isEnabledAndVisible =
+            entry != null && !entry.isParentLink && tab != null && !tab.isInsideArchive
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        FileContextMenuState.clickedTab?.performCreateSymlink()
+    }
+}
+
 class AddToFavoritesAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry

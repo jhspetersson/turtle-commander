@@ -219,6 +219,7 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
             "TurtleCommander.MoveFiles",
             "TurtleCommander.CreateDirectory",
             "TurtleCommander.CreateFile",
+            "TurtleCommander.CreateSymlink",
             "TurtleCommander.DeleteFiles",
             "TurtleCommander.SwitchPanel",
             "TurtleCommander.GoToFirst",

@@ -134,12 +134,35 @@ class FileOperationService(
         Files.newDirectoryStream(effectiveDirectory).use { stream ->
             for (entry in stream) {
                 try {
-                    // On Windows, read DosFileAttributes directly (extends BasicFileAttributes)
-                    // so the permission flags come from the same syscall as size/time.
-                    val attrs = if (isWindows && needPermissions) {
-                        Files.readAttributes(entry, DosFileAttributes::class.java)
+                    // Read with NOFOLLOW first: it's a single stat that tells us whether the
+                    // entry is a symlink, and for the common non-link case it already *is* the
+                    // real attributes (so no second syscall). On Windows, read DosFileAttributes
+                    // directly (extends BasicFileAttributes) so permission flags come from the
+                    // same syscall as size/time.
+                    val linkAttrs = if (isWindows && needPermissions) {
+                        Files.readAttributes(entry, DosFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
                     } else {
-                        Files.readAttributes(entry, BasicFileAttributes::class.java)
+                        Files.readAttributes(entry, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+                    }
+                    val isLink = linkAttrs.isSymbolicLink
+                    // For a symlink, follow it to describe the target (type/size/dates). A failure
+                    // here means a dangling link — keep the entry (using the link's own attrs)
+                    // and flag it broken instead of silently dropping it from the listing.
+                    var attrs: BasicFileAttributes = linkAttrs
+                    var broken = false
+                    var linkTarget: String? = null
+                    if (isLink) {
+                        linkTarget = try { Files.readSymbolicLink(entry).toString() } catch (_: Exception) { null }
+                        attrs = try {
+                            if (isWindows && needPermissions) {
+                                Files.readAttributes(entry, DosFileAttributes::class.java)
+                            } else {
+                                Files.readAttributes(entry, BasicFileAttributes::class.java)
+                            }
+                        } catch (_: IOException) {
+                            broken = true
+                            linkAttrs
+                        }
                     }
                     val owner = if (needOwner) readOwner(entry) else ""
                     val group = if (needGroup) readGroup(entry) else ""
@@ -158,6 +181,9 @@ class FileOperationService(
                         owner = owner,
                         group = group,
                         permissions = permissions,
+                        isSymbolicLink = isLink,
+                        isBrokenSymlink = broken,
+                        linkTarget = linkTarget,
                     )
                     if (attrs.isDirectory) dirs.add(fileEntry) else files.add(fileEntry)
                 } catch (e: IOException) {
@@ -345,7 +371,8 @@ class FileOperationService(
             if (isCancelled()) break
             val target = destination.resolve(source.name)
             try {
-                if (source.isDirectory()) {
+                val sourceIsLink = Files.isSymbolicLink(source)
+                if (source.isDirectory() && !sourceIsLink) {
                     val (newCount, cancelled) = copyDirectoryWithProgress(
                         source, target, copiedCount, holder,
                         onProgress, onOverwriteConfirm, onError, isCancelled,
@@ -353,7 +380,7 @@ class FileOperationService(
                     copiedCount = newCount
                     if (cancelled) break@loop
                 } else {
-                    when (val action = copyFileWithOverwrite(source, target, holder, onOverwriteConfirm)) {
+                    when (val action = copyFileWithOverwrite(source, target, holder, onOverwriteConfirm, nofollow = sourceIsLink)) {
                         TargetAction.OVERWRITE, TargetAction.SKIP -> {
                             if (action == TargetAction.OVERWRITE) {
                                 copiedCount++
@@ -405,17 +432,22 @@ class FileOperationService(
         target: Path,
         holder: PolicyHolder,
         onOverwriteConfirm: suspend (Path) -> OverwriteResponse,
+        nofollow: Boolean = false,
     ): TargetAction {
         // Stream bytes onto the stub if [source] lives in a lazy VFS (currently only .iso).
         // No-op for ordinary files and for VFSs that extract eagerly.
         OpenVfsRegistry.materializeIfNeeded(source)
+        // For a symlink, copy the link node itself rather than following it to its target —
+        // avoids duplicating the target's content (and cyclic-link loops).
+        val linkOpts: Array<CopyOption> =
+            if (nofollow) arrayOf(LinkOption.NOFOLLOW_LINKS, StandardCopyOption.COPY_ATTRIBUTES) else emptyArray()
         if (!target.exists()) {
-            Files.copy(source, target)
+            Files.copy(source, target, *linkOpts)
             return TargetAction.OVERWRITE
         }
         return when (val action = resolveOverwriteAction(source, target, holder, onOverwriteConfirm)) {
             TargetAction.OVERWRITE -> {
-                Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING)
+                Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING, *linkOpts)
                 action
             }
             TargetAction.SKIP, TargetAction.CANCEL -> action
@@ -449,7 +481,8 @@ class FileOperationService(
                 for (entry in stream) {
                     if (isCancelled()) break
                     val entryTarget = target.resolve(entry.name)
-                    if (entry.isDirectory()) {
+                    val entryIsLink = Files.isSymbolicLink(entry)
+                    if (entry.isDirectory() && !entryIsLink) {
                         val (sub, cancelled) = copyDirectoryWithProgress(
                             entry, entryTarget, copiedCount, holder,
                             onProgress, onOverwriteConfirm, onError, isCancelled,
@@ -458,7 +491,7 @@ class FileOperationService(
                         if (cancelled) return copiedCount to true
                     } else {
                         try {
-                            when (copyFileWithOverwrite(entry, entryTarget, holder, onOverwriteConfirm)) {
+                            when (copyFileWithOverwrite(entry, entryTarget, holder, onOverwriteConfirm, nofollow = entryIsLink)) {
                                 TargetAction.OVERWRITE -> {
                                     copiedCount++
                                     onProgress(copiedCount, entry.name)
@@ -717,6 +750,19 @@ class FileOperationService(
     suspend fun createDirectory(parent: Path, name: String): Path = withContext(Dispatchers.IO) {
         val created = Files.createDirectory(parent.resolve(name))
         invalidateListingCache(parent)
+        created
+    }
+
+    /**
+     * Creates a symbolic link at [link] pointing at [target] (which may be absolute or relative,
+     * and need not exist — a link to a missing target is valid and renders as broken). The link's
+     * parent directory is created if needed. Throws on failure; notably on Windows
+     * [Files.createSymbolicLink] requires Developer Mode or elevation.
+     */
+    suspend fun createSymbolicLink(link: Path, target: Path): Path = withContext(Dispatchers.IO) {
+        link.parent?.let { Files.createDirectories(it) }
+        val created = Files.createSymbolicLink(link, target)
+        invalidateListingCache(link.parent ?: link)
         created
     }
 

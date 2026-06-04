@@ -348,6 +348,7 @@ internal class ColorRuleEditDialog(
                         TextProperty.GROUP -> "Group"
                         TextProperty.PERMISSIONS -> "Permissions"
                     }
+                    is RuleMatcher.Symlink -> "Symlink"
                 }
                 1 -> m.describe()
                 else -> ""

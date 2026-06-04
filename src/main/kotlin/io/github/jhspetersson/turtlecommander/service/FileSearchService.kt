@@ -13,6 +13,7 @@ import io.github.jhspetersson.turtlecommander.dialog.PermissionsFilterMode
 import io.github.jhspetersson.turtlecommander.dialog.ResultKind
 import io.github.jhspetersson.turtlecommander.dialog.SizeFilterMode
 import io.github.jhspetersson.turtlecommander.dialog.SizeFilter
+import io.github.jhspetersson.turtlecommander.dialog.SymlinkSearchFilter
 import io.github.jhspetersson.turtlecommander.dialog.NamePatternMode
 import io.github.jhspetersson.turtlecommander.dialog.FileSearchCriteria
 import io.github.jhspetersson.turtlecommander.model.FileEntry
@@ -131,6 +132,15 @@ class FileSearchService(
             ResultKind.ALL -> Unit
         }
 
+        // walkFileTree doesn't follow links, so a symlink arrives with NOFOLLOW attrs
+        // (isSymbolicLink true). A link is broken when following it can't find the target.
+        val isLink = attrs.isSymbolicLink
+        when (criteria.symlinkFilter) {
+            SymlinkSearchFilter.ONLY -> if (!isLink) return
+            SymlinkSearchFilter.EXCLUDE -> if (isLink) return
+            SymlinkSearchFilter.ANY -> Unit
+        }
+
         if (nameMatcher != null && !nameMatcher(name)) return
 
         if (criteria.sizeFilter != null) {
@@ -167,6 +177,12 @@ class FileSearchService(
         }
 
         val permissions = readPermissions(path)
+        val brokenLink = isLink && !Files.exists(path)
+        val linkTarget = if (isLink) {
+            try { Files.readSymbolicLink(path).toString() } catch (_: Exception) { null }
+        } else {
+            null
+        }
         val entry = FileEntry(
             name = name,
             path = path,
@@ -177,6 +193,9 @@ class FileSearchService(
             owner = owner,
             group = group,
             permissions = permissions,
+            isSymbolicLink = isLink,
+            isBrokenSymlink = brokenLink,
+            linkTarget = linkTarget,
         )
         onResult(entry)
     }

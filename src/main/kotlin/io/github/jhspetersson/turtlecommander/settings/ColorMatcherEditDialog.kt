@@ -33,7 +33,8 @@ internal class ColorMatcherEditDialog(
         OWNER,
         GROUP,
         PERMISSIONS,
-        CONTAINS;
+        CONTAINS,
+        SYMLINK;
 
         /** The card-layout key this kind displays — several kinds share a card. */
         fun cardName(): String = when (this) {
@@ -42,6 +43,7 @@ internal class ColorMatcherEditDialog(
             CREATED, MODIFIED -> "DATE"
             OWNER, GROUP, PERMISSIONS -> "TEXT"
             CONTAINS -> "CONTAINS"
+            SYMLINK -> "SYMLINK"
         }
 
         companion object {
@@ -49,6 +51,7 @@ internal class ColorMatcherEditDialog(
                 is RuleMatcher.Size -> SIZE
                 is RuleMatcher.Name -> NAME
                 is RuleMatcher.Contains -> CONTAINS
+                is RuleMatcher.Symlink -> SYMLINK
                 is RuleMatcher.Date -> when (m.field) {
                     DateField.CREATED -> CREATED
                     DateField.MODIFIED -> MODIFIED
@@ -114,6 +117,11 @@ internal class ColorMatcherEditDialog(
     private val textPatternField = JBTextField(24)
     private val textCaseCheck = JCheckBox("Case sensitive")
 
+    // Symlink field
+    private val symlinkStateCombo = ComboBox(DefaultComboBoxModel(SymlinkState.entries.toTypedArray())).apply {
+        renderer = labelRenderer { (it as? SymlinkState)?.label() ?: it?.toString().orEmpty() }
+    }
+
     private val cards = CardLayout()
     private val cardPanel = JPanel(cards)
 
@@ -140,6 +148,7 @@ internal class ColorMatcherEditDialog(
         cardPanel.add(buildDatePanel(), "DATE")
         cardPanel.add(buildTextPanel(), "TEXT")
         cardPanel.add(buildContainsPanel(), "CONTAINS")
+        cardPanel.add(buildSymlinkPanel(), "SYMLINK")
 
         val root = JPanel(BorderLayout(0, 8)).apply {
             preferredSize = Dimension(440, 210)
@@ -296,6 +305,23 @@ internal class ColorMatcherEditDialog(
         return panel
     }
 
+    private fun buildSymlinkPanel(): JPanel {
+        val panel = JPanel(GridBagLayout())
+        panel.border = BorderFactory.createTitledBorder("Symbolic link")
+        val gbc = GridBagConstraints().apply {
+            anchor = GridBagConstraints.WEST
+            insets = JBUI.insets(2, 4)
+        }
+        gbc.gridy = 0
+        gbc.gridx = 0; panel.add(JBLabel("State:"), gbc)
+        gbc.gridx = 1; panel.add(symlinkStateCombo, gbc)
+
+        gbc.gridy = 1
+        gbc.gridx = 1
+        panel.add(JBLabel("Matches symlinks; \"broken\" = target missing").apply { foreground = Color.GRAY }, gbc)
+        return panel
+    }
+
     private fun showSelectedCard() {
         val kind = kindCombo.selectedItem as Kind
         cards.show(cardPanel, kind.cardName())
@@ -370,6 +396,10 @@ internal class ColorMatcherEditDialog(
                 textPatternField.text = matcher.pattern
                 textCaseCheck.isSelected = matcher.caseSensitive
             }
+            is RuleMatcher.Symlink -> {
+                kindCombo.selectedItem = Kind.SYMLINK
+                symlinkStateCombo.selectedItem = matcher.state
+            }
             null -> {
                 kindCombo.selectedItem = Kind.CONTAINS
                 containsKindCombo.selectedItem = PatternKind.EXACT
@@ -443,6 +473,7 @@ internal class ColorMatcherEditDialog(
             Kind.OWNER -> buildTextMatcher(TextProperty.OWNER) ?: return
             Kind.GROUP -> buildTextMatcher(TextProperty.GROUP) ?: return
             Kind.PERMISSIONS -> buildTextMatcher(TextProperty.PERMISSIONS) ?: return
+            Kind.SYMLINK -> RuleMatcher.Symlink(state = symlinkStateCombo.selectedItem as SymlinkState)
         }
         super.doOKAction()
     }
@@ -545,6 +576,11 @@ internal fun RuleMatcher.describe(): String = when (this) {
         val case = if (caseSensitive) ", Aa" else ""
         "$f $kindStr \"$pattern\"$case"
     }
+    is RuleMatcher.Symlink -> when (state) {
+        SymlinkState.ANY -> "symlink"
+        SymlinkState.VALID -> "symlink (valid)"
+        SymlinkState.BROKEN -> "symlink (broken)"
+    }
 }
 
 private val SYSTEM_ZONE: ZoneId get() = ZoneId.systemDefault()
@@ -579,6 +615,13 @@ private fun ColorMatcherEditDialog.Kind.label(): String = when (this) {
     ColorMatcherEditDialog.Kind.GROUP -> "Group"
     ColorMatcherEditDialog.Kind.PERMISSIONS -> "Permissions"
     ColorMatcherEditDialog.Kind.CONTAINS -> "Directory contains"
+    ColorMatcherEditDialog.Kind.SYMLINK -> "Symbolic link"
+}
+
+private fun SymlinkState.label(): String = when (this) {
+    SymlinkState.ANY -> "Any symlink"
+    SymlinkState.VALID -> "Valid (target exists)"
+    SymlinkState.BROKEN -> "Broken (target missing)"
 }
 
 private fun DateOp.label(): String = when (this) {

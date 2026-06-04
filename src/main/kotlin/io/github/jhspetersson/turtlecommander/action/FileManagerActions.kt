@@ -114,6 +114,12 @@ class CreateFileAction : FileManagerAction() {
     }
 }
 
+class CreateSymlinkAction : FileManagerAction() {
+    override fun actionPerformed(e: AnActionEvent) {
+        findActiveTab(e)?.performCreateSymlink()
+    }
+}
+
 class DeleteFilesAction : FileManagerAction() {
     override fun actionPerformed(e: AnActionEvent) {
         // Shift+DELETE (and Shift+F8) forces a permanent delete regardless of the

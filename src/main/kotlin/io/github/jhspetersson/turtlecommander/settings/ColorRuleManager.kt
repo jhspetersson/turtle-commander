@@ -15,12 +15,27 @@ package io.github.jhspetersson.turtlecommander.settings
 object ColorRuleManager {
 
     fun ensureInitialRules(state: TurtleCommanderSettings.State) {
-        if (state.colorRulesInitialized) return
         val defaultsActive = state.enableFileNameHighlighting
-        for (rule in ColorRuleDefaults.builtinRules()) {
-            state.colorRules.add(SavedColorRule.fromRule(rule.copy(active = defaultsActive)))
+        if (!state.colorRulesInitialized) {
+            for (rule in ColorRuleDefaults.builtinRules()) {
+                state.colorRules.add(SavedColorRule.fromRule(rule.copy(active = defaultsActive)))
+            }
+            state.colorRulesInitialized = true
+            // builtinRules() already includes the symlink defaults on a fresh seed.
+            state.symlinkColorRulesSeeded = true
+            return
         }
-        state.colorRulesInitialized = true
+        // Upgrade path: an install seeded before the symlink defaults existed. Add just those,
+        // skipping any the user might already have, then mark them seeded so a deleted rule
+        // doesn't come back.
+        if (!state.symlinkColorRulesSeeded) {
+            for (rule in ColorRuleDefaults.symlinkRules()) {
+                if (state.colorRules.none { it.id == rule.id }) {
+                    state.colorRules.add(SavedColorRule.fromRule(rule.copy(active = defaultsActive)))
+                }
+            }
+            state.symlinkColorRulesSeeded = true
+        }
     }
 
     fun getAllRules(state: TurtleCommanderSettings.State): List<ColorRule> {
@@ -53,6 +68,7 @@ object ColorRuleManager {
             state.colorRules.add(SavedColorRule.fromRule(rule))
         }
         state.colorRulesInitialized = true
+        state.symlinkColorRulesSeeded = true
     }
 
     fun getMode(state: TurtleCommanderSettings.State): ColorizationMode =

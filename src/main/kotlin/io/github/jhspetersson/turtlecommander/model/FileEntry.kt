@@ -14,4 +14,10 @@ data class FileEntry(
     val group: String = "",
     val permissions: String,
     val isParentLink: Boolean = false,
+    /** True when the entry is a symbolic link (regardless of whether its target resolves). */
+    val isSymbolicLink: Boolean = false,
+    /** True for a symlink whose target cannot be resolved (dangling link). */
+    val isBrokenSymlink: Boolean = false,
+    /** The raw link target, for display, when [isSymbolicLink]; null otherwise or if unreadable. */
+    val linkTarget: String? = null,
 )

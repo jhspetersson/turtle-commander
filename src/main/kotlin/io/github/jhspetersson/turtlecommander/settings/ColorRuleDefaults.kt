@@ -125,6 +125,27 @@ object ColorRuleDefaults {
             patterns = listOf(PatternKind.EXACT to ".git"),
             font = "#8AAA7A", dot = "#9AAA7C",
         ),
+    ) + symlinkRules()
+
+    private fun symlinkRule(slug: String, name: String, priority: Int, state: SymlinkState, font: String): ColorRule =
+        ColorRule(
+            id = defaultId(slug),
+            name = name,
+            priority = priority,
+            active = true,
+            combinator = Combinator.AND,
+            matchers = listOf(RuleMatcher.Symlink(state)),
+            style = RuleStyle(fontColor = font, iconDotColor = font),
+        )
+
+    /**
+     * Two built-in rules giving symbolic links a distinct look out of the box: valid links in
+     * cyan (the long-standing terminal convention for symlinks), broken/dangling links in red.
+     * High priority so a link's nature wins over project-marker coloring in WINNER mode.
+     */
+    fun symlinkRules(): List<ColorRule> = listOf(
+        symlinkRule("symlink-valid", "Symbolic link", priority = 110, state = SymlinkState.VALID, font = "#4DB6AC"),
+        symlinkRule("symlink-broken", "Broken symbolic link", priority = 120, state = SymlinkState.BROKEN, font = "#E06666"),
     )
 
     /** Clones the built-in rules with fresh random IDs — used by "Reset to defaults" UI action. */

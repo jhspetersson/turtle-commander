@@ -264,6 +264,64 @@ internal fun FileTab.performCreateDirectory() {
     }
 }
 
+/**
+ * Dual-pane symlink creation: the active panel's selection becomes symbolic links in the
+ * opposite panel's directory (the orthodox "link in other panel" idiom). Links are created off
+ * the EDT; afterwards the other panel is refreshed and the new link selected, without stealing
+ * focus from the active panel.
+ */
+internal fun FileTab.performCreateSymlink() {
+    if (isInsideArchive) {
+        fileErrorNotification("Cannot create symbolic links inside an archive")
+        return
+    }
+    val selected = getSelectedEntries().filter { !it.isParentLink }
+    if (selected.isEmpty()) return
+    val otherTab = getOtherPanelTab()
+    if (otherTab?.currentVfs != null) {
+        fileErrorNotification("Cannot create symbolic links inside an archive")
+        return
+    }
+    val destination = otherPanelPathProvider() ?: return
+    val displayPath = getOtherPanelDisplayPath() ?: destination.toString()
+
+    val dialog = CreateSymlinkDialog(project, selected, destination, displayPath)
+    if (!dialog.showAndGet()) return
+    val specs = dialog.specs
+    if (specs.isEmpty()) return
+
+    fileOps.launch {
+        var failures = 0
+        for (spec in specs) {
+            try {
+                fileOps.createSymbolicLink(spec.link, spec.target)
+            } catch (e: Exception) {
+                failures++
+                fileErrorNotification(symlinkErrorMessage(spec.link, e))
+            }
+        }
+        if (failures < specs.size) {
+            val target = getOtherPanelTab()
+            if (target != null) {
+                val selectName = if (specs.size == 1) specs[0].link.fileName?.toString() else null
+                target.navigateTo(target.currentPath, selectName = selectName, requestFocus = false)
+            } else {
+                withContext(Dispatchers.EDT) { onRefreshOtherPanel() }
+            }
+        }
+    }
+}
+
+private fun FileTab.symlinkErrorMessage(link: Path, e: Exception): String {
+    val privilege = e is java.nio.file.AccessDeniedException ||
+        e.message?.contains("privilege", ignoreCase = true) == true
+    return if (privilege) {
+        "Creating symbolic links requires Windows Developer Mode or administrator rights."
+    } else {
+        "Failed to create link ${link.fileName}: ${fileErrorMessage(e)}"
+    }
+}
+
 internal fun FileTab.performCreateFile() {
     val dialog = InputDialog(project, "New File", "Enter file name:")
     if (!dialog.showAndGet()) return

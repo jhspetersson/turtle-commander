@@ -39,6 +39,9 @@ enum class DateUnit {
 /** Which string-valued attribute a [RuleMatcher.Text] inspects. */
 enum class TextProperty { OWNER, GROUP, PERMISSIONS }
 
+/** Which symbolic-link state a [RuleMatcher.Symlink] matches. */
+enum class SymlinkState { ANY, VALID, BROKEN }
+
 /**
  * Looks up the top-level entries of a directory. Abstracted so the engine can be
  * exercised without a real filesystem and so callers can cache results.
@@ -177,6 +180,26 @@ sealed class RuleMatcher {
             }
             val fn = compiled ?: return false
             return fn(value)
+        }
+    }
+
+    /**
+     * Matches symbolic links. [SymlinkState.ANY] matches every symlink; [SymlinkState.VALID]
+     * only links whose target resolves; [SymlinkState.BROKEN] only dangling links. Non-symlink
+     * entries never match.
+     */
+    data class Symlink(
+        val state: SymlinkState = SymlinkState.ANY,
+    ) : RuleMatcher() {
+        override val cost: Int get() = 0
+
+        override fun matches(entry: FileEntry, contains: ContainsEvaluator): Boolean {
+            if (!entry.isSymbolicLink) return false
+            return when (state) {
+                SymlinkState.ANY -> true
+                SymlinkState.VALID -> !entry.isBrokenSymlink
+                SymlinkState.BROKEN -> entry.isBrokenSymlink
+            }
         }
     }
 }
@@ -367,6 +390,8 @@ class SavedColorMatcher {
     var dateUnit: String = ""
     // Text (owner / group / permissions)
     var textProperty: String = ""
+    // Symlink
+    var symlinkState: String = ""
 
     fun toMatcher(): RuleMatcher? = when (type) {
         "SIZE" -> runCatching {
@@ -409,6 +434,11 @@ class SavedColorMatcher {
                 caseSensitive = caseSensitive,
             )
         }.getOrNull()
+        "SYMLINK" -> runCatching {
+            RuleMatcher.Symlink(
+                state = runCatching { SymlinkState.valueOf(symlinkState) }.getOrDefault(SymlinkState.ANY),
+            )
+        }.getOrNull()
         else -> null
     }
 
@@ -449,6 +479,10 @@ class SavedColorMatcher {
                     patternKind = m.kind.name
                     pattern = m.pattern
                     caseSensitive = m.caseSensitive
+                }
+                is RuleMatcher.Symlink -> {
+                    type = "SYMLINK"
+                    symlinkState = m.state.name
                 }
             }
         }

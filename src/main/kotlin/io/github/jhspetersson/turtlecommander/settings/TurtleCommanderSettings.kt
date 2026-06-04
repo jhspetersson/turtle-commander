@@ -263,6 +263,8 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
 
         var colorRules: MutableList<SavedColorRule> = mutableListOf()
         var colorRulesInitialized: Boolean = false
+        // Seeds the built-in symlink color rules once for installs that predate them.
+        var symlinkColorRulesSeeded: Boolean = false
         // "WINNER" | "LAYERED" — stored as string so XmlSerializer stays happy
         var colorizationMode: String = ColorizationMode.WINNER.name
     }

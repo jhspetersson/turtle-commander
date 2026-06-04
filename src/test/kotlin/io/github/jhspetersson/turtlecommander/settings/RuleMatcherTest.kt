@@ -402,4 +402,60 @@ class RuleMatcherTest {
         assertTrue(m.matches(file("&"), ContainsEvaluator.EMPTY))
         assertFalse(m.matches(file("c"), ContainsEvaluator.EMPTY))
     }
+
+    // --- Symlink ---
+
+    private fun symlink(broken: Boolean) = FileEntry(
+        name = "link",
+        path = dummyPath,
+        isDirectory = false,
+        size = 0,
+        lastModified = null,
+        permissions = "",
+        isSymbolicLink = true,
+        isBrokenSymlink = broken,
+        linkTarget = "/somewhere",
+    )
+
+    @Test
+    fun `symlink ANY matches any link but not plain files`() {
+        val m = RuleMatcher.Symlink(SymlinkState.ANY)
+        assertTrue(m.matches(symlink(broken = false), emptyContains))
+        assertTrue(m.matches(symlink(broken = true), emptyContains))
+        assertFalse(m.matches(file("regular.txt"), emptyContains))
+        assertFalse(m.matches(file("dir", isDir = true), emptyContains))
+    }
+
+    @Test
+    fun `symlink VALID matches only resolving links`() {
+        val m = RuleMatcher.Symlink(SymlinkState.VALID)
+        assertTrue(m.matches(symlink(broken = false), emptyContains))
+        assertFalse(m.matches(symlink(broken = true), emptyContains))
+        assertFalse(m.matches(file("regular.txt"), emptyContains))
+    }
+
+    @Test
+    fun `symlink BROKEN matches only dangling links`() {
+        val m = RuleMatcher.Symlink(SymlinkState.BROKEN)
+        assertTrue(m.matches(symlink(broken = true), emptyContains))
+        assertFalse(m.matches(symlink(broken = false), emptyContains))
+        assertFalse(m.matches(file("regular.txt"), emptyContains))
+    }
+
+    @Test
+    fun `default symlink rules cover valid and broken with distinct colors`() {
+        val rules = ColorRuleDefaults.symlinkRules()
+        val valid = rules.single { r -> r.matchers.any { it is RuleMatcher.Symlink && it.state == SymlinkState.VALID } }
+        val broken = rules.single { r -> r.matchers.any { it is RuleMatcher.Symlink && it.state == SymlinkState.BROKEN } }
+        assertTrue(valid.style.fontColor.isNotEmpty())
+        assertTrue(broken.style.fontColor.isNotEmpty())
+        assertNotEquals(valid.style.fontColor, broken.style.fontColor)
+    }
+
+    @Test
+    fun `symlink matcher survives saved round-trip`() {
+        val original = RuleMatcher.Symlink(SymlinkState.BROKEN)
+        val restored = SavedColorMatcher.fromMatcher(original).toMatcher()
+        assertEquals(original, restored)
+    }
 }
