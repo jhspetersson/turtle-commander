@@ -97,7 +97,7 @@ class OpenInExplorerAction : EdtAction() {
 
     override fun actionPerformed(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry ?: return
-        FileContextMenuState.clickedTab?.openInSystemExplorer(entry)
+        openInSystemExplorer(entry)
     }
 }
 

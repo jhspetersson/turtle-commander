@@ -1,5 +1,6 @@
 package io.github.jhspetersson.turtlecommander.ui
 
+import com.intellij.ide.actions.RevealFileAction
 import com.intellij.ide.util.DeleteHandler
 import com.intellij.notification.NotificationAction.createSimpleExpiring
 import com.intellij.notification.NotificationGroupManager
@@ -25,7 +26,6 @@ import io.github.jhspetersson.turtlecommander.service.OverwritePolicy
 import io.github.jhspetersson.turtlecommander.service.OverwriteResponse
 import io.github.jhspetersson.turtlecommander.service.VfsTempCleanup
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
-import com.intellij.ide.actions.RevealFileAction
 import io.github.jhspetersson.turtlecommander.util.countFiles
 import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
 import io.github.jhspetersson.turtlecommander.util.formatSize
@@ -312,7 +312,7 @@ internal fun FileTab.performCreateSymlink() {
     }
 }
 
-private fun FileTab.symlinkErrorMessage(link: Path, e: Exception): String {
+private fun symlinkErrorMessage(link: Path, e: Exception): String {
     val privilege = e is java.nio.file.AccessDeniedException ||
         e.message?.contains("privilege", ignoreCase = true) == true
     return if (privilege) {
@@ -762,11 +762,11 @@ internal fun FileTab.extractArchives(archivePaths: List<Path>, destination: Path
     })
 }
 
-internal fun FileTab.openInSystemExplorer(entry: FileEntry) {
+internal fun openInSystemExplorer(entry: FileEntry) {
     RevealFileAction.openFile(entry.path)
 }
 
-internal fun FileTab.openDirectoryInSystemExplorer(path: Path) {
+internal fun openDirectoryInSystemExplorer(path: Path) {
     RevealFileAction.openDirectory(path)
 }
 

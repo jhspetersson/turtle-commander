@@ -194,8 +194,7 @@ sealed class RuleMatcher {
         override val cost: Int get() = 0
 
         override fun matches(entry: FileEntry, contains: ContainsEvaluator): Boolean {
-            if (!entry.isSymbolicLink) return false
-            return when (state) {
+            return entry.isSymbolicLink && when (state) {
                 SymlinkState.ANY -> true
                 SymlinkState.VALID -> !entry.isBrokenSymlink
                 SymlinkState.BROKEN -> entry.isBrokenSymlink

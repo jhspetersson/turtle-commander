@@ -1,12 +1,12 @@
 package io.github.jhspetersson.turtlecommander.action
 
+import com.intellij.ide.actions.RevealFileAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.components.service
 import io.github.jhspetersson.turtlecommander.dialog.FileSearchDialog
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
 import io.github.jhspetersson.turtlecommander.ui.openDirectoryInSystemExplorer
-import com.intellij.ide.actions.RevealFileAction
 
 object TabContextMenuState {
     var clickedTabIndex: Int = -1
@@ -107,7 +107,7 @@ class CloseTabsToTheLeftAction : TabContextAction() {
 class CloseTabsToTheRightAction : TabContextAction() {
     override fun update(e: AnActionEvent) {
         val (panel, tabIndex) = resolveTabContext(e)
-        e.presentation.isEnabled = panel != null && tabIndex < (panel.getRealTabCount() ?: 0) - 1
+        e.presentation.isEnabled = panel != null && tabIndex < panel.getRealTabCount() - 1
     }
 
     override fun actionPerformed(e: AnActionEvent) {
@@ -145,7 +145,7 @@ class TabOpenInExplorerAction : TabContextAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val (panel, tabIndex) = resolveTabContext(e)
         val tab = panel?.getTabAt(tabIndex) ?: return
-        tab.openDirectoryInSystemExplorer(tab.currentPath)
+        openDirectoryInSystemExplorer(tab.currentPath)
     }
 }
 

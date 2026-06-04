@@ -1,10 +1,11 @@
 package io.github.jhspetersson.turtlecommander.ui
 
 import com.intellij.icons.AllIcons
-import com.intellij.ui.LayeredIcon
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
-import com.intellij.openapi.actionSystem.*
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.CustomShortcutSet
+import com.intellij.openapi.actionSystem.KeyboardShortcut
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.components.service
@@ -13,12 +14,10 @@ import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.wm.IdeGlassPaneUtil
-import com.intellij.ui.JBColor
-import com.intellij.ui.ListSpeedSearch
-import com.intellij.ui.TableSpeedSearch
-import com.intellij.ui.TreeSpeedSearch
+import com.intellij.ui.*
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.speedSearch.SpeedSearchSupply
 import com.intellij.ui.table.JBTable
 import com.intellij.ui.treeStructure.Tree
 import io.github.jhspetersson.turtlecommander.dialog.DriveSpaceDialog
@@ -649,7 +648,7 @@ class FileTab(
                 updateStatusBar()
                 // VERTICAL_WRAP JList doesn't auto-scroll on programmatic selection
                 // changes (e.g. speed-search Up/Down jumps), so force it here.
-                if (com.intellij.ui.speedSearch.SpeedSearchSupply.getSupply(list) != null) {
+                if (SpeedSearchSupply.getSupply(list) != null) {
                     val idx = list.selectedIndex
                     if (idx >= 0) list.ensureIndexIsVisible(idx)
                 }
@@ -715,7 +714,7 @@ class FileTab(
                     restoreListMarks(thumbnailList, thumbnailListModel)
                 }
                 updateStatusBar()
-                if (com.intellij.ui.speedSearch.SpeedSearchSupply.getSupply(thumbnailList) != null) {
+                if (SpeedSearchSupply.getSupply(thumbnailList) != null) {
                     val idx = thumbnailList.selectedIndex
                     if (idx >= 0) thumbnailList.ensureIndexIsVisible(idx)
                 }
@@ -1740,7 +1739,7 @@ fun fileEntryIcon(
     entry: FileEntry,
     enableFileNameHighlighting: Boolean,
     resolved: ResolvedStyle = ResolvedStyle.EMPTY,
-): Icon? {
+): Icon {
     val base = when {
         entry.isParentLink -> AllIcons.Nodes.UpLevel
         entry.isDirectory -> {

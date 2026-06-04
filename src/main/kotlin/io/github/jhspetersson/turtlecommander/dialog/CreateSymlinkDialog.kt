@@ -8,18 +8,11 @@ import com.intellij.ui.components.JBTextField
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.ui.installStandardContextMenu
 import java.awt.Dimension
+import java.nio.file.Files
 import java.nio.file.InvalidPathException
 import java.nio.file.LinkOption
-import java.nio.file.Files
 import java.nio.file.Path
-import javax.swing.Box
-import javax.swing.BoxLayout
-import javax.swing.ButtonGroup
-import javax.swing.JComponent
-import javax.swing.JPanel
-import javax.swing.JRadioButton
-import javax.swing.JScrollPane
-import javax.swing.JTextArea
+import javax.swing.*
 
 /**
  * Dual-pane "create symbolic link" dialog: the active panel's [sources] become links in the
@@ -33,7 +26,7 @@ class CreateSymlinkDialog(
     project: Project,
     private val sources: List<FileEntry>,
     private val destination: Path,
-    private val destinationDisplayPath: String = destination.toString(),
+    destinationDisplayPath: String = destination.toString(),
 ) : DialogWrapper(project) {
 
     data class SymlinkSpec(val link: Path, val target: Path)

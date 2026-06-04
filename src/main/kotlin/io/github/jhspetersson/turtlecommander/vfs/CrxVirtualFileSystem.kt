@@ -115,8 +115,7 @@ class CrxVirtualFileSystem(
         ) {
             throw IOException("Not a CRX file: missing 'Cr24' magic header")
         }
-        val version = readLeUInt32(data)
-        when (version) {
+        when (val version = readLeUInt32(data)) {
             2L -> {
                 val pubKeyLen = readLeUInt32(data)
                 val sigLen = readLeUInt32(data)
