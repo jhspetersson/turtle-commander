@@ -8,6 +8,10 @@
 
 - Symbolic link support (also, create them with `Alt+F6`)
 
+### Changed
+
+- Improved thumbnails generation
+
 ## [0.5.21] - 2026-06-04
 
 ### Added
