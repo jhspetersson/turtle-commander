@@ -12,7 +12,6 @@ A dual-panel file manager integrated into IntelliJ-based IDEs, inspired by class
 - File search
 - Quick filter (Ctrl-S) for the directory list
 - Create `.zip` and `.tar.gz` archives, browse and modify archive contents, edit files inside archives, and even inside nested archives, extract files
-- Read RAR archives (`.rar`, `.cbr`; RAR4 and RAR5, including password-protected), browse and extract them
 - Select files with space and insert
 - Clipboard-style copy/cut/paste (Ctrl+C, Ctrl+X, Ctrl+V) with buffer indicator in the tool window header
 - Drag-and-drop between panels and to/from the Project tool window
