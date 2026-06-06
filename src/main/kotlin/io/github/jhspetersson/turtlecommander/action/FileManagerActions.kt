@@ -114,9 +114,9 @@ class CreateFileAction : FileManagerAction() {
     }
 }
 
-class CreateSymlinkAction : FileManagerAction() {
+class CreateLinkAction : FileManagerAction() {
     override fun actionPerformed(e: AnActionEvent) {
-        findActiveTab(e)?.performCreateSymlink()
+        findActiveTab(e)?.performCreateLink()
     }
 }
 

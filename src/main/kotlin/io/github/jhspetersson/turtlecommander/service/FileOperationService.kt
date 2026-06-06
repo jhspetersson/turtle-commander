@@ -766,6 +766,20 @@ class FileOperationService(
         created
     }
 
+    /**
+     * Creates a hard link at [link] referencing the existing file [target] (a second directory
+     * entry for the same data — both names are equal peers). Unlike a symbolic link, [target] must
+     * exist, must be a regular file (most filesystems forbid hard-linking directories), and must
+     * live on the same filesystem as [link]. The link's parent directory is created if needed.
+     * Throws on failure.
+     */
+    suspend fun createHardLink(link: Path, target: Path): Path = withContext(Dispatchers.IO) {
+        link.parent?.let { Files.createDirectories(it) }
+        val created = Files.createLink(link, target)
+        invalidateListingCache(link.parent ?: link)
+        created
+    }
+
     fun getRoots(): List<String> {
         return if (isWindows) {
             val roots = File.listRoots().map { it.absolutePath }.toMutableList()

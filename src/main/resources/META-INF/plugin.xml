@@ -106,10 +106,10 @@
                     description="Create a new file and open it in editor">
                 <keyboard-shortcut first-keystroke="shift F4" keymap="$default"/>
             </action>
-            <action id="TurtleCommander.CreateSymlink"
-                    class="io.github.jhspetersson.turtlecommander.action.CreateSymlinkAction"
-                    text="Create Symbolic Link"
-                    description="Create symbolic links to the selection in the other panel">
+            <action id="TurtleCommander.CreateLink"
+                    class="io.github.jhspetersson.turtlecommander.action.CreateLinkAction"
+                    text="Create Link"
+                    description="Create symbolic or hard links to the selection in the other panel">
                 <keyboard-shortcut first-keystroke="alt F6" keymap="$default"/>
             </action>
             <action id="TurtleCommander.DeleteFiles"
@@ -363,10 +363,10 @@
                     text="Rename"
                     icon="AllIcons.Actions.Edit"
                     description="Rename selected file or directory"/>
-            <action id="TurtleCommander.ContextCreateSymlink"
-                    class="io.github.jhspetersson.turtlecommander.action.ContextCreateSymlinkAction"
-                    text="Create Symbolic Link..."
-                    description="Create symbolic links to the selection in the other panel"/>
+            <action id="TurtleCommander.ContextCreateLink"
+                    class="io.github.jhspetersson.turtlecommander.action.ContextCreateLinkAction"
+                    text="Create Link..."
+                    description="Create symbolic or hard links to the selection in the other panel"/>
             <action id="TurtleCommander.ContextDelete"
                     class="io.github.jhspetersson.turtlecommander.action.ContextDeleteAction"
                     text="Delete"
@@ -545,7 +545,7 @@
             <separator/>
             <reference ref="TurtleCommander.ContextRename"/>
             <reference ref="TurtleCommander.ContextMultiRename"/>
-            <reference ref="TurtleCommander.ContextCreateSymlink"/>
+            <reference ref="TurtleCommander.ContextCreateLink"/>
             <separator/>
             <reference ref="TurtleCommander.ContextDelete"/>
             <separator/>

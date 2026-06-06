@@ -12,7 +12,7 @@ import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
 
-class CreateSymbolicLinkTest {
+class CreateLinkTest {
 
     private val service = FileOperationService(CoroutineScope(Dispatchers.Unconfined))
     private val tempPaths = mutableListOf<Path>()
@@ -73,5 +73,39 @@ class CreateSymbolicLinkTest {
         createOrSkip(link, target)
 
         assertTrue(Files.isSymbolicLink(link))
+    }
+
+    @Test
+    fun `creates a hard link sharing the target's data`() {
+        val dir = Files.createTempDirectory("hardlink-test-").also { tempPaths.add(it) }
+        val target = Files.writeString(dir.resolve("target.txt"), "hello")
+        val link = dir.resolve("link.txt")
+
+        try {
+            runBlocking { service.createHardLink(link, target) }
+        } catch (e: Exception) {
+            assumeNoException("hard link creation not permitted on this host", e)
+        }
+
+        assertFalse("a hard link is not a symbolic link", Files.isSymbolicLink(link))
+        assertEquals("hello", Files.readString(link))
+        // Both names reference the same inode: writing through one is visible through the other.
+        Files.writeString(target, "changed")
+        assertEquals("changed", Files.readString(link))
+    }
+
+    @Test
+    fun `creates parent directories for a hard link`() {
+        val dir = Files.createTempDirectory("hardlink-test-").also { tempPaths.add(it) }
+        val target = Files.writeString(dir.resolve("target.txt"), "x")
+        val link = dir.resolve("sub/dir/link.txt")
+
+        try {
+            runBlocking { service.createHardLink(link, target) }
+        } catch (e: Exception) {
+            assumeNoException("hard link creation not permitted on this host", e)
+        }
+
+        assertTrue(Files.exists(link, java.nio.file.LinkOption.NOFOLLOW_LINKS))
     }
 }

@@ -376,7 +376,7 @@ class ShowPropertiesAction : EdtAction() {
     }
 }
 
-class ContextCreateSymlinkAction : EdtAction() {
+class ContextCreateLinkAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry
         val tab = FileContextMenuState.clickedTab
@@ -385,7 +385,7 @@ class ContextCreateSymlinkAction : EdtAction() {
     }
 
     override fun actionPerformed(e: AnActionEvent) {
-        FileContextMenuState.clickedTab?.performCreateSymlink()
+        FileContextMenuState.clickedTab?.performCreateLink()
     }
 }
 

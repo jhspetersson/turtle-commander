@@ -265,12 +265,12 @@ internal fun FileTab.performCreateDirectory() {
 }
 
 /**
- * Dual-pane symlink creation: the active panel's selection becomes symbolic links in the
- * opposite panel's directory (the orthodox "link in other panel" idiom). Links are created off
- * the EDT; afterwards the other panel is refreshed and the new link selected, without stealing
- * focus from the active panel.
+ * Dual-pane link creation: the active panel's selection becomes symbolic or hard links (per the
+ * dialog's choice) in the opposite panel's directory (the orthodox "link in other panel" idiom).
+ * Links are created off the EDT; afterwards the other panel is refreshed and the new link selected,
+ * without stealing focus from the active panel.
  */
-internal fun FileTab.performCreateSymlink() {
+internal fun FileTab.performCreateLink() {
     if (isInsideArchive) {
         fileErrorNotification("Cannot create symbolic links inside an archive")
         return
@@ -285,7 +285,7 @@ internal fun FileTab.performCreateSymlink() {
     val destination = otherPanelPathProvider() ?: return
     val displayPath = getOtherPanelDisplayPath() ?: destination.toString()
 
-    val dialog = CreateSymlinkDialog(project, selected, destination, displayPath)
+    val dialog = CreateLinkDialog(project, selected, destination, displayPath)
     if (!dialog.showAndGet()) return
     val specs = dialog.specs
     if (specs.isEmpty()) return
@@ -294,10 +294,14 @@ internal fun FileTab.performCreateSymlink() {
         var failures = 0
         for (spec in specs) {
             try {
-                fileOps.createSymbolicLink(spec.link, spec.target)
+                if (spec.hard) {
+                    fileOps.createHardLink(spec.link, spec.target)
+                } else {
+                    fileOps.createSymbolicLink(spec.link, spec.target)
+                }
             } catch (e: Exception) {
                 failures++
-                fileErrorNotification(symlinkErrorMessage(spec.link, e))
+                fileErrorNotification(symlinkErrorMessage(spec.link, spec.hard, e))
             }
         }
         if (failures < specs.size) {
@@ -312,10 +316,10 @@ internal fun FileTab.performCreateSymlink() {
     }
 }
 
-private fun symlinkErrorMessage(link: Path, e: Exception): String {
+private fun symlinkErrorMessage(link: Path, hard: Boolean, e: Exception): String {
     val privilege = e is java.nio.file.AccessDeniedException ||
         e.message?.contains("privilege", ignoreCase = true) == true
-    return if (privilege) {
+    return if (privilege && !hard) {
         "Creating symbolic links requires Windows Developer Mode or administrator rights."
     } else {
         "Failed to create link ${link.fileName}: ${fileErrorMessage(e)}"
