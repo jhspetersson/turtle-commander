@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- Optionally create hardlinks
+
+### Fixed
+
+- `Alt-F6` button is now visible on the command bar
+
 ## [0.6.0] - 2026-06-05
 
 ### Added
