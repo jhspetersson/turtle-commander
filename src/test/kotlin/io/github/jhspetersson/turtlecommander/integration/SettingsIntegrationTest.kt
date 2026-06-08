@@ -133,7 +133,7 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
 
         val columns = settings.getEffectiveColumns()
 
-        assertEquals("Should have all 8 default columns", 8, columns.size)
+        assertEquals("Should have all 9 default columns", 9, columns.size)
         assertEquals("Name", columns[0].id)
         assertEquals("Ext", columns[1].id)
         assertEquals("Size", columns[2].id)
@@ -142,6 +142,8 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
         assertEquals("User", columns[5].id)
         assertEquals("Group", columns[6].id)
         assertEquals("Permissions", columns[7].id)
+        assertEquals("Inode", columns[8].id)
+        assertFalse("Inode column should be hidden by default", columns[8].visible)
     }
 
     fun testEffectiveColumnsPreservesCustomization() {
@@ -178,7 +180,7 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
 
     fun testColumnConfigDefaults() {
         val defaults = ColumnConfig.defaults()
-        assertEquals(8, defaults.size)
+        assertEquals(9, defaults.size)
         assertEquals(ColumnConfig.ALL_COLUMN_IDS, defaults.map { it.id })
         val isWindows = System.getProperty("os.name").lowercase().contains("win")
         if (isWindows) {

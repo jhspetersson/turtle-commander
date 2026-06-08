@@ -13,6 +13,8 @@ data class FileEntry(
     val owner: String = "",
     val group: String = "",
     val permissions: String,
+    /** Filesystem inode number (Unix `unix:ino`); null on Windows or when not read. */
+    val inode: Long? = null,
     val isParentLink: Boolean = false,
     /** True when the entry is a symbolic link (regardless of whether its target resolves). */
     val isSymbolicLink: Boolean = false,

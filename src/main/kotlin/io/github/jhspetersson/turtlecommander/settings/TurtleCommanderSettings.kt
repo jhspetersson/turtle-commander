@@ -89,16 +89,22 @@ class ColumnConfig {
     }
 
     companion object {
-        val ALL_COLUMN_IDS = listOf("Name", "Ext", "Size", "Date Created", "Date Modified", "User", "Group", "Permissions")
+        val ALL_COLUMN_IDS = listOf("Name", "Ext", "Size", "Date Created", "Date Modified", "User", "Group", "Permissions", "Inode")
 
         private val UNIX_ONLY_COLUMNS = setOf("User", "Group")
 
+        /** Columns that exist but start hidden; users opt in via Settings. */
+        private val HIDDEN_BY_DEFAULT_COLUMNS = setOf("Inode")
+
+        /** Whether [id] should be visible out of the box on the current platform. */
+        fun defaultVisible(id: String): Boolean =
+            !(SystemInfo.isWindows && id in UNIX_ONLY_COLUMNS) && id !in HIDDEN_BY_DEFAULT_COLUMNS
+
         fun defaults(): List<ColumnConfig> {
-            val isWindows = SystemInfo.isWindows
             return ALL_COLUMN_IDS.map { id ->
                 ColumnConfig().apply {
                     this.id = id
-                    this.visible = !(isWindows && id in UNIX_ONLY_COLUMNS)
+                    this.visible = defaultVisible(id)
                 }
             }
         }
@@ -298,7 +304,10 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
         val result = saved.toMutableList()
         for (id in ColumnConfig.ALL_COLUMN_IDS) {
             if (id !in savedIds) {
-                result.add(ColumnConfig().apply { this.id = id })
+                result.add(ColumnConfig().apply {
+                    this.id = id
+                    this.visible = ColumnConfig.defaultVisible(id)
+                })
             }
         }
         return result

@@ -103,6 +103,18 @@ fun readFileOwner(path: Path): String {
     }
 }
 
+/**
+ * Reads the Unix inode number (`unix:ino`). Returns null on filesystems that don't
+ * expose it (e.g. Windows, where the attribute view is unsupported) or on any I/O error.
+ */
+fun readFileInode(path: Path): Long? {
+    return try {
+        Files.getAttribute(path, "unix:ino") as? Long
+    } catch (_: Exception) {
+        null
+    }
+}
+
 fun readFileGroup(path: Path): String {
     return try {
         val posixView = Files.getFileAttributeView(path, PosixFileAttributeView::class.java)

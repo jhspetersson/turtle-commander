@@ -24,6 +24,7 @@ class FileTableModelTest {
         isParentLink: Boolean = false,
         permissions: String = "rwxr-xr-x",
         lastModified: FileTime? = now,
+        inode: Long? = null,
     ) = FileEntry(
         name = name,
         path = Path.of("/test/$name"),
@@ -32,12 +33,13 @@ class FileTableModelTest {
         lastModified = lastModified,
         permissions = permissions,
         isParentLink = isParentLink,
+        inode = inode,
     )
 
     @Test
     fun testEmptyModel() {
         assertEquals(0, model.rowCount)
-        assertEquals(8, model.columnCount)
+        assertEquals(9, model.columnCount)
     }
 
     @Test
@@ -50,6 +52,7 @@ class FileTableModelTest {
         assertEquals("User", model.getColumnName(5))
         assertEquals("Group", model.getColumnName(6))
         assertEquals("Permissions", model.getColumnName(7))
+        assertEquals("Inode", model.getColumnName(8))
     }
 
     @Test
@@ -60,6 +63,21 @@ class FileTableModelTest {
         assertEquals(String::class.java, model.getColumnClass(FileTableModel.COL_NAME))
         assertEquals(String::class.java, model.getColumnClass(FileTableModel.COL_EXT))
         assertEquals(String::class.java, model.getColumnClass(FileTableModel.COL_PERMS))
+        assertEquals(Long::class.javaObjectType, model.getColumnClass(FileTableModel.COL_INODE))
+    }
+
+    @Test
+    fun testInodeValue() {
+        model.setEntries(listOf(fileEntry("file.txt", size = 100, inode = 12345L)))
+        assertEquals(12345L, model.getValueAt(0, FileTableModel.COL_INODE))
+        assertEquals("12345", model.getDisplayValue(0, FileTableModel.COL_INODE))
+    }
+
+    @Test
+    fun testInodeValueWhenMissing() {
+        model.setEntries(listOf(fileEntry("file.txt", size = 100)))
+        assertEquals(0L, model.getValueAt(0, FileTableModel.COL_INODE))
+        assertEquals("", model.getDisplayValue(0, FileTableModel.COL_INODE))
     }
 
     @Test

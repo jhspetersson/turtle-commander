@@ -9,6 +9,7 @@ import io.github.jhspetersson.turtlecommander.settings.RuleMatcher
 import io.github.jhspetersson.turtlecommander.settings.TextProperty
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.util.readFileGroup
+import io.github.jhspetersson.turtlecommander.util.readFileInode
 import io.github.jhspetersson.turtlecommander.util.readFileOwner
 import io.github.jhspetersson.turtlecommander.util.readFilePermissions
 import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
@@ -125,6 +126,8 @@ class FileOperationService(
         val needOwner = "User" in visibleColumnIds || rulesMatchOn(TextProperty.OWNER)
         val needGroup = !isWindows && ("Group" in visibleColumnIds || rulesMatchOn(TextProperty.GROUP))
         val needPermissions = "Permissions" in visibleColumnIds || rulesMatchOn(TextProperty.PERMISSIONS)
+        // Inode is Unix-only and hidden by default; read it only when its column is shown.
+        val needInode = "Inode" in visibleColumnIds
 
         // An IOException from Files.newDirectoryStream (e.g. access denied on
         // C:\$Recycle.Bin\S-1-5-18) is allowed to propagate so the UI can show it to the user.
@@ -166,6 +169,7 @@ class FileOperationService(
                     }
                     val owner = if (needOwner) readOwner(entry) else ""
                     val group = if (needGroup) readGroup(entry) else ""
+                    val inode = if (needInode) readInode(entry) else null
                     val permissions = when {
                         !needPermissions -> ""
                         isWindows && attrs is DosFileAttributes -> dosAttrsToString(attrs)
@@ -181,6 +185,7 @@ class FileOperationService(
                         owner = owner,
                         group = group,
                         permissions = permissions,
+                        inode = inode,
                         isSymbolicLink = isLink,
                         isBrokenSymlink = broken,
                         linkTarget = linkTarget,
@@ -831,6 +836,7 @@ class FileOperationService(
     private fun readOwner(path: Path): String = readFileOwner(path)
     private fun readGroup(path: Path): String = readFileGroup(path)
     private fun readPermissions(path: Path): String = readFilePermissions(path, isWindows)
+    private fun readInode(path: Path): Long? = readFileInode(path)
 
     private fun dosAttrsToString(attrs: DosFileAttributes): String = buildString {
         if (attrs.isReadOnly) append('R')

@@ -187,6 +187,7 @@ internal fun columnValue(entry: FileEntry, columnId: String): Any? = when (colum
     "User" -> entry.owner
     "Group" -> entry.group
     "Permissions" -> entry.permissions
+    "Inode" -> entry.inode
     else -> ""
 }
 
