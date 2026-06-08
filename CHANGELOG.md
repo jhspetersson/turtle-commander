@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-06-08
+
 ### Added
 
 - Optionally create hardlinks
