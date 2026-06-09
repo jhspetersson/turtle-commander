@@ -315,7 +315,9 @@ class FileSearchDialog(
             sizeField2.isVisible = inBetween
             sizeField2Label.isVisible = inBetween
         }
-        sizeModeCombo.addActionListener { updateVisibility() }
+        // Picking a mode is a strong signal the user wants to type a bound now, so move focus
+        // to the first value field (the second only shows for "In between").
+        sizeModeCombo.addActionListener { updateVisibility(); sizeField1.requestFocusInWindow() }
         updateVisibility()
     }
 
@@ -330,8 +332,8 @@ class FileSearchDialog(
             modificationDateField2.isVisible = inBetween
             modificationDateField2Label.isVisible = inBetween
         }
-        creationDateModeCombo.addActionListener { updateCreation() }
-        modificationDateModeCombo.addActionListener { updateModification() }
+        creationDateModeCombo.addActionListener { updateCreation(); creationDateField1.requestFocusInWindow() }
+        modificationDateModeCombo.addActionListener { updateModification(); modificationDateField1.requestFocusInWindow() }
         updateCreation()
         updateModification()
     }
