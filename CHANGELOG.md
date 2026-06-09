@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Improved UX of the Search dialog
+
 ## [0.6.2] - 2026-06-09
 
 ### Added
