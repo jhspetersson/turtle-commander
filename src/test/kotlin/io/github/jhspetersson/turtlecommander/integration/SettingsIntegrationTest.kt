@@ -189,8 +189,10 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
             assertFalse("User column should be hidden on Windows", userCol.visible)
             assertFalse("Group column should be hidden on Windows", groupCol.visible)
         } else {
-            assertTrue("All columns visible on Unix", defaults.all { it.visible })
+            // Inode is hidden by default everywhere; every other column is visible on Unix.
+            assertTrue("Non-Inode columns visible on Unix", defaults.filter { it.id != "Inode" }.all { it.visible })
         }
+        assertFalse("Inode column should be hidden by default", defaults.find { it.id == "Inode" }!!.visible)
         assertTrue("All default styles should be default", defaults.all { it.style.isDefault() })
     }
 
