@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-06-09
+
 ### Added
 
 - Inode column (Unix only, hidden by default — enable it in Settings)
