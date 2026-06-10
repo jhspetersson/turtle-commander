@@ -318,6 +318,8 @@ class FileSearchDialog(
         // Picking a mode is a strong signal the user wants to type a bound now, so move focus
         // to the first value field (the second only shows for "In between").
         sizeModeCombo.addActionListener { updateVisibility(); sizeField1.requestFocusInWindow() }
+        // Picking a unit likewise sends focus back to the value field for immediate typing.
+        sizeUnitCombo.addActionListener { sizeField1.requestFocusInWindow() }
         updateVisibility()
     }
 
