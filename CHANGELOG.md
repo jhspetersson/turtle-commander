@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Speed search (type to find, with match highlighting) in the search results panel
+
 ## [0.6.3] - 2026-06-10
 
 ### Changed

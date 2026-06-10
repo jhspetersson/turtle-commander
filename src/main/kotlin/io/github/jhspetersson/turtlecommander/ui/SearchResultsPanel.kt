@@ -13,6 +13,7 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
+import com.intellij.ui.TableSpeedSearch
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
 import com.intellij.openapi.fileTypes.FileTypeManager
@@ -130,6 +131,10 @@ class SearchResultsPanel(
                     popupMenu.component.show(table, e.x, e.y)
                 }
             })
+
+            TableSpeedSearch.installOn(this) { value ->
+                (value as? FileEntry)?.name ?: value?.toString().orEmpty()
+            }
 
             getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(
                 KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "openSelected"
@@ -346,6 +351,7 @@ class SearchResultsPanel(
                     ?: AllIcons.FileTypes.Any_type
             }
             toolTipText = entry?.path?.toString()
+            text = highlightSpeedSearchMatches(table, value?.toString().orEmpty())
             return this
         }
     }
