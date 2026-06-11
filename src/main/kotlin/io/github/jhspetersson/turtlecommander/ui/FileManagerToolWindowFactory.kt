@@ -278,11 +278,13 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
             layout = BoxLayout(this, BoxLayout.X_AXIS)
         }
 
-        fun activePanel(): FileManagerPanel {
-            val leftTab = leftPanel.getActiveTab()
-            val leftFocused = leftTab?.table?.hasFocus() == true
-            return if (leftFocused) leftPanel else rightPanel
-        }
+        // hasFocusInPanel covers all four view modes (table/list/thumbnail/tree) and
+        // search-results tabs — checking only `table.hasFocus()` made the bar act on the
+        // wrong panel whenever the left panel was focused in a non-table view. Falls back
+        // to the right panel when neither has focus, matching
+        // FileManagerStateService.getActivePanel.
+        fun activePanel(): FileManagerPanel =
+            if (leftPanel.hasFocusInPanel()) leftPanel else rightPanel
 
         fun getShortcut(actionId: String): KeyboardShortcut? {
             val am = ActionManager.getInstance()
