@@ -534,7 +534,11 @@ class FileOperationService(
             if (isCancelled()) break
             val target = destination.resolve(source.name)
             try {
-                if (source.isDirectory()) {
+                // A symlink to a directory must be moved as the link node itself —
+                // isDirectory() follows the link, and recursing through it would move the
+                // *target's* contents and leave the linked directory drained.
+                val sourceIsLink = Files.isSymbolicLink(source)
+                if (source.isDirectory() && !sourceIsLink) {
                     // Enumerate every entry under [source] up-front and move them one
                     // by one so each file ticks the progress bar — the historical
                     // single-call Files.move(REPLACE_EXISTING) on a directory only
@@ -615,7 +619,10 @@ class FileOperationService(
                 for (entry in stream) {
                     if (isCancelled()) return movedCount to true
                     val entryTarget = target.resolve(entry.name)
-                    if (entry.isDirectory()) {
+                    // Same symlink guard as the top-level loop: recurse only into real
+                    // directories, move link nodes as files.
+                    val entryIsLink = Files.isSymbolicLink(entry)
+                    if (entry.isDirectory() && !entryIsLink) {
                         val (sub, cancelled) = moveDirectoryWithProgress(
                             entry, entryTarget, movedCount, holder,
                             onProgress, onOverwriteConfirm, onError, isCancelled,
@@ -874,6 +881,15 @@ class FileOperationService(
             return
         }
         val replaceExisting = StandardCopyOption.REPLACE_EXISTING in options
+        if (Files.isSymbolicLink(source)) {
+            // Recreate the link node on the target side rather than following it:
+            // isDirectory() on a dir link would otherwise route it through the recursive
+            // copy+delete below, duplicating the target's content and then deleting it.
+            if (replaceExisting) Files.deleteIfExists(target)
+            Files.copy(source, target, LinkOption.NOFOLLOW_LINKS)
+            Files.delete(source)
+            return
+        }
         if (source.isDirectory()) {
             // Same-FS Files.move(..., REPLACE_EXISTING) replaces atomically (or fails on a
             // non-empty target). copyDirectoryRecursive alone would *merge* into an existing

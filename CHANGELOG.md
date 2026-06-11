@@ -11,6 +11,7 @@
 ### Fixed
 
 - Extracting an `.iso` image produced zero-filled files instead of the real content
+- Moving a symbolic link to a directory now moves the link itself instead of draining the linked directory's contents
 
 ## [0.6.4] - 2026-06-11
 
