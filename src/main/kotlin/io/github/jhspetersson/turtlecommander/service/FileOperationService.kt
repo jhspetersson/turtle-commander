@@ -475,9 +475,16 @@ class FileOperationService(
         var copiedCount = startCount
 
         try {
+            // Tick progress only when the directory is actually created — when merging
+            // into an existing tree the pre-existing directory isn't "copied" work, same
+            // as a skipped file. (A target that exists as a regular file makes
+            // createDirectories throw, landing in the error path below.)
+            val alreadyExists = Files.isDirectory(target)
             Files.createDirectories(target)
-            copiedCount++
-            onProgress(copiedCount, source.name)
+            if (!alreadyExists) {
+                copiedCount++
+                onProgress(copiedCount, source.name)
+            }
         } catch (e: Exception) {
             thisLogger().warn("Failed to create directory $target: ${e.message}")
             onError(source, e)
@@ -608,9 +615,13 @@ class FileOperationService(
         var movedCount = startCount
 
         try {
+            // Same as the copy path: only an actually-created directory counts as work.
+            val alreadyExists = Files.isDirectory(target)
             Files.createDirectories(target)
-            movedCount++
-            onProgress(movedCount, source.name)
+            if (!alreadyExists) {
+                movedCount++
+                onProgress(movedCount, source.name)
+            }
         } catch (e: Exception) {
             thisLogger().warn("Failed to create directory $target: ${e.message}")
             onError(source, e)

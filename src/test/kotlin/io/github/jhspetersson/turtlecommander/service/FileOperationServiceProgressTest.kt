@@ -153,4 +153,56 @@ class FileOperationServiceProgressTest {
         assertEquals("progress counter must end at 5", 5, ticks.lastOrNull())
         assertEquals("progress must be monotonically increasing", ticks.sorted(), ticks)
     }
+
+    @Test
+    fun `copying into an existing tree does not tick progress for pre-existing directories`() = runBlocking {
+        val service = newService()
+        val src = makeTreeWithThreeFiles("merge-copy-src-")
+
+        // Pre-create the full destination directory structure so the copy only writes files.
+        val destParent = Files.createTempDirectory("merge-copy-dst-")
+        tempPaths.add(destParent)
+        val destTop = Files.createDirectory(destParent.resolve(src.fileName.toString()))
+        Files.createDirectory(destTop.resolve("sub"))
+
+        val progressNames = mutableListOf<String>()
+        service.copyFilesWithProgress(
+            sources = listOf(src),
+            destination = destParent,
+            initialPolicy = OverwritePolicy.OVERWRITE_ALL,
+            onProgress = { _, name -> progressNames.add(name) },
+            onOverwriteConfirm = { OverwriteResponse.OVERWRITE_ALL },
+            onError = { _, _ -> },
+            isCancelled = { false },
+        )
+
+        // A pre-existing directory isn't "copied" work — only the three files may tick.
+        assertEquals("only the files should tick progress, got: $progressNames", 3, progressNames.size)
+        assertTrue("every tick should be a file, got: $progressNames", progressNames.all { it.endsWith(".txt") })
+    }
+
+    @Test
+    fun `moving into an existing tree does not tick progress for pre-existing directories`() = runBlocking {
+        val service = newService()
+        val src = makeTreeWithThreeFiles("merge-move-src-")
+
+        val destParent = Files.createTempDirectory("merge-move-dst-")
+        tempPaths.add(destParent)
+        val destTop = Files.createDirectory(destParent.resolve(src.fileName.toString()))
+        Files.createDirectory(destTop.resolve("sub"))
+
+        val progressNames = mutableListOf<String>()
+        service.moveFilesWithProgress(
+            sources = listOf(src),
+            destination = destParent,
+            initialPolicy = OverwritePolicy.OVERWRITE_ALL,
+            onProgress = { _, name -> progressNames.add(name) },
+            onOverwriteConfirm = { OverwriteResponse.OVERWRITE_ALL },
+            onError = { _, _ -> },
+            isCancelled = { false },
+        )
+
+        assertEquals("only the files should tick progress, got: $progressNames", 3, progressNames.size)
+        assertTrue("every tick should be a file, got: $progressNames", progressNames.all { it.endsWith(".txt") })
+    }
 }
