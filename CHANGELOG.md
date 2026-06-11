@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-06-11
+
 ### Added
 
 - Speed search (type to find, with match highlighting) in the search results panel
