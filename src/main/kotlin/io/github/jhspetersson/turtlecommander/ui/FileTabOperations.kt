@@ -174,16 +174,36 @@ internal fun FileTab.performDelete(forcePermanent: Boolean = false) {
     if (selected.isEmpty()) return
 
     // Shift+DELETE (forcePermanent) always does an irreversible delete, bypassing the
-    // recycle-bin setting. Otherwise honor the user's preference.
-    val useRecycleBin = !forcePermanent && TurtleCommanderSettings.getInstance().state.deleteToRecycleBin
+    // recycle-bin setting. Otherwise honor the user's preference — but only when the
+    // platform actually has a trash: otherwise the user must knowingly confirm a
+    // permanent delete instead of getting the reversible one they asked for silently
+    // downgraded.
+    val wantsRecycleBin = !forcePermanent && TurtleCommanderSettings.getInstance().state.deleteToRecycleBin
+    val useRecycleBin = wantsRecycleBin && fileOps.isRecycleBinAvailable()
 
     // IDE's DeleteHandler performs a permanent delete with its own UX; we only hand off to it
     // when the user expects a permanent delete (recycle-bin mode has its own dialog + service
     // path so we keep it consistent with VFS-side deletes).
     if (!useRecycleBin && currentVfs == null && tryIdeaDelete(selected)) return
 
-    val deleteDialog = DeleteDialog(project, selected, useRecycleBin = useRecycleBin)
+    val downgradedFromRecycleBin = wantsRecycleBin && !useRecycleBin
+    val deleteDialog = DeleteDialog(
+        project, selected, useRecycleBin = useRecycleBin,
+        note = if (downgradedFromRecycleBin) {
+            "Recycle Bin is not available on this system — items will be deleted permanently."
+        } else {
+            null
+        },
+        checkboxText = if (downgradedFromRecycleBin) {
+            "Turn off \"Delete to Recycle Bin\" and don't show this note again"
+        } else {
+            null
+        },
+    )
     if (!deleteDialog.showAndGet()) return
+    if (downgradedFromRecycleBin && deleteDialog.isCheckboxSelected) {
+        TurtleCommanderSettings.getInstance().state.deleteToRecycleBin = false
+    }
     val sourcePaths = selected.map { it.path }
 
     val taskTitle = if (useRecycleBin) "Moving files to Recycle Bin" else "Deleting files"
@@ -193,8 +213,16 @@ internal fun FileTab.performDelete(forcePermanent: Boolean = false) {
             reportRawProgress { reporter ->
                 val job = currentCoroutineContext().job
                 withContext(NonCancellable) {
-                    reporter.text("Counting files...")
-                    val totalFiles = countFiles(sourcePaths)
+                    // Recycle-bin mode moves each top-level path to the trash in a single
+                    // OS call and the service ticks once per path, so the denominator is
+                    // the path count — countFiles' recursive total would leave the bar
+                    // stuck near zero, and the tree walk itself would be wasted work.
+                    val totalFiles = if (useRecycleBin) {
+                        sourcePaths.size
+                    } else {
+                        reporter.text("Counting files...")
+                        countFiles(sourcePaths)
+                    }
 
                     fileOps.deleteFilesWithProgress(
                         paths = sourcePaths,

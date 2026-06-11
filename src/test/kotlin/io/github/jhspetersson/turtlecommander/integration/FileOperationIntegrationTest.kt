@@ -587,23 +587,29 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         assertEquals(listOf(f2), errors)
     }
 
-    fun testDeleteToRecycleBinFallsBackToPermanentWhenUnsupported() = runBlocking {
+    fun testDeleteToRecycleBinRefusesWhenUnsupported() = runBlocking {
+        // The user confirmed a *reversible* operation; if the platform has no trash the
+        // service must refuse and report errors, never silently downgrade to a permanent
+        // delete. (The UI checks availability before showing the recycle-bin dialog, so
+        // this is the defense-in-depth layer.)
         val f1 = Files.writeString(tempDir.resolve("fallback.txt"), "x")
 
         var moveCalled = false
         fileOps.isMoveToTrashSupported = { false }
         fileOps.moveToTrash = { _ -> moveCalled = true; true }
 
+        val errors = mutableListOf<Path>()
         fileOps.deleteFilesWithProgress(
             paths = listOf(f1),
             onProgress = { _, _ -> },
-            onError = { _, e -> fail("Unexpected error: $e") },
+            onError = { path, _ -> errors.add(path) },
             isCancelled = { false },
             useRecycleBin = true,
         )
 
         assertFalse("moveToTrash should not be invoked when unsupported", moveCalled)
-        assertFalse("File should still be deleted via the permanent path", Files.exists(f1))
+        assertTrue("File must NOT be deleted permanently", Files.exists(f1))
+        assertEquals("Every path should be reported as an error", listOf(f1), errors)
     }
 
     fun testDeleteDefaultIsPermanent() = runBlocking {

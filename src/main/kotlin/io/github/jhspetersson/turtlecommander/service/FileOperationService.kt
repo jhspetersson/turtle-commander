@@ -65,6 +65,13 @@ class FileOperationService(
         }
     }
 
+    /**
+     * Whether this platform can move files to the OS trash. The delete UI checks this before
+     * offering the recycle-bin dialog so the user is never shown a reversible operation that
+     * would actually run as a permanent delete.
+     */
+    fun isRecycleBinAvailable(): Boolean = isMoveToTrashSupported()
+
     private data class CachedListing(
         val dirs: List<FileEntry>,
         val files: List<FileEntry>,
@@ -689,7 +696,16 @@ class FileOperationService(
         // Recycle-bin mode: move each top-level path to the OS trash in one call. Directories
         // move atomically (the OS handles recursion), so we don't walk the tree ourselves.
         // Progress is reported once per top-level path since moveToTrash is a single op.
-        if (useRecycleBin && isMoveToTrashSupported()) {
+        if (useRecycleBin) {
+            // The UI checks availability before showing the recycle-bin dialog; if support
+            // vanished since (or a caller skipped that check), refuse rather than silently
+            // downgrading the reversible operation the user confirmed into a permanent delete.
+            if (!isMoveToTrashSupported()) {
+                for (path in paths) {
+                    onError(path, IOException("Recycle Bin is not available on this system"))
+                }
+                return@withContext
+            }
             for (path in paths) {
                 if (isCancelled()) break
                 try {

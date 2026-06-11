@@ -11,6 +11,7 @@
 ### Changed
 
 - A tab whose directory disappeared now reopens at the nearest existing ancestor or the home directory when the whole drive is gone
+- "Delete to Recycle Bin" on a system without a usable trash now asks for a permanent delete
 
 ### Fixed
 
