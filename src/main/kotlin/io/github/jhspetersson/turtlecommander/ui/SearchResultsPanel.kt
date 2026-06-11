@@ -13,18 +13,24 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CustomShortcutSet
 import com.intellij.openapi.actionSystem.KeyboardShortcut
 import com.intellij.openapi.components.service
-import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
+import com.intellij.platform.ide.progress.withBackgroundProgress
+import com.intellij.platform.util.progress.reportRawProgress
 import com.intellij.ui.JBColor
 import com.intellij.ui.TableSpeedSearch
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
 import com.intellij.openapi.fileTypes.FileTypeManager
 import io.github.jhspetersson.turtlecommander.action.SearchContextMenuState
+import io.github.jhspetersson.turtlecommander.service.FileOperationService
 import io.github.jhspetersson.turtlecommander.util.wrapAsSubstringGlobIfPlain
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.job
+import kotlinx.coroutines.withContext
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component
@@ -64,7 +70,7 @@ class SearchResultsPanel(
 
     private var searchService: FileSearchService? = null
     @Volatile
-    private var currentIndicator: ProgressIndicator? = null
+    private var currentSearchJob: Job? = null
     @Volatile
     private var disposed = false
 
@@ -399,67 +405,73 @@ class SearchResultsPanel(
         editButton.isEnabled = false
         statusLabel.text = "Searching..."
 
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Searching files...", true) {
-            override fun run(indicator: ProgressIndicator) {
-                currentIndicator = indicator
-                indicator.isIndeterminate = true
+        val fileOps = project.service<FileOperationService>()
+        currentSearchJob = fileOps.launch {
+            withBackgroundProgress(project, "Searching files...", cancellable = true) {
+                reportRawProgress { reporter ->
+                    val job = currentCoroutineContext().job
+                    // Stop requests (the Stop button cancels currentSearchJob, the progress
+                    // bar's cancel cancels this job) are observed through the polled
+                    // isCancelled lambda so the final flush and status update still run;
+                    // NonCancellable keeps the CancellationException at the next suspension
+                    // point from skipping them.
+                    withContext(NonCancellable + Dispatchers.IO) {
+                        val pendingResults = mutableListOf<FileEntry>()
+                        var lastFlush = System.currentTimeMillis()
 
-                val pendingResults = mutableListOf<FileEntry>()
-                var lastFlush = System.currentTimeMillis()
-
-                try {
-                    service.search(
-                        onResult = { entry ->
-                            val shouldFlush: Boolean
-                            synchronized(pendingResults) {
-                                pendingResults.add(entry)
-                                val now = System.currentTimeMillis()
-                                shouldFlush = now - lastFlush > 200 || pendingResults.size >= 50
-                                if (shouldFlush) lastFlush = now
-                            }
-                            if (shouldFlush) {
-                                flushResults(pendingResults)
-                            }
-                        },
-                        isCancelled = { indicator.isCanceled || disposed },
-                        onProgress = { scannedCount, currentDir ->
-                            indicator.text = "Scanned $scannedCount entries..."
-                            indicator.text2 = currentDir
+                        try {
+                            service.search(
+                                onResult = { entry ->
+                                    val shouldFlush: Boolean
+                                    synchronized(pendingResults) {
+                                        pendingResults.add(entry)
+                                        val now = System.currentTimeMillis()
+                                        shouldFlush = now - lastFlush > 200 || pendingResults.size >= 50
+                                        if (shouldFlush) lastFlush = now
+                                    }
+                                    if (shouldFlush) {
+                                        flushResults(pendingResults)
+                                    }
+                                },
+                                isCancelled = { job.isCancelled || disposed },
+                                onProgress = { scannedCount, currentDir ->
+                                    reporter.text("Scanned $scannedCount entries...")
+                                    reporter.details(currentDir)
+                                    if (!disposed) {
+                                        SwingUtilities.invokeLater {
+                                            statusLabel.text = "Searching... ${resultEntries.size} files found, scanned $scannedCount entries"
+                                        }
+                                    }
+                                },
+                            )
+                        } catch (e: FileSearchService.InvalidPatternException) {
                             if (!disposed) {
                                 SwingUtilities.invokeLater {
-                                    statusLabel.text = "Searching... ${resultEntries.size} files found, scanned $scannedCount entries"
+                                    statusLabel.text = e.message ?: "Invalid search pattern"
+                                    stopButton.isEnabled = false
+                                    pauseResumeButton.isEnabled = false
+                                    editButton.isEnabled = true
                                 }
                             }
-                        },
-                    )
-                } catch (e: FileSearchService.InvalidPatternException) {
-                    if (!disposed) {
-                        SwingUtilities.invokeLater {
-                            statusLabel.text = e.message ?: "Invalid search pattern"
-                            stopButton.isEnabled = false
-                            pauseResumeButton.isEnabled = false
-                            editButton.isEnabled = true
+                            return@withContext
+                        }
+
+                        // Flush remaining
+                        flushResults(pendingResults)
+
+                        if (!disposed) {
+                            SwingUtilities.invokeLater {
+                                val msg = if (job.isCancelled) "Search stopped." else "Search complete."
+                                statusLabel.text = "$msg ${resultEntries.size} files found."
+                                stopButton.isEnabled = false
+                                pauseResumeButton.isEnabled = false
+                                editButton.isEnabled = true
+                            }
                         }
                     }
-                    currentIndicator = null
-                    return
                 }
-
-                // Flush remaining
-                flushResults(pendingResults)
-
-                if (!disposed) {
-                    SwingUtilities.invokeLater {
-                        val msg = if (indicator.isCanceled) "Search stopped." else "Search complete."
-                        statusLabel.text = "$msg ${resultEntries.size} files found."
-                        stopButton.isEnabled = false
-                        pauseResumeButton.isEnabled = false
-                        editButton.isEnabled = true
-                    }
-                }
-                currentIndicator = null
             }
-        })
+        }
     }
 
     private fun flushResults(pendingResults: MutableList<FileEntry>) {
@@ -504,7 +516,7 @@ class SearchResultsPanel(
     }
 
     private fun stopSearch() {
-        currentIndicator?.cancel()
+        currentSearchJob?.cancel()
         searchService?.paused = false
     }
 

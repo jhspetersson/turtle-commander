@@ -5,8 +5,6 @@ import com.github.junrar.exception.RarException
 import com.github.junrar.exception.UnsupportedRarEncryptedException
 import com.github.junrar.exception.UnsupportedRarV5Exception
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.ui.Messages
 import java.io.IOException
 import java.nio.file.Files
@@ -20,7 +18,10 @@ class RarFileSystemProvider : VirtualFileSystemProvider {
 
     override fun supportsExtension(ext: String): Boolean = ext in ARCHIVE_EXTENSIONS
 
-    override fun create(archivePath: Path): VirtualFileSystem = RarVirtualFileSystem(archivePath)
+    override fun create(archivePath: Path): VirtualFileSystem = create(archivePath, null)
+
+    override fun create(archivePath: Path, openProgress: VfsOpenProgress?): VirtualFileSystem =
+        RarVirtualFileSystem(archivePath, openProgress)
 }
 
 /**
@@ -43,7 +44,8 @@ class RarFileSystemProvider : VirtualFileSystemProvider {
  */
 class RarVirtualFileSystem(
     override val archivePath: Path,
-) : AbstractTempDirVirtualFileSystem("turtle-rar-") {
+    openProgress: VfsOpenProgress? = null,
+) : AbstractTempDirVirtualFileSystem("turtle-rar-", openProgress) {
 
     override val isReadOnly: Boolean get() = true
 
@@ -52,26 +54,26 @@ class RarVirtualFileSystem(
     }
 
     override fun extract(into: Path) {
-        val indicator = ProgressManager.getGlobalProgressIndicator()
+        val progress = takeOpenProgress()
         when (sniffVersion()) {
-            RarVersion.RAR4 -> extractRar4(into, indicator)
-            RarVersion.RAR5 -> extractRar5(into, indicator, password = null)
+            RarVersion.RAR4 -> extractRar4(into, progress)
+            RarVersion.RAR5 -> extractRar5(into, progress, password = null)
             RarVersion.NOT_RAR -> throw SilentVfsOpenException()
         }
     }
 
     // ---- RAR4: junrar in-process, with a 7-Zip fallback for encryption it can't handle ----
 
-    private fun extractRar4(into: Path, indicator: ProgressIndicator?) {
+    private fun extractRar4(into: Path, progress: VfsOpenProgress) {
         try {
-            junrarExtract(into, password = null, indicator)
+            junrarExtract(into, password = null, progress)
             return
         } catch (_: PasswordRequired) {
             // fall through to the password flow below
         } catch (_: UnsupportedRarV5Exception) {
             // Mis-sniffed as RAR4 (shouldn't normally happen) — let 7-Zip take it.
             reset(into)
-            extractRar5(into, indicator, password = null)
+            extractRar5(into, progress, password = null)
             return
         } catch (e: RarException) {
             if (!isPasswordIssue(e)) throw IOException("Failed to read RAR archive: ${e.message}", e)
@@ -82,16 +84,16 @@ class RarVirtualFileSystem(
             ?: throw IOException("Password required to open ${archivePath.fileName}.")
         try {
             reset(into)
-            junrarExtract(into, password, indicator)
+            junrarExtract(into, password, progress)
         } catch (e: Exception) {
             // junrar couldn't decrypt this (header encryption or an unsupported cipher) —
             // delegate to the system 7-Zip binary with the same password.
             reset(into)
-            sevenZipWithPassword(into, indicator, password)
+            sevenZipWithPassword(into, progress, password)
         }
     }
 
-    private fun junrarExtract(into: Path, password: String?, indicator: ProgressIndicator?) {
+    private fun junrarExtract(into: Path, password: String?, progress: VfsOpenProgress) {
         val archive = if (password == null) {
             Archive(archivePath.toFile())
         } else {
@@ -100,10 +102,10 @@ class RarVirtualFileSystem(
         archive.use { a ->
             if (password == null && a.isPasswordProtected) throw PasswordRequired()
             for (header in a.fileHeaders) {
-                if (indicator?.isCanceled == true) break
+                if (progress.isCancelled) break
                 if (password == null && header.isEncrypted) throw PasswordRequired()
                 val rawName = header.fileName ?: continue
-                indicator?.text2 = rawName
+                progress.onEntry(0, 0, rawName)
                 val target = resolveEntryPath(into, rawName.replace('\\', '/')) ?: continue
                 if (header.isDirectory) {
                     Files.createDirectories(target)
@@ -118,7 +120,7 @@ class RarVirtualFileSystem(
 
     // ---- RAR5 (and the encrypted-RAR4 fallback): system 7-Zip ----
 
-    private fun extractRar5(into: Path, indicator: ProgressIndicator?, password: String?) {
+    private fun extractRar5(into: Path, progress: VfsOpenProgress, password: String?) {
         if (System7z.findBinary() == null) {
             throw IOException(
                 "This is a RAR5 archive. Reading RAR5 needs 7-Zip / p7zip: install it and ensure " +
@@ -126,27 +128,27 @@ class RarVirtualFileSystem(
             )
         }
         try {
-            System7z.extract(archivePath, into, indicator, password)
+            System7z.extract(archivePath, into, progress, password)
         } catch (e: IOException) {
             if (password == null && looksEncrypted(e)) {
                 val pw = promptPassword()
                     ?: throw IOException("Password required to open ${archivePath.fileName}.")
                 reset(into)
-                System7z.extract(archivePath, into, indicator, pw)
+                System7z.extract(archivePath, into, progress, pw)
             } else {
                 throw e
             }
         }
     }
 
-    private fun sevenZipWithPassword(into: Path, indicator: ProgressIndicator?, password: String) {
+    private fun sevenZipWithPassword(into: Path, progress: VfsOpenProgress, password: String) {
         if (System7z.findBinary() == null) {
             throw IOException(
                 "This encrypted RAR couldn't be read in-process. Install 7-Zip / p7zip (7z, 7zz, or " +
                     "7za on PATH, or the standard 7-Zip install on Windows) to open it.",
             )
         }
-        System7z.extract(archivePath, into, indicator, password)
+        System7z.extract(archivePath, into, progress, password)
     }
 
     // ---- helpers ----

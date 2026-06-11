@@ -1,7 +1,6 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
 import com.intellij.openapi.diagnostic.thisLogger
-import com.intellij.openapi.progress.ProgressManager
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -45,13 +44,15 @@ class ZipFileSystemProvider : VirtualFileSystemProvider {
         return ext in ARCHIVE_EXTENSIONS
     }
 
-    override fun create(archivePath: Path): VirtualFileSystem {
+    override fun create(archivePath: Path): VirtualFileSystem = create(archivePath, null)
+
+    override fun create(archivePath: Path, openProgress: VfsOpenProgress?): VirtualFileSystem {
         return try {
             ZipVirtualFileSystem(archivePath)
         } catch (_: Exception) {
             // Java ZipFileSystem rejects some valid ZIPs (invalid CEN header, etc.)
             // Fall back to Commons Compress extraction
-            ZipExtractVirtualFileSystem(archivePath)
+            ZipExtractVirtualFileSystem(archivePath, openProgress)
         }
     }
 }
@@ -126,14 +127,15 @@ class ZipVirtualFileSystem(override val archivePath: Path) : VirtualFileSystem {
  */
 class ZipExtractVirtualFileSystem(
     override val archivePath: Path,
-) : AbstractTempDirVirtualFileSystem("turtle-zip-") {
+    openProgress: VfsOpenProgress? = null,
+) : AbstractTempDirVirtualFileSystem("turtle-zip-", openProgress) {
 
     init {
         openTempDir()
     }
 
     override fun extract(into: Path) {
-        val indicator = ProgressManager.getGlobalProgressIndicator()
+        val progress = takeOpenProgress()
         ZipFile.builder().setPath(archivePath).get().use { zip ->
             // Previously we called zip.entries.toList() just to know the total for
             // the progress fraction, which allocated an O(n) reference list for
@@ -146,15 +148,13 @@ class ZipExtractVirtualFileSystem(
                 counter.nextElement()
                 total++
             }
-            if (total > 0) indicator?.isIndeterminate = false
             val iter = zip.entries
             var index = 0
             while (iter.hasMoreElements()) {
                 val entry = iter.nextElement()
-                if (indicator?.isCanceled == true) break
+                if (progress.isCancelled) break
                 index++
-                if (total > 0) indicator?.fraction = index.toDouble() / total
-                indicator?.text2 = entry.name
+                progress.onEntry(index, total, entry.name)
                 val entryPath = resolveEntryPath(into, entry.name) ?: continue
                 try {
                     if (entry.isDirectory) {

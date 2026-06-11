@@ -1,7 +1,6 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
 import com.intellij.openapi.diagnostic.thisLogger
-import com.intellij.openapi.progress.ProgressManager
 import org.apache.commons.compress.archivers.cpio.CpioArchiveInputStream
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
@@ -25,8 +24,10 @@ class RpmFileSystemProvider : VirtualFileSystemProvider {
         return ext in ARCHIVE_EXTENSIONS
     }
 
-    override fun create(archivePath: Path): VirtualFileSystem {
-        return RpmVirtualFileSystem(archivePath)
+    override fun create(archivePath: Path): VirtualFileSystem = create(archivePath, null)
+
+    override fun create(archivePath: Path, openProgress: VfsOpenProgress?): VirtualFileSystem {
+        return RpmVirtualFileSystem(archivePath, openProgress)
     }
 }
 
@@ -49,7 +50,8 @@ class RpmFileSystemProvider : VirtualFileSystemProvider {
  */
 class RpmVirtualFileSystem(
     override val archivePath: Path,
-) : AbstractTempDirVirtualFileSystem("turtle-rpm-") {
+    openProgress: VfsOpenProgress? = null,
+) : AbstractTempDirVirtualFileSystem("turtle-rpm-", openProgress) {
 
     override val isReadOnly: Boolean get() = true
 
@@ -58,7 +60,7 @@ class RpmVirtualFileSystem(
     }
 
     override fun extract(into: Path) {
-        val indicator = ProgressManager.getGlobalProgressIndicator()
+        val progress = takeOpenProgress()
         BufferedInputStream(Files.newInputStream(archivePath)).use { raw ->
             val data = DataInputStream(raw)
             skipLead(data)
@@ -71,9 +73,9 @@ class RpmVirtualFileSystem(
             CpioArchiveInputStream(payload).use { cpio ->
                 var entry = cpio.nextEntry
                 while (entry != null) {
-                    if (indicator?.isCanceled == true) break
+                    if (progress.isCancelled) break
                     val name = entry.name.removePrefix("./").removePrefix("/")
-                    indicator?.text2 = name
+                    progress.onEntry(0, 0, name)
                     if (name.isEmpty() || name == "TRAILER!!!") {
                         entry = cpio.nextEntry
                         continue

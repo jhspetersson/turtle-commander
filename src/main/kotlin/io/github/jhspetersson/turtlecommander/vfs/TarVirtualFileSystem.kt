@@ -1,7 +1,6 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
 import com.intellij.openapi.diagnostic.thisLogger
-import com.intellij.openapi.progress.ProgressManager
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
@@ -22,11 +21,14 @@ class TarFileSystemProvider : VirtualFileSystemProvider {
         return ext in ARCHIVE_EXTENSIONS
     }
 
-    override fun create(archivePath: Path): VirtualFileSystem {
+    override fun create(archivePath: Path): VirtualFileSystem = create(archivePath, null)
+
+    override fun create(archivePath: Path, openProgress: VfsOpenProgress?): VirtualFileSystem {
         return TarVirtualFileSystem(
             archivePath,
             inputStreamFactory = { Files.newInputStream(it) },
             outputStreamFactory = { Files.newOutputStream(it) },
+            openProgress = openProgress,
         )
     }
 }
@@ -35,7 +37,8 @@ class TarVirtualFileSystem(
     override val archivePath: Path,
     private val inputStreamFactory: (Path) -> InputStream,
     private val outputStreamFactory: ((Path) -> OutputStream)? = null,
-) : AbstractTempDirVirtualFileSystem("turtle-tar-") {
+    openProgress: VfsOpenProgress? = null,
+) : AbstractTempDirVirtualFileSystem("turtle-tar-", openProgress) {
 
     /**
      * Symlink entries that could not be materialized on the local filesystem (typically because
@@ -50,14 +53,14 @@ class TarVirtualFileSystem(
     }
 
     override fun extract(into: Path) {
-        val indicator = ProgressManager.getGlobalProgressIndicator()
+        val progress = takeOpenProgress()
         unresolvedSymlinks.clear()
         inputStreamFactory(archivePath).use { raw ->
             TarArchiveInputStream(raw).use { tar ->
                 var entry = tar.nextEntry
                 while (entry != null) {
-                    if (indicator?.isCanceled == true) break
-                    indicator?.text2 = entry.name
+                    if (progress.isCancelled) break
+                    progress.onEntry(0, 0, entry.name)
                     val entryPath = resolveEntryPath(into, entry.name)
                     if (entryPath == null) {
                         entry = tar.nextEntry

@@ -68,6 +68,49 @@ object OpenVfsRegistry {
     }
 }
 
+/**
+ * Progress/cancellation hook for the extract-at-open phase of temp-dir VFS implementations.
+ * Passed explicitly by coroutine-based progress call sites; replaces the historical reliance
+ * on [com.intellij.openapi.progress.ProgressManager.getGlobalProgressIndicator], which is
+ * thread-bound and absent under the coroutine progress API
+ * ([com.intellij.platform.ide.progress.withBackgroundProgress]).
+ */
+interface VfsOpenProgress {
+    /** Reports entry [index] of [total] ([total] <= 0 when unknown) currently being extracted. */
+    fun onEntry(index: Int, total: Int, name: String)
+
+    /** Polled between entries; extraction stops early (leaving a partial temp dir) when true. */
+    val isCancelled: Boolean
+
+    companion object {
+        /**
+         * Adapter for the legacy thread-bound indicator, used as the fallback when no explicit
+         * hook is supplied (VFS creation from code still running under a `Task`, or tests).
+         * Returns a no-op when no indicator is bound to the current thread.
+         */
+        fun fromCurrentThread(): VfsOpenProgress {
+            val indicator = com.intellij.openapi.progress.ProgressManager.getGlobalProgressIndicator()
+                ?: return Noop
+            return object : VfsOpenProgress {
+                override fun onEntry(index: Int, total: Int, name: String) {
+                    if (total > 0) {
+                        if (indicator.isIndeterminate) indicator.isIndeterminate = false
+                        indicator.fraction = index.toDouble() / total
+                    }
+                    indicator.text2 = name
+                }
+
+                override val isCancelled: Boolean get() = indicator.isCanceled
+            }
+        }
+
+        private object Noop : VfsOpenProgress {
+            override fun onEntry(index: Int, total: Int, name: String) {}
+            override val isCancelled: Boolean get() = false
+        }
+    }
+}
+
 interface VirtualFileSystemProvider {
     /**
      * Default `supports` implementation: extract the lowercased extension from the path's
@@ -81,6 +124,12 @@ interface VirtualFileSystemProvider {
     }
     fun supportsExtension(ext: String): Boolean
     fun create(archivePath: Path): VirtualFileSystem
+
+    /**
+     * Create with an extract-progress hook. The default ignores it — only implementations
+     * that do significant work at open time (the ZIP extract fallback and ISO) override this.
+     */
+    fun create(archivePath: Path, openProgress: VfsOpenProgress?): VirtualFileSystem = create(archivePath)
 }
 
 /**
@@ -231,10 +280,26 @@ internal fun vfsRelativePath(root: Path, path: Path): String {
  */
 abstract class AbstractTempDirVirtualFileSystem(
     private val tempDirPrefix: String,
+    openProgress: VfsOpenProgress? = null,
 ) : VirtualFileSystem {
 
     protected lateinit var tempDir: Path
         private set
+
+    // One-shot open-progress hook, cleared on first take so a flush()-driven re-extract
+    // can't call into a progress reporter whose scope has already ended.
+    private var openProgress: VfsOpenProgress? = openProgress
+
+    /**
+     * The progress hook for the current [extract] run: the constructor-supplied hook on the
+     * first call, the legacy thread-bound indicator (or a no-op) afterwards / when none was
+     * given. Call once at the top of [extract].
+     */
+    protected fun takeOpenProgress(): VfsOpenProgress {
+        val progress = openProgress ?: VfsOpenProgress.fromCurrentThread()
+        openProgress = null
+        return progress
+    }
 
     /**
      * Extract the archive at [archivePath] into [into], an empty temp directory provided
@@ -354,9 +419,9 @@ object VirtualFileSystemRegistry {
         return providers.any { it.supportsExtension(ext) }
     }
 
-    fun create(archivePath: Path): VirtualFileSystem {
+    fun create(archivePath: Path, openProgress: VfsOpenProgress? = null): VirtualFileSystem {
         val provider = providers.firstOrNull { it.supports(archivePath) }
             ?: throw IllegalArgumentException("No VFS provider for: $archivePath")
-        return provider.create(archivePath)
+        return provider.create(archivePath, openProgress)
     }
 }

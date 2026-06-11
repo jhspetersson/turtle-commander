@@ -1,7 +1,6 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
 import com.intellij.openapi.diagnostic.thisLogger
-import com.intellij.openapi.progress.ProgressManager
 import com.palantir.isofilereader.isofilereader.GenericInternalIsoFile
 import com.palantir.isofilereader.isofilereader.IsoFileReader
 import java.io.IOException
@@ -23,8 +22,10 @@ class IsoFileSystemProvider : VirtualFileSystemProvider {
         return ext in ARCHIVE_EXTENSIONS
     }
 
-    override fun create(archivePath: Path): VirtualFileSystem {
-        return IsoVirtualFileSystem(archivePath)
+    override fun create(archivePath: Path): VirtualFileSystem = create(archivePath, null)
+
+    override fun create(archivePath: Path, openProgress: VfsOpenProgress?): VirtualFileSystem {
+        return IsoVirtualFileSystem(archivePath, openProgress)
     }
 }
 
@@ -51,7 +52,8 @@ class IsoFileSystemProvider : VirtualFileSystemProvider {
  */
 class IsoVirtualFileSystem(
     override val archivePath: Path,
-) : AbstractTempDirVirtualFileSystem("turtle-iso-") {
+    openProgress: VfsOpenProgress? = null,
+) : AbstractTempDirVirtualFileSystem("turtle-iso-", openProgress) {
 
     override val isReadOnly: Boolean get() = true
 
@@ -76,7 +78,7 @@ class IsoVirtualFileSystem(
     }
 
     override fun extract(into: Path) {
-        val indicator = ProgressManager.getGlobalProgressIndicator()
+        val progress = takeOpenProgress()
         val newReader = IsoFileReader(archivePath.toFile())
         // The constructor runs format detection and silently picks the best mode it can.
         // If it finds neither an ISO 9660 volume descriptor nor a UDF anchor, we must reject
@@ -89,14 +91,12 @@ class IsoVirtualFileSystem(
         try {
             val tree = newReader.allFiles
             val files = newReader.convertTreeFilesToFlatList(tree)
-            if (files.isNotEmpty()) indicator?.isIndeterminate = false
             files.forEachIndexed { index, entry ->
-                if (indicator?.isCanceled == true) return@forEachIndexed
-                indicator?.fraction = (index + 1).toDouble() / files.size
+                if (progress.isCancelled) return@forEachIndexed
                 val rawPath = entry.getFullFileName('/') ?: return@forEachIndexed
                 val cleanPath = stripIsoVersionSuffix(rawPath).trimStart('/')
                 if (cleanPath.isEmpty()) return@forEachIndexed
-                indicator?.text2 = cleanPath
+                progress.onEntry(index + 1, files.size, cleanPath)
                 val entryPath = resolveEntryPath(into, cleanPath) ?: return@forEachIndexed
                 try {
                     entryPath.parent?.let { Files.createDirectories(it) }

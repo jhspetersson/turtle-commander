@@ -1,8 +1,6 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
 import com.intellij.openapi.diagnostic.thisLogger
-import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManager
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry
 import org.apache.commons.compress.archivers.sevenz.SevenZFile
 import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile
@@ -23,23 +21,26 @@ class SevenZipFileSystemProvider : VirtualFileSystemProvider {
         return ext in ARCHIVE_EXTENSIONS
     }
 
-    override fun create(archivePath: Path): VirtualFileSystem {
-        return SevenZipVirtualFileSystem(archivePath)
+    override fun create(archivePath: Path): VirtualFileSystem = create(archivePath, null)
+
+    override fun create(archivePath: Path, openProgress: VfsOpenProgress?): VirtualFileSystem {
+        return SevenZipVirtualFileSystem(archivePath, openProgress)
     }
 }
 
 class SevenZipVirtualFileSystem(
     override val archivePath: Path,
-) : AbstractTempDirVirtualFileSystem("turtle-7z-") {
+    openProgress: VfsOpenProgress? = null,
+) : AbstractTempDirVirtualFileSystem("turtle-7z-", openProgress) {
 
     init {
         openTempDir()
     }
 
     override fun extract(into: Path) {
-        val indicator = ProgressManager.getGlobalProgressIndicator()
+        val progress = takeOpenProgress()
         try {
-            extractWithCommonsCompress(into, indicator)
+            extractWithCommonsCompress(into, progress)
         } catch (e: Exception) {
             // commons-compress can't decode multi-stream coders (BCJ2, certain
             // delta variants, some encrypted modes). Fall back to invoking the
@@ -53,7 +54,7 @@ class SevenZipVirtualFileSystem(
                 into.toFile().deleteRecursively()
                 Files.createDirectory(into)
                 try {
-                    System7z.extract(archivePath, into, indicator)
+                    System7z.extract(archivePath, into, progress)
                     return
                 } catch (toolError: Exception) {
                     throw IOException(
@@ -68,12 +69,12 @@ class SevenZipVirtualFileSystem(
         }
     }
 
-    private fun extractWithCommonsCompress(dir: Path, indicator: ProgressIndicator?) {
+    private fun extractWithCommonsCompress(dir: Path, progress: VfsOpenProgress) {
         SevenZFile.builder().setPath(archivePath).get().use { sevenZ ->
             var entry = sevenZ.nextEntry
             while (entry != null) {
-                if (indicator?.isCanceled == true) break
-                indicator?.text2 = entry.name
+                if (progress.isCancelled) break
+                progress.onEntry(0, 0, entry.name)
                 val entryPath = resolveEntryPath(dir, entry.name)
                 if (entryPath == null) {
                     entry = sevenZ.nextEntry

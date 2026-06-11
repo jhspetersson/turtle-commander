@@ -1,12 +1,21 @@
 package io.github.jhspetersson.turtlecommander.action
 
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.application.EDT
+import com.intellij.openapi.components.service
+import com.intellij.openapi.ide.CopyPasteManager
+import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.progress.Task
+import com.intellij.openapi.progress.coroutineToIndicator
 import com.intellij.openapi.ui.Messages
+import com.intellij.platform.ide.progress.withBackgroundProgress
+import com.intellij.platform.util.progress.reportRawProgress
 import io.github.jhspetersson.turtlecommander.model.FileEntry
-import com.intellij.openapi.ide.CopyPasteManager
+import io.github.jhspetersson.turtlecommander.service.FileOperationService
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.nio.file.Path
 
 private fun hashableEntry(): FileEntry? {
@@ -26,33 +35,34 @@ abstract class CopyHashAction(
 
     override fun actionPerformed(e: AnActionEvent) {
         val entry = hashableEntry() ?: return
-        val project = e.project
+        val project = e.project ?: return
         val path = entry.path
         val title = "Computing $label of ${entry.name}"
 
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, title, true) {
-            private var result: String? = null
-            private var error: Throwable? = null
-
-            override fun run(indicator: ProgressIndicator) {
-                indicator.isIndeterminate = false
-                try {
-                    result = compute(path, indicator)
-                } catch (t: Throwable) {
-                    error = t
+        project.service<FileOperationService>().launch {
+            try {
+                val result = withBackgroundProgress(project, title, cancellable = true) {
+                    reportRawProgress {
+                        // HashComputations keeps its ProgressIndicator-based API (it polls
+                        // checkCanceled and reports fraction); coroutineToIndicator bridges
+                        // it to this coroutine's cancellation and progress reporter.
+                        coroutineToIndicator {
+                            compute(path, ProgressManager.getGlobalProgressIndicator() ?: EmptyProgressIndicator())
+                        }
+                    }
+                }
+                withContext(Dispatchers.EDT) {
+                    CopyPasteManager.copyTextToClipboard(result)
+                }
+            } catch (ce: CancellationException) {
+                // Includes ProcessCanceledException from the bridged indicator.
+                throw ce
+            } catch (t: Throwable) {
+                withContext(Dispatchers.EDT) {
+                    Messages.showErrorDialog(project, "Failed to compute $label: ${t.message}", "Copy $label")
                 }
             }
-
-            override fun onSuccess() {
-                val value = result
-                val err = error
-                if (value != null) {
-                    CopyPasteManager.copyTextToClipboard(value)
-                } else if (err != null) {
-                    Messages.showErrorDialog(project, "Failed to compute $label: ${err.message}", "Copy $label")
-                }
-            }
-        })
+        }
     }
 }
 

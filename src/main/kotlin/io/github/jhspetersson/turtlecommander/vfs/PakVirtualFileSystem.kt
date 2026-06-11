@@ -1,7 +1,6 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
 import com.intellij.openapi.diagnostic.thisLogger
-import com.intellij.openapi.progress.ProgressManager
 import java.io.IOException
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
@@ -29,14 +28,16 @@ class PakFileSystemProvider : VirtualFileSystemProvider {
      * If neither parses, throw [SilentVfsOpenException] so the caller leaves the file
      * as it is, without surfacing an error to the user.
      */
-    override fun create(archivePath: Path): VirtualFileSystem {
+    override fun create(archivePath: Path): VirtualFileSystem = create(archivePath, null)
+
+    override fun create(archivePath: Path, openProgress: VfsOpenProgress?): VirtualFileSystem {
         try {
-            return PakVirtualFileSystem(archivePath)
+            return PakVirtualFileSystem(archivePath, openProgress)
         } catch (e: Exception) {
             thisLogger().debug("Not a Quake PAK, trying ZIP fallback: $archivePath", e)
         }
         return try {
-            ZipFileSystemProvider().create(archivePath)
+            ZipFileSystemProvider().create(archivePath, openProgress)
         } catch (e: Exception) {
             thisLogger().debug("Not a ZIP either, leaving file as-is: $archivePath", e)
             throw SilentVfsOpenException()
@@ -60,7 +61,8 @@ class PakFileSystemProvider : VirtualFileSystemProvider {
  */
 class PakVirtualFileSystem(
     override val archivePath: Path,
-) : AbstractTempDirVirtualFileSystem("turtle-pak-") {
+    openProgress: VfsOpenProgress? = null,
+) : AbstractTempDirVirtualFileSystem("turtle-pak-", openProgress) {
 
     init {
         openTempDir()
@@ -69,16 +71,14 @@ class PakVirtualFileSystem(
     private data class PakEntry(val name: String, val offset: Long, val size: Long)
 
     override fun extract(into: Path) {
-        val indicator = ProgressManager.getGlobalProgressIndicator()
+        val progress = takeOpenProgress()
         RandomAccessFile(archivePath.toFile(), "r").use { raf ->
             val fileLength = raf.length()
             val entries = readDirectory(raf, fileLength)
-            if (entries.isNotEmpty()) indicator?.isIndeterminate = false
             val buffer = ByteArray(64 * 1024)
             entries.forEachIndexed { index, entry ->
-                if (indicator?.isCanceled == true) return@forEachIndexed
-                indicator?.fraction = (index + 1).toDouble() / entries.size
-                indicator?.text2 = entry.name
+                if (progress.isCancelled) return@forEachIndexed
+                progress.onEntry(index + 1, entries.size, entry.name)
                 val entryPath = resolveEntryPath(into, entry.name) ?: return@forEachIndexed
                 try {
                     entryPath.parent?.let { Files.createDirectories(it) }

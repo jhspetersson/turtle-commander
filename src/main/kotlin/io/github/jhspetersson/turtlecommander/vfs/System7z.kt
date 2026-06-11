@@ -1,6 +1,5 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
-import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.util.SystemInfo
 import java.io.File
 import java.io.IOException
@@ -62,9 +61,9 @@ internal object System7z {
      * Extracts [archive] into [into] with the system 7-Zip CLI. [password] is passed via
      * `-p`; `null`/empty means "no password", which makes 7-Zip fail fast on encrypted
      * input rather than blocking on an interactive prompt. Honors cancellation through
-     * [indicator]. Throws [IOException] when no binary is found or the run exits non-zero.
+     * [progress]. Throws [IOException] when no binary is found or the run exits non-zero.
      */
-    fun extract(archive: Path, into: Path, indicator: ProgressIndicator?, password: String? = null) {
+    fun extract(archive: Path, into: Path, progress: VfsOpenProgress, password: String? = null) {
         val binary = findBinary() ?: throw IOException(
             "System 7-Zip not found. Install p7zip / 7-Zip and ensure 7z, 7zz, " +
                 "or 7za is on PATH (or installed in the standard 7-Zip location on Windows).",
@@ -88,11 +87,11 @@ internal object System7z {
         val tail = ArrayDeque<String>()
         process.inputStream.bufferedReader().use { reader ->
             reader.lineSequence().forEach { line ->
-                if (indicator?.isCanceled == true) {
+                if (progress.isCancelled) {
                     process.destroy()
                     throw InterruptedException("Cancelled")
                 }
-                indicator?.text2 = line.trim().take(120)
+                progress.onEntry(0, 0, line.trim().take(120))
                 tail.addLast(line)
                 if (tail.size > 30) tail.removeFirst()
             }

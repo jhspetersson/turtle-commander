@@ -4,6 +4,7 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import io.github.jhspetersson.turtlecommander.operation.TarOutputStream
 import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
+import io.github.jhspetersson.turtlecommander.vfs.VfsOpenProgress
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -196,7 +197,7 @@ class ArchiveService {
         }
     }
 
-    suspend fun countArchiveEntries(archivePath: Path): Int = withContext(Dispatchers.IO) {
+    suspend fun countArchiveEntries(archivePath: Path, openProgress: VfsOpenProgress? = null): Int = withContext(Dispatchers.IO) {
         // Prefer a header-only scan: the previous VFS-based count extracted the archive
         // to a temp directory, which doubled the work of a subsequent
         // extractArchiveWithProgress call. For known formats we can enumerate entries
@@ -207,7 +208,7 @@ class ArchiveService {
         } catch (e: Exception) {
             thisLogger().debug("Header-only count failed for $archivePath, falling back to VFS walk", e)
         }
-        countArchiveEntriesViaVfs(archivePath)
+        countArchiveEntriesViaVfs(archivePath, openProgress)
     }
 
     /** Returns entry count via header-only scan, or -1 if the format isn't recognized. */
@@ -287,10 +288,10 @@ class ArchiveService {
             }
         }
 
-    private fun countArchiveEntriesViaVfs(archivePath: Path): Int {
+    private fun countArchiveEntriesViaVfs(archivePath: Path, openProgress: VfsOpenProgress? = null): Int {
         var count = 0
         try {
-            VirtualFileSystemRegistry.create(archivePath).use { vfs ->
+            VirtualFileSystemRegistry.create(archivePath, openProgress).use { vfs ->
                 val root = vfs.root
                 Files.walkFileTree(root, object : SimpleFileVisitor<Path>() {
                     override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
@@ -317,12 +318,13 @@ class ArchiveService {
         onOverwriteConfirm: suspend (path: Path) -> OverwriteResponse,
         onError: suspend (path: Path, error: Exception) -> Unit,
         isCancelled: () -> Boolean,
+        openProgress: VfsOpenProgress? = null,
     ): Unit = withContext(Dispatchers.IO) {
         var extractedCount = 0
         var policy = initialPolicy
 
         try {
-            VirtualFileSystemRegistry.create(archivePath).use { vfs ->
+            VirtualFileSystemRegistry.create(archivePath, openProgress).use { vfs ->
                 val root = vfs.root
                 data class VfsEntry(val sourcePath: Path, val relativePath: String, val isDirectory: Boolean)
                 val entries = mutableListOf<VfsEntry>()

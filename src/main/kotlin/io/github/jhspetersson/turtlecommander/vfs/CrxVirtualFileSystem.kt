@@ -1,7 +1,6 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
 import com.intellij.openapi.diagnostic.thisLogger
-import com.intellij.openapi.progress.ProgressManager
 import org.apache.commons.compress.archivers.zip.ZipFile
 import java.io.DataInputStream
 import java.io.IOException
@@ -19,8 +18,10 @@ class CrxFileSystemProvider : VirtualFileSystemProvider {
         return ext in ARCHIVE_EXTENSIONS
     }
 
-    override fun create(archivePath: Path): VirtualFileSystem {
-        return CrxVirtualFileSystem(archivePath)
+    override fun create(archivePath: Path): VirtualFileSystem = create(archivePath, null)
+
+    override fun create(archivePath: Path, openProgress: VfsOpenProgress?): VirtualFileSystem {
+        return CrxVirtualFileSystem(archivePath, openProgress)
     }
 }
 
@@ -39,7 +40,8 @@ class CrxFileSystemProvider : VirtualFileSystemProvider {
  */
 class CrxVirtualFileSystem(
     override val archivePath: Path,
-) : AbstractTempDirVirtualFileSystem("turtle-crx-") {
+    openProgress: VfsOpenProgress? = null,
+) : AbstractTempDirVirtualFileSystem("turtle-crx-", openProgress) {
 
     override val isReadOnly: Boolean get() = true
 
@@ -48,7 +50,7 @@ class CrxVirtualFileSystem(
     }
 
     override fun extract(into: Path) {
-        val indicator = ProgressManager.getGlobalProgressIndicator()
+        val progress = takeOpenProgress()
         val innerZip = Files.createTempFile("turtle-crx-inner-", ".zip")
         try {
             Files.newInputStream(archivePath).use { input ->
@@ -65,15 +67,13 @@ class CrxVirtualFileSystem(
                     counter.nextElement()
                     total++
                 }
-                if (total > 0) indicator?.isIndeterminate = false
                 val iter = zip.entries
                 var index = 0
                 while (iter.hasMoreElements()) {
                     val entry = iter.nextElement()
-                    if (indicator?.isCanceled == true) break
+                    if (progress.isCancelled) break
                     index++
-                    if (total > 0) indicator?.fraction = index.toDouble() / total
-                    indicator?.text2 = entry.name
+                    progress.onEntry(index, total, entry.name)
                     val entryPath = resolveEntryPath(into, entry.name) ?: continue
                     try {
                         if (entry.isDirectory) {
