@@ -107,14 +107,12 @@ class FileTab(
     }
     private val statusPanel = JPanel(BorderLayout())
     private var allEntries: List<FileEntry> = emptyList()
-    private val filterField = JTextField()
-    // Captured eagerly at construction so a later error-state toggle has a real default to
-    // restore to. A `by lazy` here would capture whatever color was active the first time the
-    // field left the error state — which in the bad-first-then-good sequence is the error
-    // color itself, leaving the field permanently tinted.
-    private val defaultFilterFieldForeground: Color? = filterField.foreground
-    private val defaultFilterFieldBackground: Color? = filterField.background
-    private val filterPanel = JPanel(BorderLayout(4, 0))
+    private val quickFilterBar = QuickFilterBar(
+        onFilterChanged = { applyFilter() },
+        onHideRequested = { hideQuickFilter() },
+        onMoveSelection = { offset -> moveSelection(offset) },
+        onCommit = { focusActiveView() },
+    )
     private var updatingDriveCombo = false
     private var driveComboPopupOpen = false
     private var unsubscribeDriveRoots: (() -> Unit)? = null
@@ -890,56 +888,6 @@ class FileTab(
 
 
     private fun setupFilterPanel() {
-        filterPanel.border = BorderFactory.createEmptyBorder(2, 4, 2, 4)
-        filterPanel.isVisible = false
-        filterField.installStandardContextMenu()
-
-        val iconLabel = JLabel(AllIcons.Actions.Find)
-        filterPanel.add(iconLabel, BorderLayout.WEST)
-
-        filterPanel.add(filterField, BorderLayout.CENTER)
-
-        val cancelButton = JButton(AllIcons.Actions.Close)
-        cancelButton.isFocusable = false
-        cancelButton.toolTipText = "Close filter"
-        cancelButton.preferredSize = Dimension(24, 24)
-        cancelButton.isContentAreaFilled = false
-        cancelButton.addActionListener { hideQuickFilter() }
-        filterPanel.add(cancelButton, BorderLayout.EAST)
-
-        filterField.addKeyListener(object : KeyAdapter() {
-            override fun keyPressed(e: KeyEvent) {
-                when (e.keyCode) {
-                    KeyEvent.VK_ESCAPE -> {
-                        hideQuickFilter()
-                        e.consume()
-                    }
-                    KeyEvent.VK_UP, KeyEvent.VK_DOWN -> {
-                        // Delegate UP/DOWN to the active view
-                        val offset = if (e.keyCode == KeyEvent.VK_DOWN) 1 else -1
-                        moveSelection(offset)
-                        e.consume()
-                    }
-                    KeyEvent.VK_ENTER -> {
-                        // Focus the active view component
-                        when (viewMode) {
-                            ViewMode.TABLE -> table.requestFocusInWindow()
-                            ViewMode.LIST -> list.requestFocusInWindow()
-                            ViewMode.THUMBNAIL -> thumbnailList.requestFocusInWindow()
-                            ViewMode.TREE -> tree.requestFocusInWindow()
-                        }
-                        e.consume()
-                    }
-                }
-            }
-        })
-
-        filterField.document.addDocumentListener(object : DocumentListener {
-            override fun insertUpdate(e: DocumentEvent) = applyFilter()
-            override fun removeUpdate(e: DocumentEvent) = applyFilter()
-            override fun changedUpdate(e: DocumentEvent) = applyFilter()
-        })
-
         // Register Ctrl-S as component-local action on all view components
         // to override IntelliJ's global "Save All" binding
         val filterShortcut = CustomShortcutSet(
@@ -959,21 +907,20 @@ class FileTab(
     }
 
     fun showQuickFilter() {
-        if (filterPanel.isVisible) {
-            filterField.requestFocusInWindow()
-            return
-        }
-        filterPanel.isVisible = true
-        filterField.text = ""
-        filterField.requestFocusInWindow()
+        quickFilterBar.activate()
         revalidate()
     }
 
     private fun hideQuickFilter() {
-        filterField.text = ""
-        filterPanel.isVisible = false
+        quickFilterBar.deactivate()
+        // deactivate() fires no document event when the field was already empty, so
+        // re-apply explicitly to guarantee the unfiltered listing is restored.
         applyFilter()
         revalidate()
+        focusActiveView()
+    }
+
+    private fun focusActiveView() {
         when (viewMode) {
             ViewMode.TABLE -> table.requestFocusInWindow()
             ViewMode.LIST -> list.requestFocusInWindow()
@@ -987,24 +934,11 @@ class FileTab(
     }
 
     private fun setFilterFieldError(error: Boolean) {
-        val fg: Color? = if (error) JBColor.RED else defaultFilterFieldForeground
-        // IntelliJ LAFs can override setForeground during paint for focused text fields, so
-        // also tint the background to guarantee the error state is visible.
-        val bg: Color? = if (error) ERROR_FIELD_BACKGROUND else defaultFilterFieldBackground
-        var changed = false
-        if (filterField.foreground != fg) {
-            filterField.foreground = fg
-            changed = true
-        }
-        if (filterField.background != bg) {
-            filterField.background = bg
-            changed = true
-        }
-        if (changed) filterField.repaint()
+        quickFilterBar.setError(error)
     }
 
     private fun applyFilter() {
-        val pattern = filterField.text.trim()
+        val pattern = quickFilterBar.text.trim()
         val filtered = if (pattern.isEmpty()) {
             cachedFilterGlob = null
             cachedFilterMatcher = null
@@ -1166,7 +1100,7 @@ class FileTab(
         statusPanel.add(freeSpaceLabel, BorderLayout.EAST)
 
         val bottomPanel = JPanel(BorderLayout())
-        bottomPanel.add(filterPanel, BorderLayout.NORTH)
+        bottomPanel.add(quickFilterBar, BorderLayout.NORTH)
         bottomPanel.add(statusPanel, BorderLayout.SOUTH)
         add(bottomPanel, BorderLayout.SOUTH)
     }
@@ -1341,9 +1275,8 @@ class FileTab(
             // a fresh slate when they cd somewhere new.)
             clearAllToggledMarks()
             // Hide filter on navigation
-            if (filterPanel.isVisible) {
-                filterField.text = ""
-                filterPanel.isVisible = false
+            if (quickFilterBar.isVisible) {
+                quickFilterBar.deactivate()
             }
 
             tableModel.setEntries(entries)
@@ -1757,9 +1690,6 @@ class FileTab(
         internal const val VIEW_LIST = "list"
         internal const val VIEW_THUMBNAIL = "thumbnail"
         internal const val VIEW_TREE = "tree"
-
-        /** Background tint applied to the quick-filter field when the typed glob is invalid. */
-        internal val ERROR_FIELD_BACKGROUND: JBColor = JBColor(Color(0xFF, 0xD0, 0xD0), Color(0x5A, 0x2C, 0x2C))
 
         /**
          * Resolves the target path for a drive selector selection.

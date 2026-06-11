@@ -1,61 +1,34 @@
 package io.github.jhspetersson.turtlecommander.ui
-import io.github.jhspetersson.turtlecommander.dialog.FileSearchDialog
-import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
-import io.github.jhspetersson.turtlecommander.service.FileSearchService
-import io.github.jhspetersson.turtlecommander.dialog.FileSearchCriteria
-import io.github.jhspetersson.turtlecommander.model.FileEntry
 
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
-import com.intellij.openapi.actionSystem.ActionGroup
-import com.intellij.openapi.actionSystem.ActionManager
-import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.actionSystem.CustomShortcutSet
-import com.intellij.openapi.actionSystem.KeyboardShortcut
+import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.components.service
+import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.platform.ide.progress.withBackgroundProgress
 import com.intellij.platform.util.progress.reportRawProgress
-import com.intellij.ui.JBColor
 import com.intellij.ui.TableSpeedSearch
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
-import com.intellij.openapi.fileTypes.FileTypeManager
 import io.github.jhspetersson.turtlecommander.action.SearchContextMenuState
+import io.github.jhspetersson.turtlecommander.dialog.FileSearchCriteria
+import io.github.jhspetersson.turtlecommander.dialog.FileSearchDialog
+import io.github.jhspetersson.turtlecommander.model.FileEntry
+import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.service.FileOperationService
+import io.github.jhspetersson.turtlecommander.service.FileSearchService
 import io.github.jhspetersson.turtlecommander.util.wrapAsSubstringGlobIfPlain
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.job
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 import java.awt.BorderLayout
-import java.awt.Color
 import java.awt.Component
-import java.awt.Dimension
 import java.awt.FlowLayout
-import java.awt.event.ActionEvent
-import java.awt.event.InputEvent
-import java.awt.event.KeyAdapter
-import java.awt.event.KeyEvent
-import java.awt.event.MouseAdapter
-import java.awt.event.MouseEvent
+import java.awt.event.*
 import java.nio.file.FileSystems
 import java.nio.file.Path
 import java.nio.file.PathMatcher
-import javax.swing.AbstractAction
-import javax.swing.BorderFactory
-import javax.swing.JButton
-import javax.swing.JLabel
-import javax.swing.JPanel
-import javax.swing.JTable
-import javax.swing.JTextField
-import javax.swing.KeyStroke
-import javax.swing.SwingUtilities
-import javax.swing.event.DocumentEvent
-import javax.swing.event.DocumentListener
+import javax.swing.*
 import javax.swing.table.DefaultTableCellRenderer
 
 class SearchResultsPanel(
@@ -78,21 +51,20 @@ class SearchResultsPanel(
     private val pauseResumeButton = JButton("Pause", AllIcons.Actions.Pause)
     private val stopButton = JButton("Stop", AllIcons.Actions.Cancel)
 
-    private val filterField = JTextField()
-    // Captured eagerly at construction so a later error-state toggle has a real default to
-    // restore (see FileTab for the same pattern).
-    private val defaultFilterFieldForeground: Color? = filterField.foreground
-    private val defaultFilterFieldBackground: Color? = filterField.background
-    private val filterPanel = JPanel(BorderLayout(4, 0))
+    private val quickFilterBar = QuickFilterBar(
+        onFilterChanged = { applyFilter() },
+        onHideRequested = { hideQuickFilter() },
+        onMoveSelection = { offset -> moveTableSelection(offset) },
+        onCommit = { table.requestFocusInWindow() },
+    )
     private var cachedFilterGlob: String? = null
     private var cachedFilterMatcher: PathMatcher? = null
 
     init {
         setupTable()
-        setupFilterPanel()
         add(JBScrollPane(table), BorderLayout.CENTER)
         val bottomPanel = JPanel(BorderLayout())
-        bottomPanel.add(filterPanel, BorderLayout.NORTH)
+        bottomPanel.add(quickFilterBar, BorderLayout.NORTH)
         bottomPanel.add(createControlPanel(), BorderLayout.SOUTH)
         add(bottomPanel, BorderLayout.SOUTH)
     }
@@ -215,94 +187,34 @@ class SearchResultsPanel(
         otherPanel.openDirectoryInNewTab(targetDir, selectName = entry.name)
     }
 
-    private fun setupFilterPanel() {
-        filterPanel.border = BorderFactory.createEmptyBorder(2, 4, 2, 4)
-        filterPanel.isVisible = false
-        filterField.installStandardContextMenu()
-
-        val iconLabel = JLabel(AllIcons.Actions.Find)
-        filterPanel.add(iconLabel, BorderLayout.WEST)
-
-        filterPanel.add(filterField, BorderLayout.CENTER)
-
-        val cancelButton = JButton(AllIcons.Actions.Close)
-        cancelButton.isFocusable = false
-        cancelButton.toolTipText = "Close filter"
-        cancelButton.preferredSize = Dimension(24, 24)
-        cancelButton.isContentAreaFilled = false
-        cancelButton.addActionListener { hideQuickFilter() }
-        filterPanel.add(cancelButton, BorderLayout.EAST)
-
-        filterField.addKeyListener(object : KeyAdapter() {
-            override fun keyPressed(e: KeyEvent) {
-                when (e.keyCode) {
-                    KeyEvent.VK_ESCAPE -> {
-                        hideQuickFilter()
-                        e.consume()
-                    }
-                    KeyEvent.VK_UP, KeyEvent.VK_DOWN -> {
-                        // Delegate UP/DOWN to the results table
-                        val offset = if (e.keyCode == KeyEvent.VK_DOWN) 1 else -1
-                        val next = (table.selectedRow + offset).coerceIn(0, table.rowCount - 1)
-                        if (next >= 0) {
-                            table.setRowSelectionInterval(next, next)
-                            table.scrollRectToVisible(table.getCellRect(next, 0, true))
-                        }
-                        e.consume()
-                    }
-                    KeyEvent.VK_ENTER -> {
-                        table.requestFocusInWindow()
-                        e.consume()
-                    }
-                }
-            }
-        })
-
-        filterField.document.addDocumentListener(object : DocumentListener {
-            override fun insertUpdate(e: DocumentEvent) = applyFilter()
-            override fun removeUpdate(e: DocumentEvent) = applyFilter()
-            override fun changedUpdate(e: DocumentEvent) = applyFilter()
-        })
+    private fun moveTableSelection(offset: Int) {
+        val next = (table.selectedRow + offset).coerceIn(0, table.rowCount - 1)
+        if (next >= 0) {
+            table.setRowSelectionInterval(next, next)
+            table.scrollRectToVisible(table.getCellRect(next, 0, true))
+        }
     }
 
     fun showQuickFilter() {
-        if (filterPanel.isVisible) {
-            filterField.requestFocusInWindow()
-            return
-        }
-        filterPanel.isVisible = true
-        filterField.text = ""
-        filterField.requestFocusInWindow()
+        quickFilterBar.activate()
         revalidate()
     }
 
     private fun hideQuickFilter() {
-        filterField.text = ""
-        filterPanel.isVisible = false
+        quickFilterBar.deactivate()
+        // deactivate() fires no document event when the field was already empty, so
+        // re-apply explicitly to guarantee the unfiltered results are restored.
         applyFilter()
         revalidate()
         table.requestFocusInWindow()
     }
 
     private fun setFilterFieldError(error: Boolean) {
-        val fg: Color? = if (error) JBColor.RED else defaultFilterFieldForeground
-        // IntelliJ LAFs can override setForeground during paint for focused text fields, so
-        // also tint the background to guarantee the error state is visible.
-        val bg: Color? = if (error) FileTab.ERROR_FIELD_BACKGROUND else defaultFilterFieldBackground
-        var changed = false
-        if (filterField.foreground != fg) {
-            filterField.foreground = fg
-            changed = true
-        }
-        if (filterField.background != bg) {
-            filterField.background = bg
-            changed = true
-        }
-        if (changed) filterField.repaint()
+        quickFilterBar.setError(error)
     }
 
     private fun applyFilter() {
-        val pattern = filterField.text.trim()
+        val pattern = quickFilterBar.text.trim()
         if (pattern.isEmpty()) {
             cachedFilterGlob = null
             cachedFilterMatcher = null
@@ -386,9 +298,8 @@ class SearchResultsPanel(
         resultEntries.clear()
         // Hide the quick filter on a new/edited search — stale criteria would
         // silently hide fresh results
-        if (filterPanel.isVisible) {
-            filterField.text = ""
-            filterPanel.isVisible = false
+        if (quickFilterBar.isVisible) {
+            quickFilterBar.deactivate()
             revalidate()
         }
         SwingUtilities.invokeLater {
@@ -490,7 +401,7 @@ class SearchResultsPanel(
                 if (wasEmpty && table.rowCount > 0) {
                     table.setRowSelectionInterval(0, 0)
                     // Don't steal focus while the user is typing in the quick filter
-                    if (isShowing && !filterField.hasFocus()) {
+                    if (isShowing && !quickFilterBar.hasFieldFocus()) {
                         table.requestFocusInWindow()
                     }
                 } else if (selectedRow in 0 until table.rowCount) {
