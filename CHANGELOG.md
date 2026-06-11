@@ -8,6 +8,10 @@
 
 - Quick filter (`Ctrl-S`) in the search results panel
 
+### Fixed
+
+- Extracting an `.iso` image produced zero-filled files instead of the real content
+
 ## [0.6.4] - 2026-06-11
 
 ### Added

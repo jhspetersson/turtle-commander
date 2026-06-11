@@ -350,6 +350,10 @@ class ArchiveService {
                     } else {
                         val targetFile = destination.resolve(relativePath)
                         try {
+                            // Lazy VFSs (currently .iso) populate the temp dir with sparse
+                            // stubs; without this the copies below would write zero-filled
+                            // files of the right size.
+                            OpenVfsRegistry.materializeIfNeeded(sourcePath)
                             Files.createDirectories(targetFile.parent)
                             if (Files.exists(targetFile)) {
                                 val action = resolveExtractAction(
