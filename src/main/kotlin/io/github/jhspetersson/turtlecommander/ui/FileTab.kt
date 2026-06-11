@@ -1285,8 +1285,17 @@ class FileTab(
             // deleted an ancestor), fall back to the nearest surviving ancestor instead of
             // leaving the user stranded on a dead path.
             if (vfs == null) {
-                val fallback = withContext(Dispatchers.IO) { nearestExistingAncestor(path) }
+                val ancestor = withContext(Dispatchers.IO) { nearestExistingAncestor(path) }
+                // No ancestor survives when the path's root itself is gone (a tab restored
+                // on an unplugged drive). Land on the home directory rather than leaving an
+                // empty tab pointing at a dead path, and say why the tab moved.
+                val fallback = ancestor ?: withContext(Dispatchers.IO) { homeDirectoryFallback(path) }
                 if (fallback != null) {
+                    if (ancestor == null) {
+                        withContext(Dispatchers.EDT) {
+                            fileErrorNotification("$path is not available — opened the home directory instead")
+                        }
+                    }
                     navigateTo(fallback, requestFocus = requestFocus)
                     return
                 }
@@ -1718,6 +1727,25 @@ class FileTab(
                 false
             }
         }
+
+    /**
+     * Last-resort navigation target when not even the root of a failed path exists. Returns
+     * the user home directory, or null when it equals the failed path (so a failing
+     * navigateTo(home) can't recurse into itself) or is itself unavailable.
+     */
+    private fun homeDirectoryFallback(failed: Path): Path? {
+        val home = try {
+            Path.of(System.getProperty("user.home"))
+        } catch (_: Exception) {
+            return null
+        }
+        if (home == failed) return null
+        return try {
+            if (Files.isDirectory(home)) home else null
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     companion object {
         val FILE_ENTRY_FLAVOR = DataFlavor(

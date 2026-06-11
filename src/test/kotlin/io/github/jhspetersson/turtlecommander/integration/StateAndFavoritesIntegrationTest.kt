@@ -228,6 +228,44 @@ class StateAndFavoritesIntegrationTest : BasePlatformTestCase() {
         assertNotNull("Should still have an active tab after invalid path", tab)
     }
 
+    fun testPanelRestoreWithDeadRootFallsBackToHome() {
+        if (GraphicsEnvironment.isHeadless()) return
+        val projectPath = Path.of(project.basePath!!)
+
+        // A nonexistent single-component relative path has an empty parent chain, so
+        // nearestExistingAncestor finds nothing — the same shape as a tab restored on a
+        // drive that was unplugged between sessions (e.g. "E:\stuff" with E: gone).
+        // The tab must land on the user home directory instead of staying stranded
+        // (and instead of being dropped, the pre-fix behavior).
+        val deadPath = "turtle-dead-root-${java.util.UUID.randomUUID()}"
+        val panelState = FileManagerStateService.PanelState().apply {
+            tabs.add(FileManagerStateService.TabState(path = deadPath))
+        }
+
+        val panel = io.github.jhspetersson.turtlecommander.ui.FileManagerPanel(
+            project = project,
+            initialPath = projectPath,
+            otherPanelPathProvider = { projectPath },
+        )
+        panel.restoreState(panelState, stateService)
+
+        val home = Path.of(System.getProperty("user.home"))
+        // Navigation hops between IO and EDT; pump until the fallback lands.
+        var landed = false
+        for (i in 0 until 50) {
+            com.intellij.testFramework.PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+            if (panel.getActiveTab()?.currentPath == home) {
+                landed = true
+                break
+            }
+            Thread.sleep(100)
+        }
+
+        val tab = panel.getActiveTab()
+        assertNotNull("Should still have an active tab after a dead-root path", tab)
+        assertTrue("Tab should fall back to the home directory, was: ${tab!!.currentPath}", landed)
+    }
+
     fun testPanelRestoreViewModes() {
         if (GraphicsEnvironment.isHeadless()) return
         val tempDir = Files.createTempDirectory("turtle-viewmode-")

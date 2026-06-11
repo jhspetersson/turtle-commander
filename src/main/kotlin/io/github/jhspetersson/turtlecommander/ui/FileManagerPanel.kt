@@ -320,16 +320,20 @@ class FileManagerPanel(
     fun restoreState(panelState: FileManagerStateService.PanelState, stateService: FileManagerStateService) {
         this.stateService = stateService
         panelState.migrateIfNeeded()
-        val validTabs = panelState.tabs.filter { tabState ->
-            try {
-                Path.of(tabState.path).toFile().isDirectory
-            } catch (_: Exception) { false }
+        // Only parse-check the saved paths here — this runs on the EDT during tool-window
+        // creation, and stat'ing each path (the historical existence filter) can block for
+        // seconds on a stale network share. A tab whose directory no longer exists is
+        // handled by its initial navigateTo, which falls back to the nearest existing
+        // ancestor on an IO thread.
+        val validTabs = panelState.tabs.mapNotNull { tabState ->
+            val path = try { Path.of(tabState.path) } catch (_: Exception) { null }
+            path?.let { tabState to it }
         }
         if (validTabs.isEmpty()) {
             addNewTab(initialPath)
         } else {
-            for (tabState in validTabs) {
-                addNewTab(Path.of(tabState.path), tabState = tabState)
+            for ((tabState, path) in validTabs) {
+                addNewTab(path, tabState = tabState)
             }
             val idx = panelState.selectedTabIndex.coerceIn(0, (tabbedPane.tabCount - 2).coerceAtLeast(0))
             tabbedPane.selectedIndex = idx

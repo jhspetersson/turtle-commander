@@ -8,6 +8,10 @@
 
 - Quick filter (`Ctrl-S`) in the search results panel
 
+### Changed
+
+- A tab whose directory disappeared now reopens at the nearest existing ancestor or the home directory when the whole drive is gone
+
 ### Fixed
 
 - Extracting an `.iso` image produced zero-filled files instead of the real content
