@@ -1,9 +1,11 @@
 package io.github.jhspetersson.turtlecommander.service
 
+import com.intellij.openapi.application.EDT
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import com.intellij.openapi.util.SystemInfo
+import io.github.jhspetersson.turtlecommander.util.DriveLabels
 import io.github.jhspetersson.turtlecommander.settings.ColorRuleManager
 import io.github.jhspetersson.turtlecommander.settings.RuleMatcher
 import io.github.jhspetersson.turtlecommander.settings.TextProperty
@@ -287,6 +289,7 @@ class FileOperationService(
     companion object {
         internal const val CACHE_MAX_SIZE = 20
         internal const val CACHE_TTL_MS = 2L * 60 * 1000 // 2 minutes; mtime invalidation handles most staleness
+        internal const val ROOTS_POLL_INTERVAL_MS = 5_000L // matches the historical per-tab Swing timer
     }
 
     /**
@@ -790,6 +793,68 @@ class FileOperationService(
         val created = Files.createLink(link, target)
         invalidateListingCache(link.parent ?: link)
         created
+    }
+
+    // --- Shared drive-roots polling ---------------------------------------------------
+    // Each FileTab used to run its own 5-second javax.swing.Timer around getRoots(), and
+    // also called it synchronously on the EDT at construction — File.listRoots() can block
+    // for seconds on Windows (disconnected network drives, empty card readers). One shared
+    // poller serves every subscribed tab: it scans on Dispatchers.IO, warms the drive label
+    // cache there too, and notifies listeners on the EDT only when the list actually changes.
+
+    private val rootsListeners = java.util.concurrent.CopyOnWriteArrayList<(List<String>) -> Unit>()
+    @Volatile
+    private var cachedRoots: List<String>? = null
+    private var rootsPollJob: Job? = null
+
+    /** Most recent root list produced by the shared poller; null before the first scan. */
+    fun currentRoots(): List<String>? = cachedRoots
+
+    /**
+     * Subscribe to drive-root updates. The listener is invoked with the cached list
+     * immediately (on the caller's thread) when one exists, then on the EDT whenever the
+     * list changes. The first subscriber starts the shared poller; the returned handle
+     * unsubscribes, and the poller stops when the last subscriber leaves.
+     */
+    fun subscribeToRoots(listener: (List<String>) -> Unit): () -> Unit {
+        synchronized(rootsListeners) {
+            rootsListeners.add(listener)
+            if (rootsPollJob == null) {
+                rootsPollJob = cs.launch { pollRoots() }
+            }
+        }
+        cachedRoots?.let(listener)
+        return {
+            synchronized(rootsListeners) {
+                rootsListeners.remove(listener)
+                if (rootsListeners.isEmpty()) {
+                    rootsPollJob?.cancel()
+                    rootsPollJob = null
+                }
+            }
+        }
+    }
+
+    private suspend fun pollRoots() {
+        while (true) {
+            val roots = withContext(Dispatchers.IO) {
+                runCatching {
+                    getRoots().also { list ->
+                        // Resolve Windows drive labels here so the EDT renderer only ever
+                        // hits the cache (getSystemDisplayName is a blocking shell call).
+                        list.forEach { DriveLabels.getDisplayText(it) }
+                    }
+                }.getOrNull()
+            }
+            if (roots != null && roots != cachedRoots) {
+                cachedRoots = roots
+                val snapshot = rootsListeners.toList()
+                withContext(Dispatchers.EDT) {
+                    for (listener in snapshot) listener(roots)
+                }
+            }
+            delay(ROOTS_POLL_INTERVAL_MS)
+        }
     }
 
     fun getRoots(): List<String> {

@@ -1,16 +1,14 @@
 package io.github.jhspetersson.turtlecommander.ui
 
 import com.intellij.icons.AllIcons
-import com.intellij.openapi.util.SystemInfo
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBTabbedPane
 import com.intellij.util.ui.JBUI
+import io.github.jhspetersson.turtlecommander.util.DriveLabels
 import java.awt.*
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
-import java.util.concurrent.ConcurrentHashMap
 import javax.swing.*
-import javax.swing.filechooser.FileSystemView
 
 internal class DriveComboRenderer : DefaultListCellRenderer() {
     override fun getListCellRendererComponent(
@@ -25,23 +23,9 @@ internal class DriveComboRenderer : DefaultListCellRenderer() {
     }
 
     companion object {
-        private val isWindows = SystemInfo.isWindows
-        private val labelCache = ConcurrentHashMap<String, String>()
-
-        fun getDisplayText(path: String): String {
-            if (!isWindows || path.isEmpty()) return path
-            // Only add labels for drive roots (e.g. "C:\")
-            if (!path.matches(Regex("[A-Za-z]:\\\\"))) return path
-            return labelCache.getOrPut(path) {
-                try {
-                    val label = FileSystemView.getFileSystemView()
-                        .getSystemDisplayName(java.io.File(path))
-                    if (label.isNotBlank() && label != path.trimEnd('\\')) label else path
-                } catch (_: Exception) {
-                    path
-                }
-            }
-        }
+        // Label resolution lives in DriveLabels so the shared drive poller can warm the
+        // cache off the EDT; kept as a delegate here for the renderer and existing callers.
+        fun getDisplayText(path: String): String = DriveLabels.getDisplayText(path)
     }
 }
 

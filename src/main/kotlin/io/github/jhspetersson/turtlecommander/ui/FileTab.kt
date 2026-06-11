@@ -116,7 +116,10 @@ class FileTab(
     private val filterPanel = JPanel(BorderLayout(4, 0))
     private var updatingDriveCombo = false
     private var driveComboPopupOpen = false
-    private var driveRefreshTimer: Timer? = null
+    private var unsubscribeDriveRoots: (() -> Unit)? = null
+    // Roots update that arrived while the combo popup was open or the tab was inside an
+    // archive — applied once the combo is safe to mutate again.
+    private var pendingDriveRoots: List<String>? = null
     private val cursorPositions = mutableMapOf<Path, Int>()
     private data class TabColumnState(val widths: List<Int>, val order: List<Int>)
     private val tabColumnStates = mutableMapOf<String, TabColumnState>()
@@ -165,9 +168,8 @@ class FileTab(
         setupTree()
         setupFilterPanel()
         setupViewPanel()
-        loadDrives()
         if (!TurtleCommanderSettings.getInstance().state.hideDriveSelector) {
-            startDriveRefreshTimer()
+            startDriveUpdates()
         }
         applyPanelFont()
         applyVisibilitySettings()
@@ -190,9 +192,9 @@ class FileTab(
         statusPanel.isVisible = !settings.hideStatusBar
         enableFileNameHighlighting = settings.enableFileNameHighlighting
         if (settings.hideDriveSelector) {
-            driveRefreshTimer?.stop()
+            stopDriveUpdates()
         } else {
-            if (driveRefreshTimer?.isRunning != true) startDriveRefreshTimer()
+            startDriveUpdates()
         }
     }
 
@@ -470,13 +472,16 @@ class FileTab(
                 }
                 override fun popupMenuWillBecomeInvisible(e: PopupMenuEvent) {
                     driveComboPopupOpen = false
+                    flushPendingDriveRootsLater()
                     if (updatingDriveCombo) return
                     val selected = selectedItem as? String ?: return
-                    val availableRoots = fileOps.getRoots().map { Path.of(it) }
+                    // Use the shared poller's cache — calling getRoots() here would do
+                    // File.listRoots() on the EDT, which can block on network drives.
+                    val availableRoots = (fileOps.currentRoots() ?: emptyList()).map { Path.of(it) }
                     val targetPath = resolveDriveSelectionTarget(Path.of(selected), otherPanelPathProvider(), availableRoots)
                     // Exit VFS if active
                     if (vfsStack.isNotEmpty()) {
-                        dispose()
+                        closeVfsStack()
                     }
                     if (targetPath != currentPath) {
                         fileOps.launch {
@@ -487,6 +492,7 @@ class FileTab(
                 }
                 override fun popupMenuCanceled(e: PopupMenuEvent) {
                     driveComboPopupOpen = false
+                    flushPendingDriveRootsLater()
                     table.requestFocusInWindow()
                 }
             })
@@ -1206,9 +1212,43 @@ class FileTab(
         }
     }
 
-    private fun loadDrives() {
-        val roots = fileOps.getRoots()
-        applyDriveRoots(roots)
+    /**
+     * Subscribe to the shared drive-roots poller in [FileOperationService]. Replaces the
+     * historical per-tab Swing timer (and the synchronous `getRoots()` call at construction,
+     * which did `File.listRoots()` on the EDT). Updates that arrive while the combo popup is
+     * open or the tab is inside an archive are parked in [pendingDriveRoots] and applied when
+     * the combo is safe to mutate again.
+     */
+    private fun startDriveUpdates() {
+        if (unsubscribeDriveRoots != null) return
+        unsubscribeDriveRoots = fileOps.subscribeToRoots { roots ->
+            if (driveComboPopupOpen || currentVfs != null) {
+                pendingDriveRoots = roots
+            } else {
+                applyDriveRoots(roots)
+            }
+        }
+    }
+
+    private fun stopDriveUpdates() {
+        unsubscribeDriveRoots?.invoke()
+        unsubscribeDriveRoots = null
+        pendingDriveRoots = null
+    }
+
+    /**
+     * Apply a parked roots update once the popup has closed. Deferred with invokeLater so
+     * the popup-close handler finishes reading the user's selection before the combo's
+     * item list is rebuilt underneath it.
+     */
+    private fun flushPendingDriveRootsLater() {
+        if (pendingDriveRoots == null) return
+        SwingUtilities.invokeLater {
+            val pending = pendingDriveRoots ?: return@invokeLater
+            if (driveComboPopupOpen || currentVfs != null) return@invokeLater
+            pendingDriveRoots = null
+            applyDriveRoots(pending)
+        }
     }
 
     private fun applyDriveRoots(roots: List<String>) {
@@ -1234,17 +1274,6 @@ class FileTab(
         } finally {
             updatingDriveCombo = false
         }
-    }
-
-    private fun startDriveRefreshTimer() {
-        driveRefreshTimer?.stop()
-        driveRefreshTimer = Timer(5000) {
-            if (driveComboPopupOpen || currentVfs != null) return@Timer
-            fileOps.launch {
-                val roots = withContext(Dispatchers.IO) { fileOps.getRoots() }
-                withContext(Dispatchers.EDT) { applyDriveRoots(roots) }
-            }
-        }.apply { start() }
     }
 
     suspend fun navigateTo(path: Path, selectName: String? = null, requestFocus: Boolean = true) {
@@ -1349,6 +1378,11 @@ class FileTab(
 
             // Update drive combo (only for real FS)
             if (vfs == null) {
+                // Apply any roots update parked while this tab was inside an archive.
+                pendingDriveRoots?.let { pending ->
+                    pendingDriveRoots = null
+                    applyDriveRoots(pending)
+                }
                 updatingDriveCombo = true
                 try {
                     var bestIndex = -1
@@ -1535,8 +1569,16 @@ class FileTab(
     }
 
     fun dispose() {
-        driveRefreshTimer?.stop()
-        driveRefreshTimer = null
+        stopDriveUpdates()
+        closeVfsStack()
+    }
+
+    /**
+     * Close every open VFS in the stack and delete their temp files. Also called mid-life
+     * when the user leaves an archive via drive selection or a breadcrumb click — unlike
+     * [dispose], the tab keeps living (and keeps its drive-roots subscription).
+     */
+    internal fun closeVfsStack() {
         for (entry in vfsStack.asReversed()) {
             entry.vfs.close()
             entry.cleanupTempFile()

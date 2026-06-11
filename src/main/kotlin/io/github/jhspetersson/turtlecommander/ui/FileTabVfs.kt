@@ -94,7 +94,7 @@ internal fun FileTab.handleVfsBreadcrumbClick(segmentPath: String) {
     val outerArchiveStr = vfsStack.first().parentPath.toString()
 
     if (segmentPath.length < outerArchiveStr.length) {
-        dispose()
+        closeVfsStack()
         val path = try { Path.of(segmentPath) } catch (_: Exception) { null }
         if (path != null && path.toFile().isDirectory) {
             fileOps.launch { navigateTo(path) }
