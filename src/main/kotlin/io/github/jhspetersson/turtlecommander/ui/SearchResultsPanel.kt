@@ -8,31 +8,47 @@ import io.github.jhspetersson.turtlecommander.model.FileEntry
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.CustomShortcutSet
+import com.intellij.openapi.actionSystem.KeyboardShortcut
 import com.intellij.openapi.components.service
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
+import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
+import com.intellij.ui.JBColor
 import com.intellij.ui.TableSpeedSearch
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
 import com.intellij.openapi.fileTypes.FileTypeManager
 import io.github.jhspetersson.turtlecommander.action.SearchContextMenuState
+import io.github.jhspetersson.turtlecommander.util.wrapAsSubstringGlobIfPlain
 import java.awt.BorderLayout
+import java.awt.Color
 import java.awt.Component
+import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.event.ActionEvent
+import java.awt.event.InputEvent
+import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import java.nio.file.FileSystems
+import java.nio.file.Path
+import java.nio.file.PathMatcher
 import javax.swing.AbstractAction
 import javax.swing.BorderFactory
 import javax.swing.JButton
 import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.JTable
+import javax.swing.JTextField
 import javax.swing.KeyStroke
 import javax.swing.SwingUtilities
+import javax.swing.event.DocumentEvent
+import javax.swing.event.DocumentListener
 import javax.swing.table.DefaultTableCellRenderer
 
 class SearchResultsPanel(
@@ -55,10 +71,23 @@ class SearchResultsPanel(
     private val pauseResumeButton = JButton("Pause", AllIcons.Actions.Pause)
     private val stopButton = JButton("Stop", AllIcons.Actions.Cancel)
 
+    private val filterField = JTextField()
+    // Captured eagerly at construction so a later error-state toggle has a real default to
+    // restore (see FileTab for the same pattern).
+    private val defaultFilterFieldForeground: Color? = filterField.foreground
+    private val defaultFilterFieldBackground: Color? = filterField.background
+    private val filterPanel = JPanel(BorderLayout(4, 0))
+    private var cachedFilterGlob: String? = null
+    private var cachedFilterMatcher: PathMatcher? = null
+
     init {
         setupTable()
+        setupFilterPanel()
         add(JBScrollPane(table), BorderLayout.CENTER)
-        add(createControlPanel(), BorderLayout.SOUTH)
+        val bottomPanel = JPanel(BorderLayout())
+        bottomPanel.add(filterPanel, BorderLayout.NORTH)
+        bottomPanel.add(createControlPanel(), BorderLayout.SOUTH)
+        add(bottomPanel, BorderLayout.SOUTH)
     }
 
     private fun setupTable() {
@@ -145,6 +174,20 @@ class SearchResultsPanel(
                 }
             })
         }
+
+        // Register Ctrl-S as a component-local action on the table to override
+        // IntelliJ's global "Save All" binding, same as the FileTab quick filter.
+        val filterShortcut = CustomShortcutSet(
+            KeyboardShortcut(
+                KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_DOWN_MASK), null
+            ),
+        )
+        val filterAction = object : DumbAwareAction() {
+            override fun actionPerformed(e: AnActionEvent) {
+                showQuickFilter()
+            }
+        }
+        filterAction.registerCustomShortcutSet(filterShortcut, table)
     }
 
     private fun navigateToSelected() {
@@ -163,6 +206,151 @@ class SearchResultsPanel(
         } ?: return
 
         otherPanel.openDirectoryInNewTab(targetDir, selectName = entry.name)
+    }
+
+    private fun setupFilterPanel() {
+        filterPanel.border = BorderFactory.createEmptyBorder(2, 4, 2, 4)
+        filterPanel.isVisible = false
+        filterField.installStandardContextMenu()
+
+        val iconLabel = JLabel(AllIcons.Actions.Find)
+        filterPanel.add(iconLabel, BorderLayout.WEST)
+
+        filterPanel.add(filterField, BorderLayout.CENTER)
+
+        val cancelButton = JButton(AllIcons.Actions.Close)
+        cancelButton.isFocusable = false
+        cancelButton.toolTipText = "Close filter"
+        cancelButton.preferredSize = Dimension(24, 24)
+        cancelButton.isContentAreaFilled = false
+        cancelButton.addActionListener { hideQuickFilter() }
+        filterPanel.add(cancelButton, BorderLayout.EAST)
+
+        filterField.addKeyListener(object : KeyAdapter() {
+            override fun keyPressed(e: KeyEvent) {
+                when (e.keyCode) {
+                    KeyEvent.VK_ESCAPE -> {
+                        hideQuickFilter()
+                        e.consume()
+                    }
+                    KeyEvent.VK_UP, KeyEvent.VK_DOWN -> {
+                        // Delegate UP/DOWN to the results table
+                        val offset = if (e.keyCode == KeyEvent.VK_DOWN) 1 else -1
+                        val next = (table.selectedRow + offset).coerceIn(0, table.rowCount - 1)
+                        if (next >= 0) {
+                            table.setRowSelectionInterval(next, next)
+                            table.scrollRectToVisible(table.getCellRect(next, 0, true))
+                        }
+                        e.consume()
+                    }
+                    KeyEvent.VK_ENTER -> {
+                        table.requestFocusInWindow()
+                        e.consume()
+                    }
+                }
+            }
+        })
+
+        filterField.document.addDocumentListener(object : DocumentListener {
+            override fun insertUpdate(e: DocumentEvent) = applyFilter()
+            override fun removeUpdate(e: DocumentEvent) = applyFilter()
+            override fun changedUpdate(e: DocumentEvent) = applyFilter()
+        })
+    }
+
+    fun showQuickFilter() {
+        if (filterPanel.isVisible) {
+            filterField.requestFocusInWindow()
+            return
+        }
+        filterPanel.isVisible = true
+        filterField.text = ""
+        filterField.requestFocusInWindow()
+        revalidate()
+    }
+
+    private fun hideQuickFilter() {
+        filterField.text = ""
+        filterPanel.isVisible = false
+        applyFilter()
+        revalidate()
+        table.requestFocusInWindow()
+    }
+
+    private fun setFilterFieldError(error: Boolean) {
+        val fg: Color? = if (error) JBColor.RED else defaultFilterFieldForeground
+        // IntelliJ LAFs can override setForeground during paint for focused text fields, so
+        // also tint the background to guarantee the error state is visible.
+        val bg: Color? = if (error) FileTab.ERROR_FIELD_BACKGROUND else defaultFilterFieldBackground
+        var changed = false
+        if (filterField.foreground != fg) {
+            filterField.foreground = fg
+            changed = true
+        }
+        if (filterField.background != bg) {
+            filterField.background = bg
+            changed = true
+        }
+        if (changed) filterField.repaint()
+    }
+
+    private fun applyFilter() {
+        val pattern = filterField.text.trim()
+        if (pattern.isEmpty()) {
+            cachedFilterGlob = null
+            cachedFilterMatcher = null
+            setFilterFieldError(false)
+        } else {
+            val glob = wrapAsSubstringGlobIfPlain(pattern)
+            if (glob != cachedFilterGlob || cachedFilterMatcher == null) {
+                val m = try {
+                    FileSystems.getDefault().getPathMatcher("glob:$glob")
+                } catch (_: Exception) {
+                    // Invalid glob: flag the field so the user knows something is wrong,
+                    // drop the stale matcher cache, and fall back to showing everything
+                    // instead of freezing the view on the previous filter's output.
+                    null
+                }
+                if (m != null) {
+                    cachedFilterGlob = glob
+                    cachedFilterMatcher = m
+                    setFilterFieldError(false)
+                } else {
+                    cachedFilterGlob = null
+                    cachedFilterMatcher = null
+                    setFilterFieldError(true)
+                }
+            } else {
+                setFilterFieldError(false)
+            }
+        }
+
+        val selectedPath = table.selectedRow
+            .takeIf { it >= 0 }
+            ?.let { tableModel.getEntryAt(table.convertRowIndexToModel(it)) }
+            ?.path
+
+        val filtered = filteredEntries()
+        tableModel.setEntries(filtered)
+
+        if (selectedPath != null) {
+            val modelIdx = filtered.indexOfFirst { it.path == selectedPath }
+            if (modelIdx >= 0) {
+                val viewIdx = table.convertRowIndexToView(modelIdx)
+                if (viewIdx >= 0) {
+                    table.setRowSelectionInterval(viewIdx, viewIdx)
+                    table.scrollRectToVisible(table.getCellRect(viewIdx, 0, true))
+                }
+            }
+        }
+        if (table.selectedRow < 0 && table.rowCount > 0) {
+            table.setRowSelectionInterval(0, 0)
+        }
+    }
+
+    private fun filteredEntries(): List<FileEntry> {
+        val matcher = cachedFilterMatcher ?: return resultEntries.toList()
+        return resultEntries.filter { matcher.matches(Path.of(it.name)) }
     }
 
     private fun createControlPanel(): JPanel {
@@ -189,6 +377,13 @@ class SearchResultsPanel(
     fun startSearch() {
         if (disposed) return
         resultEntries.clear()
+        // Hide the quick filter on a new/edited search — stale criteria would
+        // silently hide fresh results
+        if (filterPanel.isVisible) {
+            filterField.text = ""
+            filterPanel.isVisible = false
+            revalidate()
+        }
         SwingUtilities.invokeLater {
             tableModel.setEntries(emptyList())
         }
@@ -277,12 +472,12 @@ class SearchResultsPanel(
             SwingUtilities.invokeLater {
                 val wasEmpty = resultEntries.isEmpty()
                 resultEntries.addAll(batch)
-                val snapshot = resultEntries.toList()
                 val selectedRow = table.selectedRow
-                tableModel.setEntries(snapshot)
+                tableModel.setEntries(filteredEntries())
                 if (wasEmpty && table.rowCount > 0) {
                     table.setRowSelectionInterval(0, 0)
-                    if (isShowing) {
+                    // Don't steal focus while the user is typing in the quick filter
+                    if (isShowing && !filterField.hasFocus()) {
                         table.requestFocusInWindow()
                     }
                 } else if (selectedRow in 0 until table.rowCount) {

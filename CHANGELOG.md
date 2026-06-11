@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Quick filter (`Ctrl-S`) in the search results panel
+
 ## [0.6.4] - 2026-06-11
 
 ### Added
