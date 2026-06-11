@@ -2,6 +2,7 @@ package io.github.jhspetersson.turtlecommander.ui
 
 import com.intellij.icons.AllIcons
 import com.intellij.ide.DataManager
+import com.intellij.ide.IdeEventQueue
 import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.actionSystem.ex.ActionUtil
 import com.intellij.openapi.application.ApplicationManager
@@ -380,19 +381,26 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
                 }
             })
 
-        KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher { e ->
-            if (bar.isShowing) {
-                if (e.id == KeyEvent.KEY_PRESSED || e.id == KeyEvent.KEY_RELEASED) {
-                    when (e.keyCode) {
+        // Registered through IdeEventQueue rather than KeyboardFocusManager so the
+        // dispatcher is removed with the tool window's disposable — a raw
+        // addKeyEventDispatcher registration is JVM-global and would leak this bar
+        // (and keep firing) after the project closes.
+        IdeEventQueue.getInstance().addDispatcher(
+            { event ->
+                if (event is KeyEvent && bar.isShowing &&
+                    (event.id == KeyEvent.KEY_PRESSED || event.id == KeyEvent.KEY_RELEASED)
+                ) {
+                    when (event.keyCode) {
                         KeyEvent.VK_SHIFT, KeyEvent.VK_CONTROL,
                         KeyEvent.VK_ALT, KeyEvent.VK_META -> {
-                            updateBar(e.modifiersEx and modifierMask)
+                            updateBar(event.modifiersEx and modifierMask)
                         }
                     }
                 }
-            }
-            false
-        }
+                false
+            },
+            toolWindow.disposable,
+        )
 
         return bar
     }
