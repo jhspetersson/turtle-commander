@@ -53,6 +53,13 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
         leftPanel.otherPanel = rightPanel
         rightPanel.otherPanel = leftPanel
 
+        // Set before restoreState so the restored tabs are registered too: tabs must be
+        // disposed with the tool window (project close, plugin unload), not only when the
+        // user closes them — otherwise an open archive leaks its filesystem handles and
+        // extraction temp directory.
+        leftPanel.parentDisposable = toolWindow.disposable
+        rightPanel.parentDisposable = toolWindow.disposable
+
         leftPanel.restoreState(savedState.leftPanel, stateService)
         rightPanel.restoreState(savedState.rightPanel, stateService)
 

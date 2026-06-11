@@ -1,7 +1,9 @@
 package io.github.jhspetersson.turtlecommander.ui
 
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.actionSystem.ActionPlaces
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.components.service
@@ -32,6 +34,14 @@ class FileManagerPanel(
     private val addTabPlaceholder = JPanel()
     var otherPanel: FileManagerPanel? = null
     private var stateService: FileManagerStateService? = null
+
+    /**
+     * Parent for the Disposer registrations of every tab this panel creates (the factory
+     * passes the tool window's disposable). Without it, tabs are only disposed when the
+     * user closes them — a tab left inside an archive at project close would keep its
+     * ZipFileSystem handles open and leak its extraction temp directory.
+     */
+    var parentDisposable: Disposable? = null
 
     private val tableViewButton = ViewModeButton(AllIcons.Actions.PreviewDetails, "Table view", true)
     private val listViewButton = ViewModeButton(AllIcons.Actions.ListFiles, "List view", false)
@@ -377,6 +387,7 @@ class FileManagerPanel(
 
     fun openSearchTab(criteria: FileSearchCriteria) {
         val searchPanel = SearchResultsPanel(project, criteria)
+        parentDisposable?.let { Disposer.register(it, searchPanel) }
 
         val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
         val insertIndex = if (plusIndex >= 0) plusIndex else tabbedPane.tabCount
@@ -395,7 +406,7 @@ class FileManagerPanel(
         applyTabStyleToHeader(panel, label)
         panel.add(label, BorderLayout.CENTER)
         val closeButton = TabCloseButton {
-            searchPanel.dispose()
+            Disposer.dispose(searchPanel)
             val idx = tabbedPane.indexOfComponent(searchPanel)
             if (idx >= 0) {
                 tabbedPane.removeTabAt(idx)
@@ -425,6 +436,7 @@ class FileManagerPanel(
             onDirectoryChanged = { tab -> updateTabTitle(tab); syncViewToggle() },
             onRefreshOtherPanel = { otherPanel?.refreshActiveTab(requestFocus = false) },
         )
+        parentDisposable?.let { Disposer.register(it, fileTab) }
 
         // Insert before the "+" tab (or at the caller-requested index, clamped)
         val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
@@ -544,8 +556,13 @@ class FileManagerPanel(
         for (idx in indices) rememberClosedTab(tabbedPane.getComponentAt(idx), idx)
         for (idx in indices.sortedDescending()) {
             val component = tabbedPane.getComponentAt(idx)
-            (component as? FileTab)?.dispose()
-            (component as? SearchResultsPanel)?.dispose()
+            // Disposer.dispose (rather than a direct dispose() call) also detaches the tab
+            // from the tool window's disposable so it isn't re-disposed at project close.
+            // Works the same for components that were never registered (tests).
+            when (component) {
+                is FileTab -> Disposer.dispose(component)
+                is SearchResultsPanel -> Disposer.dispose(component)
+            }
             tabbedPane.removeTabAt(idx)
         }
     }

@@ -3,6 +3,7 @@ package io.github.jhspetersson.turtlecommander.ui
 import com.intellij.icons.AllIcons
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CustomShortcutSet
 import com.intellij.openapi.actionSystem.KeyboardShortcut
@@ -60,7 +61,7 @@ class FileTab(
     internal var otherPanelPathProvider: () -> Path?,
     private var onDirectoryChanged: (FileTab) -> Unit,
     internal var onRefreshOtherPanel: () -> Unit = {},
-) : JPanel(BorderLayout()) {
+) : JPanel(BorderLayout()), Disposable {
 
     internal val fileOps = project.service<FileOperationService>()
     internal val tableModel = FileTableModel()
@@ -1577,7 +1578,7 @@ class FileTab(
         }
     }
 
-    fun dispose() {
+    override fun dispose() {
         stopDriveUpdates()
         closeVfsStack()
     }

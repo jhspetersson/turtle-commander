@@ -6,6 +6,7 @@ import io.github.jhspetersson.turtlecommander.dialog.FileSearchCriteria
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -54,7 +55,7 @@ import javax.swing.table.DefaultTableCellRenderer
 class SearchResultsPanel(
     private val project: Project,
     private var criteria: FileSearchCriteria,
-) : JPanel(BorderLayout()) {
+) : JPanel(BorderLayout()), Disposable {
 
     private val tableModel = FileTableModel()
     private val table = JBTable(tableModel)
@@ -514,7 +515,7 @@ class SearchResultsPanel(
         startSearch()
     }
 
-    fun dispose() {
+    override fun dispose() {
         disposed = true
         stopSearch()
     }

@@ -58,6 +58,20 @@ class VfsTempCleanupTest {
     }
 
     @Test
+    fun `removes stale extraction dirs of temp-dir VFS implementations`() {
+        // These prefixes leaked forever before the sweep covered them — normal teardown
+        // is Disposer-driven now, so anything stale here is a crash leftover.
+        val staleTar = makeStaleDir("turtle-tar-old", ageMs = 2L * 60 * 60 * 1000)
+        val staleIso = makeStaleDir("turtle-iso-old", ageMs = 2L * 60 * 60 * 1000)
+
+        val removed = VfsTempCleanup.cleanNow(sandbox, maxAgeMs = 60L * 60 * 1000)
+
+        assertFalse("stale tar extraction dir should be gone", Files.exists(staleTar))
+        assertFalse("stale iso extraction dir should be gone", Files.exists(staleIso))
+        assertTrue(removed >= 2)
+    }
+
+    @Test
     fun `ignores non-turtle dirs even when stale`() {
         val unrelated = makeStaleDir("unrelated-old", ageMs = 24L * 60 * 60 * 1000)
 

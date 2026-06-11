@@ -49,6 +49,46 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
         return panel
     }
 
+    fun testDisposingParentDisposesTabsAndClosesVfs() {
+        if (skipIfHeadless()) return
+        // Tabs must be disposed with the tool window's disposable (project close, plugin
+        // unload), not only on manual close — otherwise a tab left inside an archive
+        // leaks its filesystem handles and extraction temp directory.
+        val parent = com.intellij.openapi.util.Disposer.newDisposable("turtle-test-parent")
+        val panel = FileManagerPanel(
+            project = project,
+            initialPath = projectPath,
+            otherPanelPathProvider = { projectPath },
+        )
+        panel.parentDisposable = parent
+        panel.restoreState(FileManagerStateService.PanelState(), stateService)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        val tab = panel.getActiveTab()
+        assertNotNull("Should have an active tab", tab)
+
+        // Simulate an open archive: a fake VFS on the stack whose close() we can observe.
+        var vfsClosed = false
+        val fakeVfs = object : io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem {
+            override val archivePath: Path = projectPath
+            override val root: Path = projectPath
+            override suspend fun listFiles(directory: Path) =
+                emptyList<io.github.jhspetersson.turtlecommander.model.FileEntry>()
+            override fun isRoot(path: Path) = path == root
+            override fun getPath(relativePath: String): Path = root
+            override fun flush() {}
+            override suspend fun renameFile(source: Path, newName: String): Path =
+                throw UnsupportedOperationException()
+            override fun close() { vfsClosed = true }
+        }
+        tab!!.vfsStack.add(io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry(fakeVfs, projectPath))
+
+        com.intellij.openapi.util.Disposer.dispose(parent)
+
+        assertTrue("Disposing the parent must close the tab's open VFS", vfsClosed)
+        assertTrue("VFS stack must be cleared on dispose", tab.vfsStack.isEmpty())
+    }
+
     fun testSingleTabAfterInit() {
         if (skipIfHeadless()) return
         val panel = createPanel()
