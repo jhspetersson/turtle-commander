@@ -1,4 +1,6 @@
 package io.github.jhspetersson.turtlecommander.service
+import java.util.concurrent.ConcurrentHashMap
+import javax.swing.Icon
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -91,7 +93,7 @@ class ThumbnailCacheEvictTest {
         val field = ThumbnailCache::class.java.getDeclaredField("memoryCache")
         field.isAccessible = true
         @Suppress("UNCHECKED_CAST")
-        val cache = field.get(thumbnailCache) as java.util.concurrent.ConcurrentHashMap<Path, javax.swing.Icon>
+        val cache = field.get(thumbnailCache) as ConcurrentHashMap<Path, Icon>
 
         val dir = Path.of("/test/evict/dir")
         val icon = javax.swing.ImageIcon()

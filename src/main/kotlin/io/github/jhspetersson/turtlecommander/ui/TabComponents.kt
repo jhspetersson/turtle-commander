@@ -18,14 +18,8 @@ internal class DriveComboRenderer : DefaultListCellRenderer() {
         isSelected: Boolean,
         cellHasFocus: Boolean,
     ): Component {
-        val display = getDisplayText(value as? String ?: "")
+        val display = DriveLabels.getDisplayText(value as? String ?: "")
         return super.getListCellRendererComponent(list, display, index, isSelected, cellHasFocus)
-    }
-
-    companion object {
-        // Label resolution lives in DriveLabels so the shared drive poller can warm the
-        // cache off the EDT; kept as a delegate here for the renderer and existing callers.
-        fun getDisplayText(path: String): String = DriveLabels.getDisplayText(path)
     }
 }
 

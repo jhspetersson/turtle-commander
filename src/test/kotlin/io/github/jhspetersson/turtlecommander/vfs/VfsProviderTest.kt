@@ -1,4 +1,6 @@
 package io.github.jhspetersson.turtlecommander.vfs
+import java.nio.file.Files
+import java.nio.file.Path
 
 import org.junit.Assert.*
 import org.junit.Test
@@ -295,9 +297,9 @@ class VfsProviderTest {
     fun `rar create on non-rar content throws SilentVfsOpenException`() {
         // Recognised extension but the bytes aren't a RAR — the sniff returns NOT_RAR and the
         // VFS bows out silently so the caller leaves the file as-is.
-        val dir = java.nio.file.Files.createTempDirectory("rar-test-")
+        val dir = Files.createTempDirectory("rar-test-")
         try {
-            val f = java.nio.file.Files.write(dir.resolve("fake.rar"), "not a rar archive".toByteArray())
+            val f = Files.write(dir.resolve("fake.rar"), "not a rar archive".toByteArray())
             assertThrows(SilentVfsOpenException::class.java) { rarProvider.create(f) }
         } finally {
             dir.toFile().deleteRecursively()
@@ -308,9 +310,9 @@ class VfsProviderTest {
     fun `rar create on corrupt rar4 fails without a SilentVfsOpenException`() {
         // A bare RAR4 marker with no body: junrar can't parse it. Because it isn't encrypted,
         // no password dialog is reached — it surfaces as a plain (non-Silent) failure.
-        val dir = java.nio.file.Files.createTempDirectory("rar-test-")
+        val dir = Files.createTempDirectory("rar-test-")
         try {
-            val f = java.nio.file.Files.write(
+            val f = Files.write(
                 dir.resolve("broken.rar"),
                 byteArrayOf(0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x00),
             )
@@ -325,11 +327,11 @@ class VfsProviderTest {
 
     @Test
     fun `forEachArchiveEntry visits all entries with relative names`() {
-        val dir = java.nio.file.Files.createTempDirectory("vfs-test-")
+        val dir = Files.createTempDirectory("vfs-test-")
         try {
-            java.nio.file.Files.createDirectories(dir.resolve("sub"))
-            java.nio.file.Files.createFile(dir.resolve("file.txt"))
-            java.nio.file.Files.createFile(dir.resolve("sub/nested.txt"))
+            Files.createDirectories(dir.resolve("sub"))
+            Files.createFile(dir.resolve("file.txt"))
+            Files.createFile(dir.resolve("sub/nested.txt"))
 
             val visited = mutableListOf<String>()
             forEachArchiveEntry(dir) { _, relativeName ->
@@ -346,7 +348,7 @@ class VfsProviderTest {
 
     @Test
     fun `forEachArchiveEntry skips root directory itself`() {
-        val dir = java.nio.file.Files.createTempDirectory("vfs-test-")
+        val dir = Files.createTempDirectory("vfs-test-")
         try {
             val visited = mutableListOf<String>()
             forEachArchiveEntry(dir) { _, relativeName ->
@@ -360,12 +362,12 @@ class VfsProviderTest {
 
     @Test
     fun `forEachArchiveEntry visits parents before their children`() {
-        val dir = java.nio.file.Files.createTempDirectory("vfs-test-")
+        val dir = Files.createTempDirectory("vfs-test-")
         try {
-            java.nio.file.Files.createDirectories(dir.resolve("a/b/c"))
-            java.nio.file.Files.createFile(dir.resolve("a/b/c/deep.txt"))
-            java.nio.file.Files.createFile(dir.resolve("a/b/mid.txt"))
-            java.nio.file.Files.createFile(dir.resolve("a/top.txt"))
+            Files.createDirectories(dir.resolve("a/b/c"))
+            Files.createFile(dir.resolve("a/b/c/deep.txt"))
+            Files.createFile(dir.resolve("a/b/mid.txt"))
+            Files.createFile(dir.resolve("a/top.txt"))
 
             val visited = mutableListOf<String>()
             forEachArchiveEntry(dir) { _, relativeName ->
@@ -389,14 +391,14 @@ class VfsProviderTest {
 
     @Test
     fun `forEachArchiveEntry iteration order is stable across runs`() {
-        val dir = java.nio.file.Files.createTempDirectory("vfs-test-")
+        val dir = Files.createTempDirectory("vfs-test-")
         try {
             // Create in a deliberately scrambled order; the traversal should still be sorted.
-            java.nio.file.Files.createFile(dir.resolve("zebra.txt"))
-            java.nio.file.Files.createFile(dir.resolve("apple.txt"))
-            java.nio.file.Files.createDirectories(dir.resolve("mango"))
-            java.nio.file.Files.createFile(dir.resolve("mango/inner.txt"))
-            java.nio.file.Files.createFile(dir.resolve("banana.txt"))
+            Files.createFile(dir.resolve("zebra.txt"))
+            Files.createFile(dir.resolve("apple.txt"))
+            Files.createDirectories(dir.resolve("mango"))
+            Files.createFile(dir.resolve("mango/inner.txt"))
+            Files.createFile(dir.resolve("banana.txt"))
 
             val first = mutableListOf<String>()
             forEachArchiveEntry(dir) { _, relativeName -> first.add(relativeName) }
@@ -418,12 +420,12 @@ class VfsProviderTest {
 
     @Test
     fun `readDirectoryEntries returns dirs before files sorted by name`() {
-        val dir = java.nio.file.Files.createTempDirectory("vfs-test-")
+        val dir = Files.createTempDirectory("vfs-test-")
         try {
-            java.nio.file.Files.createFile(dir.resolve("banana.txt"))
-            java.nio.file.Files.createFile(dir.resolve("apple.txt"))
-            java.nio.file.Files.createDirectories(dir.resolve("zebra"))
-            java.nio.file.Files.createDirectories(dir.resolve("alpha"))
+            Files.createFile(dir.resolve("banana.txt"))
+            Files.createFile(dir.resolve("apple.txt"))
+            Files.createDirectories(dir.resolve("zebra"))
+            Files.createDirectories(dir.resolve("alpha"))
 
             val entries = readDirectoryEntries(dir)
             assertEquals(4, entries.size)
@@ -444,7 +446,7 @@ class VfsProviderTest {
 
     @Test
     fun `readDirectoryEntries returns empty list for empty directory`() {
-        val dir = java.nio.file.Files.createTempDirectory("vfs-test-")
+        val dir = Files.createTempDirectory("vfs-test-")
         try {
             val entries = readDirectoryEntries(dir)
             assertTrue(entries.isEmpty())
@@ -457,7 +459,7 @@ class VfsProviderTest {
 
     @Test
     fun `parentEntry creates correct entry`() {
-        val path = java.nio.file.Path.of("/some/dir")
+        val path = Path.of("/some/dir")
         val entry = parentEntry(path)
         assertEquals("..", entry.name)
         assertEquals(path, entry.path)
@@ -474,16 +476,16 @@ class VfsProviderTest {
     fun `default supports delegates to supportsExtension for regular files`() {
         // Concrete providers used to duplicate this logic; now the interface default
         // handles path→extension parsing and only supportsExtension is per-provider.
-        val dir = java.nio.file.Files.createTempDirectory("supports-test-")
+        val dir = Files.createTempDirectory("supports-test-")
         try {
-            val zipFile = java.nio.file.Files.createFile(dir.resolve("thing.ZIP"))
-            val txtFile = java.nio.file.Files.createFile(dir.resolve("thing.txt"))
-            val noExt = java.nio.file.Files.createFile(dir.resolve("plain"))
+            val zipFile = Files.createFile(dir.resolve("thing.ZIP"))
+            val txtFile = Files.createFile(dir.resolve("thing.txt"))
+            val noExt = Files.createFile(dir.resolve("plain"))
             assertTrue("extension match should accept the file", zipProvider.supports(zipFile))
             assertFalse("unrelated extension should be rejected", zipProvider.supports(txtFile))
             assertFalse("missing extension should be rejected", zipProvider.supports(noExt))
             // The path must point to a regular file — directories are not archives.
-            val subDir = java.nio.file.Files.createDirectory(dir.resolve("nested.zip"))
+            val subDir = Files.createDirectory(dir.resolve("nested.zip"))
             assertFalse("directories should never be treated as archives", zipProvider.supports(subDir))
         } finally {
             dir.toFile().deleteRecursively()

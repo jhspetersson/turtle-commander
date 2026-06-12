@@ -1,4 +1,8 @@
 package io.github.jhspetersson.turtlecommander.integration
+import com.intellij.openapi.util.Disposer
+import io.github.jhspetersson.turtlecommander.model.FileEntry
+import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
+import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
 
 import com.intellij.openapi.components.service
 import com.intellij.testFramework.PlatformTestUtil
@@ -54,7 +58,7 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
         // Tabs must be disposed with the tool window's disposable (project close, plugin
         // unload), not only on manual close — otherwise a tab left inside an archive
         // leaks its filesystem handles and extraction temp directory.
-        val parent = com.intellij.openapi.util.Disposer.newDisposable("turtle-test-parent")
+        val parent = Disposer.newDisposable("turtle-test-parent")
         val panel = FileManagerPanel(
             project = project,
             initialPath = projectPath,
@@ -69,11 +73,11 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
 
         // Simulate an open archive: a fake VFS on the stack whose close() we can observe.
         var vfsClosed = false
-        val fakeVfs = object : io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem {
+        val fakeVfs = object : VirtualFileSystem {
             override val archivePath: Path = projectPath
             override val root: Path = projectPath
             override suspend fun listFiles(directory: Path) =
-                emptyList<io.github.jhspetersson.turtlecommander.model.FileEntry>()
+                emptyList<FileEntry>()
             override fun isRoot(path: Path) = path == root
             override fun getPath(relativePath: String): Path = root
             override fun flush() {}
@@ -81,9 +85,9 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
                 throw UnsupportedOperationException()
             override fun close() { vfsClosed = true }
         }
-        tab!!.vfsStack.add(io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry(fakeVfs, projectPath))
+        tab!!.vfsStack.add(VfsStackEntry(fakeVfs, projectPath))
 
-        com.intellij.openapi.util.Disposer.dispose(parent)
+        Disposer.dispose(parent)
 
         assertTrue("Disposing the parent must close the tab's open VFS", vfsClosed)
         assertTrue("VFS stack must be cleared on dispose", tab.vfsStack.isEmpty())

@@ -1,4 +1,6 @@
 package io.github.jhspetersson.turtlecommander.dialog
+import java.awt.Color
+import java.awt.FlowLayout
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.SystemInfo
@@ -105,7 +107,7 @@ class MultiRenameDialog(
         addRow("Search for:", searchField, "Replace with:" to replaceField)
 
         val flagsPanel = JPanel().apply {
-            layout = java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 8, 0)
+            layout = FlowLayout(FlowLayout.LEFT, 8, 0)
             add(regexCheck)
             add(caseSensitiveCheck)
             add(JBLabel("   Case:"))
@@ -116,7 +118,7 @@ class MultiRenameDialog(
         gbc.gridwidth = 1; gbc.gridy++
 
         val counterPanel = JPanel().apply {
-            layout = java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 8, 0)
+            layout = FlowLayout(FlowLayout.LEFT, 8, 0)
             add(JBLabel("Counter — start:"))
             add(counterStartSpinner)
             add(JBLabel("step:"))
@@ -257,8 +259,8 @@ class MultiRenameDialog(
         }
 
         companion object {
-            private val CONFLICT_BG = JBColor(java.awt.Color(0xFF, 0xD0, 0xD0), java.awt.Color(0x5A, 0x2C, 0x2C))
-            private val CONFLICT_FG = JBColor(java.awt.Color(0x80, 0x00, 0x00), java.awt.Color(0xFF, 0xC0, 0xC0))
+            private val CONFLICT_BG = JBColor(Color(0xFF, 0xD0, 0xD0), Color(0x5A, 0x2C, 0x2C))
+            private val CONFLICT_FG = JBColor(Color(0x80, 0x00, 0x00), Color(0xFF, 0xC0, 0xC0))
         }
     }
 

@@ -1,4 +1,6 @@
 package io.github.jhspetersson.turtlecommander.integration
+import java.io.IOException
+import java.nio.file.NoSuchFileException
 
 import com.intellij.openapi.components.service
 import com.intellij.openapi.wm.ToolWindowManager
@@ -97,9 +99,9 @@ class FileManagerToolWindowTest : BasePlatformTestCase() {
         try {
             runBlocking { fileOps.listFiles(missing) }
             fail("listFiles should propagate an exception for an unlistable directory")
-        } catch (_: java.nio.file.NoSuchFileException) {
+        } catch (_: NoSuchFileException) {
             // expected
-        } catch (_: java.io.IOException) {
+        } catch (_: IOException) {
             // some platforms throw a different IOException subtype
         }
     }

@@ -1,4 +1,5 @@
 package io.github.jhspetersson.turtlecommander.service
+import java.util.concurrent.locks.LockSupport
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.util.SystemInfo
 import io.github.jhspetersson.turtlecommander.util.PermissionFlag
@@ -274,7 +275,7 @@ class FileSearchService(
 
     private fun waitWhilePaused(isCancelled: () -> Boolean) {
         while (paused && !isCancelled()) {
-            java.util.concurrent.locks.LockSupport.parkNanos(10_000_000L) // 10ms
+            LockSupport.parkNanos(10_000_000L) // 10ms
         }
     }
 }

@@ -1,4 +1,5 @@
 package io.github.jhspetersson.turtlecommander.service
+import java.nio.file.FileAlreadyExistsException
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.ui.FileTableModel
 import io.github.jhspetersson.turtlecommander.vfs.ZipVirtualFileSystem
@@ -253,7 +254,7 @@ class ZipRenameTest {
         val ex = try {
             vfs.renameFile(source, "b.txt")
             null
-        } catch (e: java.nio.file.FileAlreadyExistsException) {
+        } catch (e: FileAlreadyExistsException) {
             e
         }
         assertNotNull("expected FileAlreadyExistsException", ex)

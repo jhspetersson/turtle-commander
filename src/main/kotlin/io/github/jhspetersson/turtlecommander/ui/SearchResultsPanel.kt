@@ -30,6 +30,7 @@ import java.nio.file.Path
 import java.nio.file.PathMatcher
 import javax.swing.*
 import javax.swing.table.DefaultTableCellRenderer
+import javax.swing.table.TableRowSorter
 
 class SearchResultsPanel(
     private val project: Project,
@@ -71,7 +72,7 @@ class SearchResultsPanel(
 
     private fun setupTable() {
         table.apply {
-            setSelectionMode(javax.swing.ListSelectionModel.MULTIPLE_INTERVAL_SELECTION)
+            setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION)
             setCellSelectionEnabled(false)
             setRowSelectionAllowed(true)
             autoResizeMode = JBTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS
@@ -80,7 +81,7 @@ class SearchResultsPanel(
             // Disable cell editing — search results are read-only
             setDefaultEditor(Any::class.java, null)
 
-            rowSorter = javax.swing.table.TableRowSorter(tableModel).apply {
+            rowSorter = TableRowSorter(tableModel).apply {
                 setComparator(FileTableModel.COL_SIZE) { o1: Any?, o2: Any? ->
                     ((o1 as? Long) ?: 0L).compareTo((o2 as? Long) ?: 0L)
                 }
@@ -209,16 +210,12 @@ class SearchResultsPanel(
         table.requestFocusInWindow()
     }
 
-    private fun setFilterFieldError(error: Boolean) {
-        quickFilterBar.setError(error)
-    }
-
     private fun applyFilter() {
         val pattern = quickFilterBar.text.trim()
         if (pattern.isEmpty()) {
             cachedFilterGlob = null
             cachedFilterMatcher = null
-            setFilterFieldError(false)
+            quickFilterBar.setError(false)
         } else {
             val glob = wrapAsSubstringGlobIfPlain(pattern)
             if (glob != cachedFilterGlob || cachedFilterMatcher == null) {
@@ -233,14 +230,14 @@ class SearchResultsPanel(
                 if (m != null) {
                     cachedFilterGlob = glob
                     cachedFilterMatcher = m
-                    setFilterFieldError(false)
+                    quickFilterBar.setError(false)
                 } else {
                     cachedFilterGlob = null
                     cachedFilterMatcher = null
-                    setFilterFieldError(true)
+                    quickFilterBar.setError(true)
                 }
             } else {
-                setFilterFieldError(false)
+                quickFilterBar.setError(false)
             }
         }
 

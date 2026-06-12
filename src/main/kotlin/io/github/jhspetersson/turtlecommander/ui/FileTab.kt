@@ -1,4 +1,6 @@
 package io.github.jhspetersson.turtlecommander.ui
+import io.github.jhspetersson.turtlecommander.util.DriveLabels
+import java.nio.file.PathMatcher
 
 import com.intellij.icons.AllIcons
 import com.intellij.notification.NotificationGroupManager
@@ -123,7 +125,7 @@ class FileTab(
     private data class TabColumnState(val widths: List<Int>, val order: List<Int>)
     private val tabColumnStates = mutableMapOf<String, TabColumnState>()
     private var cachedFilterGlob: String? = null
-    private var cachedFilterMatcher: java.nio.file.PathMatcher? = null
+    private var cachedFilterMatcher: PathMatcher? = null
     internal var stateService: FileManagerStateService? = null
     private var initialized = false
     internal var pendingTabState: FileManagerStateService.TabState? = null
@@ -165,7 +167,7 @@ class FileTab(
         setupList()
         setupThumbnailList()
         setupTree()
-        setupFilterPanel()
+        registerQuickFilterShortcut()
         setupViewPanel()
         if (!TurtleCommanderSettings.getInstance().state.hideDriveSelector) {
             startDriveUpdates()
@@ -887,7 +889,7 @@ class FileTab(
     }
 
 
-    private fun setupFilterPanel() {
+    private fun registerQuickFilterShortcut() {
         // Register Ctrl-S as component-local action on all view components
         // to override IntelliJ's global "Save All" binding
         val filterShortcut = CustomShortcutSet(
@@ -933,22 +935,18 @@ class FileTab(
         (table.rowSorter as? ParentPinningRowSorter)?.sort()
     }
 
-    private fun setFilterFieldError(error: Boolean) {
-        quickFilterBar.setError(error)
-    }
-
     private fun applyFilter() {
         val pattern = quickFilterBar.text.trim()
         val filtered = if (pattern.isEmpty()) {
             cachedFilterGlob = null
             cachedFilterMatcher = null
-            setFilterFieldError(false)
+            quickFilterBar.setError(false)
             allEntries
         } else {
             val glob = wrapAsSubstringGlobIfPlain(pattern)
             val cached = cachedFilterMatcher
             val matcher = if (glob == cachedFilterGlob && cached != null) {
-                setFilterFieldError(false)
+                quickFilterBar.setError(false)
                 cached
             } else {
                 val m = try {
@@ -959,13 +957,13 @@ class FileTab(
                     // instead of freezing the view on the previous filter's output.
                     cachedFilterGlob = null
                     cachedFilterMatcher = null
-                    setFilterFieldError(true)
+                    quickFilterBar.setError(true)
                     null
                 }
                 if (m != null) {
                     cachedFilterGlob = glob
                     cachedFilterMatcher = m
-                    setFilterFieldError(false)
+                    quickFilterBar.setError(false)
                 }
                 m
             }
@@ -1203,7 +1201,7 @@ class FileTab(
                 driveCombo.selectedItem = bestMatch
             }
 
-            val widest = roots.maxByOrNull { DriveComboRenderer.getDisplayText(it).length } ?: ""
+            val widest = roots.maxByOrNull { DriveLabels.getDisplayText(it).length } ?: ""
             driveCombo.setPrototypeDisplayValue(widest)
             driveCombo.revalidate()
         } finally {

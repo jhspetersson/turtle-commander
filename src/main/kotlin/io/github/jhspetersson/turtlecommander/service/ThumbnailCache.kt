@@ -1,4 +1,5 @@
 package io.github.jhspetersson.turtlecommander.service
+import java.security.MessageDigest
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.EDT
@@ -250,7 +251,7 @@ class ThumbnailCache(private val scope: CoroutineScope) {
             // on disk without colliding, and entries from the old hardcoded 64px layout
             // (which had no size segment) are naturally bypassed.
             val bytes = sourcePath.toAbsolutePath().toString().toByteArray()
-            val digest = java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
+            val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
             val hash = digest.take(16).joinToString("") { "%02x".format(it) }
             val name = sourcePath.fileName?.toString() ?: return null
             cacheDir.resolve("$hash-$cacheSize-$name.png")

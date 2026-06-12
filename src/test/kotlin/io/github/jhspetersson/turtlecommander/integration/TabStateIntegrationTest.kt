@@ -1,4 +1,7 @@
 package io.github.jhspetersson.turtlecommander.integration
+import io.github.jhspetersson.turtlecommander.settings.ColumnConfig
+import javax.swing.RowSorter
+import javax.swing.SortOrder
 
 import com.intellij.openapi.components.service
 import com.intellij.testFramework.PlatformTestUtil
@@ -124,7 +127,7 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
         val panel = createPanel()
         val tab = panel.getTabAt(0)!!
         tab.table.rowSorter?.sortKeys = listOf(
-            javax.swing.RowSorter.SortKey(1, javax.swing.SortOrder.DESCENDING)
+            RowSorter.SortKey(1, SortOrder.DESCENDING)
         )
 
         val state = panel.saveState()
@@ -191,10 +194,10 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
         panel.getTabAt(1)!!.table.rowSorter?.sortKeys = listOf(
-            javax.swing.RowSorter.SortKey(0, javax.swing.SortOrder.ASCENDING)
+            RowSorter.SortKey(0, SortOrder.ASCENDING)
         )
         panel.getTabAt(2)!!.table.rowSorter?.sortKeys = listOf(
-            javax.swing.RowSorter.SortKey(2, javax.swing.SortOrder.DESCENDING)
+            RowSorter.SortKey(2, SortOrder.DESCENDING)
         )
 
         val state = panel.saveState()
@@ -260,9 +263,9 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
         val keys1 = panel.getTabAt(0)!!.table.rowSorter?.sortKeys
         val keys2 = panel.getTabAt(1)!!.table.rowSorter?.sortKeys
         assertEquals(0, keys1?.firstOrNull()?.column)
-        assertEquals(javax.swing.SortOrder.ASCENDING, keys1?.firstOrNull()?.sortOrder)
+        assertEquals(SortOrder.ASCENDING, keys1?.firstOrNull()?.sortOrder)
         assertEquals(2, keys2?.firstOrNull()?.column)
-        assertEquals(javax.swing.SortOrder.DESCENDING, keys2?.firstOrNull()?.sortOrder)
+        assertEquals(SortOrder.DESCENDING, keys2?.firstOrNull()?.sortOrder)
     }
 
     // --- State cleanup on tab close ---
@@ -495,7 +498,7 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
         columns.find { it.id == "Permissions" }?.visible = false
         settings.state.columns.clear()
         settings.state.columns.addAll(columns.map { c ->
-            io.github.jhspetersson.turtlecommander.settings.ColumnConfig().apply {
+            ColumnConfig().apply {
                 id = c.id; visible = c.visible; style.copyFrom(c.style)
             }
         })
@@ -510,7 +513,7 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
         columns.find { it.id == "Permissions" }?.visible = true
         settings.state.columns.clear()
         settings.state.columns.addAll(columns.map { c ->
-            io.github.jhspetersson.turtlecommander.settings.ColumnConfig().apply {
+            ColumnConfig().apply {
                 id = c.id; visible = c.visible; style.copyFrom(c.style)
             }
         })
@@ -525,7 +528,7 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
         columns.find { it.id == "Ext" }?.visible = false
         settings.state.columns.clear()
         settings.state.columns.addAll(columns.map { c ->
-            io.github.jhspetersson.turtlecommander.settings.ColumnConfig().apply {
+            ColumnConfig().apply {
                 id = c.id; visible = c.visible; style.copyFrom(c.style)
             }
         })
@@ -544,7 +547,7 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
         columns.find { it.id == "Ext" }?.visible = true
         settings.state.columns.clear()
         settings.state.columns.addAll(columns.map { c ->
-            io.github.jhspetersson.turtlecommander.settings.ColumnConfig().apply {
+            ColumnConfig().apply {
                 id = c.id; visible = c.visible; style.copyFrom(c.style)
             }
         })
@@ -592,7 +595,7 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
         columns.find { it.id == "Permissions" }?.visible = false
         settings.state.columns.clear()
         settings.state.columns.addAll(columns.map { c ->
-            io.github.jhspetersson.turtlecommander.settings.ColumnConfig().apply {
+            ColumnConfig().apply {
                 id = c.id; visible = c.visible; style.copyFrom(c.style)
             }
         })
@@ -614,7 +617,7 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
         columns.find { it.id == "Permissions" }?.visible = true
         settings.state.columns.clear()
         settings.state.columns.addAll(columns.map { c ->
-            io.github.jhspetersson.turtlecommander.settings.ColumnConfig().apply {
+            ColumnConfig().apply {
                 id = c.id; visible = c.visible; style.copyFrom(c.style)
             }
         })
@@ -650,7 +653,7 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
         columns.find { it.id == "Permissions" }?.visible = false
         settings.state.columns.clear()
         settings.state.columns.addAll(columns.map { c ->
-            io.github.jhspetersson.turtlecommander.settings.ColumnConfig().apply {
+            ColumnConfig().apply {
                 id = c.id; visible = c.visible; style.copyFrom(c.style)
             }
         })
@@ -673,7 +676,7 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
         columns.find { it.id == "Permissions" }?.visible = true
         settings.state.columns.clear()
         settings.state.columns.addAll(columns.map { c ->
-            io.github.jhspetersson.turtlecommander.settings.ColumnConfig().apply {
+            ColumnConfig().apply {
                 id = c.id; visible = c.visible; style.copyFrom(c.style)
             }
         })
@@ -727,7 +730,7 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
         columns.find { it.id == "Permissions" }?.visible = false
         settings.state.columns.clear()
         settings.state.columns.addAll(columns.map { c ->
-            io.github.jhspetersson.turtlecommander.settings.ColumnConfig().apply {
+            ColumnConfig().apply {
                 id = c.id; visible = c.visible; style.copyFrom(c.style)
             }
         })
@@ -750,7 +753,7 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
         columns.find { it.id == "Permissions" }?.visible = true
         settings.state.columns.clear()
         settings.state.columns.addAll(columns.map { c ->
-            io.github.jhspetersson.turtlecommander.settings.ColumnConfig().apply {
+            ColumnConfig().apply {
                 id = c.id; visible = c.visible; style.copyFrom(c.style)
             }
         })
@@ -809,7 +812,7 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
         columns.find { it.id == "Size" }?.visible = false
         settings.state.columns.clear()
         settings.state.columns.addAll(columns.map { c ->
-            io.github.jhspetersson.turtlecommander.settings.ColumnConfig().apply {
+            ColumnConfig().apply {
                 id = c.id; visible = c.visible; style.copyFrom(c.style)
             }
         })
@@ -832,7 +835,7 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
         columns.find { it.id == "Size" }?.visible = true
         settings.state.columns.clear()
         settings.state.columns.addAll(columns.map { c ->
-            io.github.jhspetersson.turtlecommander.settings.ColumnConfig().apply {
+            ColumnConfig().apply {
                 id = c.id; visible = c.visible; style.copyFrom(c.style)
             }
         })
@@ -888,7 +891,7 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
         columns.find { it.id == "Date Created" }?.visible = false
         settings.state.columns.clear()
         settings.state.columns.addAll(columns.map { c ->
-            io.github.jhspetersson.turtlecommander.settings.ColumnConfig().apply {
+            ColumnConfig().apply {
                 id = c.id; visible = c.visible; style.copyFrom(c.style)
             }
         })
@@ -908,7 +911,7 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
         columns.find { it.id == "Date Created" }?.visible = true
         settings.state.columns.clear()
         settings.state.columns.addAll(columns.map { c ->
-            io.github.jhspetersson.turtlecommander.settings.ColumnConfig().apply {
+            ColumnConfig().apply {
                 id = c.id; visible = c.visible; style.copyFrom(c.style)
             }
         })

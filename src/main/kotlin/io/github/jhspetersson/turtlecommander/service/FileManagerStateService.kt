@@ -175,34 +175,6 @@ class FileManagerStateService(
         var columnOrder: String = ""
     }
 
-    // Helper methods to work with path column entries as a map-like structure
-
-    fun getColumnState(path: String): PathColumnEntry? {
-        return myState.pathColumns.find { it.path == path }
-    }
-
-    fun putColumnState(path: String, widths: List<Int>, order: List<Int>) {
-        val existing = myState.pathColumns.find { it.path == path }
-        if (existing != null) {
-            existing.columnWidths = widths.joinToString(",")
-            existing.columnOrder = order.joinToString(",")
-        } else {
-            myState.pathColumns.add(PathColumnEntry().apply {
-                this.path = path
-                this.columnWidths = widths.joinToString(",")
-                this.columnOrder = order.joinToString(",")
-            })
-        }
-    }
-
-    fun parseWidths(entry: PathColumnEntry): List<Int> {
-        return entry.columnWidths.split(",").mapNotNull { it.trim().toIntOrNull() }
-    }
-
-    fun parseOrder(entry: PathColumnEntry): List<Int> {
-        return entry.columnOrder.split(",").mapNotNull { it.trim().toIntOrNull() }
-    }
-
     fun getActivePanel(): FileManagerPanel? {
         val left = leftPanel ?: return null
         val right = rightPanel ?: return null

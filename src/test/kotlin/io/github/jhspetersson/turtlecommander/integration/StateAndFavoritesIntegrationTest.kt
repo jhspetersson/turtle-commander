@@ -1,4 +1,8 @@
 package io.github.jhspetersson.turtlecommander.integration
+import com.intellij.testFramework.PlatformTestUtil
+import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
+import io.github.jhspetersson.turtlecommander.ui.ViewMode
+import java.util.UUID
 
 import com.intellij.openapi.components.service
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
@@ -102,39 +106,6 @@ class StateAndFavoritesIntegrationTest : BasePlatformTestCase() {
         assertTrue("/second" in paths)
     }
 
-    // --- Column state ---
-
-    fun testColumnStateSaveAndRetrieve() {
-        val path = "/test/dir"
-        val widths = listOf(200, 80, 100, 150, 150, 80)
-        val order = listOf(0, 1, 2, 3, 4, 5)
-
-        stateService.putColumnState(path, widths, order)
-
-        val entry = stateService.getColumnState(path)
-        assertNotNull("Column state should be retrievable", entry)
-
-        val parsedWidths = stateService.parseWidths(entry!!)
-        val parsedOrder = stateService.parseOrder(entry)
-        assertEquals(widths, parsedWidths)
-        assertEquals(order, parsedOrder)
-    }
-
-    fun testColumnStateOverwrite() {
-        stateService.putColumnState("/dir", listOf(100, 200), listOf(0, 1))
-        stateService.putColumnState("/dir", listOf(300, 400), listOf(1, 0))
-
-        val entry = stateService.getColumnState("/dir")
-        assertNotNull(entry)
-        assertEquals(listOf(300, 400), stateService.parseWidths(entry!!))
-        assertEquals(listOf(1, 0), stateService.parseOrder(entry))
-    }
-
-    fun testColumnStateForUnknownPathReturnsNull() {
-        val entry = stateService.getColumnState("/nonexistent/path")
-        assertNull("Unknown path should return null", entry)
-    }
-
     // --- Panel state ---
 
     fun testPanelStateDefaults() {
@@ -160,14 +131,14 @@ class StateAndFavoritesIntegrationTest : BasePlatformTestCase() {
         if (GraphicsEnvironment.isHeadless()) return
         val projectPath = Path.of(project.basePath!!)
 
-        val panel = io.github.jhspetersson.turtlecommander.ui.FileManagerPanel(
+        val panel = FileManagerPanel(
             project = project,
             initialPath = projectPath,
             otherPanelPathProvider = { projectPath },
         )
         // Fresh PanelState: stateService.state.leftPanel would leak tabs from prior tests that registered panels.
         panel.restoreState(FileManagerStateService.PanelState(), stateService)
-        com.intellij.testFramework.PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
         val savedState = panel.saveState()
 
@@ -191,13 +162,13 @@ class StateAndFavoritesIntegrationTest : BasePlatformTestCase() {
                 selectedTabIndex = 1
             }
 
-            val panel = io.github.jhspetersson.turtlecommander.ui.FileManagerPanel(
+            val panel = FileManagerPanel(
                 project = project,
                 initialPath = tempDir1,
                 otherPanelPathProvider = { tempDir1 },
             )
             panel.restoreState(panelState, stateService)
-            com.intellij.testFramework.PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+            PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
             val saved = panel.saveState()
             assertEquals("Should restore 2 tabs", 2, saved.tabs.size)
@@ -215,13 +186,13 @@ class StateAndFavoritesIntegrationTest : BasePlatformTestCase() {
             tabs.add(FileManagerStateService.TabState(path = "/nonexistent/path/that/does/not/exist"))
         }
 
-        val panel = io.github.jhspetersson.turtlecommander.ui.FileManagerPanel(
+        val panel = FileManagerPanel(
             project = project,
             initialPath = projectPath,
             otherPanelPathProvider = { projectPath },
         )
         panel.restoreState(panelState, stateService)
-        com.intellij.testFramework.PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
         // Invalid path is skipped, should fall back to initialPath
         val tab = panel.getActiveTab()
@@ -237,12 +208,12 @@ class StateAndFavoritesIntegrationTest : BasePlatformTestCase() {
         // drive that was unplugged between sessions (e.g. "E:\stuff" with E: gone).
         // The tab must land on the user home directory instead of staying stranded
         // (and instead of being dropped, the pre-fix behavior).
-        val deadPath = "turtle-dead-root-${java.util.UUID.randomUUID()}"
+        val deadPath = "turtle-dead-root-${UUID.randomUUID()}"
         val panelState = FileManagerStateService.PanelState().apply {
             tabs.add(FileManagerStateService.TabState(path = deadPath))
         }
 
-        val panel = io.github.jhspetersson.turtlecommander.ui.FileManagerPanel(
+        val panel = FileManagerPanel(
             project = project,
             initialPath = projectPath,
             otherPanelPathProvider = { projectPath },
@@ -253,7 +224,7 @@ class StateAndFavoritesIntegrationTest : BasePlatformTestCase() {
         // Navigation hops between IO and EDT; pump until the fallback lands.
         var landed = false
         for (i in 0 until 50) {
-            com.intellij.testFramework.PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+            PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
             if (panel.getActiveTab()?.currentPath == home) {
                 landed = true
                 break
@@ -274,13 +245,13 @@ class StateAndFavoritesIntegrationTest : BasePlatformTestCase() {
                 tabs.add(FileManagerStateService.TabState(path = tempDir.toString(), viewMode = "LIST"))
             }
 
-            val panel = io.github.jhspetersson.turtlecommander.ui.FileManagerPanel(
+            val panel = FileManagerPanel(
                 project = project,
                 initialPath = tempDir,
                 otherPanelPathProvider = { tempDir },
             )
             panel.restoreState(panelState, stateService)
-            com.intellij.testFramework.PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+            PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
             // Verify view mode was saved correctly in the round-trip
             val saved = panel.saveState()
@@ -305,19 +276,19 @@ class StateAndFavoritesIntegrationTest : BasePlatformTestCase() {
                 tabs.add(FileManagerStateService.TabState(path = tempDir.toString(), viewMode = "TABLE"))
             }
 
-            val panel = io.github.jhspetersson.turtlecommander.ui.FileManagerPanel(
+            val panel = FileManagerPanel(
                 project = project,
                 initialPath = tempDir,
                 otherPanelPathProvider = { tempDir },
             )
             panel.restoreState(panelState, stateService)
-            com.intellij.testFramework.PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+            PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
             val activeTab = panel.getActiveTab()
             assertNotNull("Should have an active tab after restore", activeTab)
             assertEquals(
                 "Tab should be restored as TABLE even when default is LIST",
-                io.github.jhspetersson.turtlecommander.ui.ViewMode.TABLE,
+                ViewMode.TABLE,
                 activeTab!!.viewMode
             )
 

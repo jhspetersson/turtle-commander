@@ -71,7 +71,7 @@ class TarVirtualFileSystem(
                             val linkTarget = entry.linkName
                             Files.createDirectories(entryPath.parent)
                             try {
-                                Files.createSymbolicLink(entryPath, java.nio.file.Paths.get(linkTarget))
+                                Files.createSymbolicLink(entryPath, Path.of(linkTarget))
                             } catch (_: Exception) {
                                 // Symlink creation may fail (e.g. Windows without privileges).
                                 // Record it so repack can still re-emit the original entry and

@@ -1,4 +1,5 @@
 package io.github.jhspetersson.turtlecommander.service
+import java.io.File
 import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
 import io.github.jhspetersson.turtlecommander.util.countFiles
 
@@ -466,7 +467,7 @@ class CountArchiveEntriesTest {
         }
 
         val tempRoot = System.getProperty("java.io.tmpdir")
-        val beforeCount = java.io.File(tempRoot).list { _, name -> name.startsWith("turtle-tar-") }?.size ?: 0
+        val beforeCount = File(tempRoot).list { _, name -> name.startsWith("turtle-tar-") }?.size ?: 0
 
         val service = ArchiveService()
         val count = service.countArchiveEntries(archivePath)
@@ -474,7 +475,7 @@ class CountArchiveEntriesTest {
         // Three file entries were written; the header-only scan should see all three.
         assertEquals(3, count)
 
-        val afterCount = java.io.File(tempRoot).list { _, name -> name.startsWith("turtle-tar-") }?.size ?: 0
+        val afterCount = File(tempRoot).list { _, name -> name.startsWith("turtle-tar-") }?.size ?: 0
         assertEquals("header-only count must not create a tar extraction temp dir", beforeCount, afterCount)
     }
 

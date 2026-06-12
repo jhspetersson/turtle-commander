@@ -1,4 +1,7 @@
 package io.github.jhspetersson.turtlecommander.ui
+import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.keymap.KeymapUtil
+import java.nio.file.AccessDeniedException
 
 import com.intellij.ide.actions.RevealFileAction
 import com.intellij.ide.util.DeleteHandler
@@ -355,7 +358,7 @@ internal fun FileTab.performCreateLink() {
 }
 
 private fun symlinkErrorMessage(link: Path, hard: Boolean, e: Exception): String {
-    val privilege = e is java.nio.file.AccessDeniedException ||
+    val privilege = e is AccessDeniedException ||
         e.message?.contains("privilege", ignoreCase = true) == true
     return if (privilege && !hard) {
         "Creating symbolic links requires Windows Developer Mode or administrator rights."
@@ -1093,10 +1096,10 @@ private fun FileTab.runMultiRename(pairs: List<Pair<FileEntry, String>>) {
                 val tab = this@runMultiRename
                 // Look up the live shortcut for the Undo action so the hint stays correct if
                 // the user has rebound it. Empty when the user has cleared the binding.
-                val undoAction = com.intellij.openapi.actionSystem.ActionManager.getInstance()
+                val undoAction = ActionManager.getInstance()
                     .getAction("TurtleCommander.MultiRenameUndo")
                 val shortcut = undoAction?.let {
-                    com.intellij.openapi.keymap.KeymapUtil.getFirstKeyboardShortcutText(it)
+                    KeymapUtil.getFirstKeyboardShortcutText(it)
                 }.orEmpty()
                 val hint = if (shortcut.isNotEmpty()) " Press $shortcut to undo." else ""
                 val content = "Renamed ${completed.size} file(s).$hint"

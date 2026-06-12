@@ -1,4 +1,6 @@
 package io.github.jhspetersson.turtlecommander.action
+import java.security.MessageDigest
+import java.security.NoSuchAlgorithmException
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -101,7 +103,7 @@ class HashComputationsTest {
         // 200 KB of deterministic data — well past the 64 KB buffer, so this exercises the
         // multi-read loop that the production code hits on real files.
         val data = ByteArray(200 * 1024) { (it % 251).toByte() }
-        val md = java.security.MessageDigest.getInstance("SHA-256")
+        val md = MessageDigest.getInstance("SHA-256")
         md.update(data)
         val expected = HashComputations.toHex(md.digest())
         assertEquals(expected, HashComputations.digest(ByteArrayInputStream(data), "SHA-256"))
@@ -120,7 +122,7 @@ class HashComputationsTest {
         try {
             HashComputations.digest(bytes("x"), "TOTALLY-NOT-A-REAL-ALGORITHM")
             org.junit.Assert.fail("expected NoSuchAlgorithmException")
-        } catch (e: java.security.NoSuchAlgorithmException) {
+        } catch (e: NoSuchAlgorithmException) {
             // expected — matches the behavior that surfaces to the action's error dialog path
             org.junit.Assert.assertTrue(e.message?.isNotEmpty() == true)
         }

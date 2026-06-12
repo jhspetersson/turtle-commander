@@ -3,6 +3,7 @@ package io.github.jhspetersson.turtlecommander.settings
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.ui.DocumentAdapter
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
@@ -12,6 +13,7 @@ import io.github.jhspetersson.turtlecommander.ui.installStandardContextMenu
 import java.awt.*
 import java.util.*
 import javax.swing.*
+import javax.swing.event.DocumentEvent
 import javax.swing.table.AbstractTableModel
 import javax.swing.table.DefaultTableCellRenderer
 
@@ -193,16 +195,13 @@ internal class ColorRuleEditDialog(
     }
 
     private fun wireLivePreview() {
-        val listeners = listOf { refreshPreview() }
         fontColorButton.addActionListener { refreshPreview() }
         bgColorButton.addActionListener { refreshPreview() }
         dotColorButton.addActionListener { refreshPreview() }
         fontStyleCombo.addActionListener { refreshPreview() }
         fontSizeSpinner.addChangeListener { refreshPreview() }
-        nameField.document.addDocumentListener(object : javax.swing.event.DocumentListener {
-            override fun insertUpdate(e: javax.swing.event.DocumentEvent) { listeners.forEach { it() } }
-            override fun removeUpdate(e: javax.swing.event.DocumentEvent) { listeners.forEach { it() } }
-            override fun changedUpdate(e: javax.swing.event.DocumentEvent) { listeners.forEach { it() } }
+        nameField.document.addDocumentListener(object : DocumentAdapter() {
+            override fun textChanged(e: DocumentEvent) { refreshPreview() }
         })
         refreshPreview()
     }

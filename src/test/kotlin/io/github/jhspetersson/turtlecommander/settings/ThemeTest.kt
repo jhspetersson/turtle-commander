@@ -1,4 +1,5 @@
 package io.github.jhspetersson.turtlecommander.settings
+import java.awt.Color
 
 import org.junit.Assert.*
 import org.junit.Test
@@ -453,7 +454,7 @@ class ThemeTest {
     @Test
     fun `ColorPickerButton setColor null clears state`() {
         val btn = ColorPickerButton("...")
-        btn.setColor(java.awt.Color.RED)
+        btn.setColor(Color.RED)
         assertEquals("#FF0000", btn.getColorHex())
         btn.setColor(null)
         assertEquals("", btn.getColorHex())
@@ -497,7 +498,7 @@ class ThemeTest {
         val saved = ComponentStyle().apply { backgroundColor = "#112233" }
         val editor = ComponentStyleEditor("Test", fontItems, saved)
         assertFalse(editor.isModified(saved))
-        editor.bgColorButton.setColor(java.awt.Color.RED)
+        editor.bgColorButton.setColor(Color.RED)
         assertTrue(editor.isModified(saved))
     }
 }

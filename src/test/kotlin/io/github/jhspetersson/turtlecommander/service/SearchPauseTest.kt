@@ -1,4 +1,5 @@
 package io.github.jhspetersson.turtlecommander.service
+import io.github.jhspetersson.turtlecommander.dialog.NamePatternMode
 
 import io.github.jhspetersson.turtlecommander.dialog.FileSearchCriteria
 import org.junit.Assert.assertFalse
@@ -25,7 +26,7 @@ class SearchPauseTest {
         val criteria = FileSearchCriteria(
             rootPath = tempDir,
             namePattern = null,
-            namePatternMode = io.github.jhspetersson.turtlecommander.dialog.NamePatternMode.GLOB,
+            namePatternMode = NamePatternMode.GLOB,
             sizeFilter = null,
             creationDateFilter = null,
             modificationDateFilter = null,

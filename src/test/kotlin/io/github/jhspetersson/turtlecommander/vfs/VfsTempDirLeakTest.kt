@@ -1,4 +1,6 @@
 package io.github.jhspetersson.turtlecommander.vfs
+import java.io.IOException
+import java.nio.file.Path
 
 import org.junit.Assert.*
 import org.junit.Test
@@ -17,10 +19,10 @@ class VfsTempDirLeakTest {
         try {
             TarVirtualFileSystem(
                 fakePath,
-                inputStreamFactory = { throw java.io.IOException("simulated stream failure") },
+                inputStreamFactory = { throw IOException("simulated stream failure") },
             )
             fail("Expected exception")
-        } catch (_: java.io.IOException) {
+        } catch (_: IOException) {
             // expected
         }
 
@@ -43,9 +45,9 @@ class VfsTempDirLeakTest {
         try {
             CompressedSingleFileVirtualFileSystem(
                 fakePath, ".gz"
-            ) { _: InputStream -> throw java.io.IOException("simulated decompress failure") }
+            ) { _: InputStream -> throw IOException("simulated decompress failure") }
             fail("Expected exception")
-        } catch (_: java.io.IOException) {
+        } catch (_: IOException) {
             // expected
         }
 
@@ -58,8 +60,8 @@ class VfsTempDirLeakTest {
         Files.deleteIfExists(fakePath)
     }
 
-    private fun listTurtleTempDirs(prefix: String): List<java.nio.file.Path> {
-        val tmpDir = java.nio.file.Path.of(System.getProperty("java.io.tmpdir"))
+    private fun listTurtleTempDirs(prefix: String): List<Path> {
+        val tmpDir = Path.of(System.getProperty("java.io.tmpdir"))
         return Files.list(tmpDir).use { stream ->
             stream.filter { Files.isDirectory(it) && it.fileName.toString().startsWith(prefix) }
                 .toList()

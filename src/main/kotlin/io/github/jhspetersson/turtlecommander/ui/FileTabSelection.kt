@@ -1,4 +1,6 @@
 package io.github.jhspetersson.turtlecommander.ui
+import java.nio.file.FileSystems
+import java.nio.file.PathMatcher
 
 import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.actionSystem.ActionManager
@@ -316,15 +318,15 @@ fun FileTab.invertSelectionEntries() {
  * against the entry's filename. Empty mask matches nothing. By convention directories are
  * included only when [includeDirectories] is true — TC's "Select Group" defaults to files only.
  */
-internal fun parseSelectionMaskPatterns(mask: String): List<java.nio.file.PathMatcher> {
-    val fs = java.nio.file.FileSystems.getDefault()
+internal fun parseSelectionMaskPatterns(mask: String): List<PathMatcher> {
+    val fs = FileSystems.getDefault()
     return mask.split(',', ';')
         .map { it.trim() }
         .filter { it.isNotEmpty() }
         .map { token -> fs.getPathMatcher("glob:$token") }
 }
 
-private fun matchesMask(name: String, patterns: List<java.nio.file.PathMatcher>): Boolean {
+private fun matchesMask(name: String, patterns: List<PathMatcher>): Boolean {
     if (patterns.isEmpty()) return false
     val asPath = Path.of(name)
     return patterns.any { it.matches(asPath) }

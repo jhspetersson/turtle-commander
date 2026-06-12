@@ -1,4 +1,5 @@
 package io.github.jhspetersson.turtlecommander.ui
+import java.awt.Font
 
 import com.intellij.ui.*
 import com.intellij.ui.speedSearch.SpeedSearchSupply
@@ -220,7 +221,7 @@ internal class StyledFileNameCellRenderer(
             else -> resolved.fontJBColor() ?: style?.parsedFontColor() ?: table.foreground
         }
 
-        val fontStyle = style?.getFont(table.font)?.style ?: java.awt.Font.PLAIN
+        val fontStyle = style?.getFont(table.font)?.style ?: Font.PLAIN
         val attrs = if (fg != null) SimpleTextAttributes(fontStyle, fg) else SimpleTextAttributes(fontStyle, null)
         val text = value as? String ?: value?.toString().orEmpty()
         append(text, attrs)
@@ -384,7 +385,7 @@ internal class FileThumbnailCellRenderer(private val tab: FileTab) : ListCellRen
             iconLabel.icon = thumbnail
         } else {
             val entryIcon = fileEntryIcon(entry, tab.enableFileNameHighlighting, resolved)
-            iconLabel.icon = if (entryIcon != null) IconUtil.scale(entryIcon, list, 2.0f) else null
+            iconLabel.icon = IconUtil.scale(entryIcon, list, 2.0f)
         }
         val name = entry.name
         val displayName = if (name.length > 16) name.substring(0, 14) + "\u2026" else name

@@ -1,4 +1,5 @@
 package io.github.jhspetersson.turtlecommander.service
+import java.nio.file.LinkOption
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,7 +22,7 @@ class CreateLinkTest {
     fun cleanup() {
         for (p in tempPaths.reversed()) {
             try {
-                if (Files.isDirectory(p, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+                if (Files.isDirectory(p, LinkOption.NOFOLLOW_LINKS)) {
                     Files.walk(p).sorted(Comparator.reverseOrder()).forEach { Files.deleteIfExists(it) }
                 } else {
                     Files.deleteIfExists(p)
@@ -106,6 +107,6 @@ class CreateLinkTest {
             assumeNoException("hard link creation not permitted on this host", e)
         }
 
-        assertTrue(Files.exists(link, java.nio.file.LinkOption.NOFOLLOW_LINKS))
+        assertTrue(Files.exists(link, LinkOption.NOFOLLOW_LINKS))
     }
 }

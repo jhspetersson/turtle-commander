@@ -1,4 +1,6 @@
 package io.github.jhspetersson.turtlecommander.service
+import java.awt.Desktop
+import java.util.concurrent.CopyOnWriteArrayList
 
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.components.Service
@@ -45,7 +47,7 @@ class FileOperationService(
      */
     internal var moveToTrash: (Path) -> Boolean = { path ->
         try {
-            java.awt.Desktop.getDesktop().moveToTrash(path.toFile())
+            Desktop.getDesktop().moveToTrash(path.toFile())
         } catch (_: UnsupportedOperationException) {
             false
         }
@@ -58,8 +60,8 @@ class FileOperationService(
      */
     internal var isMoveToTrashSupported: () -> Boolean = {
         try {
-            java.awt.Desktop.isDesktopSupported() &&
-                java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.MOVE_TO_TRASH)
+            Desktop.isDesktopSupported() &&
+                Desktop.getDesktop().isSupported(Desktop.Action.MOVE_TO_TRASH)
         } catch (_: Throwable) {
             false
         }
@@ -829,7 +831,7 @@ class FileOperationService(
     // poller serves every subscribed tab: it scans on Dispatchers.IO, warms the drive label
     // cache there too, and notifies listeners on the EDT only when the list actually changes.
 
-    private val rootsListeners = java.util.concurrent.CopyOnWriteArrayList<(List<String>) -> Unit>()
+    private val rootsListeners = CopyOnWriteArrayList<(List<String>) -> Unit>()
     @Volatile
     private var cachedRoots: List<String>? = null
     private var rootsPollJob: Job? = null

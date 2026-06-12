@@ -1,4 +1,6 @@
 package io.github.jhspetersson.turtlecommander.vfs
+import com.intellij.openapi.progress.ProgressManager
+import java.util.concurrent.CopyOnWriteArraySet
 
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.diagnostic.thisLogger
@@ -48,7 +50,7 @@ interface VirtualFileSystem : Closeable {
  * don't take a lock; register/unregister are rare relative to materialize calls.
  */
 object OpenVfsRegistry {
-    private val instances: MutableSet<VirtualFileSystem> = java.util.concurrent.CopyOnWriteArraySet()
+    private val instances: MutableSet<VirtualFileSystem> = CopyOnWriteArraySet()
 
     fun register(vfs: VirtualFileSystem) { instances.add(vfs) }
     fun unregister(vfs: VirtualFileSystem) { instances.remove(vfs) }
@@ -89,7 +91,7 @@ interface VfsOpenProgress {
          * Returns a no-op when no indicator is bound to the current thread.
          */
         fun fromCurrentThread(): VfsOpenProgress {
-            val indicator = com.intellij.openapi.progress.ProgressManager.getGlobalProgressIndicator()
+            val indicator = ProgressManager.getGlobalProgressIndicator()
                 ?: return Noop
             return object : VfsOpenProgress {
                 override fun onEntry(index: Int, total: Int, name: String) {

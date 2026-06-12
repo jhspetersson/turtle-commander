@@ -1,4 +1,7 @@
 package io.github.jhspetersson.turtlecommander.ui
+import io.github.jhspetersson.turtlecommander.service.VfsTempCleanup
+import io.github.jhspetersson.turtlecommander.vfs.vfsRelativePath as vfsRootRelativePath
+import java.io.File
 
 import com.intellij.platform.ide.progress.withBackgroundProgress
 import com.intellij.platform.util.progress.reportRawProgress
@@ -53,9 +56,9 @@ internal fun FileTab.enterVfs(entry: FileEntry) {
                             vfsStack.add(VfsStackEntry(vfs, archivePath))
                             navigateTo(vfs.root)
                         } else {
-                            var tempFile: java.io.File? = null
+                            var tempFile: File? = null
                             try {
-                                io.github.jhspetersson.turtlecommander.service.VfsTempCleanup.cleanupOnce()
+                                VfsTempCleanup.cleanupOnce()
                                 val vfs = withContext(Dispatchers.IO) {
                                     // If the parent VFS is lazy (an .iso), the entry we're about to nest
                                     // into is still a sparse stub on disk - stream the actual bytes from
@@ -199,7 +202,7 @@ internal suspend fun FileTab.refreshAfterVfsChange(selectName: String? = null) {
 }
 
 internal fun vfsRelativePath(vfs: VirtualFileSystem, path: Path): String {
-    return io.github.jhspetersson.turtlecommander.vfs.vfsRelativePath(vfs.root, path)
+    return vfsRootRelativePath(vfs.root, path)
 }
 
 /**

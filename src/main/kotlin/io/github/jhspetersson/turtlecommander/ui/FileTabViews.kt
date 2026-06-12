@@ -1,4 +1,6 @@
 package io.github.jhspetersson.turtlecommander.ui
+import com.intellij.ui.SpeedSearchBase
+import javax.swing.SwingUtilities
 
 import com.intellij.openapi.application.EDT
 import io.github.jhspetersson.turtlecommander.model.FileEntry
@@ -83,12 +85,12 @@ fun FileTab.setViewMode(mode: ViewMode) {
 
     if (carriedPrefix != null) {
         // Defer so the focus/card transition completes before the popup reattaches.
-        javax.swing.SwingUtilities.invokeLater { restoreSpeedSearchPrefix(mode, carriedPrefix) }
+        SwingUtilities.invokeLater { restoreSpeedSearchPrefix(mode, carriedPrefix) }
     }
 }
 
 private fun FileTab.restoreSpeedSearchPrefix(mode: ViewMode, prefix: String) {
-    val target: com.intellij.ui.SpeedSearchBase<*>? = when (mode) {
+    val target: SpeedSearchBase<*>? = when (mode) {
         ViewMode.TABLE -> tableSpeedSearch
         ViewMode.LIST -> listSpeedSearch
         ViewMode.THUMBNAIL -> thumbnailSpeedSearch

@@ -1,4 +1,5 @@
 package io.github.jhspetersson.turtlecommander.util
+import java.io.File
 
 import com.intellij.openapi.util.SystemInfo
 import java.util.concurrent.ConcurrentHashMap
@@ -24,7 +25,7 @@ internal object DriveLabels {
         return labelCache.getOrPut(path) {
             try {
                 val label = FileSystemView.getFileSystemView()
-                    .getSystemDisplayName(java.io.File(path))
+                    .getSystemDisplayName(File(path))
                 if (label.isNotBlank() && label != path.trimEnd('\\')) label else path
             } catch (_: Exception) {
                 path

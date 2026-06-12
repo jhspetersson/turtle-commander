@@ -1,4 +1,5 @@
 package io.github.jhspetersson.turtlecommander.vfs
+import java.io.File
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 
 import kotlinx.coroutines.runBlocking
@@ -764,7 +765,7 @@ class NestedArchiveFileCreationTest {
         return outerPath
     }
 
-    private fun extractInnerZip(outerVfs: ZipVirtualFileSystem): Pair<ZipVirtualFileSystem, java.io.File> {
+    private fun extractInnerZip(outerVfs: ZipVirtualFileSystem): Pair<ZipVirtualFileSystem, File> {
         val innerZipPathInOuter = outerVfs.getPath("/inner.zip")
         val tempDir = Files.createTempDirectory("turtle-vfs-test-")
         val tempInnerZip = tempDir.resolve("inner.zip")
@@ -779,7 +780,7 @@ class NestedArchiveFileCreationTest {
     private suspend fun writeBackAndVerifyInner(
         outerVfs: ZipVirtualFileSystem,
         innerVfs: ZipVirtualFileSystem,
-        tempInnerZip: java.io.File,
+        tempInnerZip: File,
     ): List<FileEntry> {
         innerVfs.flush()
         val innerZipPathInOuter = outerVfs.getPath("/inner.zip")
