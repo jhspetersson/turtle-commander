@@ -19,13 +19,16 @@ class GzFileSystemProvider : VirtualFileSystemProvider {
         return ext in ARCHIVE_EXTENSIONS
     }
 
-    override fun create(archivePath: Path): VirtualFileSystem {
+    override fun create(archivePath: Path): VirtualFileSystem = create(archivePath, null)
+
+    override fun create(archivePath: Path, openProgress: VfsOpenProgress?): VirtualFileSystem {
         val name = archivePath.fileName?.toString()?.lowercase() ?: ""
         return if (name.endsWith(".tar.gz") || name.endsWith(".tgz")) {
             TarVirtualFileSystem(
                 archivePath,
                 inputStreamFactory = { GzipCompressorInputStream(Files.newInputStream(it)) },
                 outputStreamFactory = { GzipCompressorOutputStream(Files.newOutputStream(it)) },
+                openProgress = openProgress,
             )
         } else {
             CompressedSingleFileVirtualFileSystem(archivePath, ".gz") { GzipCompressorInputStream(it) }
@@ -42,13 +45,16 @@ class Bz2FileSystemProvider : VirtualFileSystemProvider {
         return ext in ARCHIVE_EXTENSIONS
     }
 
-    override fun create(archivePath: Path): VirtualFileSystem {
+    override fun create(archivePath: Path): VirtualFileSystem = create(archivePath, null)
+
+    override fun create(archivePath: Path, openProgress: VfsOpenProgress?): VirtualFileSystem {
         val name = archivePath.fileName?.toString()?.lowercase() ?: ""
         return if (name.endsWith(".tar.bz2") || name.endsWith(".tbz2") || name.endsWith(".tbz")) {
             TarVirtualFileSystem(
                 archivePath,
                 inputStreamFactory = { BZip2CompressorInputStream(Files.newInputStream(it)) },
                 outputStreamFactory = { BZip2CompressorOutputStream(Files.newOutputStream(it)) },
+                openProgress = openProgress,
             )
         } else {
             CompressedSingleFileVirtualFileSystem(archivePath, ".bz2") { BZip2CompressorInputStream(it) }
@@ -65,13 +71,16 @@ class XzFileSystemProvider : VirtualFileSystemProvider {
         return ext in ARCHIVE_EXTENSIONS
     }
 
-    override fun create(archivePath: Path): VirtualFileSystem {
+    override fun create(archivePath: Path): VirtualFileSystem = create(archivePath, null)
+
+    override fun create(archivePath: Path, openProgress: VfsOpenProgress?): VirtualFileSystem {
         val name = archivePath.fileName?.toString()?.lowercase() ?: ""
         return if (name.endsWith(".tar.xz") || name.endsWith(".txz")) {
             TarVirtualFileSystem(
                 archivePath,
                 inputStreamFactory = { XZCompressorInputStream(Files.newInputStream(it)) },
                 outputStreamFactory = { XZCompressorOutputStream(Files.newOutputStream(it)) },
+                openProgress = openProgress,
             )
         } else {
             CompressedSingleFileVirtualFileSystem(archivePath, ".xz") { XZCompressorInputStream(it) }

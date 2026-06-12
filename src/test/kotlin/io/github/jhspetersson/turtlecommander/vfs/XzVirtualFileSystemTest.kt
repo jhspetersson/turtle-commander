@@ -186,6 +186,7 @@ class XzVirtualFileSystemTest {
         val vfs = provider.create(txzPath)
         vfs.use { vfs ->
             val filePath = vfs.root.resolve("hello.txt")
+            vfs.materialize(filePath)
             val content = String(Files.readAllBytes(filePath))
             assertEquals("file content", content)
         }

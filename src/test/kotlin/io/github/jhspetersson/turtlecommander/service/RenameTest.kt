@@ -404,6 +404,7 @@ class TarRenameTest {
         vfs = TarVirtualFileSystem(tarPath, inputStreamFactory = { Files.newInputStream(it) }, outputStreamFactory = { Files.newOutputStream(it) })
         val after = vfs.listFiles(vfs.root)
         val renamed = after.find { it.name == "renamed.txt" }!!
+        vfs.materialize(renamed.path)
         assertEquals("important content", Files.readString(renamed.path))
     }
 }

@@ -1176,8 +1176,9 @@ class EditWriteBackTest {
         val vfs = TarVirtualFileSystem(tarPath, inputStreamFactory = { Files.newInputStream(it) }, outputStreamFactory = { Files.newOutputStream(it) })
         vfsList.add(vfs)
 
-        // Extract to temp
+        // Extract to temp (production materializes lazy entries before copying out)
         val filePath = vfs.listFiles(vfs.root).find { it.name == "file.txt" }!!.path
+        OpenVfsRegistry.materializeIfNeeded(filePath)
         val tempDir = Files.createTempDirectory("turtle-vfs-edit-test-")
         val tempPath = tempDir.resolve("file.txt")
         Files.copy(filePath, tempPath)
@@ -1194,7 +1195,8 @@ class EditWriteBackTest {
         val entries = vfs.listFiles(vfs.root)
         val file = entries.find { it.name == "file.txt" }
         assertNotNull(file)
-        assertEquals("edited", Files.readString(file!!.path))
+        vfs.materialize(file!!.path)
+        assertEquals("edited", Files.readString(file.path))
 
         // Verify persisted to tar archive
         vfs.close()
@@ -1202,7 +1204,8 @@ class EditWriteBackTest {
         vfsList.add(vfs2)
         val file2 = vfs2.listFiles(vfs2.root).find { it.name == "file.txt" }
         assertNotNull(file2)
-        assertEquals("edited", Files.readString(file2!!.path))
+        vfs2.materialize(file2!!.path)
+        assertEquals("edited", Files.readString(file2.path))
     }
 }
 
@@ -1476,7 +1479,8 @@ class SharedVfsStackEntryTest {
         val entries = vfs.listFiles(newSubdirPath)
         val file = entries.find { it.name == "file.txt" }
         assertNotNull(file)
-        assertEquals("edited", Files.readString(file!!.path))
+        vfs.materialize(file!!.path)
+        assertEquals("edited", Files.readString(file.path))
     }
 
     @Test
@@ -1550,7 +1554,8 @@ class SharedVfsStackEntryTest {
         vfsList.add(verifyVfs)
         val file = verifyVfs.listFiles(verifyVfs.root).find { it.name == "file.txt" }
         assertNotNull(file)
-        assertEquals("edited", Files.readString(file!!.path))
+        verifyVfs.materialize(file!!.path)
+        assertEquals("edited", Files.readString(file.path))
     }
 
     @Test
@@ -1582,6 +1587,8 @@ class SharedVfsStackEntryTest {
 
         val tempDir = Files.createTempDirectory("turtle-vfs-")
         val tempZip = tempDir.resolve("src.zip")
+        // Production (enterVfs) materializes lazy entries before copying them out.
+        tarVfs.materialize(srcZipInTar)
         Files.copy(srcZipInTar, tempZip)
         tempFiles.add(tempZip)
         tempFiles.add(tempDir)
@@ -1623,6 +1630,7 @@ class SharedVfsStackEntryTest {
         // Verify the zip content inside tar was updated
         val verifyDir = Files.createTempDirectory("turtle-verify-")
         val verifyZip = verifyDir.resolve("src.zip")
+        tarVfs.materialize(newParentPath)
         Files.copy(newParentPath, verifyZip)
         tempFiles.add(verifyZip)
         tempFiles.add(verifyDir)
@@ -1660,6 +1668,7 @@ class SharedVfsStackEntryTest {
         val zipInTar = tarVfs.root.resolve("subdir/archive.zip")
         val tempDir = Files.createTempDirectory("turtle-vfs-")
         val tempZip = tempDir.resolve("archive.zip")
+        tarVfs.materialize(zipInTar)
         Files.copy(zipInTar, tempZip)
         tempFiles.add(tempZip)
         tempFiles.add(tempDir)
@@ -1765,8 +1774,9 @@ class SharedVfsStackEntryTest {
         // Simulate: user is browsing in src/ directory
         var currentPath = vfs.root.resolve("src")
 
-        // Extract file to temp for editing
+        // Extract file to temp for editing (production materializes before copying out)
         val filePath = vfs.root.resolve("src/main.txt")
+        vfs.materialize(filePath)
         val editDir = Files.createTempDirectory("turtle-vfs-edit-test-")
         val editPath = editDir.resolve("main.txt")
         Files.copy(filePath, editPath)
@@ -1799,7 +1809,8 @@ class SharedVfsStackEntryTest {
         val entries = vfs.listFiles(currentPath)
         assertTrue("Should find main.txt in src/", entries.any { it.name == "main.txt" })
         val file = entries.find { it.name == "main.txt" }
-        assertEquals("edited", Files.readString(file!!.path))
+        vfs.materialize(file!!.path)
+        assertEquals("edited", Files.readString(file.path))
 
         // Navigation up should work
         val parent = currentPath.parent

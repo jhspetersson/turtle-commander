@@ -416,8 +416,16 @@ abstract class AbstractTempDirVirtualFileSystem(
         forEachArchiveEntry(tempDir) { path, relativeName ->
             val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
             h = h * 31 + relativeName.hashCode()
-            h = h * 31 + (if (attrs.isDirectory) -1L else attrs.size())
-            h = h * 31 + attrs.lastModifiedTime().toMillis()
+            if (attrs.isDirectory) {
+                // Directories contribute by name only: their mtime changes whenever a
+                // child is created — including the sibling temp file a lazy materialize
+                // writes — and carries no archive-relevant information that the file set
+                // and the files' own size/mtime don't already capture.
+                h = h * 31 - 1L
+            } else {
+                h = h * 31 + attrs.size()
+                h = h * 31 + attrs.lastModifiedTime().toMillis()
+            }
         }
         return h
     }

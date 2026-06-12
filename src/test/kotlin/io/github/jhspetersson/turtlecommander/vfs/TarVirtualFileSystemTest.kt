@@ -146,6 +146,72 @@ class TarVirtualFileSystemTest {
     }
 
     @Test
+    fun `entries are lazy stubs until materialized`() = runBlocking {
+        val hello = vfs.root.resolve("mydir/hello.txt")
+        // Lazy contract: right size, no content until materialized; idempotent afterwards.
+        assertEquals("Hello from tar".length.toLong(), Files.size(hello))
+        assertNotEquals("Hello from tar", Files.readString(hello))
+        vfs.materialize(hello)
+        assertEquals("Hello from tar", Files.readString(hello))
+        vfs.materialize(hello)
+        assertEquals("Hello from tar", Files.readString(hello))
+    }
+
+    @Test
+    fun `rename repacks the original bytes, not the stub`() = runBlocking {
+        // renameFile moves the stub and repacks while everything is still pending — the
+        // repacked archive must carry the real bytes for both the renamed entry and its
+        // untouched siblings.
+        vfs.renameFile(vfs.root.resolve("root.txt"), "renamed.txt")
+        vfs.close()
+
+        vfs = TarVirtualFileSystem(
+            tarPath,
+            inputStreamFactory = { Files.newInputStream(it) },
+            outputStreamFactory = { Files.newOutputStream(it) },
+        )
+        val renamed = vfs.root.resolve("renamed.txt")
+        vfs.materialize(renamed)
+        assertEquals("Root file", Files.readString(renamed))
+        val hello = vfs.root.resolve("mydir/hello.txt")
+        vfs.materialize(hello)
+        assertEquals("Hello from tar", Files.readString(hello))
+    }
+
+    @Test
+    fun `hard link entries resolve to real content at open`() = runBlocking {
+        val linkTar = Files.createTempFile("tar-hardlink-", ".tar")
+        try {
+            TarArchiveOutputStream(Files.newOutputStream(linkTar)).use { tar ->
+                val content = "shared bytes".toByteArray()
+                val target = TarArchiveEntry("target.txt")
+                target.size = content.size.toLong()
+                tar.putArchiveEntry(target)
+                tar.write(content)
+                tar.closeArchiveEntry()
+                val link = TarArchiveEntry("link.txt", TarArchiveEntry.LF_LINK)
+                link.linkName = "target.txt"
+                tar.putArchiveEntry(link)
+                tar.closeArchiveEntry()
+            }
+            val linkVfs = TarVirtualFileSystem(
+                linkTar,
+                inputStreamFactory = { Files.newInputStream(it) },
+                outputStreamFactory = { Files.newOutputStream(it) },
+            )
+            linkVfs.use {
+                // Hard links must carry real bytes immediately, with no materialize call:
+                // a link created against a stub inode would keep pointing at the zeros
+                // after the target's atomic replacement.
+                assertEquals("shared bytes", Files.readString(it.root.resolve("link.txt")))
+                assertEquals("shared bytes", Files.readString(it.root.resolve("target.txt")))
+            }
+        } finally {
+            Files.deleteIfExists(linkTar)
+        }
+    }
+
+    @Test
     fun `flush keeps the temp dir when nothing changed and re-extracts when the archive did`() = runBlocking {
         val oldRoot = vfs.root
 
