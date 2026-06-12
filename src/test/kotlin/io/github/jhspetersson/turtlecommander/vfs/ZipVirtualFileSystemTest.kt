@@ -303,7 +303,9 @@ class ZipExtractVirtualFileSystemTest {
     }
 
     @Test
-    fun `flush re-stubs and entries are still materializable`() = runBlocking {
+    fun `entries are still materializable after a clean flush`() = runBlocking {
+        // A clean flush with an unchanged archive keeps the temp dir (and the open
+        // reader) as is — pending stubs must remain materializable afterwards.
         createZip("f.txt" to "flush-me")
         val extractVfs = ZipExtractVirtualFileSystem(zipPath)
         vfs = extractVfs

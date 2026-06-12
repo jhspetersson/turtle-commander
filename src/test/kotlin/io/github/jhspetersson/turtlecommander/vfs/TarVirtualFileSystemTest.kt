@@ -146,11 +146,22 @@ class TarVirtualFileSystemTest {
     }
 
     @Test
-    fun `flush re-extracts archive`() = runBlocking {
+    fun `flush keeps the temp dir when nothing changed and re-extracts when the archive did`() = runBlocking {
         val oldRoot = vfs.root
+
+        // Clean flush + unchanged archive: the existing temp dir is kept as is.
+        vfs.flush()
+        assertEquals("clean flush must not re-extract", oldRoot, vfs.root)
+        assertTrue(Files.exists(oldRoot))
+
+        // Simulate an external rewrite of the archive (new mtime): flush must re-extract.
+        Files.setLastModifiedTime(
+            tarPath,
+            java.nio.file.attribute.FileTime.fromMillis(System.currentTimeMillis() + 5_000),
+        )
         vfs.flush()
         val newRoot = vfs.root
-        assertNotEquals(oldRoot, newRoot)
+        assertNotEquals("changed archive must trigger a re-extract", oldRoot, newRoot)
         // Old root should be cleaned up
         assertFalse(Files.exists(oldRoot))
         // New root should exist

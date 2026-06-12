@@ -12,6 +12,7 @@ import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.file.*
 import java.nio.file.attribute.BasicFileAttributes
+import java.nio.file.attribute.FileTime
 
 interface VirtualFileSystem : Closeable {
     val archivePath: Path
@@ -375,6 +376,10 @@ abstract class AbstractTempDirVirtualFileSystem(
      * temp files when an archive is malformed.
      */
     protected fun openTempDir() {
+        // Captured before extract so an archive rewritten mid-extraction can't be mistaken
+        // for the state we extracted — the next flush would then re-extract, which is the
+        // safe direction.
+        val signature = archiveSignature()
         val dir = Files.createTempDirectory(tempDirPrefix)
         try {
             extract(dir)
@@ -384,6 +389,7 @@ abstract class AbstractTempDirVirtualFileSystem(
         }
         tempDir = dir
         cleanFingerprint = computeFingerprint()
+        cleanArchiveSignature = signature
         // Register only after the temp dir is fully populated (or stub-populated) so
         // materializeIfNeeded never dispatches to a half-initialised VFS. The matching
         // unregister lives in close(), not in flush(), because flush() rebuilds the temp
@@ -416,6 +422,18 @@ abstract class AbstractTempDirVirtualFileSystem(
         return h
     }
 
+    /**
+     * Size + mtime of [archivePath] as of the last [extract], the same heuristic the
+     * directory-listing cache uses. [flush] re-extracts only when this changed (an
+     * external program rewrote the archive) or the temp dir is dirty — otherwise the
+     * existing temp dir, with any lazily-materialised content, is kept as is.
+     */
+    private var cleanArchiveSignature: Pair<Long, FileTime>? = null
+
+    private fun archiveSignature(): Pair<Long, FileTime>? = runCatching {
+        Files.size(archivePath) to Files.getLastModifiedTime(archivePath)
+    }.getOrNull()
+
     override val root: Path get() = tempDir
 
     override fun isRoot(path: Path): Boolean = path.normalize() == tempDir.normalize()
@@ -446,15 +464,27 @@ abstract class AbstractTempDirVirtualFileSystem(
         onRenamed(source, target)
         repack(tempDir)
         // The archive now matches the temp dir again; without this a following flush()
-        // would see the renamed entry as a change and repack a second time.
+        // would see the renamed entry as a change and repack (and re-extract) a second time.
         cleanFingerprint = computeFingerprint()
+        cleanArchiveSignature = archiveSignature()
         target
     }
 
     override fun flush() {
         // Repack only when the temp dir actually changed: read-only operations (copying a
         // file out of the archive, a plain refresh) must not rewrite the archive.
-        if (!isReadOnly && computeFingerprint() != cleanFingerprint) repack(tempDir)
+        val dirty = !isReadOnly && computeFingerprint() != cleanFingerprint
+        if (dirty) {
+            repack(tempDir)
+        } else {
+            val signature = archiveSignature()
+            if (signature != null && signature == cleanArchiveSignature) {
+                // Nothing to pick up in either direction: the temp dir is untouched and
+                // the archive on disk is still the one we extracted from. Keep the temp
+                // dir (and any lazily-materialised content) instead of re-extracting.
+                return
+            }
+        }
         tempDir.toFile().deleteRecursively()
         openTempDir()
     }

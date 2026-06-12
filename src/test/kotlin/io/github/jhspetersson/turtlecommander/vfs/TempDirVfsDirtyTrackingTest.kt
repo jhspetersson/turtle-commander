@@ -3,6 +3,7 @@ package io.github.jhspetersson.turtlecommander.vfs
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
@@ -19,12 +20,14 @@ class TempDirVfsDirtyTrackingTest {
         AbstractTempDirVirtualFileSystem("turtle-dirty-test-") {
 
         var repackCount = 0
+        var extractCount = 0
 
         init {
             openTempDir()
         }
 
         override fun extract(into: Path) {
+            extractCount++
             Files.writeString(into.resolve("a.txt"), "alpha")
             Files.createDirectories(into.resolve("sub"))
             Files.writeString(into.resolve("sub/b.txt"), "beta")
@@ -50,23 +53,40 @@ class TempDirVfsDirtyTrackingTest {
     }
 
     @Test
-    fun `flush without changes does not repack`() {
+    fun `flush without changes does not repack and keeps the temp dir`() {
         val v = newVfs()
+        val rootBefore = v.root
         v.flush()
         v.flush()
         assertEquals("clean flushes must not rewrite the archive", 0, v.repackCount)
+        assertEquals("clean flushes with an unchanged archive must not re-extract", 1, v.extractCount)
+        assertEquals("the temp dir must be kept as is", rootBefore, v.root)
     }
 
     @Test
-    fun `flush after a content change repacks once`() {
+    fun `flush re-extracts when the archive file changed externally`() {
+        val v = newVfs()
+        val rootBefore = v.root
+        // Different size, so the check is immune to filesystem mtime granularity.
+        Files.writeString(archive, "externally-rewritten-archive")
+        v.flush()
+        assertEquals("an unmodified temp dir must not be repacked", 0, v.repackCount)
+        assertEquals("a changed archive must trigger a re-extract", 2, v.extractCount)
+        assertNotEquals("re-extraction lands in a fresh temp dir", rootBefore, v.root)
+    }
+
+    @Test
+    fun `flush after a content change repacks and re-extracts once`() {
         val v = newVfs()
         // Different size, so the check is immune to filesystem mtime granularity.
         Files.writeString(v.getPath("/a.txt"), "alpha-edited")
         v.flush()
         assertEquals(1, v.repackCount)
+        assertEquals(2, v.extractCount)
         // The re-extracted temp dir is pristine again.
         v.flush()
         assertEquals(1, v.repackCount)
+        assertEquals(2, v.extractCount)
     }
 
     @Test
@@ -86,11 +106,12 @@ class TempDirVfsDirtyTrackingTest {
     }
 
     @Test
-    fun `rename repacks once and the following flush does not repack again`() = runBlocking {
+    fun `rename repacks once and the following flush neither repacks nor re-extracts`() = runBlocking {
         val v = newVfs()
         v.renameFile(v.getPath("/a.txt"), "renamed.txt")
         assertEquals("renameFile repacks directly", 1, v.repackCount)
         v.flush()
         assertEquals("flush after rename must not repack a second time", 1, v.repackCount)
+        assertEquals("flush after rename must not re-extract", 1, v.extractCount)
     }
 }
