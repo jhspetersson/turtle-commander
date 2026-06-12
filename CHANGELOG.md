@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-06-12
+
 ### Added
 
 - Quick filter (`Ctrl-S`) in the search results panel
