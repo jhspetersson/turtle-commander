@@ -408,12 +408,6 @@ internal fun FileTab.performSplitFile() {
     if (!dialog.showAndGet()) return
 
     val targetDir = Path.of(dialog.targetDirectory)
-    try {
-        Files.createDirectories(targetDir)
-    } catch (e: Exception) {
-        fileErrorNotification("Failed to create target directory: ${e.message}")
-        return
-    }
     val chunkSize = if (dialog.isSplitBySize) {
         dialog.chunkSize
     } else {
@@ -421,6 +415,12 @@ internal fun FileTab.performSplitFile() {
     }
 
     fileOps.launch {
+        try {
+            withContext(Dispatchers.IO) { Files.createDirectories(targetDir) }
+        } catch (e: Exception) {
+            fileErrorNotification("Failed to create target directory: ${e.message}")
+            return@launch
+        }
         withIndicatorProgress(project, "Splitting ${entry.name}") { indicator ->
             withContext(NonCancellable) {
                 indicator.isIndeterminate = false
@@ -475,54 +475,62 @@ internal fun FileTab.performCombineFiles() {
 
     val directory = entry.path.parent ?: return
     val baseFileName = CombineFilesOperation.resolveBaseFileName(entry.path) ?: return
-
-    val crcFile = directory.resolve("$baseFileName.crc")
-    val hasCrc = Files.exists(crcFile)
-
-    val crcInfo = if (hasCrc) {
-        try {
-            CombineFilesOperation.parseCrcFile(crcFile)
-        } catch (e: Exception) {
-            fileErrorNotification("Failed to parse CRC file: ${e.message}")
-            return
-        }
-    } else null
-
-    val targetFileName = crcInfo?.filename ?: baseFileName
-    val chunkFiles = CombineFilesOperation.findChunkFiles(directory, crcInfo?.filename ?: baseFileName)
-    if (chunkFiles.isEmpty()) {
-        fileErrorNotification("No chunk files found for $baseFileName")
-        return
-    }
-
-    val totalSize = chunkFiles.sumOf { Files.size(it) }
     val otherPath = otherPanelPathProvider()?.toString() ?: currentPath.toString()
 
-    val dialog = CombineFilesDialog(project, chunkFiles.size, totalSize, hasCrc, otherPath, targetFileName)
-    if (!dialog.showAndGet()) return
-
-    val targetDir = Path.of(dialog.targetDirectory)
-    try {
-        Files.createDirectories(targetDir)
-    } catch (e: Exception) {
-        fileErrorNotification("Failed to create target directory: ${e.message}")
-        return
-    }
-    val targetFile = targetDir.resolve(dialog.targetFile)
-
-    if (Files.exists(targetFile)) {
-        val result = Messages.showYesNoDialog(
-            project,
-            "File \"${dialog.targetFile}\" already exists. Overwrite?",
-            "Combine Files",
-            Messages.getQuestionIcon(),
-        )
-        if (result != Messages.YES) return
-    }
-
-    val finalTargetFileName = dialog.targetFile
-
     fileOps.launch {
+        // The chunk scan probes Files.exists per index and stats every chunk for its size —
+        // thousands of calls for a finely-split file — so the whole discovery runs off the
+        // EDT, hopping back only for the dialogs.
+        val crcFile = directory.resolve("$baseFileName.crc")
+        val hasCrc = withContext(Dispatchers.IO) { Files.exists(crcFile) }
+
+        val crcInfo = if (hasCrc) {
+            try {
+                withContext(Dispatchers.IO) { CombineFilesOperation.parseCrcFile(crcFile) }
+            } catch (e: Exception) {
+                fileErrorNotification("Failed to parse CRC file: ${e.message}")
+                return@launch
+            }
+        } else null
+
+        val targetFileName = crcInfo?.filename ?: baseFileName
+        val chunkFiles = withContext(Dispatchers.IO) {
+            CombineFilesOperation.findChunkFiles(directory, crcInfo?.filename ?: baseFileName)
+        }
+        if (chunkFiles.isEmpty()) {
+            fileErrorNotification("No chunk files found for $baseFileName")
+            return@launch
+        }
+
+        val totalSize = withContext(Dispatchers.IO) { chunkFiles.sumOf { Files.size(it) } }
+
+        val dialogChoice = withContext(Dispatchers.EDT) {
+            val dialog = CombineFilesDialog(project, chunkFiles.size, totalSize, hasCrc, otherPath, targetFileName)
+            if (dialog.showAndGet()) dialog.targetDirectory to dialog.targetFile else null
+        } ?: return@launch
+        val (targetDirString, finalTargetFileName) = dialogChoice
+
+        val targetDir = Path.of(targetDirString)
+        try {
+            withContext(Dispatchers.IO) { Files.createDirectories(targetDir) }
+        } catch (e: Exception) {
+            fileErrorNotification("Failed to create target directory: ${e.message}")
+            return@launch
+        }
+        val targetFile = targetDir.resolve(finalTargetFileName)
+
+        if (withContext(Dispatchers.IO) { Files.exists(targetFile) }) {
+            val overwrite = withContext(Dispatchers.EDT) {
+                Messages.showYesNoDialog(
+                    project,
+                    "File \"$finalTargetFileName\" already exists. Overwrite?",
+                    "Combine Files",
+                    Messages.getQuestionIcon(),
+                ) == Messages.YES
+            }
+            if (!overwrite) return@launch
+        }
+
         withIndicatorProgress(project, "Combining $finalTargetFileName") { indicator ->
             withContext(NonCancellable) {
                 indicator.isIndeterminate = false
@@ -594,21 +602,26 @@ internal fun FileTab.performPack() {
     val deleteAfterPacking = packDialog.deleteAfterPacking
     val sourcePaths = selected.map { it.path }
 
-    val archiveExists = Files.exists(archivePath)
-    var appendToExisting = false
-
-    if (archiveExists) {
-        when (askArchiveExistsAction(project, archivePath, format)) {
-            ArchiveExistsAction.OVERWRITE -> {}
-            ArchiveExistsAction.APPEND -> appendToExisting = true
-            ArchiveExistsAction.CANCEL -> return
-        }
-    }
-
     val archiveService = project.service<ArchiveService>()
     val finalArchivePath = archivePath
 
     fileOps.launch {
+        // The exists probe can block on a network destination — stat off the EDT,
+        // hop back only to show the overwrite/append prompt.
+        val archiveExists = withContext(Dispatchers.IO) { Files.exists(finalArchivePath) }
+        var appendToExisting = false
+
+        if (archiveExists) {
+            val action = withContext(Dispatchers.EDT) {
+                askArchiveExistsAction(project, finalArchivePath, format)
+            }
+            when (action) {
+                ArchiveExistsAction.OVERWRITE -> {}
+                ArchiveExistsAction.APPEND -> appendToExisting = true
+                ArchiveExistsAction.CANCEL -> return@launch
+            }
+        }
+
         withIndicatorProgress(project, "Packing files") { indicator ->
             withContext(NonCancellable) {
                 indicator.text = "Counting files..."
@@ -937,7 +950,9 @@ internal fun FileTab.openSelectedInAssociatedApp() {
                 } else {
                     entry.path
                 }
-                withContext(Dispatchers.EDT) {
+                // Desktop.open resolves the file association and launches the handler
+                // synchronously — the JDK explicitly warns against calling it on the EDT.
+                withContext(Dispatchers.IO) {
                     Desktop.getDesktop().open(filePath.toFile())
                 }
             } catch (e: Exception) {
@@ -945,10 +960,14 @@ internal fun FileTab.openSelectedInAssociatedApp() {
             }
         }
     } else {
-        try {
-            Desktop.getDesktop().open(entry.path.toFile())
-        } catch (e: Exception) {
-            fileErrorNotification("Failed to open file: ${fileErrorMessage(e)}")
+        fileOps.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    Desktop.getDesktop().open(entry.path.toFile())
+                }
+            } catch (e: Exception) {
+                fileErrorNotification("Failed to open file: ${fileErrorMessage(e)}")
+            }
         }
     }
 }
@@ -1057,16 +1076,18 @@ private fun FileTab.runMultiRename(pairs: List<Pair<FileEntry, String>>) {
         val completed = mutableListOf<Pair<Path, Path>>()
         val temps = mutableListOf<Triple<Path, Path, String>>() // original, tempPath, finalName
         try {
-            for ((entry, finalName) in pairs) {
-                val parent = entry.path.parent ?: continue
-                val temp = uniqueTemp(parent, entry.path.fileName.toString())
-                Files.move(entry.path, temp)
-                temps.add(Triple(entry.path, temp, finalName))
-            }
-            for ((original, temp, finalName) in temps) {
-                val finalPath = temp.resolveSibling(finalName)
-                Files.move(temp, finalPath)
-                completed.add(original to finalPath)
+            withContext(Dispatchers.IO) {
+                for ((entry, finalName) in pairs) {
+                    val parent = entry.path.parent ?: continue
+                    val temp = uniqueTemp(parent, entry.path.fileName.toString())
+                    Files.move(entry.path, temp)
+                    temps.add(Triple(entry.path, temp, finalName))
+                }
+                for ((original, temp, finalName) in temps) {
+                    val finalPath = temp.resolveSibling(finalName)
+                    Files.move(temp, finalPath)
+                    completed.add(original to finalPath)
+                }
             }
             completed.mapNotNull { it.first.parent }.toSet().forEach { fileOps.invalidateListingCache(it) }
             MultiRenameUndo.lastBatch = completed
@@ -1092,9 +1113,11 @@ private fun FileTab.runMultiRename(pairs: List<Pair<FileEntry, String>>) {
             navigateTo(currentPath)
         } catch (e: Exception) {
             // Best-effort rollback of any temps we've already created.
-            for ((original, temp, _) in temps) {
-                if (original !in completed.map { it.first } && Files.exists(temp)) {
-                    try { Files.move(temp, original) } catch (_: Exception) {}
+            withContext(Dispatchers.IO) {
+                for ((original, temp, _) in temps) {
+                    if (original !in completed.map { it.first } && Files.exists(temp)) {
+                        try { Files.move(temp, original) } catch (_: Exception) {}
+                    }
                 }
             }
             fileErrorNotification("Multi-rename failed: ${fileErrorMessage(e)}")
@@ -1111,16 +1134,18 @@ internal fun FileTab.performMultiRenameUndo() {
     fileOps.launch {
         try {
             // Reverse via the same two-phase trick.
-            val temps = mutableListOf<Triple<Path, Path, Path>>() // final, temp, original
-            for ((original, current) in batch) {
-                if (!Files.exists(current)) continue
-                val parent = current.parent ?: continue
-                val temp = uniqueTemp(parent, current.fileName.toString())
-                Files.move(current, temp)
-                temps.add(Triple(current, temp, original))
-            }
-            for ((_, temp, original) in temps) {
-                Files.move(temp, original)
+            withContext(Dispatchers.IO) {
+                val temps = mutableListOf<Triple<Path, Path, Path>>() // final, temp, original
+                for ((original, current) in batch) {
+                    if (!Files.exists(current)) continue
+                    val parent = current.parent ?: continue
+                    val temp = uniqueTemp(parent, current.fileName.toString())
+                    Files.move(current, temp)
+                    temps.add(Triple(current, temp, original))
+                }
+                for ((_, temp, original) in temps) {
+                    Files.move(temp, original)
+                }
             }
             (batch.mapNotNull { it.first.parent } + batch.mapNotNull { it.second.parent })
                 .toSet()

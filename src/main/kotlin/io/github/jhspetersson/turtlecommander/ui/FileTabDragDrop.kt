@@ -3,7 +3,10 @@ package io.github.jhspetersson.turtlecommander.ui
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
 
+import com.intellij.openapi.application.EDT
 import com.intellij.openapi.diagnostic.thisLogger
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.Transferable
 import java.awt.datatransfer.UnsupportedFlavorException
@@ -34,30 +37,43 @@ internal class FileEntryTransferHandler(private val tab: FileTab) : TransferHand
             return false
         }
         try {
-            val entries = when {
+            when {
                 support.isDataFlavorSupported(FileTab.FILE_ENTRY_FLAVOR) -> {
                     @Suppress("UNCHECKED_CAST")
-                    support.transferable.getTransferData(FileTab.FILE_ENTRY_FLAVOR) as List<FileEntry>
+                    val entries = support.transferable.getTransferData(FileTab.FILE_ENTRY_FLAVOR) as List<FileEntry>
+                    tab.performCopyEntries(entries, tab.currentPath, tab.getDisplayPath())
+                    return true
                 }
                 support.isDataFlavorSupported(DataFlavor.javaFileListFlavor) -> {
+                    // The transferable must be read here, while the drop is live — but the
+                    // per-file stats (isDirectory / isFile / length) can block on a network
+                    // share, so entry building happens off the EDT and only the dialog hops back.
                     @Suppress("UNCHECKED_CAST")
                     val files = support.transferable.getTransferData(DataFlavor.javaFileListFlavor) as List<File>
-                    files.map { file ->
-                        val path = file.toPath()
-                        FileEntry(
-                            name = file.name,
-                            path = path,
-                            isDirectory = file.isDirectory,
-                            size = if (file.isFile) file.length() else 0,
-                            lastModified = null,
-                            permissions = "",
-                        )
+                    val destination = tab.currentPath
+                    val displayPath = tab.getDisplayPath()
+                    tab.fileOps.launch {
+                        val entries = withContext(Dispatchers.IO) {
+                            files.map { file ->
+                                val path = file.toPath()
+                                FileEntry(
+                                    name = file.name,
+                                    path = path,
+                                    isDirectory = file.isDirectory,
+                                    size = if (file.isFile) file.length() else 0,
+                                    lastModified = null,
+                                    permissions = "",
+                                )
+                            }
+                        }
+                        withContext(Dispatchers.EDT) {
+                            tab.performCopyEntries(entries, destination, displayPath)
+                        }
                     }
+                    return true
                 }
                 else -> return false
             }
-            tab.performCopyEntries(entries, tab.currentPath, tab.getDisplayPath())
-            return true
         } catch (e: Exception) {
             thisLogger().warn("Drop failed: ${fileErrorMessage(e)}")
             return false

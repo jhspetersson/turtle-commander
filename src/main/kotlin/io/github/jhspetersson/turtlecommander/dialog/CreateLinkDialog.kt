@@ -3,10 +3,13 @@ package io.github.jhspetersson.turtlecommander.dialog
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
+import com.intellij.platform.ide.progress.runWithModalProgressBlocking
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.ui.installStandardContextMenu
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.awt.Dimension
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
@@ -25,7 +28,7 @@ import javax.swing.*
  * that choice does not apply to them.
  */
 class CreateLinkDialog(
-    project: Project,
+    private val project: Project,
     private val sources: List<FileEntry>,
     private val destination: Path,
     destinationDisplayPath: String = destination.toString(),
@@ -171,8 +174,15 @@ class CreateLinkDialog(
         }
 
         // Refuse to clobber anything already at a link path (NOFOLLOW so a link itself counts).
-        computed.firstOrNull { Files.exists(it.link, LinkOption.NOFOLLOW_LINKS) }?.let {
-            error("Already exists:\n${it.link}")
+        // The stats run under a modal progress: a dead network destination would otherwise
+        // freeze the EDT for the SMB timeout per link.
+        val clash = runWithModalProgressBlocking(project, "Checking link paths…") {
+            withContext(Dispatchers.IO) {
+                computed.firstOrNull { Files.exists(it.link, LinkOption.NOFOLLOW_LINKS) }
+            }
+        }
+        if (clash != null) {
+            error("Already exists:\n${clash.link}")
             return
         }
 

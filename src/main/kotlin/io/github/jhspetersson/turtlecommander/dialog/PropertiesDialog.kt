@@ -49,6 +49,7 @@ class PropertiesDialog(
 ) : DialogWrapper(project) {
 
     private val sizeField = copyableField(initialSizeText())
+    private val accessedField = copyableField("…")
     private val cancelled = AtomicBoolean(false)
 
     init {
@@ -56,6 +57,14 @@ class PropertiesDialog(
         init()
         if (entry.isDirectory) {
             ApplicationManager.getApplication().executeOnPooledThread { computeAndShowDirSize() }
+        }
+        // The access-time stat is one syscall, but on a dead network path it can hang for
+        // the SMB timeout — read it off the EDT like the directory size.
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val accessTime = readAccessTime(entry.path)
+            SwingUtilities.invokeLater {
+                if (!cancelled.get()) accessedField.text = formatTime(accessTime)
+            }
         }
     }
 
@@ -69,7 +78,6 @@ class PropertiesDialog(
         arrayOf(okAction.also { it.putValue(Action.NAME, "Close") })
 
     override fun createCenterPanel(): JComponent {
-        val accessTime = readAccessTime(entry.path)
         val builder = FormBuilder.createFormBuilder()
             .addLabeledComponent("Type:", copyableField(typeDescription()))
             .addLabeledComponent("Path:", copyableField(entry.path.toAbsolutePath().toString()))
@@ -77,9 +85,7 @@ class PropertiesDialog(
             .addLabeledComponent("Size:", sizeField)
             .addLabeledComponent("Created:", copyableField(formatTime(entry.creationTime?.toMillis())))
             .addLabeledComponent("Modified:", copyableField(formatTime(entry.lastModified?.toMillis())))
-        if (accessTime != null) {
-            builder.addLabeledComponent("Accessed:", copyableField(formatTime(accessTime)))
-        }
+        builder.addLabeledComponent("Accessed:", accessedField)
         builder.addLabeledComponent("Owner:", copyableField(entry.owner.ifEmpty { "-" }))
         builder.addLabeledComponent("Group:", copyableField(entry.group.ifEmpty { "-" }))
         builder.addLabeledComponent("Permissions:", copyableField(entry.permissions.ifEmpty { "-" }))

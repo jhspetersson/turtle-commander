@@ -7,8 +7,11 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
+import com.intellij.platform.ide.progress.runWithModalProgressBlocking
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.awt.Dimension
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
@@ -27,7 +30,7 @@ import javax.swing.JTextArea
  * near-identical [DialogWrapper] subclasses.
  */
 class TransferDialog(
-    project: Project,
+    private val project: Project,
     private val verb: String,
     private val sources: List<FileEntry>,
     private val destination: Path,
@@ -123,18 +126,26 @@ class TransferDialog(
             if (parsed.isAbsolute) parsed.normalize() else destination.resolve(parsed).normalize()
         }
 
-        if (Files.exists(resolved)) {
-            if (!Files.isDirectory(resolved)) {
-                Messages.showErrorDialog(contentPanel, "Destination is not a directory:\n$resolved", verb)
-                return
+        // The stat / mkdir can block for the SMB timeout on a dead network destination —
+        // run it under a modal progress so the EDT keeps painting, and keep the dialog
+        // open on failure so the user can correct the path.
+        val error = runWithModalProgressBlocking(project, "Checking destination…") {
+            withContext(Dispatchers.IO) {
+                if (Files.exists(resolved)) {
+                    if (!Files.isDirectory(resolved)) "Destination is not a directory:\n$resolved" else null
+                } else {
+                    try {
+                        Files.createDirectories(resolved)
+                        null
+                    } catch (e: Exception) {
+                        "Failed to create destination directory:\n${e.message}"
+                    }
+                }
             }
-        } else {
-            try {
-                Files.createDirectories(resolved)
-            } catch (e: Exception) {
-                Messages.showErrorDialog(contentPanel, "Failed to create destination directory:\n${e.message}", verb)
-                return
-            }
+        }
+        if (error != null) {
+            Messages.showErrorDialog(contentPanel, error, verb)
+            return
         }
 
         targetDirectory = resolved

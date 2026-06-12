@@ -4,6 +4,7 @@ import com.intellij.diff.DiffContentFactory
 import com.intellij.diff.DiffManager
 import com.intellij.diff.requests.SimpleDiffRequest
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.service
 import com.intellij.openapi.vfs.LocalFileSystem
 import io.github.jhspetersson.turtlecommander.dialog.FileSearchDialog
@@ -364,14 +365,22 @@ class ShowPropertiesAction : EdtAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry ?: return
         val tab = FileContextMenuState.clickedTab
+        val project = e.project
         // Inside an archive entry.path is a temp-extracted file — its real
         // size / dates / owner won't match the archive entry. Skip the
         // native attempt and use the Swing dialog, which reads from the
         // FileEntry record we already have.
         val canUseNative = tab?.isInsideArchive != true
-        val opened = canUseNative && NativeProperties.showProperties(entry.path)
-        if (!opened) {
-            PropertiesDialog(e.project, entry).show()
+        // The native call shells out (ShellExecuteEx / osascript / gdbus) and can block
+        // for up to a second — run it on a pooled thread and only hop back to the EDT
+        // for the Swing fallback dialog.
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val opened = canUseNative && NativeProperties.showProperties(entry.path)
+            if (!opened) {
+                ApplicationManager.getApplication().invokeLater {
+                    PropertiesDialog(project, entry).show()
+                }
+            }
         }
     }
 }

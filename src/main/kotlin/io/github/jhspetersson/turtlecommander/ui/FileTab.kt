@@ -506,8 +506,13 @@ class FileTab(
                     handleVfsBreadcrumbClick(segmentPath)
                 } else {
                     val path = try { Path.of(segmentPath) } catch (_: Exception) { null }
-                    if (path != null && path.toFile().isDirectory) {
-                        fileOps.launch { navigateTo(path) }
+                    if (path != null) {
+                        // Stat off the EDT: a dead network path can block for many seconds.
+                        fileOps.launch {
+                            if (withContext(Dispatchers.IO) { Files.isDirectory(path) }) {
+                                navigateTo(path)
+                            }
+                        }
                     }
                 }
             }
@@ -517,18 +522,22 @@ class FileTab(
                     table.requestFocusInWindow()
                     return@addActionListener
                 }
-                var path = try {
+                val typed = try {
                     val p = Path.of(text)
                     if (p.isAbsolute) p else currentPath
                 } catch (_: Exception) { currentPath }
-                while (!path.toFile().isDirectory) {
-                    path = path.parent ?: break
-                }
-                if (!path.toFile().isDirectory) {
-                    path = currentPath
-                }
-                pathField.text = path.toString()
+                val fallback = currentPath
+                // The ancestor walk stats each level; on a dead UNC path every stat can
+                // block for the SMB timeout, so the whole resolution runs off the EDT.
                 fileOps.launch {
+                    val path = withContext(Dispatchers.IO) {
+                        var p: Path? = typed
+                        while (p != null && !Files.isDirectory(p)) {
+                            p = p.parent
+                        }
+                        p ?: fallback
+                    }
+                    withContext(Dispatchers.EDT) { pathField.text = path.toString() }
                     navigateTo(path)
                 }
                 table.requestFocusInWindow()

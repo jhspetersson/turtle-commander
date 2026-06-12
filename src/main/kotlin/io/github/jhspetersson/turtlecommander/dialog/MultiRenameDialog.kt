@@ -2,6 +2,7 @@ package io.github.jhspetersson.turtlecommander.dialog
 import java.awt.Color
 import java.awt.FlowLayout
 
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.ui.ComboBox
@@ -21,6 +22,8 @@ import java.awt.Dimension
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.nio.file.Files
+import java.nio.file.Path
+import java.util.Locale
 import javax.swing.JCheckBox
 import javax.swing.JComponent
 import javax.swing.JPanel
@@ -60,6 +63,19 @@ class MultiRenameDialog(
     private var conflictRows: Set<Int> = emptySet()
     private var currentTargets: List<String> = emptyList()
 
+    /**
+     * Names already present in the entries' parent directories, case-folded on Windows.
+     * Snapshotted once on a pooled thread: the conflict preview recomputes on every
+     * keystroke, and probing `Files.exists` per row per keystroke on the EDT lags badly
+     * on network shares. Until the snapshot lands, targets are optimistically treated as
+     * free — the rename operation itself still fails (and rolls back) on a real clash.
+     */
+    @Volatile
+    private var existingNames: Map<Path, Set<String>>? = null
+
+    private fun foldName(name: String): String =
+        if (SystemInfo.isWindows) name.lowercase(Locale.ROOT) else name
+
     var result: Result? = null
         private set
 
@@ -70,6 +86,21 @@ class MultiRenameDialog(
         wireLiveUpdate()
         init()
         recomputePreview()
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val snapshot = entries.mapNotNull { it.path.parent }.toSet().associateWith { dir ->
+                try {
+                    Files.newDirectoryStream(dir).use { stream ->
+                        stream.mapNotNullTo(mutableSetOf()) { it.fileName?.toString()?.let(::foldName) }
+                    }
+                } catch (_: Exception) {
+                    emptySet()
+                }
+            }
+            SwingUtilities.invokeLater {
+                existingNames = snapshot
+                recomputePreview()
+            }
+        }
     }
 
     override fun createCenterPanel(): JComponent {
@@ -198,7 +229,11 @@ class MultiRenameDialog(
             sources = entries.map { it.path },
             targetNames = targets,
             caseInsensitiveDuplicates = caseInsensitiveFs,
-            existsOnDisk = { Files.exists(it) },
+            existsOnDisk = { target ->
+                val names = existingNames ?: return@detectConflicts false
+                val name = target.fileName?.toString() ?: return@detectConflicts false
+                names[target.parent]?.contains(foldName(name)) == true
+            },
         )
         currentTargets = targets
         tableModel.refresh(entries, targets)
