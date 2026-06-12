@@ -8,6 +8,8 @@ import io.github.jhspetersson.turtlecommander.model.FileEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.Closeable
+import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
 import java.nio.file.*
 import java.nio.file.attribute.BasicFileAttributes
 
@@ -66,6 +68,26 @@ object OpenVfsRegistry {
                 vfs.materialize(path)
                 return
             }
+        }
+    }
+
+    /**
+     * Like [materializeIfNeeded] but recursive: ensures every file under [path] holds real
+     * bytes. Needed before a same-filesystem `Files.move` relocates a lazy-VFS subtree out
+     * of its temp dir wholesale — after the move the stubs are no longer under any VFS root,
+     * so per-file interception can never run for them again.
+     */
+    fun materializeTreeIfNeeded(path: Path) {
+        val owner = instances.firstOrNull { it.owns(path) } ?: return
+        if (Files.isDirectory(path)) {
+            Files.walkFileTree(path, object : SimpleFileVisitor<Path>() {
+                override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                    owner.materialize(file)
+                    return FileVisitResult.CONTINUE
+                }
+            })
+        } else {
+            owner.materialize(path)
         }
     }
 }
@@ -257,6 +279,30 @@ internal fun resolveEntryPath(baseDir: Path, entryName: String): Path? {
     }
 }
 
+/**
+ * Create a placeholder file of [size] bytes at [path] for lazily-materialising VFS
+ * implementations ([IsoVirtualFileSystem], [ZipExtractVirtualFileSystem]). Opens with
+ * [StandardOpenOption.SPARSE] so the OS can keep the allocation sparse where supported
+ * (NTFS on Windows when the SPARSE flag is honoured, ext4 / xfs on Linux, APFS on macOS);
+ * falls back to a regular allocation otherwise. Either way [Files.size] returns the right
+ * value so directory listings show the real size before any bytes have been streamed.
+ */
+internal fun createSparseStub(path: Path, size: Long) {
+    Files.createFile(path)
+    if (size <= 0) return
+    FileChannel.open(
+        path,
+        StandardOpenOption.WRITE,
+        StandardOpenOption.SPARSE,
+    ).use { ch ->
+        // Writing a single byte at offset (size - 1) extends the file to `size`; on
+        // SPARSE-capable filesystems the gap remains a hole. The byte itself will be
+        // overwritten when materialize() streams real content.
+        ch.position(size - 1)
+        ch.write(ByteBuffer.wrap(byteArrayOf(0)))
+    }
+}
+
 internal fun vfsRelativePath(root: Path, path: Path): String {
     return try {
         root.relativize(path).toString()
@@ -337,11 +383,37 @@ abstract class AbstractTempDirVirtualFileSystem(
             throw e
         }
         tempDir = dir
+        cleanFingerprint = computeFingerprint()
         // Register only after the temp dir is fully populated (or stub-populated) so
         // materializeIfNeeded never dispatches to a half-initialised VFS. The matching
         // unregister lives in close(), not in flush(), because flush() rebuilds the temp
         // dir while the VFS itself stays alive.
         OpenVfsRegistry.register(this)
+    }
+
+    /**
+     * Fingerprint of the temp-dir contents (relative name + size + mtime of every entry,
+     * accumulated over the deterministic sorted walk of [forEachArchiveEntry]), captured
+     * right after [extract]. [flush] compares against it so a repack only happens when
+     * something actually changed — copying a file *out* of the archive or a plain refresh
+     * must not rewrite (and re-compress) an archive the user never modified.
+     *
+     * Granularity caveat: an in-place edit that preserves both size and mtime would go
+     * unnoticed, but every real write path (editor write-back, copy-in, delete) produces a
+     * fresh mtime or a different size. Lazy implementations keep materialisation invisible
+     * here by giving the materialised file the stub's exact mtime.
+     */
+    private var cleanFingerprint: Long = 0
+
+    private fun computeFingerprint(): Long {
+        var h = 1125899906842597L
+        forEachArchiveEntry(tempDir) { path, relativeName ->
+            val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
+            h = h * 31 + relativeName.hashCode()
+            h = h * 31 + (if (attrs.isDirectory) -1L else attrs.size())
+            h = h * 31 + attrs.lastModifiedTime().toMillis()
+        }
+        return h
     }
 
     override val root: Path get() = tempDir
@@ -373,11 +445,16 @@ abstract class AbstractTempDirVirtualFileSystem(
         Files.move(source, target)
         onRenamed(source, target)
         repack(tempDir)
+        // The archive now matches the temp dir again; without this a following flush()
+        // would see the renamed entry as a change and repack a second time.
+        cleanFingerprint = computeFingerprint()
         target
     }
 
     override fun flush() {
-        if (!isReadOnly) repack(tempDir)
+        // Repack only when the temp dir actually changed: read-only operations (copying a
+        // file out of the archive, a plain refresh) must not rewrite the archive.
+        if (!isReadOnly && computeFingerprint() != cleanFingerprint) repack(tempDir)
         tempDir.toFile().deleteRecursively()
         openTempDir()
     }

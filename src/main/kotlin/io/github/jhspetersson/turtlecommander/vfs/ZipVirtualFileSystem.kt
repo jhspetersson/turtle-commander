@@ -12,7 +12,10 @@ import java.nio.file.FileSystem
 import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.BasicFileAttributes
+import java.nio.file.attribute.FileTime
+import java.util.concurrent.ConcurrentHashMap
 
 class ZipFileSystemProvider : VirtualFileSystemProvider {
     companion object {
@@ -123,12 +126,49 @@ class ZipVirtualFileSystem(override val archivePath: Path) : VirtualFileSystem {
 /**
  * Fallback ZIP VFS using Apache Commons Compress for ZIP files that Java's
  * built-in ZipFileSystem rejects (e.g. "Invalid CEN header").
- * Extracts to a temp directory like Tar/AR VFS.
+ *
+ * Like [IsoVirtualFileSystem], content is materialised lazily: at open time only the
+ * directory structure is written to the temp dir, with each file represented by a sparse
+ * stub of the correct size and timestamp. Actual bytes are streamed from the archive only
+ * when something reads them — via [OpenVfsRegistry.materializeIfNeeded] from the file-open,
+ * copy, hash, and content-search code paths. Unlike the ISO this VFS is writable, which
+ * adds one rule: [repack] must materialise every remaining stub first, because the source
+ * archive (the stubs' only backing store) is overwritten right after.
  */
 class ZipExtractVirtualFileSystem(
     override val archivePath: Path,
     openProgress: VfsOpenProgress? = null,
 ) : AbstractTempDirVirtualFileSystem("turtle-zip-", openProgress) {
+
+    /**
+     * The archive entry backing a still-unmaterialised stub, plus the stub's size and
+     * mtime as created. The metadata serves two purposes: [materialize] gives the
+     * materialised file the stub's exact mtime (so materialisation never flips the
+     * dirty-tracking fingerprint in the base class), and it detects a stub that was
+     * overwritten or deleted by an external write (copy-into-archive replacing an entry)
+     * — in that case the user's content wins and the pending record is just dropped.
+     */
+    private class PendingEntry(
+        val entry: ZipArchiveEntry,
+        val stubSize: Long,
+        val stubMtime: FileTime,
+    )
+
+    /**
+     * Map from stub path (normalised) to its pending record. Populated during [extract]
+     * and drained by [materialize]; once a path is gone from the map the stub holds real
+     * (or user-written) content and further [materialize] calls for it are no-ops.
+     * Concurrent because content search and parallel hash actions can race.
+     */
+    private val pendingEntries = ConcurrentHashMap<Path, PendingEntry>()
+
+    /**
+     * Kept open for the VFS lifetime so [materialize] can stream individual entries without
+     * re-parsing the central directory on every call. Re-created by [extract] (which runs
+     * again on every flush) and closed in [close] — and in [repack], before the archive is
+     * rewritten underneath it.
+     */
+    private var zipReader: ZipFile? = null
 
     init {
         openTempDir()
@@ -136,12 +176,15 @@ class ZipExtractVirtualFileSystem(
 
     override fun extract(into: Path) {
         val progress = takeOpenProgress()
-        ZipFile.builder().setPath(archivePath).get().use { zip ->
-            // Previously we called zip.entries.toList() just to know the total for
-            // the progress fraction, which allocated an O(n) reference list for
-            // archives that can contain millions of entries (fat JARs, etc.). The
-            // central directory is already parsed in memory, so iterating twice
-            // is cheap and lets us keep determinate progress without the extra copy.
+        // flush() re-extracts into a fresh temp dir: drop the reader and the stub
+        // bookkeeping of the previous round first.
+        closeReader()
+        pendingEntries.clear()
+        val zip = ZipFile.builder().setPath(archivePath).get()
+        try {
+            // Iterating the (already in-memory) central directory twice is cheaper than
+            // zip.entries.toList() just to know the total for the progress fraction —
+            // fat JARs can contain millions of entries.
             var total = 0
             val counter = zip.entries
             while (counter.hasMoreElements()) {
@@ -159,26 +202,111 @@ class ZipExtractVirtualFileSystem(
                 try {
                     if (entry.isDirectory) {
                         Files.createDirectories(entryPath)
+                        if (entry.lastModifiedDate != null) {
+                            Files.setLastModifiedTime(entryPath, FileTime.fromMillis(entry.lastModifiedDate.time))
+                        }
                     } else {
                         Files.createDirectories(entryPath.parent)
-                        zip.getInputStream(entry).use { input ->
-                            Files.copy(input, entryPath)
+                        createSparseStub(entryPath, entry.size)
+                        if (entry.lastModifiedDate != null) {
+                            Files.setLastModifiedTime(entryPath, FileTime.fromMillis(entry.lastModifiedDate.time))
                         }
-                    }
-                    if (entry.lastModifiedDate != null) {
-                        Files.setLastModifiedTime(
-                            entryPath,
-                            java.nio.file.attribute.FileTime.fromMillis(entry.lastModifiedDate.time),
+                        pendingEntries[entryPath.normalize()] = PendingEntry(
+                            entry,
+                            stubSize = Files.size(entryPath),
+                            stubMtime = Files.getLastModifiedTime(entryPath),
                         )
                     }
                 } catch (e: Exception) {
-                    thisLogger().debug("Failed to extract zip entry: ${entry.name}", e)
+                    thisLogger().debug("Failed to stub zip entry: ${entry.name}", e)
                 }
+            }
+        } catch (e: Exception) {
+            runCatching { zip.close() }
+            throw e
+        }
+        zipReader = zip
+    }
+
+    /**
+     * Stream the actual bytes for [path] from the archive and replace its sparse stub.
+     * A no-op if [path] isn't one of our entries or has already been materialised — and a
+     * deliberate no-op (record dropped) when the stub was overwritten or deleted by an
+     * external write, so a copy-into-archive or delete is never clobbered/resurrected by
+     * a later materialisation. Synchronised so two consumers reading the same file
+     * concurrently each get the full content rather than racing through `Files.copy`.
+     */
+    @Synchronized
+    override fun materialize(path: Path) {
+        val normalized = path.normalize()
+        val pending = pendingEntries[normalized] ?: return
+        val zip = zipReader ?: return
+        val current = runCatching {
+            Files.size(normalized) to Files.getLastModifiedTime(normalized)
+        }.getOrNull()
+        if (current == null || current.first != pending.stubSize || current.second != pending.stubMtime) {
+            // Stub gone or replaced in place: whatever is (or isn't) there now is the
+            // user's doing, not ours to overwrite.
+            pendingEntries.remove(normalized)
+            return
+        }
+        try {
+            // Write into a sibling temp file then atomic-move, so a partial write never
+            // leaves a half-streamed file at the canonical path.
+            val tmp = Files.createTempFile(normalized.parent, ".tc-materializing-", ".tmp")
+            try {
+                zip.getInputStream(pending.entry).use { input ->
+                    Files.copy(input, tmp, StandardCopyOption.REPLACE_EXISTING)
+                }
+                Files.move(tmp, normalized, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+            } finally {
+                Files.deleteIfExists(tmp)
+            }
+            // Exactly the stub's mtime, so materialisation is invisible to the base
+            // class's dirty-tracking fingerprint.
+            Files.setLastModifiedTime(normalized, pending.stubMtime)
+            pendingEntries.remove(normalized)
+        } catch (e: Exception) {
+            thisLogger().warn("Failed to materialize zip entry $normalized: ${e.message}")
+            throw e
+        }
+    }
+
+    /**
+     * [renameFile] in the base class moves the stub on disk; keep the pending map keyed
+     * by the stub's new location so [materialize] (and the repack below) stream the bytes
+     * to where the stub actually lives now.
+     */
+    @Synchronized
+    override fun onRenamed(source: Path, target: Path) {
+        pendingEntries.remove(source.normalize())?.let { entry ->
+            pendingEntries[target.normalize()] = entry
+        }
+    }
+
+    /**
+     * Materialise every still-pending stub before [repack] overwrites the archive they
+     * stream from. An entry whose bytes can't be read is dropped from the temp dir (and
+     * thus from the repacked archive) — the same outcome the eager extractor produced
+     * when an entry failed to extract — rather than repacking a zero-filled stub.
+     */
+    @Synchronized
+    private fun materializeAllForRepack() {
+        for (path in pendingEntries.keys.toList()) {
+            try {
+                materialize(path)
+            } catch (e: Exception) {
+                thisLogger().warn("Dropping unreadable zip entry from repack: $path (${e.message})")
+                runCatching { Files.deleteIfExists(path) }
+                pendingEntries.remove(path)
             }
         }
     }
 
     override fun repack(from: Path) {
+        materializeAllForRepack()
+        // Release the read handle: the output stream below truncates the same file.
+        closeReader()
         ZipArchiveOutputStream(Files.newOutputStream(archivePath)).use { zip ->
             forEachArchiveEntry(from) { path, relativeName ->
                 val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
@@ -195,5 +323,20 @@ class ZipExtractVirtualFileSystem(
                 zip.closeArchiveEntry()
             }
         }
+    }
+
+    private fun closeReader() {
+        try {
+            zipReader?.close()
+        } catch (e: Exception) {
+            thisLogger().debug("Failed to close zip reader for $archivePath: ${e.message}")
+        }
+        zipReader = null
+    }
+
+    override fun close() {
+        closeReader()
+        pendingEntries.clear()
+        super.close()
     }
 }

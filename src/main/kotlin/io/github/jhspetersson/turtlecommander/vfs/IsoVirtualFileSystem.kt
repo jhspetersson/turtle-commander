@@ -4,12 +4,9 @@ import com.intellij.openapi.diagnostic.thisLogger
 import com.palantir.isofilereader.isofilereader.GenericInternalIsoFile
 import com.palantir.isofilereader.isofilereader.IsoFileReader
 import java.io.IOException
-import java.nio.ByteBuffer
-import java.nio.channels.FileChannel
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
-import java.nio.file.StandardOpenOption
 import java.nio.file.attribute.FileTime
 import java.util.concurrent.ConcurrentHashMap
 
@@ -79,6 +76,10 @@ class IsoVirtualFileSystem(
 
     override fun extract(into: Path) {
         val progress = takeOpenProgress()
+        // flush() re-extracts into a fresh temp dir: release the previous reader and the
+        // stub bookkeeping of the previous round first.
+        closeReader()
+        pendingEntries.clear()
         val newReader = IsoFileReader(archivePath.toFile())
         // The constructor runs format detection and silently picks the best mode it can.
         // If it finds neither an ISO 9660 volume descriptor nor a UDF anchor, we must reject
@@ -100,7 +101,7 @@ class IsoVirtualFileSystem(
                 val entryPath = resolveEntryPath(into, cleanPath) ?: return@forEachIndexed
                 try {
                     entryPath.parent?.let { Files.createDirectories(it) }
-                    createStub(entryPath, entry.size)
+                    createSparseStub(entryPath, entry.size)
                     val dateOpt = entry.dateAsDate
                     if (dateOpt != null && dateOpt.isPresent) {
                         Files.setLastModifiedTime(entryPath, FileTime.fromMillis(dateOpt.get().time))
@@ -115,29 +116,6 @@ class IsoVirtualFileSystem(
             throw e
         }
         reader = newReader
-    }
-
-    /**
-     * Create a placeholder file of [size] bytes at [path]. Opens with [StandardOpenOption.SPARSE]
-     * so the OS can keep the allocation sparse where supported (NTFS on Windows when the
-     * SPARSE flag is honoured, ext4 / xfs on Linux, APFS on macOS); falls back to a regular
-     * allocation otherwise. Either way [Files.size] returns the right value so directory
-     * listings show the on-disc size before any bytes have been streamed.
-     */
-    private fun createStub(path: Path, size: Long) {
-        Files.createFile(path)
-        if (size <= 0) return
-        FileChannel.open(
-            path,
-            StandardOpenOption.WRITE,
-            StandardOpenOption.SPARSE,
-        ).use { ch ->
-            // Writing a single byte at offset (size - 1) extends the file to `size`; on
-            // SPARSE-capable filesystems the gap remains a hole. The byte itself will be
-            // overwritten when materialize() streams real content.
-            ch.position(size - 1)
-            ch.write(ByteBuffer.wrap(byteArrayOf(0)))
-        }
     }
 
     /**
@@ -178,13 +156,17 @@ class IsoVirtualFileSystem(
         }
     }
 
-    override fun close() {
+    private fun closeReader() {
         try {
             reader?.close()
         } catch (e: Exception) {
             thisLogger().debug("Failed to close IsoFileReader for $archivePath: ${e.message}")
         }
         reader = null
+    }
+
+    override fun close() {
+        closeReader()
         pendingEntries.clear()
         super.close()
     }

@@ -971,6 +971,11 @@ class FileOperationService(
 
     internal fun crossFileSystemMove(source: Path, target: Path, vararg options: CopyOption) {
         if (source.fileSystem == target.fileSystem) {
+            // A lazy-VFS temp dir lives on the default filesystem, so moving an entry out
+            // of an open archive takes this branch — pull the real bytes onto the stubs
+            // first, or the destination would receive zero-filled placeholders. No-op for
+            // paths outside any VFS.
+            OpenVfsRegistry.materializeTreeIfNeeded(source)
             Files.move(source, target, *options)
             return
         }

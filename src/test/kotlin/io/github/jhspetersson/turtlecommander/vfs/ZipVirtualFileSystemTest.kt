@@ -1,5 +1,10 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
+import io.github.jhspetersson.turtlecommander.service.FileOperationService
+import io.github.jhspetersson.turtlecommander.service.OverwritePolicy
+import io.github.jhspetersson.turtlecommander.service.OverwriteResponse
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.*
@@ -140,12 +145,12 @@ class ZipVirtualFileSystemTest {
 }
 
 /**
- * Exercises the fallback extraction path used for zips that Java's built-in
- * ZipFileSystem rejects (e.g. invalid CEN headers). Even though we build valid
- * zips here, ZipExtractVirtualFileSystem can be instantiated directly and its
- * extraction loop is the interesting thing — it previously called
- * `zip.entries.toList()` just to know the total, which allocated an O(n)
- * reference list for every extracted archive.
+ * Exercises the fallback path used for zips that Java's built-in ZipFileSystem
+ * rejects (e.g. invalid CEN headers). Even though we build valid zips here,
+ * ZipExtractVirtualFileSystem can be instantiated directly. It materialises
+ * lazily: opening stubs the directory tree with size-correct placeholder files,
+ * and real bytes are only streamed on [VirtualFileSystem.materialize] (or any
+ * repack, which must not write stub zeros into the rebuilt archive).
  */
 class ZipExtractVirtualFileSystemTest {
 
@@ -170,7 +175,7 @@ class ZipExtractVirtualFileSystemTest {
     }
 
     @Test
-    fun `extracts all entries without materializing a list`() = runBlocking {
+    fun `open stubs the tree and materialize streams real content`() = runBlocking {
         createZip(
             "a.txt" to "alpha",
             "sub/" to null,
@@ -189,11 +194,152 @@ class ZipExtractVirtualFileSystemTest {
         assertNotNull(subEntries.find { it.name == "b.txt" })
         assertNotNull(subEntries.find { it.name == "c.txt" })
 
-        // Contents must survive the streaming iteration intact.
+        // Lazy contract: before materialization the stub has the right size but no content.
         val aPath = extractVfs.getPath("/a.txt")
+        assertEquals("alpha".length.toLong(), Files.size(aPath))
+        assertNotEquals("alpha", Files.readString(aPath))
+
+        // After materialization the real bytes are in place (and a second call is a no-op).
+        extractVfs.materialize(aPath)
         assertEquals("alpha", Files.readString(aPath))
+        extractVfs.materialize(aPath)
+        assertEquals("alpha", Files.readString(aPath))
+
         val bPath = extractVfs.getPath("/sub/b.txt")
+        extractVfs.materialize(bPath)
         assertEquals("beta", Files.readString(bPath))
+    }
+
+    @Test
+    fun `registry dispatch materializes through OpenVfsRegistry`() = runBlocking {
+        createZip("payload.txt" to "registry-routed")
+        val extractVfs = ZipExtractVirtualFileSystem(zipPath)
+        vfs = extractVfs
+
+        val path = extractVfs.getPath("/payload.txt")
+        OpenVfsRegistry.materializeIfNeeded(path)
+        assertEquals("registry-routed", Files.readString(path))
+    }
+
+    @Test
+    fun `repack materializes pending stubs instead of writing zeros`() = runBlocking {
+        createZip(
+            "kept.txt" to "kept-content",
+            "renamed.txt" to "renamed-content",
+        )
+        val extractVfs = ZipExtractVirtualFileSystem(zipPath)
+        vfs = extractVfs
+
+        // renameFile triggers a repack while both entries are still unmaterialized stubs.
+        extractVfs.renameFile(extractVfs.getPath("/renamed.txt"), "after.txt")
+
+        // Read the rewritten archive with a completely fresh VFS: every entry must carry
+        // its real bytes — a zero-filled stub leaking into the repack would show up here.
+        extractVfs.close()
+        vfs = null
+        val reopened = ZipExtractVirtualFileSystem(zipPath)
+        vfs = reopened
+        val kept = reopened.getPath("/kept.txt")
+        reopened.materialize(kept)
+        assertEquals("kept-content", Files.readString(kept))
+        val renamed = reopened.getPath("/after.txt")
+        reopened.materialize(renamed)
+        assertEquals("renamed-content", Files.readString(renamed))
+    }
+
+    @Test
+    fun `materialize then flush does not rewrite the archive`() = runBlocking {
+        createZip("read-only-use.txt" to "just reading")
+        val extractVfs = ZipExtractVirtualFileSystem(zipPath)
+        vfs = extractVfs
+
+        val bytesBefore = Files.readAllBytes(zipPath)
+        extractVfs.materialize(extractVfs.getPath("/read-only-use.txt"))
+        extractVfs.flush()
+
+        assertArrayEquals(
+            "copying a file out (materialize + flush) must leave the archive byte-identical",
+            bytesBefore,
+            Files.readAllBytes(zipPath),
+        )
+    }
+
+    @Test
+    fun `overwriting a pending stub survives the repack`() = runBlocking {
+        createZip("o.txt" to "original")
+        val extractVfs = ZipExtractVirtualFileSystem(zipPath)
+        vfs = extractVfs
+
+        // Simulates copy-into-archive replacing an existing, still-unmaterialized entry.
+        Files.writeString(extractVfs.getPath("/o.txt"), "user-overwrite")
+        extractVfs.flush()
+
+        extractVfs.close()
+        vfs = null
+        val reopened = ZipExtractVirtualFileSystem(zipPath)
+        vfs = reopened
+        val p = reopened.getPath("/o.txt")
+        reopened.materialize(p)
+        assertEquals("the user's bytes must win over the original entry", "user-overwrite", Files.readString(p))
+    }
+
+    @Test
+    fun `deleting a pending stub is not resurrected by the repack`() = runBlocking {
+        createZip("del.txt" to "doomed", "keep.txt" to "kept")
+        val extractVfs = ZipExtractVirtualFileSystem(zipPath)
+        vfs = extractVfs
+
+        Files.delete(extractVfs.getPath("/del.txt"))
+        extractVfs.flush()
+
+        extractVfs.close()
+        vfs = null
+        val reopened = ZipExtractVirtualFileSystem(zipPath)
+        vfs = reopened
+        assertFalse("deleted entry must not come back", Files.exists(reopened.getPath("/del.txt")))
+        val keep = reopened.getPath("/keep.txt")
+        reopened.materialize(keep)
+        assertEquals("kept", Files.readString(keep))
+    }
+
+    @Test
+    fun `flush re-stubs and entries are still materializable`() = runBlocking {
+        createZip("f.txt" to "flush-me")
+        val extractVfs = ZipExtractVirtualFileSystem(zipPath)
+        vfs = extractVfs
+
+        extractVfs.flush()
+
+        val path = extractVfs.getPath("/f.txt")
+        extractVfs.materialize(path)
+        assertEquals("flush-me", Files.readString(path))
+    }
+
+    @Test
+    fun `moving an unmaterialized entry out of the archive carries real bytes`() = runBlocking {
+        // Lazy-VFS temp dirs live on the default filesystem, so a move out of the archive
+        // takes the same-filesystem Files.move fast path — which must materialize first
+        // instead of relocating the zero-filled stub.
+        createZip("move-me.txt" to "real bytes")
+        val extractVfs = ZipExtractVirtualFileSystem(zipPath)
+        vfs = extractVfs
+
+        val destDir = Files.createTempDirectory("zip-extract-move-out-")
+        try {
+            val service = FileOperationService(CoroutineScope(Dispatchers.Unconfined))
+            service.moveFilesWithProgress(
+                sources = listOf(extractVfs.getPath("/move-me.txt")),
+                destination = destDir,
+                initialPolicy = OverwritePolicy.OVERWRITE_ALL,
+                onProgress = { _, _ -> },
+                onOverwriteConfirm = { OverwriteResponse.OVERWRITE_ALL },
+                onError = { _, e -> fail("Unexpected error: $e") },
+                isCancelled = { false },
+            )
+            assertEquals("real bytes", Files.readString(destDir.resolve("move-me.txt")))
+        } finally {
+            destDir.toFile().deleteRecursively()
+        }
     }
 
     @Test
