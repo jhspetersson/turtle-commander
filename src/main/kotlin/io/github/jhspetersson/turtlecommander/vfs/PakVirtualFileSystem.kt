@@ -8,7 +8,10 @@ import java.nio.ByteOrder
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.BasicFileAttributes
+import java.nio.file.attribute.FileTime
+import java.util.concurrent.ConcurrentHashMap
 
 class PakFileSystemProvider : VirtualFileSystemProvider {
     companion object {
@@ -54,15 +57,33 @@ class PakFileSystemProvider : VirtualFileSystemProvider {
  *  - Each directory entry is 64 bytes: a 56-byte null-padded ASCII name (forward-slash
  *    separated), the file's offset (int32 LE) and its size (int32 LE).
  *
- * We parse the directory, extract every entry into a temp directory like the other
- * extract-based VFS implementations, and serve the browser from there. The temp directory
- * is repacked into a fresh PAK on flush, so adding, editing, renaming and deleting entries
- * are all supported.
+ * We parse the directory and serve the browser from a temp directory of lazily-materialised
+ * stubs, like [ZipExtractVirtualFileSystem] — except that PAK's directory gives us random
+ * access, so materialising an entry is a direct seek + read rather than a re-stream. The
+ * temp directory is repacked into a fresh PAK on flush (after filling any remaining stubs),
+ * so adding, editing, renaming and deleting entries are all supported.
  */
 class PakVirtualFileSystem(
     override val archivePath: Path,
     openProgress: VfsOpenProgress? = null,
 ) : AbstractTempDirVirtualFileSystem("turtle-pak-", openProgress) {
+
+    /**
+     * A still-unmaterialised stub: the entry's (offset, size) in the archive plus the
+     * stub's size and mtime as created. PAK's directory gives random access, so unlike
+     * tar a [materialize] is a direct seek + read. The stub metadata keeps materialisation
+     * invisible to the base class's dirty-tracking fingerprint and detects stubs
+     * overwritten or deleted by external writes — in that case the user's content wins
+     * and the record is dropped.
+     */
+    private class PendingEntry(
+        val offset: Long,
+        val size: Long,
+        val stubSize: Long,
+        val stubMtime: FileTime,
+    )
+
+    private val pendingEntries = ConcurrentHashMap<Path, PendingEntry>()
 
     init {
         openTempDir()
@@ -72,31 +93,125 @@ class PakVirtualFileSystem(
 
     override fun extract(into: Path) {
         val progress = takeOpenProgress()
+        pendingEntries.clear()
         RandomAccessFile(archivePath.toFile(), "r").use { raf ->
             val fileLength = raf.length()
             val entries = readDirectory(raf, fileLength)
-            val buffer = ByteArray(64 * 1024)
             entries.forEachIndexed { index, entry ->
                 if (progress.isCancelled) return@forEachIndexed
                 progress.onEntry(index + 1, entries.size, entry.name)
                 val entryPath = resolveEntryPath(into, entry.name) ?: return@forEachIndexed
                 try {
                     entryPath.parent?.let { Files.createDirectories(it) }
-                    raf.seek(entry.offset)
-                    Files.newOutputStream(entryPath).use { out ->
-                        var remaining = entry.size
-                        while (remaining > 0) {
-                            val toRead = minOf(remaining, buffer.size.toLong()).toInt()
-                            val read = raf.read(buffer, 0, toRead)
-                            if (read <= 0) break
-                            out.write(buffer, 0, read)
-                            remaining -= read
-                        }
-                    }
+                    // PAK directories can repeat a name; the eager extractor truncated and
+                    // rewrote, so the last occurrence wins here too.
+                    Files.deleteIfExists(entryPath)
+                    createSparseStub(entryPath, entry.size)
+                    pendingEntries[entryPath.normalize()] = PendingEntry(
+                        entry.offset,
+                        entry.size,
+                        stubSize = Files.size(entryPath),
+                        stubMtime = Files.getLastModifiedTime(entryPath),
+                    )
                 } catch (e: Exception) {
-                    thisLogger().debug("Failed to extract pak entry: ${entry.name}", e)
+                    thisLogger().debug("Failed to stub pak entry: ${entry.name}", e)
                 }
             }
+        }
+    }
+
+    /**
+     * Read the bytes for [path] straight from the archive (seek + read) and replace its
+     * sparse stub. A no-op if [path] isn't pending — and a deliberate no-op (record
+     * dropped) when the stub was overwritten or deleted by an external write.
+     */
+    @Synchronized
+    override fun materialize(path: Path) {
+        val normalized = path.normalize()
+        val pending = pendingEntries[normalized] ?: return
+        try {
+            RandomAccessFile(archivePath.toFile(), "r").use { raf ->
+                materializeFromRaf(normalized, pending, raf)
+            }
+        } catch (e: Exception) {
+            thisLogger().warn("Failed to materialize pak entry $normalized: ${e.message}")
+            throw e
+        }
+    }
+
+    private fun materializeFromRaf(path: Path, pending: PendingEntry, raf: RandomAccessFile) {
+        val current = runCatching {
+            Files.size(path) to Files.getLastModifiedTime(path)
+        }.getOrNull()
+        if (current == null || current.first != pending.stubSize || current.second != pending.stubMtime) {
+            // Stub gone or replaced in place: whatever is there now is the user's doing.
+            pendingEntries.remove(path)
+            return
+        }
+        val tmp = Files.createTempFile(path.parent, ".tc-materializing-", ".tmp")
+        try {
+            raf.seek(pending.offset)
+            Files.newOutputStream(tmp).use { out ->
+                val buffer = ByteArray(64 * 1024)
+                var remaining = pending.size
+                while (remaining > 0) {
+                    val toRead = minOf(remaining, buffer.size.toLong()).toInt()
+                    val read = raf.read(buffer, 0, toRead)
+                    if (read <= 0) break
+                    out.write(buffer, 0, read)
+                    remaining -= read
+                }
+            }
+            Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+        } finally {
+            Files.deleteIfExists(tmp)
+        }
+        // Exactly the stub's mtime, so materialisation is invisible to the base class's
+        // dirty-tracking fingerprint.
+        Files.setLastModifiedTime(path, pending.stubMtime)
+        pendingEntries.remove(path)
+    }
+
+    /**
+     * [renameFile] in the base class moves the stub on disk; keep the pending map keyed
+     * by the stub's new location so [materialize] (and the repack below) read the bytes
+     * to where the stub actually lives now.
+     */
+    @Synchronized
+    override fun onRenamed(source: Path, target: Path) {
+        pendingEntries.remove(source.normalize())?.let { pending ->
+            pendingEntries[target.normalize()] = pending
+        }
+    }
+
+    /**
+     * Fill every still-pending stub (one shared archive handle) before [repack] overwrites
+     * the archive they read from. Entries whose bytes can't be read are dropped from the
+     * temp dir — and thus from the repacked archive — instead of repacking zero-filled
+     * stubs.
+     */
+    @Synchronized
+    private fun materializeAllForRepack() {
+        if (pendingEntries.isEmpty()) return
+        try {
+            RandomAccessFile(archivePath.toFile(), "r").use { raf ->
+                for ((path, pending) in pendingEntries.entries.toList()) {
+                    try {
+                        materializeFromRaf(path, pending, raf)
+                    } catch (e: Exception) {
+                        thisLogger().warn("Dropping unreadable pak entry from repack: $path (${e.message})")
+                        runCatching { Files.deleteIfExists(path) }
+                        pendingEntries.remove(path)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            thisLogger().warn("Bulk pak materialisation failed for $archivePath: ${e.message}")
+        }
+        for (path in pendingEntries.keys.toList()) {
+            thisLogger().warn("Dropping unreachable pak entry from repack: $path")
+            runCatching { Files.deleteIfExists(path) }
+            pendingEntries.remove(path)
         }
     }
 
@@ -108,6 +223,7 @@ class PakVirtualFileSystem(
      * even if a file changed size since extraction.
      */
     override fun repack(from: Path) {
+        materializeAllForRepack()
         val files = mutableListOf<Pair<String, Path>>()
         forEachArchiveEntry(from) { path, relativeName ->
             val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)

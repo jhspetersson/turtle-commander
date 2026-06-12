@@ -78,12 +78,30 @@ class PakVirtualFileSystemTest {
         assertNotNull(rootEntries.find { it.name == "readme.txt" })
         assertNotNull(rootEntries.find { it.name == "maps" && it.isDirectory })
 
+        pakVfs.materialize(pakVfs.getPath("/readme.txt"))
         assertEquals("hello", Files.readString(pakVfs.getPath("/readme.txt")))
 
         val mapsEntries = pakVfs.listFiles(pakVfs.getPath("/maps")).filter { !it.isParentLink }
         val bsp = mapsEntries.find { it.name == "e1m1.bsp" }
         assertNotNull(bsp)
+        pakVfs.materialize(pakVfs.getPath("/maps/e1m1.bsp"))
         assertArrayEquals(byteArrayOf(1, 2, 3, 4), Files.readAllBytes(pakVfs.getPath("/maps/e1m1.bsp")))
+    }
+
+    @Test
+    fun `entries are lazy stubs until materialized`() = runBlocking {
+        pakPath = writePak(linkedMapOf("lazy.txt" to "real bytes".toByteArray()))
+        val pakVfs = PakVirtualFileSystem(pakPath)
+        vfs = pakVfs
+
+        val path = pakVfs.getPath("/lazy.txt")
+        // Lazy contract: right size, no content until materialized; idempotent afterwards.
+        assertEquals("real bytes".length.toLong(), Files.size(path))
+        assertNotEquals("real bytes", Files.readString(path))
+        pakVfs.materialize(path)
+        assertEquals("real bytes", Files.readString(path))
+        pakVfs.materialize(path)
+        assertEquals("real bytes", Files.readString(path))
     }
 
     @Test
@@ -112,7 +130,12 @@ class PakVirtualFileSystemTest {
         // Re-open from disk to confirm the change was persisted and the directory is consistent.
         val reopened = PakVirtualFileSystem(pakPath)
         reopened.use { reopened ->
+            // The edit overwrote a still-pending stub: the repack must carry the user's
+            // bytes, and the untouched sibling must have been materialized before the
+            // archive was rewritten underneath it.
+            reopened.materialize(reopened.getPath("/readme.txt"))
             assertEquals("a much longer replacement body", Files.readString(reopened.getPath("/readme.txt")))
+            reopened.materialize(reopened.getPath("/maps/e1m1.bsp"))
             assertArrayEquals(byteArrayOf(1, 2, 3, 4), Files.readAllBytes(reopened.getPath("/maps/e1m1.bsp")))
         }
     }
@@ -130,7 +153,9 @@ class PakVirtualFileSystemTest {
 
         val reopened = PakVirtualFileSystem(pakPath)
         reopened.use { reopened ->
+            reopened.materialize(reopened.getPath("/sounds/blip.wav"))
             assertArrayEquals(byteArrayOf(9, 8, 7), Files.readAllBytes(reopened.getPath("/sounds/blip.wav")))
+            reopened.materialize(reopened.getPath("/a.txt"))
             assertEquals("x", Files.readString(reopened.getPath("/a.txt")))
         }
     }
@@ -148,6 +173,9 @@ class PakVirtualFileSystemTest {
             val names = reopened.listFiles(reopened.root).filter { !it.isParentLink }.map { it.name }
             assertTrue(names.contains("new.txt"))
             assertFalse(names.contains("old.txt"))
+            // The rename repacked while the entry was still a pending stub — the archive
+            // must carry the original bytes at the new name, not the stub's zeros.
+            reopened.materialize(reopened.getPath("/new.txt"))
             assertEquals("data", Files.readString(reopened.getPath("/new.txt")))
         }
     }
