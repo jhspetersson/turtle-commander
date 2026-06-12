@@ -188,6 +188,7 @@ internal fun columnValue(entry: FileEntry, columnId: String): Any? = when (colum
     "Group" -> entry.group
     "Permissions" -> entry.permissions
     "Inode" -> entry.inode
+    "Links" -> entry.nlink?.toLong()
     else -> ""
 }
 

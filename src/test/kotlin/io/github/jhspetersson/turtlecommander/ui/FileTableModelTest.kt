@@ -25,6 +25,7 @@ class FileTableModelTest {
         permissions: String = "rwxr-xr-x",
         lastModified: FileTime? = now,
         inode: Long? = null,
+        nlink: Int? = null,
     ) = FileEntry(
         name = name,
         path = Path.of("/test/$name"),
@@ -34,12 +35,13 @@ class FileTableModelTest {
         permissions = permissions,
         isParentLink = isParentLink,
         inode = inode,
+        nlink = nlink,
     )
 
     @Test
     fun testEmptyModel() {
         assertEquals(0, model.rowCount)
-        assertEquals(9, model.columnCount)
+        assertEquals(10, model.columnCount)
     }
 
     @Test
@@ -53,6 +55,7 @@ class FileTableModelTest {
         assertEquals("Group", model.getColumnName(6))
         assertEquals("Permissions", model.getColumnName(7))
         assertEquals("Inode", model.getColumnName(8))
+        assertEquals("Links", model.getColumnName(9))
     }
 
     @Test
@@ -64,6 +67,7 @@ class FileTableModelTest {
         assertEquals(String::class.java, model.getColumnClass(FileTableModel.COL_EXT))
         assertEquals(String::class.java, model.getColumnClass(FileTableModel.COL_PERMS))
         assertEquals(Long::class.javaObjectType, model.getColumnClass(FileTableModel.COL_INODE))
+        assertEquals(Long::class.javaObjectType, model.getColumnClass(FileTableModel.COL_LINKS))
     }
 
     @Test
@@ -78,6 +82,20 @@ class FileTableModelTest {
         model.setEntries(listOf(fileEntry("file.txt", size = 100)))
         assertEquals(0L, model.getValueAt(0, FileTableModel.COL_INODE))
         assertEquals("", model.getDisplayValue(0, FileTableModel.COL_INODE))
+    }
+
+    @Test
+    fun testLinksValue() {
+        model.setEntries(listOf(fileEntry("file.txt", size = 100, nlink = 3)))
+        assertEquals(3L, model.getValueAt(0, FileTableModel.COL_LINKS))
+        assertEquals("3", model.getDisplayValue(0, FileTableModel.COL_LINKS))
+    }
+
+    @Test
+    fun testLinksValueWhenMissing() {
+        model.setEntries(listOf(fileEntry("file.txt", size = 100)))
+        assertEquals(0L, model.getValueAt(0, FileTableModel.COL_LINKS))
+        assertEquals("", model.getDisplayValue(0, FileTableModel.COL_LINKS))
     }
 
     @Test

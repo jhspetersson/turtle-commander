@@ -133,7 +133,7 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
 
         val columns = settings.getEffectiveColumns()
 
-        assertEquals("Should have all 9 default columns", 9, columns.size)
+        assertEquals("Should have all 10 default columns", 10, columns.size)
         assertEquals("Name", columns[0].id)
         assertEquals("Ext", columns[1].id)
         assertEquals("Size", columns[2].id)
@@ -143,7 +143,9 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
         assertEquals("Group", columns[6].id)
         assertEquals("Permissions", columns[7].id)
         assertEquals("Inode", columns[8].id)
+        assertEquals("Links", columns[9].id)
         assertFalse("Inode column should be hidden by default", columns[8].visible)
+        assertFalse("Links column should be hidden by default", columns[9].visible)
     }
 
     fun testEffectiveColumnsPreservesCustomization() {
@@ -180,19 +182,21 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
 
     fun testColumnConfigDefaults() {
         val defaults = ColumnConfig.defaults()
-        assertEquals(9, defaults.size)
+        assertEquals(10, defaults.size)
         assertEquals(ColumnConfig.ALL_COLUMN_IDS, defaults.map { it.id })
         val isWindows = System.getProperty("os.name").lowercase().contains("win")
+        val hiddenByDefault = setOf("Inode", "Links")
         if (isWindows) {
             val userCol = defaults.find { it.id == "User" }!!
             val groupCol = defaults.find { it.id == "Group" }!!
             assertFalse("User column should be hidden on Windows", userCol.visible)
             assertFalse("Group column should be hidden on Windows", groupCol.visible)
         } else {
-            // Inode is hidden by default everywhere; every other column is visible on Unix.
-            assertTrue("Non-Inode columns visible on Unix", defaults.filter { it.id != "Inode" }.all { it.visible })
+            // Inode and Links are hidden by default everywhere; every other column is visible on Unix.
+            assertTrue("Non-hidden columns visible on Unix", defaults.filter { it.id !in hiddenByDefault }.all { it.visible })
         }
         assertFalse("Inode column should be hidden by default", defaults.find { it.id == "Inode" }!!.visible)
+        assertFalse("Links column should be hidden by default", defaults.find { it.id == "Links" }!!.visible)
         assertTrue("All default styles should be default", defaults.all { it.style.isDefault() })
     }
 

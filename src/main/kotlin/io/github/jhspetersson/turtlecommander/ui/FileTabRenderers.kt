@@ -87,6 +87,7 @@ private val DEFAULT_COLUMN_WIDTHS = mapOf(
     "Group" to 100,
     "Permissions" to 100,
     "Inode" to 120,
+    "Links" to 70,
 )
 
 internal fun applyDefaultColumnWidths(tab: FileTab) {
@@ -110,6 +111,7 @@ internal val COLUMN_NAME_TO_MODEL_INDEX = mapOf(
     "Group" to FileTableModel.COL_GROUP,
     "Permissions" to FileTableModel.COL_PERMS,
     "Inode" to FileTableModel.COL_INODE,
+    "Links" to FileTableModel.COL_LINKS,
 )
 
 internal fun applyColumnConfig(tab: FileTab) {

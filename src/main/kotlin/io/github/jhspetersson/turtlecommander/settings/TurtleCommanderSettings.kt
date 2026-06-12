@@ -89,12 +89,12 @@ class ColumnConfig {
     }
 
     companion object {
-        val ALL_COLUMN_IDS = listOf("Name", "Ext", "Size", "Date Created", "Date Modified", "User", "Group", "Permissions", "Inode")
+        val ALL_COLUMN_IDS = listOf("Name", "Ext", "Size", "Date Created", "Date Modified", "User", "Group", "Permissions", "Inode", "Links")
 
         private val UNIX_ONLY_COLUMNS = setOf("User", "Group")
 
         /** Columns that exist but start hidden; users opt in via Settings. */
-        private val HIDDEN_BY_DEFAULT_COLUMNS = setOf("Inode")
+        private val HIDDEN_BY_DEFAULT_COLUMNS = setOf("Inode", "Links")
 
         /** Whether [id] should be visible out of the box on the current platform. */
         fun defaultVisible(id: String): Boolean =

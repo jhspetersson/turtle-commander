@@ -101,7 +101,7 @@ internal class ParentFirstComparator(
         val v1 = dav1.value
         val v2 = dav2.value
 
-        if (column == FileTableModel.COL_SIZE || column == FileTableModel.COL_CREATED || column == FileTableModel.COL_DATE || column == FileTableModel.COL_INODE) {
+        if (column == FileTableModel.COL_SIZE || column == FileTableModel.COL_CREATED || column == FileTableModel.COL_DATE || column == FileTableModel.COL_INODE || column == FileTableModel.COL_LINKS) {
             val l1 = (v1 as? Long) ?: 0L
             val l2 = (v2 as? Long) ?: 0L
             return l1.compareTo(l2)

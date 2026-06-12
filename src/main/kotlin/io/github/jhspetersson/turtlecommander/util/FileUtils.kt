@@ -130,6 +130,18 @@ fun readFileInode(path: Path): Long? {
     }
 }
 
+/**
+ * Reads the hard-link count (`unix:nlink`). Returns null on filesystems that don't
+ * expose it (e.g. Windows, where the attribute view is unsupported) or on any I/O error.
+ */
+fun readFileNlink(path: Path): Int? {
+    return try {
+        Files.getAttribute(path, "unix:nlink") as? Int
+    } catch (_: Exception) {
+        null
+    }
+}
+
 fun readFileGroup(path: Path): String {
     return try {
         val posixView = Files.getFileAttributeView(path, PosixFileAttributeView::class.java)

@@ -15,6 +15,8 @@ data class FileEntry(
     val permissions: String,
     /** Filesystem inode number (Unix `unix:ino`); null on Windows or when not read. */
     val inode: Long? = null,
+    /** Hard-link count (Unix `unix:nlink`); null on Windows or when not read. */
+    val nlink: Int? = null,
     val isParentLink: Boolean = false,
     /** True when the entry is a symbolic link (regardless of whether its target resolves). */
     val isSymbolicLink: Boolean = false,

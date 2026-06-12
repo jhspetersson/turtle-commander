@@ -18,12 +18,13 @@ class FileTableModel : AbstractTableModel() {
         const val COL_GROUP = 6
         const val COL_PERMS = 7
         const val COL_INODE = 8
+        const val COL_LINKS = 9
         const val PARENT_MARKER = ".."
         const val PARENT_NUMERIC = Long.MIN_VALUE
         const val DIR_NUMERIC = -1L
     }
 
-    private val columns = arrayOf("Name", "Ext", "Size", "Date Created", "Date Modified", "User", "Group", "Permissions", "Inode")
+    private val columns = arrayOf("Name", "Ext", "Size", "Date Created", "Date Modified", "User", "Group", "Permissions", "Inode", "Links")
     private var entries: List<FileEntry> = emptyList()
     var directorySizeProvider: ((Path) -> Long?)? = null
 
@@ -46,6 +47,7 @@ class FileTableModel : AbstractTableModel() {
             COL_CREATED -> Long::class.javaObjectType
             COL_DATE -> Long::class.javaObjectType
             COL_INODE -> Long::class.javaObjectType
+            COL_LINKS -> Long::class.javaObjectType
             else -> String::class.java
         }
     }
@@ -74,6 +76,7 @@ class FileTableModel : AbstractTableModel() {
             COL_GROUP -> if (entry.isParentLink) PARENT_MARKER else entry.group
             COL_PERMS -> if (entry.isParentLink) PARENT_MARKER else entry.permissions
             COL_INODE -> if (entry.isParentLink) PARENT_NUMERIC else entry.inode ?: 0L
+            COL_LINKS -> if (entry.isParentLink) PARENT_NUMERIC else entry.nlink?.toLong() ?: 0L
             else -> ""
         }
     }
@@ -94,6 +97,7 @@ class FileTableModel : AbstractTableModel() {
                 DateTimeFormatters.format(it.toMillis())
             } ?: ""
             columnIndex == COL_INODE -> entry.inode?.toString() ?: ""
+            columnIndex == COL_LINKS -> entry.nlink?.toString() ?: ""
             else -> getValueAt(rowIndex, columnIndex).toString()
         }
     }
