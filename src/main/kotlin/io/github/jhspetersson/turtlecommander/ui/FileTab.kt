@@ -35,6 +35,7 @@ import io.github.jhspetersson.turtlecommander.settings.ThumbnailSize
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
 import io.github.jhspetersson.turtlecommander.util.formatSize
+import io.github.jhspetersson.turtlecommander.util.formatSizeAuto
 import io.github.jhspetersson.turtlecommander.util.wrapAsSubstringGlobIfPlain
 import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
@@ -1135,7 +1136,7 @@ class FileTab(
                         val usableSpace = fileStore.usableSpace
                         val totalSpace = fileStore.totalSpace
                         val pct = if (totalSpace > 0) (usableSpace * 100 / totalSpace) else 0
-                        "${formatSize(usableSpace)} of ${formatSize(totalSpace)} free ($pct%)"
+                        "${formatSizeAuto(usableSpace)} of ${formatSizeAuto(totalSpace)} free ($pct%)"
                     }
                     withContext(Dispatchers.EDT) { freeSpaceLabel.text = text }
                 } catch (_: Exception) {

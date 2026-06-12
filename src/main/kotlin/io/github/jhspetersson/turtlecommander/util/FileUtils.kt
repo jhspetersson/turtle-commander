@@ -81,6 +81,21 @@ fun formatSize(bytes: Long, format: FileSizeFormat): String = when (format) {
     FileSizeFormat.AUTO_SI -> autoFormatSize(bytes, 1000.0, SI_UNITS)
 }
 
+/**
+ * Always-human-readable size for drive/free-space displays, where a raw byte count
+ * (hundreds of gigabytes as a 12-digit number) is unreadable even when the user
+ * prefers [FileSizeFormat.BYTES] for per-file sizes. Keeps the user's SI vs binary
+ * unit choice when they picked an auto mode; the BYTES setting falls back to binary.
+ */
+fun formatSizeAuto(bytes: Long): String {
+    val format = runCatching { TurtleCommanderSettings.getInstance().getFileSizeFormat() }
+        .getOrDefault(FileSizeFormat.AUTO_BINARY)
+    return when (format) {
+        FileSizeFormat.AUTO_SI -> formatSize(bytes, FileSizeFormat.AUTO_SI)
+        else -> formatSize(bytes, FileSizeFormat.AUTO_BINARY)
+    }
+}
+
 private val BINARY_UNITS = arrayOf("B", "KiB", "MiB", "GiB", "TiB")
 private val SI_UNITS = arrayOf("B", "kB", "MB", "GB", "TB")
 

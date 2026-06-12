@@ -106,7 +106,7 @@ class DriveSpaceDialog(
         }
 
         return JBScrollPane(panel).apply {
-            preferredSize = Dimension(480, drives.size.coerceIn(1, 6) * 80 + 16)
+            preferredSize = Dimension(560, drives.size.coerceIn(1, 6) * 80 + 16)
             border = BorderFactory.createEmptyBorder()
         }
     }
