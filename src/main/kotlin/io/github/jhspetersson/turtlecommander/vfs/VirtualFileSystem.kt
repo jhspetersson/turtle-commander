@@ -1,4 +1,5 @@
 package io.github.jhspetersson.turtlecommander.vfs
+import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import java.util.concurrent.CopyOnWriteArraySet
 
@@ -108,14 +109,8 @@ interface VfsOpenProgress {
     val isCancelled: Boolean
 
     companion object {
-        /**
-         * Adapter for the legacy thread-bound indicator, used as the fallback when no explicit
-         * hook is supplied (VFS creation from code still running under a `Task`, or tests).
-         * Returns a no-op when no indicator is bound to the current thread.
-         */
-        fun fromCurrentThread(): VfsOpenProgress {
-            val indicator = ProgressManager.getGlobalProgressIndicator()
-                ?: return Noop
+        /** Adapter reporting entries through [indicator]'s fraction / text2 / isCanceled. */
+        fun fromIndicator(indicator: ProgressIndicator): VfsOpenProgress {
             return object : VfsOpenProgress {
                 override fun onEntry(index: Int, total: Int, name: String) {
                     if (total > 0) {
@@ -127,6 +122,16 @@ interface VfsOpenProgress {
 
                 override val isCancelled: Boolean get() = indicator.isCanceled
             }
+        }
+
+        /**
+         * Adapter for the legacy thread-bound indicator, used as the fallback when no explicit
+         * hook is supplied (VFS creation from code still running under a `Task`, or tests).
+         * Returns a no-op when no indicator is bound to the current thread.
+         */
+        fun fromCurrentThread(): VfsOpenProgress {
+            val indicator = ProgressManager.getGlobalProgressIndicator() ?: return Noop
+            return fromIndicator(indicator)
         }
 
         private object Noop : VfsOpenProgress {

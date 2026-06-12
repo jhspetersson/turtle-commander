@@ -13,8 +13,6 @@ import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
-import com.intellij.platform.ide.progress.withBackgroundProgress
-import com.intellij.platform.util.progress.reportRawProgress
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.psi.PsiElement
@@ -31,6 +29,7 @@ import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.util.countFiles
 import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
 import io.github.jhspetersson.turtlecommander.util.formatSize
+import io.github.jhspetersson.turtlecommander.util.withIndicatorProgress
 import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 import io.github.jhspetersson.turtlecommander.vfs.VfsEditEntry
 import io.github.jhspetersson.turtlecommander.vfs.VfsEditService
@@ -38,8 +37,6 @@ import io.github.jhspetersson.turtlecommander.vfs.VfsOpenProgress
 import io.github.jhspetersson.turtlecommander.vfs.ZipVirtualFileSystem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.job
 import kotlinx.coroutines.withContext
 import java.awt.Desktop
 import java.nio.file.Files
@@ -139,33 +136,31 @@ private fun FileTab.runTransfer(
     op: TransferOp,
 ) {
     fileOps.launch {
-        withBackgroundProgress(project, taskTitle, cancellable = true) {
-            reportRawProgress { reporter ->
-                val job = currentCoroutineContext().job
-                withContext(NonCancellable) {
-                    reporter.text("Counting files...")
-                    val totalFiles = countFiles(sources)
+        withIndicatorProgress(project, taskTitle) { indicator ->
+            withContext(NonCancellable) {
+                indicator.text = "Counting files..."
+                val totalFiles = countFiles(sources)
+                indicator.isIndeterminate = false
 
-                    op(
-                        sources,
-                        destination,
-                        initialPolicy,
-                        { count, name ->
-                            reporter.fraction(if (totalFiles > 0) count.toDouble() / totalFiles else 1.0)
-                            reporter.text("$progressVerb $count / $totalFiles")
-                            reporter.details(name)
-                        },
-                        { path -> askOverwriteConfirm(path) },
-                        { path, error ->
-                            fileErrorNotification("Failed to $errorVerb ${path.fileName}: ${fileErrorMessage(error)}")
-                        },
-                        { job.isCancelled },
-                    )
+                op(
+                    sources,
+                    destination,
+                    initialPolicy,
+                    { count, name ->
+                        indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
+                        indicator.text = "$progressVerb $count / $totalFiles"
+                        indicator.text2 = name
+                    },
+                    { path -> askOverwriteConfirm(path) },
+                    { path, error ->
+                        fileErrorNotification("Failed to $errorVerb ${path.fileName}: ${fileErrorMessage(error)}")
+                    },
+                    { indicator.isCanceled },
+                )
 
-                    refreshAfterVfsChange()
-                    withContext(Dispatchers.EDT) {
-                        onRefreshOtherPanel()
-                    }
+                refreshAfterVfsChange()
+                withContext(Dispatchers.EDT) {
+                    onRefreshOtherPanel()
                 }
             }
         }
@@ -212,39 +207,37 @@ internal fun FileTab.performDelete(forcePermanent: Boolean = false) {
     val taskTitle = if (useRecycleBin) "Moving files to Recycle Bin" else "Deleting files"
     val progressVerb = if (useRecycleBin) "Moving" else "Deleting"
     fileOps.launch {
-        withBackgroundProgress(project, taskTitle, cancellable = true) {
-            reportRawProgress { reporter ->
-                val job = currentCoroutineContext().job
-                withContext(NonCancellable) {
-                    // Recycle-bin mode moves each top-level path to the trash in a single
-                    // OS call and the service ticks once per path, so the denominator is
-                    // the path count — countFiles' recursive total would leave the bar
-                    // stuck near zero, and the tree walk itself would be wasted work.
-                    val totalFiles = if (useRecycleBin) {
-                        sourcePaths.size
-                    } else {
-                        reporter.text("Counting files...")
-                        countFiles(sourcePaths)
-                    }
+        withIndicatorProgress(project, taskTitle) { indicator ->
+            withContext(NonCancellable) {
+                // Recycle-bin mode moves each top-level path to the trash in a single
+                // OS call and the service ticks once per path, so the denominator is
+                // the path count — countFiles' recursive total would leave the bar
+                // stuck near zero, and the tree walk itself would be wasted work.
+                val totalFiles = if (useRecycleBin) {
+                    sourcePaths.size
+                } else {
+                    indicator.text = "Counting files..."
+                    countFiles(sourcePaths)
+                }
+                indicator.isIndeterminate = false
 
-                    fileOps.deleteFilesWithProgress(
-                        paths = sourcePaths,
-                        onProgress = { count, name ->
-                            reporter.fraction(if (totalFiles > 0) count.toDouble() / totalFiles else 1.0)
-                            reporter.text("$progressVerb $count / $totalFiles")
-                            reporter.details(name)
-                        },
-                        onError = { path, error ->
-                            fileErrorNotification("Failed to delete ${path.fileName}: ${fileErrorMessage(error)}")
-                        },
-                        isCancelled = { job.isCancelled },
-                        useRecycleBin = useRecycleBin,
-                    )
+                fileOps.deleteFilesWithProgress(
+                    paths = sourcePaths,
+                    onProgress = { count, name ->
+                        indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
+                        indicator.text = "$progressVerb $count / $totalFiles"
+                        indicator.text2 = name
+                    },
+                    onError = { path, error ->
+                        fileErrorNotification("Failed to delete ${path.fileName}: ${fileErrorMessage(error)}")
+                    },
+                    isCancelled = { indicator.isCanceled },
+                    useRecycleBin = useRecycleBin,
+                )
 
-                    refreshAfterVfsChange()
-                    withContext(Dispatchers.EDT) {
-                        onRefreshOtherPanel()
-                    }
+                refreshAfterVfsChange()
+                withContext(Dispatchers.EDT) {
+                    onRefreshOtherPanel()
                 }
             }
         }
@@ -428,49 +421,47 @@ internal fun FileTab.performSplitFile() {
     }
 
     fileOps.launch {
-        withBackgroundProgress(project, "Splitting ${entry.name}", cancellable = true) {
-            reportRawProgress { reporter ->
-                val job = currentCoroutineContext().job
-                withContext(NonCancellable) {
-                    try {
-                        withContext(Dispatchers.IO) {
-                            SplitFileOperation.split(
-                                sourceFile = entry.path,
-                                targetDirectory = targetDir,
-                                chunkSize = chunkSize,
-                                onProgress = { chunkIndex, totalChunks, bytesWritten, totalBytes ->
-                                    reporter.fraction(if (totalBytes > 0) bytesWritten.toDouble() / totalBytes else 1.0)
-                                    reporter.text("Writing chunk $chunkIndex of $totalChunks")
-                                    reporter.details("${formatSize(bytesWritten)} / ${formatSize(totalBytes)}")
-                                },
-                                isCancelled = { job.isCancelled },
+        withIndicatorProgress(project, "Splitting ${entry.name}") { indicator ->
+            withContext(NonCancellable) {
+                indicator.isIndeterminate = false
+                try {
+                    withContext(Dispatchers.IO) {
+                        SplitFileOperation.split(
+                            sourceFile = entry.path,
+                            targetDirectory = targetDir,
+                            chunkSize = chunkSize,
+                            onProgress = { chunkIndex, totalChunks, bytesWritten, totalBytes ->
+                                indicator.fraction = if (totalBytes > 0) bytesWritten.toDouble() / totalBytes else 1.0
+                                indicator.text = "Writing chunk $chunkIndex of $totalChunks"
+                                indicator.text2 = "${formatSize(bytesWritten)} / ${formatSize(totalBytes)}"
+                            },
+                            isCancelled = { indicator.isCanceled },
+                        )
+                    }
+
+                    if (!indicator.isCanceled) {
+                        val totalChunks = if (entry.size == 0L) 1 else ((entry.size + chunkSize - 1) / chunkSize).toInt()
+                        NotificationGroupManager.getInstance()
+                            .getNotificationGroup("Turtle Commander")
+                            .createNotification(
+                                "File split complete",
+                                "${entry.name} split into $totalChunks parts",
+                                NotificationType.INFORMATION,
                             )
-                        }
-
-                        if (!job.isCancelled) {
-                            val totalChunks = if (entry.size == 0L) 1 else ((entry.size + chunkSize - 1) / chunkSize).toInt()
-                            NotificationGroupManager.getInstance()
-                                .getNotificationGroup("Turtle Commander")
-                                .createNotification(
-                                    "File split complete",
-                                    "${entry.name} split into $totalChunks parts",
-                                    NotificationType.INFORMATION,
-                                )
-                                .notify(project)
-                        }
-                    } catch (e: Exception) {
-                        if (!job.isCancelled) {
-                            fileErrorNotification("Failed to split ${entry.name}: ${e.message}")
-                        }
+                            .notify(project)
                     }
-
-                    // Chunks + .crc file are written into targetDir; invalidate so
-                    // whichever panel lands on it doesn't serve a stale listing.
-                    fileOps.invalidateListingCache(targetDir)
-                    refreshAfterVfsChange()
-                    withContext(Dispatchers.EDT) {
-                        onRefreshOtherPanel()
+                } catch (e: Exception) {
+                    if (!indicator.isCanceled) {
+                        fileErrorNotification("Failed to split ${entry.name}: ${e.message}")
                     }
+                }
+
+                // Chunks + .crc file are written into targetDir; invalidate so
+                // whichever panel lands on it doesn't serve a stale listing.
+                fileOps.invalidateListingCache(targetDir)
+                refreshAfterVfsChange()
+                withContext(Dispatchers.EDT) {
+                    onRefreshOtherPanel()
                 }
             }
         }
@@ -532,50 +523,48 @@ internal fun FileTab.performCombineFiles() {
     val finalTargetFileName = dialog.targetFile
 
     fileOps.launch {
-        withBackgroundProgress(project, "Combining $finalTargetFileName", cancellable = true) {
-            reportRawProgress { reporter ->
-                val job = currentCoroutineContext().job
-                withContext(NonCancellable) {
-                    try {
-                        withContext(Dispatchers.IO) {
-                            CombineFilesOperation.combine(
-                                chunkFiles = chunkFiles,
-                                targetFile = targetFile,
-                                expectedSize = crcInfo?.size,
-                                expectedCrc32 = crcInfo?.crc32,
-                                onProgress = { chunkIndex, totalChunks, bytesWritten, totalBytes ->
-                                    reporter.fraction(if (totalBytes > 0) bytesWritten.toDouble() / totalBytes else 1.0)
-                                    reporter.text("Reading chunk $chunkIndex of $totalChunks")
-                                    reporter.details("${formatSize(bytesWritten)} / ${formatSize(totalBytes)}")
-                                },
-                                isCancelled = { job.isCancelled },
+        withIndicatorProgress(project, "Combining $finalTargetFileName") { indicator ->
+            withContext(NonCancellable) {
+                indicator.isIndeterminate = false
+                try {
+                    withContext(Dispatchers.IO) {
+                        CombineFilesOperation.combine(
+                            chunkFiles = chunkFiles,
+                            targetFile = targetFile,
+                            expectedSize = crcInfo?.size,
+                            expectedCrc32 = crcInfo?.crc32,
+                            onProgress = { chunkIndex, totalChunks, bytesWritten, totalBytes ->
+                                indicator.fraction = if (totalBytes > 0) bytesWritten.toDouble() / totalBytes else 1.0
+                                indicator.text = "Reading chunk $chunkIndex of $totalChunks"
+                                indicator.text2 = "${formatSize(bytesWritten)} / ${formatSize(totalBytes)}"
+                            },
+                            isCancelled = { indicator.isCanceled },
+                        )
+                    }
+
+                    if (!indicator.isCanceled) {
+                        NotificationGroupManager.getInstance()
+                            .getNotificationGroup("Turtle Commander")
+                            .createNotification(
+                                "File combine complete",
+                                "$finalTargetFileName assembled from ${chunkFiles.size} parts" +
+                                    if (hasCrc) " (CRC verified)" else "",
+                                NotificationType.INFORMATION,
                             )
-                        }
-
-                        if (!job.isCancelled) {
-                            NotificationGroupManager.getInstance()
-                                .getNotificationGroup("Turtle Commander")
-                                .createNotification(
-                                    "File combine complete",
-                                    "$finalTargetFileName assembled from ${chunkFiles.size} parts" +
-                                        if (hasCrc) " (CRC verified)" else "",
-                                    NotificationType.INFORMATION,
-                                )
-                                .notify(project)
-                        }
-                    } catch (e: Exception) {
-                        if (!job.isCancelled) {
-                            fileErrorNotification("Failed to combine files: ${e.message}")
-                        }
+                            .notify(project)
                     }
-
-                    // The combined file is created in targetDir — invalidate so
-                    // either panel sees it on refresh.
-                    fileOps.invalidateListingCache(targetDir)
-                    refreshAfterVfsChange()
-                    withContext(Dispatchers.EDT) {
-                        onRefreshOtherPanel()
+                } catch (e: Exception) {
+                    if (!indicator.isCanceled) {
+                        fileErrorNotification("Failed to combine files: ${e.message}")
                     }
+                }
+
+                // The combined file is created in targetDir — invalidate so
+                // either panel sees it on refresh.
+                fileOps.invalidateListingCache(targetDir)
+                refreshAfterVfsChange()
+                withContext(Dispatchers.EDT) {
+                    onRefreshOtherPanel()
                 }
             }
         }
@@ -620,91 +609,89 @@ internal fun FileTab.performPack() {
     val finalArchivePath = archivePath
 
     fileOps.launch {
-        withBackgroundProgress(project, "Packing files", cancellable = true) {
-            reportRawProgress { reporter ->
-                val job = currentCoroutineContext().job
-                withContext(NonCancellable) {
-                    reporter.text("Counting files...")
-                    val totalFiles = countFiles(sourcePaths)
+        withIndicatorProgress(project, "Packing files") { indicator ->
+            withContext(NonCancellable) {
+                indicator.text = "Counting files..."
+                val totalFiles = countFiles(sourcePaths)
+                indicator.isIndeterminate = false
 
-                    try {
-                        val packedCount = when (format) {
-                            ArchiveFormat.ZIP -> archiveService.packZip(
-                                finalArchivePath, sourcePaths, appendToExisting, archiveExists,
-                                onProgress = { count, name ->
-                                    reporter.fraction(if (totalFiles > 0) count.toDouble() / totalFiles else 1.0)
-                                    reporter.text("Packing $count / $totalFiles")
-                                    reporter.details(name)
-                                },
-                                onError = { path, error ->
-                                    fileErrorNotification("Failed to pack ${path.fileName}: ${fileErrorMessage(error)}")
-                                },
-                                isCancelled = { job.isCancelled },
-                            )
-                            ArchiveFormat.TAR_GZ -> archiveService.packTarGz(
-                                finalArchivePath, sourcePaths,
-                                onProgress = { count, name ->
-                                    reporter.fraction(if (totalFiles > 0) count.toDouble() / totalFiles else 1.0)
-                                    reporter.text("Packing $count / $totalFiles")
-                                    reporter.details(name)
-                                },
-                                onError = { path, error ->
-                                    fileErrorNotification("Failed to pack ${path.fileName}: ${fileErrorMessage(error)}")
-                                },
-                                isCancelled = { job.isCancelled },
-                            )
-                        }
-
-                        if (packedCount == 0 && !appendToExisting) {
-                            withContext(Dispatchers.IO) { Files.deleteIfExists(finalArchivePath) }
-                        }
-
-                        if (!job.isCancelled && packedCount > 0 && deleteAfterPacking) {
-                            reporter.fraction(0.0)
-                            reporter.text("Deleting source files...")
-
-                            fileOps.deleteFilesWithProgress(
-                                paths = sourcePaths,
-                                onProgress = { count, name ->
-                                    reporter.fraction(if (totalFiles > 0) count.toDouble() / totalFiles else 1.0)
-                                    reporter.text("Deleting $count / $totalFiles")
-                                    reporter.details(name)
-                                },
-                                onError = { path, error ->
-                                    fileErrorNotification("Failed to delete ${path.fileName}: ${fileErrorMessage(error)}")
-                                },
-                                isCancelled = { job.isCancelled },
-                            )
-                        }
-                    } catch (e: Exception) {
-                        fileErrorNotification("Packing failed: ${fileErrorMessage(e)}")
+                try {
+                    val packedCount = when (format) {
+                        ArchiveFormat.ZIP -> archiveService.packZip(
+                            finalArchivePath, sourcePaths, appendToExisting, archiveExists,
+                            onProgress = { count, name ->
+                                indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
+                                indicator.text = "Packing $count / $totalFiles"
+                                indicator.text2 = name
+                            },
+                            onError = { path, error ->
+                                fileErrorNotification("Failed to pack ${path.fileName}: ${fileErrorMessage(error)}")
+                            },
+                            isCancelled = { indicator.isCanceled },
+                        )
+                        ArchiveFormat.TAR_GZ -> archiveService.packTarGz(
+                            finalArchivePath, sourcePaths,
+                            onProgress = { count, name ->
+                                indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
+                                indicator.text = "Packing $count / $totalFiles"
+                                indicator.text2 = name
+                            },
+                            onError = { path, error ->
+                                fileErrorNotification("Failed to pack ${path.fileName}: ${fileErrorMessage(error)}")
+                            },
+                            isCancelled = { indicator.isCanceled },
+                        )
                     }
 
-                    val archiveFileName = finalArchivePath.fileName.toString()
-                    val archiveParent = finalArchivePath.parent
-                    // The archive is created (or updated) inside archiveParent; neither
-                    // refreshAfterVfsChange nor onRefreshOtherPanel invalidates the
-                    // listing cache for that directory.
-                    if (archiveParent != null) fileOps.invalidateListingCache(archiveParent)
-                    if (archiveParent != null && archiveParent == currentPath) {
-                        refreshAfterVfsChange(selectName = archiveFileName)
+                    if (packedCount == 0 && !appendToExisting) {
+                        withContext(Dispatchers.IO) { Files.deleteIfExists(finalArchivePath) }
+                    }
+
+                    if (!indicator.isCanceled && packedCount > 0 && deleteAfterPacking) {
+                        indicator.fraction = 0.0
+                        indicator.text = "Deleting source files..."
+
+                        fileOps.deleteFilesWithProgress(
+                            paths = sourcePaths,
+                            onProgress = { count, name ->
+                                indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
+                                indicator.text = "Deleting $count / $totalFiles"
+                                indicator.text2 = name
+                            },
+                            onError = { path, error ->
+                                fileErrorNotification("Failed to delete ${path.fileName}: ${fileErrorMessage(error)}")
+                            },
+                            isCancelled = { indicator.isCanceled },
+                        )
+                    }
+                } catch (e: Exception) {
+                    fileErrorNotification("Packing failed: ${fileErrorMessage(e)}")
+                }
+
+                val archiveFileName = finalArchivePath.fileName.toString()
+                val archiveParent = finalArchivePath.parent
+                // The archive is created (or updated) inside archiveParent; neither
+                // refreshAfterVfsChange nor onRefreshOtherPanel invalidates the
+                // listing cache for that directory.
+                if (archiveParent != null) fileOps.invalidateListingCache(archiveParent)
+                if (archiveParent != null && archiveParent == currentPath) {
+                    refreshAfterVfsChange(selectName = archiveFileName)
+                    withContext(Dispatchers.EDT) {
+                        onRefreshOtherPanel()
+                    }
+                } else {
+                    refreshAfterVfsChange()
+                    val otherPath = otherPanelPathProvider()
+                    if (archiveParent != null && otherPath != null && archiveParent == otherPath) {
                         withContext(Dispatchers.EDT) {
-                            onRefreshOtherPanel()
+                            val svc = stateService ?: return@withContext
+                            val activePanel = svc.getActivePanel()
+                            val otherPanel = if (activePanel == svc.leftPanel) svc.rightPanel else svc.leftPanel
+                            otherPanel?.refreshActiveTab(archiveFileName, requestFocus = false)
                         }
                     } else {
-                        refreshAfterVfsChange()
-                        val otherPath = otherPanelPathProvider()
-                        if (archiveParent != null && otherPath != null && archiveParent == otherPath) {
-                            withContext(Dispatchers.EDT) {
-                                val svc = stateService ?: return@withContext
-                                val activePanel = svc.getActivePanel()
-                                val otherPanel = if (activePanel == svc.leftPanel) svc.rightPanel else svc.leftPanel
-                                otherPanel?.refreshActiveTab(archiveFileName, requestFocus = false)
-                            }
-                        } else {
-                            withContext(Dispatchers.EDT) {
-                                onRefreshOtherPanel()
-                            }
+                        withContext(Dispatchers.EDT) {
+                            onRefreshOtherPanel()
                         }
                     }
                 }
@@ -772,58 +759,49 @@ internal fun FileTab.extractArchives(archivePaths: List<Path>, destination: Path
     val archiveService = project.service<ArchiveService>()
 
     fileOps.launch {
-        withBackgroundProgress(project, "Extracting files", cancellable = true) {
-            reportRawProgress { reporter ->
-                val job = currentCoroutineContext().job
-                withContext(NonCancellable) {
-                    // Reports (and allows cancelling) the temp-dir extraction that formats
-                    // without a header-only counter (.rar, .iso, corrupt .zip) perform when
-                    // their VFS is opened — work that used to be visible only through the
-                    // thread-bound global indicator of the old Task.
-                    val openProgress = object : VfsOpenProgress {
-                        override fun onEntry(index: Int, total: Int, name: String) {
-                            if (total > 0) reporter.fraction(index.toDouble() / total)
-                            reporter.details(name)
-                        }
+        withIndicatorProgress(project, "Extracting files") { indicator ->
+            withContext(NonCancellable) {
+                // Reports (and allows cancelling) the temp-dir extraction that formats
+                // without a header-only counter (.rar, .iso, corrupt .zip) perform when
+                // their VFS is opened — work that used to be visible only through the
+                // thread-bound global indicator of the old Task.
+                val openProgress = VfsOpenProgress.fromIndicator(indicator)
 
-                        override val isCancelled: Boolean get() = job.isCancelled
-                    }
+                for (archivePath in archivePaths) {
+                    if (indicator.isCanceled) break
 
-                    for (archivePath in archivePaths) {
-                        if (job.isCancelled) break
+                    indicator.isIndeterminate = true
+                    indicator.text = "Counting entries in ${archivePath.fileName}..."
 
-                        reporter.fraction(null)
-                        reporter.text("Counting entries in ${archivePath.fileName}...")
+                    val totalEntries = archiveService.countArchiveEntries(archivePath, openProgress)
+                    indicator.isIndeterminate = false
 
-                        val totalEntries = archiveService.countArchiveEntries(archivePath, openProgress)
+                    archiveService.extractArchiveWithProgress(
+                        archivePath = archivePath,
+                        destination = destination,
+                        initialPolicy = initialPolicy,
+                        onProgress = { count, name ->
+                            indicator.fraction = if (totalEntries > 0) count.toDouble() / totalEntries else 1.0
+                            indicator.text = "Extracting $count / $totalEntries"
+                            indicator.text2 = name
+                        },
+                        onOverwriteConfirm = { path ->
+                            askOverwriteConfirm(path)
+                        },
+                        onError = { path, error ->
+                            fileErrorNotification("Failed to extract ${path.fileName}: ${fileErrorMessage(error)}")
+                        },
+                        isCancelled = { indicator.isCanceled },
+                        openProgress = openProgress,
+                    )
+                }
 
-                        archiveService.extractArchiveWithProgress(
-                            archivePath = archivePath,
-                            destination = destination,
-                            initialPolicy = initialPolicy,
-                            onProgress = { count, name ->
-                                reporter.fraction(if (totalEntries > 0) count.toDouble() / totalEntries else 1.0)
-                                reporter.text("Extracting $count / $totalEntries")
-                                reporter.details(name)
-                            },
-                            onOverwriteConfirm = { path ->
-                                askOverwriteConfirm(path)
-                            },
-                            onError = { path, error ->
-                                fileErrorNotification("Failed to extract ${path.fileName}: ${fileErrorMessage(error)}")
-                            },
-                            isCancelled = { job.isCancelled },
-                            openProgress = openProgress,
-                        )
-                    }
-
-                    // Extract writes into `destination`; invalidate it so the
-                    // refreshed panel shows the new entries.
-                    fileOps.invalidateListingCache(destination)
-                    refreshAfterVfsChange()
-                    withContext(Dispatchers.EDT) {
-                        onRefreshOtherPanel()
-                    }
+                // Extract writes into `destination`; invalidate it so the
+                // refreshed panel shows the new entries.
+                fileOps.invalidateListingCache(destination)
+                refreshAfterVfsChange()
+                withContext(Dispatchers.EDT) {
+                    onRefreshOtherPanel()
                 }
             }
         }

@@ -4,15 +4,11 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.components.service
 import com.intellij.openapi.ide.CopyPasteManager
-import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.progress.coroutineToIndicator
 import com.intellij.openapi.ui.Messages
-import com.intellij.platform.ide.progress.withBackgroundProgress
-import com.intellij.platform.util.progress.reportRawProgress
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.service.FileOperationService
+import io.github.jhspetersson.turtlecommander.util.withIndicatorProgress
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -41,15 +37,11 @@ abstract class CopyHashAction(
 
         project.service<FileOperationService>().launch {
             try {
-                val result = withBackgroundProgress(project, title, cancellable = true) {
-                    reportRawProgress {
-                        // HashComputations keeps its ProgressIndicator-based API (it polls
-                        // checkCanceled and reports fraction); coroutineToIndicator bridges
-                        // it to this coroutine's cancellation and progress reporter.
-                        coroutineToIndicator {
-                            compute(path, ProgressManager.getGlobalProgressIndicator() ?: EmptyProgressIndicator())
-                        }
-                    }
+                // HashComputations keeps its ProgressIndicator-based API (it polls
+                // checkCanceled and reports fraction); withIndicatorProgress bridges
+                // it to this coroutine's cancellation and progress UI.
+                val result = withIndicatorProgress(project, title) { indicator ->
+                    compute(path, indicator)
                 }
                 withContext(Dispatchers.EDT) {
                     CopyPasteManager.copyTextToClipboard(result)

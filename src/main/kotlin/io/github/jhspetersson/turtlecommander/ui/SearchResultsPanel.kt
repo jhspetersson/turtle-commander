@@ -7,8 +7,6 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
-import com.intellij.platform.ide.progress.withBackgroundProgress
-import com.intellij.platform.util.progress.reportRawProgress
 import com.intellij.ui.TableSpeedSearch
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
@@ -19,6 +17,7 @@ import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.service.FileOperationService
 import io.github.jhspetersson.turtlecommander.service.FileSearchService
+import io.github.jhspetersson.turtlecommander.util.withIndicatorProgress
 import io.github.jhspetersson.turtlecommander.util.wrapAsSubstringGlobIfPlain
 import kotlinx.coroutines.*
 import java.awt.BorderLayout
@@ -315,66 +314,63 @@ class SearchResultsPanel(
 
         val fileOps = project.service<FileOperationService>()
         currentSearchJob = fileOps.launch {
-            withBackgroundProgress(project, "Searching files...", cancellable = true) {
-                reportRawProgress { reporter ->
-                    val job = currentCoroutineContext().job
-                    // Stop requests (the Stop button cancels currentSearchJob, the progress
-                    // bar's cancel cancels this job) are observed through the polled
-                    // isCancelled lambda so the final flush and status update still run;
-                    // NonCancellable keeps the CancellationException at the next suspension
-                    // point from skipping them.
-                    withContext(NonCancellable + Dispatchers.IO) {
-                        val pendingResults = mutableListOf<FileEntry>()
-                        var lastFlush = System.currentTimeMillis()
+            withIndicatorProgress(project, "Searching files...") { indicator ->
+                // Stop requests (the Stop button cancels currentSearchJob, the progress
+                // bar's cancel cancels the indicator) are observed through the polled
+                // isCancelled lambda so the final flush and status update still run;
+                // NonCancellable keeps the CancellationException at the next suspension
+                // point from skipping them.
+                withContext(NonCancellable) {
+                    val pendingResults = mutableListOf<FileEntry>()
+                    var lastFlush = System.currentTimeMillis()
 
-                        try {
-                            service.search(
-                                onResult = { entry ->
-                                    val shouldFlush: Boolean
-                                    synchronized(pendingResults) {
-                                        pendingResults.add(entry)
-                                        val now = System.currentTimeMillis()
-                                        shouldFlush = now - lastFlush > 200 || pendingResults.size >= 50
-                                        if (shouldFlush) lastFlush = now
-                                    }
-                                    if (shouldFlush) {
-                                        flushResults(pendingResults)
-                                    }
-                                },
-                                isCancelled = { job.isCancelled || disposed },
-                                onProgress = { scannedCount, currentDir ->
-                                    reporter.text("Scanned $scannedCount entries...")
-                                    reporter.details(currentDir)
-                                    if (!disposed) {
-                                        SwingUtilities.invokeLater {
-                                            statusLabel.text = "Searching... ${resultEntries.size} files found, scanned $scannedCount entries"
-                                        }
-                                    }
-                                },
-                            )
-                        } catch (e: FileSearchService.InvalidPatternException) {
-                            if (!disposed) {
-                                SwingUtilities.invokeLater {
-                                    statusLabel.text = e.message ?: "Invalid search pattern"
-                                    stopButton.isEnabled = false
-                                    pauseResumeButton.isEnabled = false
-                                    editButton.isEnabled = true
+                    try {
+                        service.search(
+                            onResult = { entry ->
+                                val shouldFlush: Boolean
+                                synchronized(pendingResults) {
+                                    pendingResults.add(entry)
+                                    val now = System.currentTimeMillis()
+                                    shouldFlush = now - lastFlush > 200 || pendingResults.size >= 50
+                                    if (shouldFlush) lastFlush = now
                                 }
-                            }
-                            return@withContext
-                        }
-
-                        // Flush remaining
-                        flushResults(pendingResults)
-
+                                if (shouldFlush) {
+                                    flushResults(pendingResults)
+                                }
+                            },
+                            isCancelled = { indicator.isCanceled || disposed },
+                            onProgress = { scannedCount, currentDir ->
+                                indicator.text = "Scanned $scannedCount entries..."
+                                indicator.text2 = currentDir
+                                if (!disposed) {
+                                    SwingUtilities.invokeLater {
+                                        statusLabel.text = "Searching... ${resultEntries.size} files found, scanned $scannedCount entries"
+                                    }
+                                }
+                            },
+                        )
+                    } catch (e: FileSearchService.InvalidPatternException) {
                         if (!disposed) {
                             SwingUtilities.invokeLater {
-                                val msg = if (job.isCancelled) "Search stopped." else "Search complete."
-                                statusLabel.text = "$msg ${resultEntries.size} files found."
+                                statusLabel.text = e.message ?: "Invalid search pattern"
                                 stopButton.isEnabled = false
                                 pauseResumeButton.isEnabled = false
                                 editButton.isEnabled = true
                             }
+                        }
+                        return@withContext
+                    }
+
+                    // Flush remaining
+                    flushResults(pendingResults)
+
+                    if (!disposed) {
+                        SwingUtilities.invokeLater {
+                            val msg = if (indicator.isCanceled) "Search stopped." else "Search complete."
+                            statusLabel.text = "$msg ${resultEntries.size} files found."
+                            stopButton.isEnabled = false
+                            pauseResumeButton.isEnabled = false
+                            editButton.isEnabled = true
                         }
                     }
                 }

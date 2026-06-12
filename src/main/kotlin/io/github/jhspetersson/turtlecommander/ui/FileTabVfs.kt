@@ -3,10 +3,9 @@ import io.github.jhspetersson.turtlecommander.service.VfsTempCleanup
 import io.github.jhspetersson.turtlecommander.vfs.vfsRelativePath as vfsRootRelativePath
 import java.io.File
 
-import com.intellij.platform.ide.progress.withBackgroundProgress
-import com.intellij.platform.util.progress.reportRawProgress
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
+import io.github.jhspetersson.turtlecommander.util.withIndicatorProgress
 import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 import io.github.jhspetersson.turtlecommander.vfs.SilentVfsOpenException
 import io.github.jhspetersson.turtlecommander.vfs.VfsOpenProgress
@@ -15,8 +14,6 @@ import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.job
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.nio.file.Files
@@ -27,77 +24,67 @@ internal fun FileTab.enterVfs(entry: FileEntry) {
     val archivePath = entry.path
     val fileName = archivePath.fileName?.toString() ?: "archive"
     fileOps.launch {
-        withBackgroundProgress(project, "Opening $fileName…", cancellable = true) {
-            reportRawProgress { reporter ->
-                val job = currentCoroutineContext().job
-                // Same graceful-cancel contract as the operations in FileTabOperations:
-                // extraction observes the cancel request through the polled hook and returns
-                // a partial VFS that the checks below close - NonCancellable keeps an abrupt
-                // CancellationException from skipping that cleanup or leaving a VFS on the
-                // stack without the follow-up navigation.
-                withContext(NonCancellable) {
-                    val openProgress = object : VfsOpenProgress {
-                        override fun onEntry(index: Int, total: Int, name: String) {
-                            if (total > 0) reporter.fraction(index.toDouble() / total)
-                            reporter.details(name)
+        withIndicatorProgress(project, "Opening $fileName…") { indicator ->
+            // Same graceful-cancel contract as the operations in FileTabOperations:
+            // extraction observes the cancel request through the polled hook and returns
+            // a partial VFS that the checks below close - NonCancellable keeps an abrupt
+            // CancellationException from skipping that cleanup or leaving a VFS on the
+            // stack without the follow-up navigation.
+            withContext(NonCancellable) {
+                val openProgress = VfsOpenProgress.fromIndicator(indicator)
+                try {
+                    if (vfsStack.isEmpty()) {
+                        val vfs = withContext(Dispatchers.IO) {
+                            VirtualFileSystemRegistry.create(archivePath, openProgress)
                         }
-
-                        override val isCancelled: Boolean get() = job.isCancelled
-                    }
-                    try {
-                        if (vfsStack.isEmpty()) {
+                        if (indicator.isCanceled) {
+                            vfs.close()
+                            return@withContext
+                        }
+                        vfsStack.add(VfsStackEntry(vfs, archivePath))
+                        navigateTo(vfs.root)
+                    } else {
+                        var tempFile: File? = null
+                        try {
+                            VfsTempCleanup.cleanupOnce()
                             val vfs = withContext(Dispatchers.IO) {
-                                VirtualFileSystemRegistry.create(archivePath, openProgress)
+                                // If the parent VFS is lazy (an .iso), the entry we're about to nest
+                                // into is still a sparse stub on disk - stream the actual bytes from
+                                // the disc image first so the Files.copy below sees real content.
+                                // No-op for any VFS that already extracted everything in extract().
+                                OpenVfsRegistry.materializeIfNeeded(archivePath)
+                                val tempDir = Files.createTempDirectory("turtle-vfs-")
+                                val tempPath = tempDir.resolve(fileName)
+                                Files.copy(archivePath, tempPath)
+                                tempFile = tempPath.toFile()
+                                VirtualFileSystemRegistry.create(tempPath, openProgress)
                             }
-                            if (job.isCancelled) {
+                            if (indicator.isCanceled) {
                                 vfs.close()
+                                tempFile?.delete(); tempFile?.parentFile?.delete()
                                 return@withContext
                             }
-                            vfsStack.add(VfsStackEntry(vfs, archivePath))
+                            vfsStack.add(VfsStackEntry(vfs, archivePath, tempFile))
                             navigateTo(vfs.root)
-                        } else {
-                            var tempFile: File? = null
-                            try {
-                                VfsTempCleanup.cleanupOnce()
-                                val vfs = withContext(Dispatchers.IO) {
-                                    // If the parent VFS is lazy (an .iso), the entry we're about to nest
-                                    // into is still a sparse stub on disk - stream the actual bytes from
-                                    // the disc image first so the Files.copy below sees real content.
-                                    // No-op for any VFS that already extracted everything in extract().
-                                    OpenVfsRegistry.materializeIfNeeded(archivePath)
-                                    val tempDir = Files.createTempDirectory("turtle-vfs-")
-                                    val tempPath = tempDir.resolve(fileName)
-                                    Files.copy(archivePath, tempPath)
-                                    tempFile = tempPath.toFile()
-                                    VirtualFileSystemRegistry.create(tempPath, openProgress)
-                                }
-                                if (job.isCancelled) {
-                                    vfs.close()
-                                    tempFile?.delete(); tempFile?.parentFile?.delete()
-                                    return@withContext
-                                }
-                                vfsStack.add(VfsStackEntry(vfs, archivePath, tempFile))
-                                navigateTo(vfs.root)
-                            } catch (_: SilentVfsOpenException) {
-                                // Recognised extension but unrecognised contents (e.g. a .pak that is
-                                // neither PAK nor ZIP): fall through to opening it as a normal file.
-                                tempFile?.let {
-                                    try { it.delete(); it.parentFile?.delete() } catch (_: Exception) {}
-                                }
-                                openFile(entry)
-                            } catch (e: Exception) {
-                                tempFile?.let {
-                                    try { it.delete(); it.parentFile?.delete() } catch (_: Exception) {}
-                                }
-                                fileErrorNotification("Cannot open nested archive: ${fileErrorMessage(e)}")
+                        } catch (_: SilentVfsOpenException) {
+                            // Recognised extension but unrecognised contents (e.g. a .pak that is
+                            // neither PAK nor ZIP): fall through to opening it as a normal file.
+                            tempFile?.let {
+                                try { it.delete(); it.parentFile?.delete() } catch (_: Exception) {}
                             }
+                            openFile(entry)
+                        } catch (e: Exception) {
+                            tempFile?.let {
+                                try { it.delete(); it.parentFile?.delete() } catch (_: Exception) {}
+                            }
+                            fileErrorNotification("Cannot open nested archive: ${fileErrorMessage(e)}")
                         }
-                    } catch (_: SilentVfsOpenException) {
-                        // Recognised extension but unrecognised contents: open it as a normal file.
-                        openFile(entry)
-                    } catch (e: Exception) {
-                        fileErrorNotification("Cannot open archive: ${fileErrorMessage(e)}")
                     }
+                } catch (_: SilentVfsOpenException) {
+                    // Recognised extension but unrecognised contents: open it as a normal file.
+                    openFile(entry)
+                } catch (e: Exception) {
+                    fileErrorNotification("Cannot open archive: ${fileErrorMessage(e)}")
                 }
             }
         }
