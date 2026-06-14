@@ -188,6 +188,14 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
                 }
             })
 
+        val dataColumns = setOf("User", "Group", "Permissions", "Inode", "Links")
+        fun visibleDataColumns(): Set<String> =
+            TurtleCommanderSettings.getInstance().getEffectiveColumns()
+                .filter { it.visible && it.id in dataColumns }
+                .map { it.id }
+                .toSet()
+        var lastVisibleDataColumns = visibleDataColumns()
+
         ApplicationManager.getApplication().messageBus
             .connect(toolWindow.disposable)
             .subscribe(TurtleCommanderSettings.TOPIC, object : TurtleCommanderSettingsListener {
@@ -197,6 +205,13 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
                     // are populated. Cached listings from before the change may have empty values
                     // for the newly-visible columns, so drop the cache on any settings change.
                     project.service<FileOperationService>().clearListingCache()
+                    val newVisibleDataColumns = visibleDataColumns()
+                    val gainedDataColumn = (newVisibleDataColumns - lastVisibleDataColumns).isNotEmpty()
+                    lastVisibleDataColumns = newVisibleDataColumns
+                    if (gainedDataColumn) {
+                        leftPanel.refreshActiveTab(requestFocus = false)
+                        rightPanel.refreshActiveTab(requestFocus = false)
+                    }
                     bottomBar.isVisible = s.showCommandBar
                     applyCommandBarStyle(bottomBar, s.styles.commandBarStyle, s.styles.commandButtonStyle)
                     leftPanel.applyFonts()
