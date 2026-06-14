@@ -119,13 +119,11 @@ internal fun applyColumnConfig(tab: FileTab) {
     val columns = TurtleCommanderSettings.getInstance().getEffectiveColumns()
     val columnStyleMap = mutableMapOf<Int, ComponentStyle>()
 
-    // Remove hidden columns (iterate in reverse to avoid index shifting)
-    val hiddenModelIndices = mutableSetOf<Int>()
+    val visibleModelIndices = columns
+        .filter { it.visible }
+        .mapNotNull { COLUMN_NAME_TO_MODEL_INDEX[it.id] }
+        .toSet()
     for (col in columns) {
-        if (!col.visible) {
-            val modelIdx = COLUMN_NAME_TO_MODEL_INDEX[col.id] ?: continue
-            hiddenModelIndices.add(modelIdx)
-        }
         if (!col.style.isDefault()) {
             val modelIdx = COLUMN_NAME_TO_MODEL_INDEX[col.id] ?: continue
             columnStyleMap[modelIdx] = col.style
@@ -145,13 +143,11 @@ internal fun applyColumnConfig(tab: FileTab) {
     }
     applyDefaultColumnWidths(tab)
 
-    // Remove hidden columns
-    for (modelIdx in hiddenModelIndices) {
-        for (i in table.columnModel.columnCount - 1 downTo 0) {
-            if (table.columnModel.getColumn(i).modelIndex == modelIdx) {
-                table.removeColumn(table.columnModel.getColumn(i))
-                break
-            }
+    // Remove hidden/unavailable columns (iterate in reverse to avoid index shifting)
+    for (i in table.columnModel.columnCount - 1 downTo 0) {
+        val tc = table.columnModel.getColumn(i)
+        if (tc.modelIndex !in visibleModelIndices) {
+            table.removeColumn(tc)
         }
     }
 

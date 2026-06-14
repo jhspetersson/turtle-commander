@@ -402,11 +402,14 @@ class FileSearchDialog(
             add(ownerCheckBox, gbc)
             gbc.insets = JBUI.insets(2, 4)
             gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0
+            if (isHostWindows) gbc.gridwidth = 3
             add(ownerField, gbc)
-            gbc.gridx = 2; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0.0
-            add(groupCheckBox, gbc)
-            gbc.gridx = 3; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0
-            add(groupField, gbc)
+            if (!isHostWindows) {
+                gbc.gridx = 2; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0.0
+                add(groupCheckBox, gbc)
+                gbc.gridx = 3; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0
+                add(groupField, gbc)
+            }
             maximumSize = Dimension(Int.MAX_VALUE, preferredSize.height)
         })
 
@@ -675,7 +678,7 @@ class FileSearchDialog(
         val modificationDate = parseDateFilter(modificationDateCheckBox, modificationDateModeCombo, modificationDateField1, modificationDateField2)
 
         val owner = if (ownerCheckBox.isSelected && ownerField.text.isNotBlank()) ownerField.text.trim() else null
-        val group = if (groupCheckBox.isSelected && groupField.text.isNotBlank()) groupField.text.trim() else null
+        val group = if (!isHostWindows && groupCheckBox.isSelected && groupField.text.isNotBlank()) groupField.text.trim() else null
 
         val permissions = if (permissionsCheckBox.isSelected) {
             val mode = PermissionsFilterMode.entries[permissionsModeCombo.selectedIndex]

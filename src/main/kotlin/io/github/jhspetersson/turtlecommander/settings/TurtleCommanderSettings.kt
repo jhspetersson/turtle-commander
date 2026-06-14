@@ -91,17 +91,23 @@ class ColumnConfig {
     companion object {
         val ALL_COLUMN_IDS = listOf("Name", "Ext", "Size", "Date Created", "Date Modified", "User", "Group", "Permissions", "Inode", "Links")
 
-        private val UNIX_ONLY_COLUMNS = setOf("User", "Group")
+        private val UNIX_ONLY_COLUMNS = setOf("Group", "Inode", "Links")
 
         /** Columns that exist but start hidden; users opt in via Settings. */
         private val HIDDEN_BY_DEFAULT_COLUMNS = setOf("Inode", "Links")
 
+        /** Whether [id] has a usable data source on the current platform. */
+        fun isAvailable(id: String): Boolean = !(SystemInfo.isWindows && id in UNIX_ONLY_COLUMNS)
+
+        /** Column ids usable on the current platform, in canonical order. */
+        fun availableColumnIds(): List<String> = ALL_COLUMN_IDS.filter(::isAvailable)
+
         /** Whether [id] should be visible out of the box on the current platform. */
         fun defaultVisible(id: String): Boolean =
-            !(SystemInfo.isWindows && id in UNIX_ONLY_COLUMNS) && id !in HIDDEN_BY_DEFAULT_COLUMNS
+            isAvailable(id) && id !in HIDDEN_BY_DEFAULT_COLUMNS
 
         fun defaults(): List<ColumnConfig> {
-            return ALL_COLUMN_IDS.map { id ->
+            return availableColumnIds().map { id ->
                 ColumnConfig().apply {
                     this.id = id
                     this.visible = defaultVisible(id)
@@ -297,12 +303,12 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
     }
 
     fun getEffectiveColumns(): List<ColumnConfig> {
-        val saved = myState.columns
+        val available = ColumnConfig.availableColumnIds()
+        val saved = myState.columns.filter { it.id in available }
         if (saved.isEmpty()) return ColumnConfig.defaults()
-        // Ensure all known columns are present (in case new columns were added)
         val savedIds = saved.map { it.id }.toSet()
         val result = saved.toMutableList()
-        for (id in ColumnConfig.ALL_COLUMN_IDS) {
+        for (id in available) {
             if (id !in savedIds) {
                 result.add(ColumnConfig().apply {
                     this.id = id

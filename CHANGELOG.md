@@ -8,6 +8,10 @@
 
 - Links column showing the hard-link count (Unix only, hidden by default — enable it in Settings)
 
+### Changed
+
+- Hide some columns on Windows completely, instead of showing empty values
+
 ### Fixed
 
 - The UI no longer freezes on slow or disconnected network paths

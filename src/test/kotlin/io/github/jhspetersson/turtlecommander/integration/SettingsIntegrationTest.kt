@@ -132,20 +132,20 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
         settings.state.columns.clear()
 
         val columns = settings.getEffectiveColumns()
+        val ids = columns.map { it.id }
 
-        assertEquals("Should have all 10 default columns", 10, columns.size)
-        assertEquals("Name", columns[0].id)
-        assertEquals("Ext", columns[1].id)
-        assertEquals("Size", columns[2].id)
-        assertEquals("Date Created", columns[3].id)
-        assertEquals("Date Modified", columns[4].id)
-        assertEquals("User", columns[5].id)
-        assertEquals("Group", columns[6].id)
-        assertEquals("Permissions", columns[7].id)
-        assertEquals("Inode", columns[8].id)
-        assertEquals("Links", columns[9].id)
-        assertFalse("Inode column should be hidden by default", columns[8].visible)
-        assertFalse("Links column should be hidden by default", columns[9].visible)
+        val isWindows = System.getProperty("os.name").lowercase().contains("win")
+        if (isWindows) {
+            // Group/Inode/Links have no data source on Windows and are excluded entirely.
+            assertEquals(
+                listOf("Name", "Ext", "Size", "Date Created", "Date Modified", "User", "Permissions"),
+                ids,
+            )
+        } else {
+            assertEquals("Should have all 10 default columns", ColumnConfig.ALL_COLUMN_IDS, ids)
+            assertFalse("Inode column should be hidden by default", columns.first { it.id == "Inode" }.visible)
+            assertFalse("Links column should be hidden by default", columns.first { it.id == "Links" }.visible)
+        }
     }
 
     fun testEffectiveColumnsPreservesCustomization() {
@@ -155,8 +155,8 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
 
         val columns = settings.getEffectiveColumns()
 
-        // Should include the 2 saved columns + fill in the 6 missing ones
-        assertTrue("Should have at least 8 columns", columns.size >= 8)
+        // The 2 saved columns + the rest of the platform's available columns filled in.
+        assertEquals(ColumnConfig.availableColumnIds().size, columns.size)
         val sizeCol = columns.find { it.id == "Size" }
         assertNotNull(sizeCol)
         assertFalse("Size column should be hidden", sizeCol!!.visible)
@@ -171,32 +171,37 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
 
         val columns = settings.getEffectiveColumns()
 
-        // Missing columns (Ext, Date Created, User, Group, Permissions) should be appended
+        // Missing available columns (Ext, Date Created, User, [Group], Permissions) are appended.
         val ids = columns.map { it.id }.toSet()
         assertTrue("Should include Ext", "Ext" in ids)
         assertTrue("Should include Date Created", "Date Created" in ids)
         assertTrue("Should include User", "User" in ids)
-        assertTrue("Should include Group", "Group" in ids)
         assertTrue("Should include Permissions", "Permissions" in ids)
+        // Group is unix-only: present only where it has a data source.
+        val isWindows = System.getProperty("os.name").lowercase().contains("win")
+        assertEquals("Group present iff not Windows", !isWindows, "Group" in ids)
     }
 
     fun testColumnConfigDefaults() {
         val defaults = ColumnConfig.defaults()
-        assertEquals(10, defaults.size)
-        assertEquals(ColumnConfig.ALL_COLUMN_IDS, defaults.map { it.id })
         val isWindows = System.getProperty("os.name").lowercase().contains("win")
         val hiddenByDefault = setOf("Inode", "Links")
         if (isWindows) {
-            val userCol = defaults.find { it.id == "User" }!!
-            val groupCol = defaults.find { it.id == "Group" }!!
-            assertFalse("User column should be hidden on Windows", userCol.visible)
-            assertFalse("Group column should be hidden on Windows", groupCol.visible)
+            // Group/Inode/Links have no data source on Windows and are excluded entirely. User
+            // is backed by Files.getOwner(), which works on Windows, so it stays available.
+            assertEquals(
+                listOf("Name", "Ext", "Size", "Date Created", "Date Modified", "User", "Permissions"),
+                defaults.map { it.id },
+            )
+            assertTrue("Windows default columns should all be visible", defaults.all { it.visible })
         } else {
+            assertEquals(10, defaults.size)
+            assertEquals(ColumnConfig.ALL_COLUMN_IDS, defaults.map { it.id })
             // Inode and Links are hidden by default everywhere; every other column is visible on Unix.
             assertTrue("Non-hidden columns visible on Unix", defaults.filter { it.id !in hiddenByDefault }.all { it.visible })
+            assertFalse("Inode column should be hidden by default", defaults.find { it.id == "Inode" }!!.visible)
+            assertFalse("Links column should be hidden by default", defaults.find { it.id == "Links" }!!.visible)
         }
-        assertFalse("Inode column should be hidden by default", defaults.find { it.id == "Inode" }!!.visible)
-        assertFalse("Links column should be hidden by default", defaults.find { it.id == "Links" }!!.visible)
         assertTrue("All default styles should be default", defaults.all { it.style.isDefault() })
     }
 
