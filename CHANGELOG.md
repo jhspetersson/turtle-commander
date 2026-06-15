@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Natural sort order (e.g., `file2.txt` comes before `file10.txt`) by default
+
 ## [0.6.7] - 2026-06-15
 
 ### Added
