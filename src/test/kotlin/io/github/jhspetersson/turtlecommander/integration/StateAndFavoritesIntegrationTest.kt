@@ -129,24 +129,31 @@ class StateAndFavoritesIntegrationTest : BasePlatformTestCase() {
 
     fun testPanelSaveAndRestoreState() {
         if (GraphicsEnvironment.isHeadless()) return
-        val projectPath = Path.of(project.basePath!!)
+        // Use a real temp dir: BasePlatformTestCase's project.basePath is a light-fixture
+        // virtual path that isn't listable on disk, so navigateTo would fall back to the
+        // nearest existing ancestor (observed on macOS) and the saved tab path wouldn't
+        // match the initial path.
+        val tempDir = Files.createTempDirectory("turtle-panel-state-")
+        try {
+            val panel = FileManagerPanel(
+                project = project,
+                initialPath = tempDir,
+                otherPanelPathProvider = { tempDir },
+            )
+            // Fresh PanelState: stateService.state.leftPanel would leak tabs from prior tests that registered panels.
+            panel.restoreState(FileManagerStateService.PanelState(), stateService)
+            PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
-        val panel = FileManagerPanel(
-            project = project,
-            initialPath = projectPath,
-            otherPanelPathProvider = { projectPath },
-        )
-        // Fresh PanelState: stateService.state.leftPanel would leak tabs from prior tests that registered panels.
-        panel.restoreState(FileManagerStateService.PanelState(), stateService)
-        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+            val savedState = panel.saveState()
 
-        val savedState = panel.saveState()
-
-        assertTrue("Saved state should have at least one tab", savedState.tabs.isNotEmpty())
-        assertTrue("Tabs should contain the initial path", savedState.tabs.any {
-            try { Files.isSameFile(Path.of(it.path), projectPath) } catch (_: Exception) { false }
-        })
-        assertEquals(0, savedState.selectedTabIndex)
+            assertTrue("Saved state should have at least one tab", savedState.tabs.isNotEmpty())
+            assertTrue("Tabs should contain the initial path", savedState.tabs.any {
+                try { Files.isSameFile(Path.of(it.path), tempDir) } catch (_: Exception) { false }
+            })
+            assertEquals(0, savedState.selectedTabIndex)
+        } finally {
+            tempDir.toFile().deleteRecursively()
+        }
     }
 
     fun testPanelRestoreMultipleTabs() {

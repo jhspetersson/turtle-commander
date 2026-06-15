@@ -80,9 +80,13 @@ class FileManagerToolWindowTest : BasePlatformTestCase() {
         assertTrue("Should list the created entries", realEntries.isNotEmpty())
 
         for (entry in realEntries) {
+            // Compare by file identity, not string prefix: the service canonicalizes the
+            // listing directory via toRealPath() (reparse-point/junction resolution), which on
+            // Windows also expands 8.3 short names (e.g. RUNNER~1). The canonical entry paths
+            // then no longer string-startWith the original temp dir, so assert same-directory.
             assertTrue(
                 "Entry path ${entry.path} should be under temp dir $tempDir",
-                entry.path.startsWith(tempDir)
+                Files.isSameFile(entry.path.parent, tempDir)
             )
             assertEquals(
                 "Entry name should match path file name",
