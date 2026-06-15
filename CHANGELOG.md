@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.6.7] - 2026-06-15
+
 ### Added
 
 - Links column showing the hard-link count (Unix only, hidden by default — enable it in Settings)
