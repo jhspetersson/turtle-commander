@@ -16,6 +16,7 @@ class ParentPinningRowSorterTest {
     private lateinit var table: JTable
     private lateinit var sorter: ParentPinningRowSorter
     private var sortWithDirectories = false
+    private var naturalNameSort = true
 
     private val t1 = FileTime.fromMillis(1000000000000L)
     private val t2 = FileTime.fromMillis(2000000000000L)
@@ -26,7 +27,7 @@ class ParentPinningRowSorterTest {
     @Before
     fun setUp() {
         model = FileTableModel()
-        sorter = ParentPinningRowSorter(model) { sortWithDirectories }
+        sorter = ParentPinningRowSorter(model, { sortWithDirectories }, { naturalNameSort })
         table = JTable(model)
         table.rowSorter = sorter
     }
@@ -528,5 +529,95 @@ class ParentPinningRowSorterTest {
         // Re-apply sort to pick up new setting (must force re-sort via sort())
         sorter.sort()
         assertEquals(listOf("aaa.txt", "dir_a", "dir_b", "file_a.txt"), visibleNames())
+    }
+
+    // --- Natural vs lexicographic name sorting ---
+
+    @Test
+    fun naturalSortOrdersEmbeddedNumbersNumerically() {
+        naturalNameSort = true
+        sortWithDirectories = true
+        model.setEntries(listOf(
+            entry("file10.txt", size = 100),
+            entry("file2.txt", size = 100),
+            entry("file1.txt", size = 100),
+        ))
+        sortBy(FileTableModel.COL_NAME, SortOrder.ASCENDING)
+        // Natural order: 1, 2, 10 (not lexicographic 1, 10, 2)
+        assertEquals(listOf("file1.txt", "file2.txt", "file10.txt"), visibleNames())
+    }
+
+    @Test
+    fun naturalSortDescReversesNumericOrder() {
+        naturalNameSort = true
+        sortWithDirectories = true
+        model.setEntries(listOf(
+            entry("file10.txt", size = 100),
+            entry("file2.txt", size = 100),
+            entry("file1.txt", size = 100),
+        ))
+        sortBy(FileTableModel.COL_NAME, SortOrder.DESCENDING)
+        assertEquals(listOf("file10.txt", "file2.txt", "file1.txt"), visibleNames())
+    }
+
+    @Test
+    fun lexicographicSortOrdersEmbeddedNumbersAsStrings() {
+        naturalNameSort = false
+        sortWithDirectories = true
+        model.setEntries(listOf(
+            entry("file10.txt", size = 100),
+            entry("file2.txt", size = 100),
+            entry("file1.txt", size = 100),
+        ))
+        sortBy(FileTableModel.COL_NAME, SortOrder.ASCENDING)
+        // Lexicographic order: "file1", "file10", "file2"
+        assertEquals(listOf("file1.txt", "file10.txt", "file2.txt"), visibleNames())
+    }
+
+    @Test
+    fun naturalSortAppliesToSecondaryNameKey() {
+        // When sorting by a non-name column, ties break on the name key, which
+        // reuses the Name column's comparator and so should also sort naturally.
+        naturalNameSort = true
+        sortWithDirectories = true
+        model.setEntries(listOf(
+            entry("file10.txt", size = 100),
+            entry("file2.txt", size = 100),
+            entry("file1.txt", size = 100),
+        ))
+        sortBy(FileTableModel.COL_SIZE, SortOrder.ASCENDING)
+        assertEquals(listOf("file1.txt", "file2.txt", "file10.txt"), visibleNames())
+    }
+
+    @Test
+    fun naturalSortDoesNotAffectExtensionColumn() {
+        // Natural ordering is scoped to the Name column; the Ext column keeps
+        // plain lexicographic comparison of extensions.
+        naturalNameSort = true
+        sortWithDirectories = true
+        model.setEntries(listOf(
+            entry("a.v10", size = 100),
+            entry("b.v2", size = 100),
+            entry("c.v1", size = 100),
+        ))
+        sortBy(FileTableModel.COL_EXT, SortOrder.ASCENDING)
+        // Lexicographic on extension: v1, v10, v2
+        assertEquals(listOf("c.v1", "a.v10", "b.v2"), visibleNames())
+    }
+
+    @Test
+    fun naturalSortKeepsDirectoryGrouping() {
+        naturalNameSort = true
+        sortWithDirectories = false
+        model.setEntries(listOf(
+            entry("file10", size = 100),
+            entry("dir2", isDirectory = true),
+            entry("dir10", isDirectory = true),
+            entry("file2", size = 100),
+            entry("dir1", isDirectory = true),
+        ))
+        sortBy(FileTableModel.COL_NAME, SortOrder.ASCENDING)
+        // Dirs first (natural), then files (natural)
+        assertEquals(listOf("dir1", "dir2", "dir10", "file2", "file10"), visibleNames())
     }
 }

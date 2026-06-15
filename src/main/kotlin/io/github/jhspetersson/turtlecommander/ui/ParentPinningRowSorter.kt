@@ -1,4 +1,5 @@
 package io.github.jhspetersson.turtlecommander.ui
+import com.intellij.openapi.util.text.StringUtil
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 
 import javax.swing.SortOrder
@@ -22,6 +23,9 @@ internal class ParentPinningRowSorter(
     fileModel: FileTableModel,
     private val sortWithDirectories: () -> Boolean = {
         TurtleCommanderSettings.getInstance().state.sortWithDirectories
+    },
+    private val naturalNameSort: () -> Boolean = {
+        TurtleCommanderSettings.getInstance().state.naturalNameSort
     },
 ) : TableRowSorter<FileTableModel>(fileModel) {
 
@@ -50,7 +54,7 @@ internal class ParentPinningRowSorter(
     init {
         setModelWrapper(DirAwareModelWrapper(fileModel))
         for (col in 0 until fileModel.columnCount) {
-            setComparator(col, ParentFirstComparator(this, col, sortWithDirectories))
+            setComparator(col, ParentFirstComparator(this, col, sortWithDirectories, naturalNameSort))
         }
     }
 
@@ -76,6 +80,9 @@ internal class ParentFirstComparator(
     private val sorter: ParentPinningRowSorter,
     private val column: Int,
     private val sortWithDirectories: () -> Boolean,
+    private val naturalNameSort: () -> Boolean = {
+        TurtleCommanderSettings.getInstance().state.naturalNameSort
+    },
 ) : Comparator<Any> {
     override fun compare(o1: Any?, o2: Any?): Int {
         val dav1 = o1 as? DirAwareValue ?: return 0
@@ -109,7 +116,11 @@ internal class ParentFirstComparator(
 
         val s1 = v1.toString()
         val s2 = v2.toString()
-        return s1.compareTo(s2, ignoreCase = true)
+        return if (column == FileTableModel.COL_NAME && naturalNameSort()) {
+            StringUtil.naturalCompare(s1, s2)
+        } else {
+            s1.compareTo(s2, ignoreCase = true)
+        }
     }
 
     private fun isDescending(): Boolean {

@@ -35,6 +35,7 @@ class TurtleCommanderConfigurable : Configurable {
     private var overwritePolicyCombo: ComboBox<OverwritePolicy>? = null
     private var deleteToRecycleBinCheckBox: JCheckBox? = null
     private var sortWithDirectoriesCheckBox: JCheckBox? = null
+    private var naturalNameSortCheckBox: JCheckBox? = null
     private var calculateDirectorySizeCheckBox: JCheckBox? = null
     private var defaultViewModeCombo: ComboBox<String>? = null
     private var panelLayoutCombo: ComboBox<String>? = null
@@ -72,6 +73,7 @@ class TurtleCommanderConfigurable : Configurable {
         }
         deleteToRecycleBinCheckBox = JCheckBox("Delete to Recycle Bin (Shift+Delete bypasses)", settings.deleteToRecycleBin)
         sortWithDirectoriesCheckBox = JCheckBox("Sort directories together with files", settings.sortWithDirectories)
+        naturalNameSortCheckBox = JCheckBox("Natural sort order for file names (file2 before file10)", settings.naturalNameSort)
         calculateDirectorySizeCheckBox = JCheckBox("Calculate directory size on selection", settings.calculateDirectorySize)
 
         val viewModeItems = arrayOf("Table", "List", "Thumbnail", "Tree")
@@ -214,6 +216,7 @@ class TurtleCommanderConfigurable : Configurable {
         hideStatusBarCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         deleteToRecycleBinCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         sortWithDirectoriesCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
+        naturalNameSortCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         calculateDirectorySizeCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
 
         // Columns editor
@@ -243,6 +246,7 @@ class TurtleCommanderConfigurable : Configurable {
             add(hideStatusBarCheckBox)
             add(deleteToRecycleBinCheckBox)
             add(sortWithDirectoriesCheckBox)
+            add(naturalNameSortCheckBox)
             add(calculateDirectorySizeCheckBox)
             add(Box.createVerticalStrut(8))
             add(overwritePolicyRow)
@@ -654,6 +658,7 @@ class TurtleCommanderConfigurable : Configurable {
             || (overwritePolicyCombo?.item ?: OverwritePolicy.ASK).name != settings.defaultOverwritePolicy
             || deleteToRecycleBinCheckBox?.isSelected != settings.deleteToRecycleBin
             || sortWithDirectoriesCheckBox?.isSelected != settings.sortWithDirectories
+            || naturalNameSortCheckBox?.isSelected != settings.naturalNameSort
             || calculateDirectorySizeCheckBox?.isSelected != settings.calculateDirectorySize
             || getSelectedViewMode() != settings.defaultViewMode
             || getSelectedPanelLayout() != settings.panelLayout
@@ -685,6 +690,7 @@ class TurtleCommanderConfigurable : Configurable {
             (overwritePolicyCombo?.item ?: OverwritePolicy.valueOf(settings.defaultOverwritePolicy)).name
         settings.deleteToRecycleBin = deleteToRecycleBinCheckBox?.isSelected ?: settings.deleteToRecycleBin
         settings.sortWithDirectories = sortWithDirectoriesCheckBox?.isSelected ?: settings.sortWithDirectories
+        settings.naturalNameSort = naturalNameSortCheckBox?.isSelected ?: settings.naturalNameSort
         settings.calculateDirectorySize = calculateDirectorySizeCheckBox?.isSelected ?: settings.calculateDirectorySize
         settings.defaultViewMode = getSelectedViewMode()
         settings.panelLayout = getSelectedPanelLayout()
@@ -726,6 +732,7 @@ class TurtleCommanderConfigurable : Configurable {
         overwritePolicyCombo?.item = TurtleCommanderSettings.getInstance().getDefaultOverwritePolicy()
         deleteToRecycleBinCheckBox?.isSelected = settings.deleteToRecycleBin
         sortWithDirectoriesCheckBox?.isSelected = settings.sortWithDirectories
+        naturalNameSortCheckBox?.isSelected = settings.naturalNameSort
         calculateDirectorySizeCheckBox?.isSelected = settings.calculateDirectorySize
         defaultViewModeCombo?.selectedItem = when (settings.defaultViewMode) {
             "LIST" -> "List"
@@ -768,6 +775,7 @@ class TurtleCommanderConfigurable : Configurable {
         overwritePolicyCombo = null
         deleteToRecycleBinCheckBox = null
         sortWithDirectoriesCheckBox = null
+        naturalNameSortCheckBox = null
         calculateDirectorySizeCheckBox = null
         panelFontCombo = null
         panelFontSizeSpinner = null

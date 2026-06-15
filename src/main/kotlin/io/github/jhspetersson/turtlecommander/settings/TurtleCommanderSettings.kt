@@ -253,6 +253,7 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
         var tabFontSize: Int = 0
         var defaultViewMode: String = "TABLE"
         var sortWithDirectories: Boolean = false
+        var naturalNameSort: Boolean = true
         var calculateDirectorySize: Boolean = true
         var panelLayout: String = PanelLayout.HORIZONTAL.name
         var thumbnailSize: String = ThumbnailSize.SMALL.name
