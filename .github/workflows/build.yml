@@ -76,15 +76,22 @@ jobs:
           name: ${{ steps.artifact.outputs.filename }}
           path: ./build/distributions/content/*/*
 
-  # Run tests and upload a code coverage report
+  # Run tests on each supported OS and upload a code coverage report
   test:
-    name: Test
+    name: Test (${{ matrix.os }})
     needs: [ build ]
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Keep running the other OSes even if one fails, so a platform-specific
+      # failure doesn't mask the results of the others.
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
     steps:
 
-      # Free GitHub Actions Environment Disk Space
+      # Free GitHub Actions Environment Disk Space (Linux-only action)
       - name: Maximize Build Space
+        if: runner.os == 'Linux'
         uses: jlumbroso/free-disk-space@v1.3.1
         with:
           tool-cache: false
@@ -111,16 +118,17 @@ jobs:
       - name: Run Tests
         run: ./gradlew check
 
-      # Collect Tests Result of failed tests
+      # Collect Tests Result of failed tests (artifact name must be unique per matrix job)
       - name: Collect Tests Result
         if: ${{ failure() }}
         uses: actions/upload-artifact@v7
         with:
-          name: tests-result
+          name: tests-result-${{ matrix.os }}
           path: ${{ github.workspace }}/build/reports/tests
 
-      # Upload the Kover report to CodeCov
+      # Upload the Kover report to CodeCov (once, from the Linux runner)
       - name: Upload Code Coverage Report
+        if: runner.os == 'Linux'
         uses: codecov/codecov-action@v7
         with:
           files: ${{ github.workspace }}/build/reports/kover/report.xml
