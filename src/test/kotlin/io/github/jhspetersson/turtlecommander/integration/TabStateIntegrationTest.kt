@@ -1037,6 +1037,15 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
         if (skipIfHeadless()) return
         val panel = createPanel()
         val tab = panel.getTabAt(0)!!
+
+        // Capture the baseline through the same THUMBNAIL->TABLE round trip the assertion uses,
+        // so any environment-dependent JTable fill-redistribution applies equally to baseline
+        // and result (the post-createPanel width can differ from a freshly applied default on a
+        // realized table).
+        tab.setViewMode(ViewMode.THUMBNAIL)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        tab.setViewMode(ViewMode.TABLE)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
         val defaultWidth = tab.table.columnModel.getColumn(0).width
 
         tab.table.columnModel.getColumn(0).apply { preferredWidth = 500; width = 500 }
