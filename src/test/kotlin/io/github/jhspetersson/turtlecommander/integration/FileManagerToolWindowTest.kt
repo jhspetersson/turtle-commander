@@ -110,6 +110,51 @@ class FileManagerToolWindowTest : BasePlatformTestCase() {
         }
     }
 
+    /**
+     * A symbolic link that points to a directory must be classified as a directory so the UI
+     * lets the user switch into it. Reported on macOS for redirected home folders (Desktop,
+     * Documents) that are symlinks to a cloud-storage location.
+     */
+    fun testSymlinkToDirectoryIsListedAsDirectory() {
+        val target = Files.createDirectory(tempDir.resolve("link-target"))
+        Files.writeString(target.resolve("inside.txt"), "x")
+        val link = tempDir.resolve("dirlink")
+        try {
+            Files.createSymbolicLink(link, target)
+        } catch (_: Exception) {
+            return // host forbids symlink creation (e.g. Windows without Developer Mode)
+        }
+
+        val fileOps = project.service<FileOperationService>()
+        val entries = runBlocking { fileOps.listFiles(tempDir, forceRefresh = true) }
+
+        val linkEntry = entries.find { it.name == "dirlink" }
+        assertNotNull("the directory symlink should be listed", linkEntry)
+        assertTrue("a symlink to a directory must be classified as a directory", linkEntry!!.isDirectory)
+        assertTrue("it should be flagged as a symbolic link", linkEntry.isSymbolicLink)
+        assertFalse("a resolvable link is not broken", linkEntry.isBrokenSymlink)
+    }
+
+    /** Switching into a directory symlink (what navigateTo does) lists the target's contents. */
+    fun testListingThroughDirectorySymlinkReturnsTargetChildren() {
+        val target = Files.createDirectory(tempDir.resolve("thru-target"))
+        Files.writeString(target.resolve("inside.txt"), "x")
+        val link = tempDir.resolve("thru-link")
+        try {
+            Files.createSymbolicLink(link, target)
+        } catch (_: Exception) {
+            return
+        }
+
+        val fileOps = project.service<FileOperationService>()
+        val entries = runBlocking { fileOps.listFiles(link, forceRefresh = true) }
+
+        assertTrue(
+            "listing the symlink path should surface the target's child file",
+            entries.any { it.name == "inside.txt" }
+        )
+    }
+
     fun testFileManagerPanelCreatesWithTab() {
         if (GraphicsEnvironment.isHeadless()) return
 

@@ -1484,7 +1484,29 @@ class FileTab(
         }
         if (entry.isDirectory) {
             fileOps.launch { navigateTo(entry.path) }
-        } else if (isEntryBrowsableArchive(entry)) {
+            return
+        }
+        // A symbolic link can point to a directory without having been classified as one
+        // (e.g. the listing's follow-read failed, which has been reported on macOS for
+        // redirected home folders like Desktop/Documents that are links to a cloud-storage
+        // location). Resolve the target off the EDT and switch into it when it really is a
+        // directory; otherwise fall back to the normal file/archive handling.
+        if (entry.isSymbolicLink) {
+            fileOps.launch {
+                val targetIsDir = withContext(Dispatchers.IO) { Files.isDirectory(entry.path) }
+                if (targetIsDir) {
+                    navigateTo(entry.path)
+                } else {
+                    withContext(Dispatchers.EDT) { openNonDirectoryEntry(entry) }
+                }
+            }
+            return
+        }
+        openNonDirectoryEntry(entry)
+    }
+
+    private fun openNonDirectoryEntry(entry: FileEntry) {
+        if (isEntryBrowsableArchive(entry)) {
             enterVfs(entry)
         } else {
             openFile(entry)
