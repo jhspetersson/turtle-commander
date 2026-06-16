@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.6.8] - 2026-06-16
+
 ### Added
 
 - Natural sort order (e.g., `file2.txt` comes before `file10.txt`) by default
