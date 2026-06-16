@@ -405,23 +405,21 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
                 }
             })
 
-        // Registered through IdeEventQueue rather than KeyboardFocusManager so the
-        // dispatcher is removed with the tool window's disposable — a raw
-        // addKeyEventDispatcher registration is JVM-global and would leak this bar
-        // (and keep firing) after the project closes.
         IdeEventQueue.getInstance().addDispatcher(
-            { event ->
-                if (event is KeyEvent && bar.isShowing &&
-                    (event.id == KeyEvent.KEY_PRESSED || event.id == KeyEvent.KEY_RELEASED)
-                ) {
-                    when (event.keyCode) {
-                        KeyEvent.VK_SHIFT, KeyEvent.VK_CONTROL,
-                        KeyEvent.VK_ALT, KeyEvent.VK_META -> {
-                            updateBar(event.modifiersEx and modifierMask)
+            object : IdeEventQueue.NonLockedEventDispatcher {
+                override fun dispatch(e: AWTEvent): Boolean {
+                    if (e is KeyEvent && bar.isShowing &&
+                        (e.id == KeyEvent.KEY_PRESSED || e.id == KeyEvent.KEY_RELEASED)
+                    ) {
+                        when (e.keyCode) {
+                            KeyEvent.VK_SHIFT, KeyEvent.VK_CONTROL,
+                            KeyEvent.VK_ALT, KeyEvent.VK_META -> {
+                                updateBar(e.modifiersEx and modifierMask)
+                            }
                         }
                     }
+                    return false
                 }
-                false
             },
             toolWindow.disposable,
         )
