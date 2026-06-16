@@ -990,21 +990,23 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
 
     fun testSwitchToTableAppliesDefaultWidthsWhenNoSavedState() {
         if (skipIfHeadless()) return
+        // Use a real temp dir in its own tab (not getTabAt(0), which points at the
+        // light-fixture project.basePath). The virtual path's listing cache can read as
+        // stale and trigger an async refresh navigation that calls saveColumnState mid-test,
+        // flipping hasTabColumnState and suppressing the default-width reset on macOS CI. A
+        // real directory has a fresh cache, so no surprise navigation/save intervenes.
+        val dir = Files.createDirectory(tempDir.resolve("defwidths-list"))
         val panel = createPanel()
-        val tab = panel.getTabAt(0)!!
-
-        // Capture the baseline through the same LIST->TABLE round trip the assertion uses.
-        // The post-createPanel width can differ from a freshly applied default on a realized
-        // table because JTable redistributes widths to fill the viewport (varies by CI
-        // environment); going through the identical code path applies that redistribution
-        // equally to baseline and result.
-        tab.setViewMode(ViewMode.LIST)
-        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
-        tab.setViewMode(ViewMode.TABLE)
-        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        panel.openDirectoryInNewTab(dir)
+        waitForNavigation()
+        val tab = panel.getTabAt(1)!!
+        // The settling navigation/refresh ran saveColumnState, so clear it to genuinely
+        // exercise the "no saved column state" branch (the real dir keeps the cache fresh,
+        // so the view-mode round trip below won't trigger another refresh + save).
+        tab.clearColumnState()
         val defaultWidth = tab.table.columnModel.getColumn(0).width
 
-        // User widens column 0 directly (no saveColumnState triggered, no navigation)
+        // User widens column 0 directly (does not call saveColumnState)
         tab.table.columnModel.getColumn(0).apply { preferredWidth = 500; width = 500 }
 
         tab.setViewMode(ViewMode.LIST)
@@ -1035,17 +1037,16 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
 
     fun testSwitchToTableFromThumbnailAppliesDefaultWidths() {
         if (skipIfHeadless()) return
+        // Real temp dir in its own tab — see testSwitchToTableAppliesDefaultWidthsWhenNoSavedState
+        // for why the virtual project.basePath tab flakes here on macOS CI.
+        val dir = Files.createDirectory(tempDir.resolve("defwidths-thumb"))
         val panel = createPanel()
-        val tab = panel.getTabAt(0)!!
-
-        // Capture the baseline through the same THUMBNAIL->TABLE round trip the assertion uses,
-        // so any environment-dependent JTable fill-redistribution applies equally to baseline
-        // and result (the post-createPanel width can differ from a freshly applied default on a
-        // realized table).
-        tab.setViewMode(ViewMode.THUMBNAIL)
-        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
-        tab.setViewMode(ViewMode.TABLE)
-        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        panel.openDirectoryInNewTab(dir)
+        waitForNavigation()
+        val tab = panel.getTabAt(1)!!
+        // See testSwitchToTableAppliesDefaultWidthsWhenNoSavedState: clear the state the
+        // settling refresh saved so the no-saved-state branch is genuinely exercised.
+        tab.clearColumnState()
         val defaultWidth = tab.table.columnModel.getColumn(0).width
 
         tab.table.columnModel.getColumn(0).apply { preferredWidth = 500; width = 500 }

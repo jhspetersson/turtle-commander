@@ -1629,6 +1629,13 @@ class FileTab(
 
     internal fun hasTabColumnState(path: String): Boolean = tabColumnStates.containsKey(path)
 
+    /**
+     * Test seam: drops the in-memory per-path column state. A directory navigation/refresh
+     * calls [saveColumnState], so by the time a test has a settled tab the "no saved column
+     * state" branch of [setViewMode] is no longer reachable; clearing makes it deterministic.
+     */
+    internal fun clearColumnState() = tabColumnStates.clear()
+
     fun saveTabState(): FileManagerStateService.TabState {
         val cm = table.columnModel
         val widths = mutableListOf<Int>()
