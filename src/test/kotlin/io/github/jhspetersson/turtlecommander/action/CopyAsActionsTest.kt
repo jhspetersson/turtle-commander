@@ -4,10 +4,14 @@ import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.testFramework.TestActionEvent
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import io.github.jhspetersson.turtlecommander.model.FileEntry
+import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import java.awt.GraphicsEnvironment
 import java.awt.datatransfer.DataFlavor
 import java.nio.file.Path
 import java.nio.file.attribute.FileTime
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 class CopyAsActionsTest : BasePlatformTestCase() {
 
@@ -373,6 +377,68 @@ class CopyAsActionsTest : BasePlatformTestCase() {
         ))
         val json = entriesToJson(entries, listOf("Name"))
         assertTrue("json contains escaped name: $json", json.contains("\"name\": \"a\\\"b\\\\c\\nd\""))
+    }
+
+    // --- Export date/time format (configurable; blank = ISO-8601 UTC) ---
+
+    private fun withExportDateFormat(format: String, block: () -> Unit) {
+        val state = TurtleCommanderSettings.getInstance().state
+        val original = state.exportDateTimeFormat
+        state.exportDateTimeFormat = format
+        try {
+            block()
+        } finally {
+            state.exportDateTimeFormat = original
+        }
+    }
+
+    private fun dateRow(csv: String): String = csv.trimEnd('\n').split("\n")[1]
+
+    fun testExportDefaultDateFormatIsIsoUtc() {
+        withExportDateFormat("") {
+            // fileEntry has lastModified = epoch 0.
+            val csv = entriesToCsv(listOf(fileEntry("a.txt", "/d")), listOf("Date Modified"))
+            assertEquals("1970-01-01T00:00:00Z", dateRow(csv))
+        }
+    }
+
+    fun testExportUsesConfiguredDateFormat() {
+        val millis = 1_700_000_000_000L
+        val entry = FileEntry(
+            name = "a.txt", path = Path.of("/d", "a.txt"), isDirectory = false,
+            size = 1, lastModified = FileTime.fromMillis(millis), permissions = "",
+        )
+        withExportDateFormat("yyyy-MM-dd HH:mm") {
+            val row = dateRow(entriesToCsv(listOf(entry), listOf("Date Modified")))
+            // Self-consistent expectation in the same (local) zone the exporter renders in.
+            val expected = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+                .withZone(ZoneId.systemDefault())
+                .format(Instant.ofEpochMilli(millis))
+            assertEquals(expected, row)
+            assertTrue("custom pattern must differ from the ISO default", row != "1970-01-01T00:00:00Z")
+        }
+    }
+
+    fun testExportFallsBackToIsoOnInvalidPattern() {
+        withExportDateFormat("not-a-valid-pattern-{{{") {
+            val csv = entriesToCsv(listOf(fileEntry("a.txt", "/d")), listOf("Date Modified"))
+            assertEquals("1970-01-01T00:00:00Z", dateRow(csv))
+        }
+    }
+
+    fun testExportConfiguredFormatAppliesToJson() {
+        val millis = 1_700_000_000_000L
+        val entry = FileEntry(
+            name = "a.txt", path = Path.of("/d", "a.txt"), isDirectory = false,
+            size = 1, lastModified = FileTime.fromMillis(millis), permissions = "",
+        )
+        withExportDateFormat("yyyy") {
+            val json = entriesToJson(listOf(entry), listOf("Date Modified"))
+            val expectedYear = DateTimeFormatter.ofPattern("yyyy")
+                .withZone(ZoneId.systemDefault())
+                .format(Instant.ofEpochMilli(millis))
+            assertTrue(json, json.contains("\"date_modified\": \"$expectedYear\""))
+        }
     }
 
     // --- Filename / Path columns (always prepended in CSV/JSON exports) ---

@@ -42,6 +42,7 @@ class TurtleCommanderConfigurable : Configurable {
     private var thumbnailSizeCombo: ComboBox<ThumbnailSize>? = null
     private var fileSizeFormatCombo: ComboBox<FileSizeFormat>? = null
     private var dateTimeFormatField: JBTextField? = null
+    private var exportDateTimeFormatField: JBTextField? = null
     private var dateTimePreviewLabel: JBLabel? = null
     private var columnsEditor: ColumnsEditor? = null
     private var favoritesEditor: FavoritesEditor? = null
@@ -130,6 +131,11 @@ class TurtleCommanderConfigurable : Configurable {
         }
         updateDateTimePreview()
 
+        exportDateTimeFormatField = JBTextField(settings.exportDateTimeFormat, 20).apply {
+            toolTipText = "Date/time format for CSV/JSON export. Leave blank for ISO-8601 UTC " +
+                "(e.g. 2026-06-16T12:34:56Z); otherwise a Java DateTimeFormatter pattern in local time."
+        }
+
         val defaultLabel = "(Default)"
         val fontItems = arrayOf(defaultLabel) + fontFamilies
 
@@ -206,6 +212,14 @@ class TurtleCommanderConfigurable : Configurable {
             add(dateTimePreviewLabel!!)
         }
 
+        val exportDateTimeFormatRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
+            alignmentX = JComponent.LEFT_ALIGNMENT
+            add(JBLabel("Export date/time format:  "))
+            add(exportDateTimeFormatField!!)
+            add(Box.createHorizontalStrut(8))
+            add(JBLabel("(blank = ISO-8601 UTC)"))
+        }
+
         val appearancePanel = createAppearancePanel(
             listOf(tabEditor, driveSelectorEditor, pathBarEditor, columnHeaderEditor, panelEditor, statusBarEditor, commandBarEditor, commandButtonEditor)
         )
@@ -255,6 +269,7 @@ class TurtleCommanderConfigurable : Configurable {
             add(thumbnailRow)
             add(fileSizeFormatRow)
             add(dateTimeFormatRow)
+            add(exportDateTimeFormatRow)
             add(Box.createVerticalStrut(8))
             add(appearancePanel)
             add(Box.createVerticalStrut(8))
@@ -665,6 +680,7 @@ class TurtleCommanderConfigurable : Configurable {
             || getSelectedThumbnailSize() != settings.thumbnailSize
             || getSelectedFileSizeFormat() != settings.fileSizeFormat
             || getEnteredDateTimeFormat() != settings.dateTimeFormat
+            || getEnteredExportDateTimeFormat() != settings.exportDateTimeFormat
             || styleEditors["panel"]?.isModified(settings.styles.panelStyle, effectivePanelFamily(settings), effectivePanelSize(settings)) == true
             || styleEditors["tab"]?.isModified(settings.styles.tabStyle, effectiveTabFamily(settings), effectiveTabSize(settings)) == true
             || styleEditors["pathBar"]?.isModified(settings.styles.pathBarStyle) == true
@@ -697,6 +713,7 @@ class TurtleCommanderConfigurable : Configurable {
         settings.thumbnailSize = getSelectedThumbnailSize()
         settings.fileSizeFormat = getSelectedFileSizeFormat()
         settings.dateTimeFormat = getEnteredDateTimeFormat()
+        settings.exportDateTimeFormat = getEnteredExportDateTimeFormat()
 
         styleEditors["panel"]?.applyTo(settings.styles.panelStyle)
         styleEditors["tab"]?.applyTo(settings.styles.tabStyle)
@@ -744,6 +761,7 @@ class TurtleCommanderConfigurable : Configurable {
         thumbnailSizeCombo?.selectedItem = ThumbnailSize.fromName(settings.thumbnailSize)
         fileSizeFormatCombo?.selectedItem = FileSizeFormat.fromName(settings.fileSizeFormat)
         dateTimeFormatField?.text = settings.dateTimeFormat.ifBlank { DEFAULT_DATE_TIME_FORMAT }
+        exportDateTimeFormatField?.text = settings.exportDateTimeFormat
         updateDateTimePreview()
 
         styleEditors["panel"]?.resetFrom(settings.styles.panelStyle, effectivePanelFamily(settings), effectivePanelSize(settings))
@@ -786,6 +804,7 @@ class TurtleCommanderConfigurable : Configurable {
         thumbnailSizeCombo = null
         fileSizeFormatCombo = null
         dateTimeFormatField = null
+        exportDateTimeFormatField = null
         dateTimePreviewLabel = null
         columnsEditor = null
         favoritesEditor = null
@@ -842,6 +861,10 @@ class TurtleCommanderConfigurable : Configurable {
         val text = dateTimeFormatField?.text?.trim().orEmpty()
         return text.ifEmpty { DEFAULT_DATE_TIME_FORMAT }
     }
+
+    /** Export format keeps a blank value verbatim — blank selects the ISO-8601 UTC default. */
+    private fun getEnteredExportDateTimeFormat(): String =
+        exportDateTimeFormatField?.text?.trim().orEmpty()
 
     /**
      * Render a sample timestamp next to the pattern field so the user gets immediate

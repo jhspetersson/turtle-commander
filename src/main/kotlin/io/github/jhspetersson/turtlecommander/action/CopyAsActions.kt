@@ -10,6 +10,7 @@ import io.github.jhspetersson.turtlecommander.ui.getDisplayPath
 import io.github.jhspetersson.turtlecommander.ui.getSelectedEntries
 import java.nio.file.attribute.FileTime
 import java.time.Instant
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
@@ -239,11 +240,28 @@ internal fun entriesToJson(entries: List<FileEntry>, columns: List<String>): Str
 
 private fun jsonKeyFor(columnId: String): String = columnId.lowercase().replace(' ', '_')
 
-private val isoFormatter: DateTimeFormatter = DateTimeFormatter.ISO_INSTANT
-
+/**
+ * Formats a timestamp for the date columns of CSV/JSON exports using the configured
+ * [TurtleCommanderSettings.getExportDateTimeFormat]. A blank setting (the default) keeps the
+ * historical ISO-8601 instant in UTC (e.g. `2026-06-16T12:34:56Z`); a non-blank value is a
+ * [DateTimeFormatter] pattern rendered in the system default zone, matching the file table.
+ * Falls back to the ISO instant when the configured pattern is invalid.
+ */
 private fun formatFileTime(ft: FileTime?): String {
     if (ft == null) return ""
-    return runCatching { isoFormatter.format(Instant.ofEpochMilli(ft.toMillis()).atOffset(ZoneOffset.UTC)) }.getOrDefault("")
+    val instant = Instant.ofEpochMilli(ft.toMillis())
+    val pattern = runCatching { TurtleCommanderSettings.getInstance().getExportDateTimeFormat() }
+        .getOrDefault("")
+    if (pattern.isNotBlank()) {
+        val custom = runCatching {
+            DateTimeFormatter.ofPattern(pattern).withZone(ZoneId.systemDefault()).format(instant)
+        }.getOrNull()
+        if (custom != null) return custom
+        // Invalid pattern: fall through to the ISO-8601 UTC default rather than an empty cell.
+    }
+    return runCatching {
+        DateTimeFormatter.ISO_INSTANT.format(instant.atOffset(ZoneOffset.UTC))
+    }.getOrDefault("")
 }
 
 private fun csvField(value: String): String {

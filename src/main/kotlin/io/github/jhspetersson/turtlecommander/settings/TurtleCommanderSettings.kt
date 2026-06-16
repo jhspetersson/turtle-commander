@@ -43,6 +43,8 @@ enum class FileSizeFormat(val label: String) {
 /** Default pattern for date/time columns. Matches the historical hardcoded value. */
 const val DEFAULT_DATE_TIME_FORMAT = "yyyy-MM-dd HH:mm"
 
+const val DEFAULT_EXPORT_DATE_TIME_FORMAT = ""
+
 /**
  * Preset sizes for the Thumbnail view's cells.
  *
@@ -259,6 +261,7 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
         var thumbnailSize: String = ThumbnailSize.SMALL.name
         var fileSizeFormat: String = FileSizeFormat.DEFAULT_NAME
         var dateTimeFormat: String = DEFAULT_DATE_TIME_FORMAT
+        var exportDateTimeFormat: String = DEFAULT_EXPORT_DATE_TIME_FORMAT
 
         var styles: StyleSet = StyleSet()
         var themeName: String = ""
@@ -396,6 +399,8 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
      * tolerate `DateTimeFormatter.ofPattern` rejecting it.
      */
     fun getDateTimeFormat(): String = myState.dateTimeFormat.ifBlank { DEFAULT_DATE_TIME_FORMAT }
+
+    fun getExportDateTimeFormat(): String = myState.exportDateTimeFormat
 
     fun fireSettingsChanged() {
         ApplicationManager.getApplication().messageBus

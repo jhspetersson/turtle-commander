@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Configurable export datetime format
+
 ## [0.6.8] - 2026-06-16
 
 ### Added
