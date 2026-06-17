@@ -47,6 +47,7 @@ class FileManagerPanel(
     private val listViewButton = ViewModeButton(AllIcons.Actions.ListFiles, "List view", false)
     private val thumbnailViewButton = ViewModeButton(AllIcons.Actions.PreviewDetailsVertically, "Thumbnail view", false)
     private val treeViewButton = ViewModeButton(AllIcons.Actions.ShowAsTree, "Tree view", false)
+    private val nestedFilesButton = ViewModeButton(AllIcons.ObjectBrowser.FlattenModules, "Show all nested files", false)
     private var viewTogglePanel: JPanel
 
     private var dragSourceIndex = -1
@@ -178,8 +179,14 @@ class FileManagerPanel(
             add(listViewButton)
             add(thumbnailViewButton)
             add(treeViewButton)
+
+            add(Box.createHorizontalStrut(12))
+            add(nestedFilesButton)
         }
 
+        nestedFilesButton.addActionListener {
+            getActiveTab()?.setShowAllNestedFiles(nestedFilesButton.isSelected)
+        }
         tableViewButton.addActionListener {
             getActiveTab()?.setViewMode(ViewMode.TABLE)
         }
@@ -450,6 +457,7 @@ class FileManagerPanel(
             fileTab.setStateService(svc)
             if (effectiveTabState != null) {
                 fileTab.pendingTabState = effectiveTabState
+                fileTab.showAllNestedFiles = effectiveTabState.showAllNestedFiles
                 try { fileTab.setViewMode(ViewMode.valueOf(effectiveTabState.viewMode)) } catch (_: Exception) {}
             }
         }
@@ -771,6 +779,7 @@ class FileManagerPanel(
             ViewMode.TREE -> treeViewButton.isSelected = true
             else -> tableViewButton.isSelected = true
         }
+        nestedFilesButton.isSelected = tab?.showAllNestedFiles == true
     }
 
     fun focusActiveTab() {

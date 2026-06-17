@@ -54,7 +54,9 @@ fun FileTab.setViewMode(mode: ViewMode) {
     }
 
     if (mode == ViewMode.TREE) {
-        rebuildFullTree(selectedNames)
+        // In show-all-nested-files mode the tree shows the flat recursive file list (leaves),
+        // consistent with the other views; otherwise it builds the real directory hierarchy.
+        if (showAllNestedFiles) populateFlatTree() else rebuildFullTree(selectedNames)
         tree.requestFocusInWindow()
     } else {
         if (treeNavigation != null) {

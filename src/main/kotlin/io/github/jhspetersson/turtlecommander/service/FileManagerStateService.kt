@@ -125,6 +125,8 @@ class FileManagerStateService(
         var sortColumn: Int = -1
         var sortAscending: Boolean = true
 
+        @Attribute var showAllNestedFiles: Boolean = false
+
         constructor()
 
         constructor(
@@ -134,6 +136,7 @@ class FileManagerStateService(
             columnOrder: String = "",
             sortColumn: Int = -1,
             sortAscending: Boolean = true,
+            showAllNestedFiles: Boolean = false,
         ) {
             this.path = path
             this.viewMode = viewMode
@@ -141,6 +144,7 @@ class FileManagerStateService(
             this.columnOrder = columnOrder
             this.sortColumn = sortColumn
             this.sortAscending = sortAscending
+            this.showAllNestedFiles = showAllNestedFiles
         }
     }
 

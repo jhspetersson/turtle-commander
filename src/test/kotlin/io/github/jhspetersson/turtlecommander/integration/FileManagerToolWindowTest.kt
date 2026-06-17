@@ -155,6 +155,38 @@ class FileManagerToolWindowTest : BasePlatformTestCase() {
         )
     }
 
+    // --- listAllNestedFiles (the "show all nested files" view mode) ---
+
+    fun testListAllNestedFilesReturnsFilesRecursively() {
+        Files.writeString(tempDir.resolve("top.txt"), "x")
+        val sub = Files.createDirectory(tempDir.resolve("sub"))
+        Files.writeString(sub.resolve("mid.txt"), "x")
+        val deep = Files.createDirectory(sub.resolve("deep"))
+        Files.writeString(deep.resolve("low.txt"), "x")
+        Files.createDirectory(tempDir.resolve("empty"))
+
+        val fileOps = project.service<FileOperationService>()
+        val entries = runBlocking { fileOps.listAllNestedFiles(tempDir) }
+
+        val real = entries.filter { !it.isParentLink }
+        val names = real.map { it.name }.toSet()
+        assertTrue("includes the top-level file", "top.txt" in names)
+        assertTrue("includes a nested file", "mid.txt" in names)
+        assertTrue("includes a deeply nested file", "low.txt" in names)
+        assertTrue("excludes directories", real.none { it.isDirectory })
+        assertEquals("only the three files", 3, real.size)
+    }
+
+    fun testListAllNestedFilesIncludesParentEntry() {
+        val sub = Files.createDirectory(tempDir.resolve("withparent"))
+        Files.writeString(sub.resolve("a.txt"), "x")
+
+        val fileOps = project.service<FileOperationService>()
+        val entries = runBlocking { fileOps.listAllNestedFiles(sub) }
+
+        assertTrue("recursive listing still exposes a parent link", entries.any { it.isParentLink })
+    }
+
     fun testFileManagerPanelCreatesWithTab() {
         if (GraphicsEnvironment.isHeadless()) return
 

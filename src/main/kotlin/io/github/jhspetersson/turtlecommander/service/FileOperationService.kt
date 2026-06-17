@@ -115,100 +115,12 @@ class FileOperationService(
         val dirs = mutableListOf<FileEntry>()
         val files = mutableListOf<FileEntry>()
 
-        // Resolve which expensive per-entry lookups are actually displayed. On Windows the
-        // User column is hidden by default, so `Files.getOwner(...)` (a slow Win32 security
-        // descriptor + SID-to-name lookup) shouldn't run for every file in a large directory.
-        val settings = TurtleCommanderSettings.getInstance()
-        val visibleColumnIds = settings
-            .getEffectiveColumns()
-            .filter { it.visible }
-            .map { it.id }
-            .toSet()
-        // Owner / group / permissions are also read when an active color rule matches on them,
-        // otherwise such a rule could never fire while its column is hidden. (Created / modified
-        // timestamps come from the same attribute read as size, so they need no opt-in.)
-        val state = settings.state
-        val activeRules = if (state.enableFileNameHighlighting) {
-            ColorRuleManager.getActiveRulesForEvaluation(state)
-        } else {
-            emptyList()
-        }
-        fun rulesMatchOn(prop: TextProperty): Boolean =
-            activeRules.any { rule -> rule.matchers.any { it is RuleMatcher.Text && it.field == prop } }
-        val needOwner = "User" in visibleColumnIds || rulesMatchOn(TextProperty.OWNER)
-        val needGroup = !isWindows && ("Group" in visibleColumnIds || rulesMatchOn(TextProperty.GROUP))
-        val needPermissions = "Permissions" in visibleColumnIds || rulesMatchOn(TextProperty.PERMISSIONS)
-        // Inode and Links are Unix-only and hidden by default; read them only when shown.
-        val needInode = "Inode" in visibleColumnIds
-        val needLinks = "Links" in visibleColumnIds
+        val needs = entryReadNeeds()
 
-        // An IOException from Files.newDirectoryStream (e.g. access denied on
-        // C:\$Recycle.Bin\S-1-5-18) is allowed to propagate so the UI can show it to the user.
-        // Per-entry attribute read failures are still swallowed as debug logs since those are
-        // usually transient (a file disappearing mid-iteration) and shouldn't abort the whole
-        // listing.
         Files.newDirectoryStream(effectiveDirectory).use { stream ->
             for (entry in stream) {
-                try {
-                    // Read with NOFOLLOW first: it's a single stat that tells us whether the
-                    // entry is a symlink, and for the common non-link case it already *is* the
-                    // real attributes (so no second syscall). On Windows, read DosFileAttributes
-                    // directly (extends BasicFileAttributes) so permission flags come from the
-                    // same syscall as size/time.
-                    val linkAttrs = if (isWindows && needPermissions) {
-                        Files.readAttributes(entry, DosFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
-                    } else {
-                        Files.readAttributes(entry, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
-                    }
-                    val isLink = linkAttrs.isSymbolicLink
-                    // For a symlink, follow it to describe the target (type/size/dates). A failure
-                    // here means a dangling link — keep the entry (using the link's own attrs)
-                    // and flag it broken instead of silently dropping it from the listing.
-                    var attrs: BasicFileAttributes = linkAttrs
-                    var broken = false
-                    var linkTarget: String? = null
-                    if (isLink) {
-                        linkTarget = try { Files.readSymbolicLink(entry).toString() } catch (_: Exception) { null }
-                        attrs = try {
-                            if (isWindows && needPermissions) {
-                                Files.readAttributes(entry, DosFileAttributes::class.java)
-                            } else {
-                                Files.readAttributes(entry, BasicFileAttributes::class.java)
-                            }
-                        } catch (_: IOException) {
-                            broken = true
-                            linkAttrs
-                        }
-                    }
-                    val owner = if (needOwner) readOwner(entry) else ""
-                    val group = if (needGroup) readGroup(entry) else ""
-                    val inode = if (needInode) readInode(entry) else null
-                    val nlink = if (needLinks) readNlink(entry) else null
-                    val permissions = when {
-                        !needPermissions -> ""
-                        isWindows && attrs is DosFileAttributes -> dosAttrsToString(attrs)
-                        else -> readPermissions(entry)
-                    }
-                    val fileEntry = FileEntry(
-                        name = entry.name,
-                        path = entry,
-                        isDirectory = attrs.isDirectory,
-                        size = attrs.size(),
-                        creationTime = attrs.creationTime(),
-                        lastModified = attrs.lastModifiedTime(),
-                        owner = owner,
-                        group = group,
-                        permissions = permissions,
-                        inode = inode,
-                        nlink = nlink,
-                        isSymbolicLink = isLink,
-                        isBrokenSymlink = broken,
-                        linkTarget = linkTarget,
-                    )
-                    if (attrs.isDirectory) dirs.add(fileEntry) else files.add(fileEntry)
-                } catch (e: IOException) {
-                    thisLogger().debug("Cannot read attributes for $entry: ${e.message}")
-                }
+                val fileEntry = buildFileEntry(entry, needs) ?: continue
+                if (fileEntry.isDirectory) dirs.add(fileEntry) else files.add(fileEntry)
             }
         }
 
@@ -217,6 +129,141 @@ class FileOperationService(
         appendSortedEntries(result, dirs, files)
 
         result
+    }
+
+    suspend fun listAllNestedFiles(directory: Path): List<FileEntry> = withContext(Dispatchers.IO) {
+        val result = mutableListOf<FileEntry>()
+        directory.parent?.let { result.add(parentEntry(it)) }
+
+        val needs = entryReadNeeds()
+        val files = mutableListOf<FileEntry>()
+        val start = try { resolveReparsePoint(directory) } catch (_: Exception) { directory }
+        try {
+            walkFileTree(start, object : SimpleFileVisitor<Path>() {
+                override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                    // buildFileEntry follows symlinks to classify them, so a link to a directory
+                    // resolves as a directory and is excluded — only true files are kept.
+                    buildFileEntry(file, needs)?.takeIf { !it.isDirectory }?.let { files.add(it) }
+                    return FileVisitResult.CONTINUE
+                }
+
+                override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult =
+                    FileVisitResult.CONTINUE
+            })
+        } catch (e: IOException) {
+            thisLogger().debug("Cannot walk directory $directory: ${e.message}")
+        }
+        files.sortBy { it.name.lowercase() }
+        result.addAll(files)
+        result
+    }
+
+    private data class EntryReadNeeds(
+        val owner: Boolean,
+        val group: Boolean,
+        val permissions: Boolean,
+        val inode: Boolean,
+        val links: Boolean,
+    )
+
+    /**
+     * Resolve which expensive per-entry lookups are actually displayed. On Windows the User
+     * column is hidden by default, so `Files.getOwner(...)` (a slow Win32 security descriptor +
+     * SID-to-name lookup) shouldn't run for every file in a large directory. Owner / group /
+     * permissions are also read when an active color rule matches on them, otherwise such a rule
+     * could never fire while its column is hidden. (Created / modified timestamps come from the
+     * same attribute read as size, so they need no opt-in.)
+     */
+    private fun entryReadNeeds(): EntryReadNeeds {
+        val settings = TurtleCommanderSettings.getInstance()
+        val visibleColumnIds = settings
+            .getEffectiveColumns()
+            .filter { it.visible }
+            .map { it.id }
+            .toSet()
+        val state = settings.state
+        val activeRules = if (state.enableFileNameHighlighting) {
+            ColorRuleManager.getActiveRulesForEvaluation(state)
+        } else {
+            emptyList()
+        }
+        fun rulesMatchOn(prop: TextProperty): Boolean =
+            activeRules.any { rule -> rule.matchers.any { it is RuleMatcher.Text && it.field == prop } }
+        return EntryReadNeeds(
+            owner = "User" in visibleColumnIds || rulesMatchOn(TextProperty.OWNER),
+            group = !isWindows && ("Group" in visibleColumnIds || rulesMatchOn(TextProperty.GROUP)),
+            permissions = "Permissions" in visibleColumnIds || rulesMatchOn(TextProperty.PERMISSIONS),
+            // Inode and Links are Unix-only and hidden by default; read them only when shown.
+            inode = "Inode" in visibleColumnIds,
+            links = "Links" in visibleColumnIds,
+        )
+    }
+
+    /**
+     * Reads attributes for a single directory [entry] and builds its [FileEntry], or returns null
+     * (with a debug log) when the read fails — usually a file disappearing mid-iteration, which
+     * shouldn't abort the whole listing.
+     */
+    private fun buildFileEntry(entry: Path, needs: EntryReadNeeds): FileEntry? {
+        return try {
+            // Read with NOFOLLOW first: it's a single stat that tells us whether the entry is a
+            // symlink, and for the common non-link case it already *is* the real attributes (so no
+            // second syscall). On Windows, read DosFileAttributes directly (extends
+            // BasicFileAttributes) so permission flags come from the same syscall as size/time.
+            val linkAttrs = if (isWindows && needs.permissions) {
+                Files.readAttributes(entry, DosFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+            } else {
+                Files.readAttributes(entry, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+            }
+            val isLink = linkAttrs.isSymbolicLink
+            // For a symlink, follow it to describe the target (type/size/dates). A failure here
+            // means a dangling link — keep the entry (using the link's own attrs) and flag it
+            // broken instead of silently dropping it from the listing.
+            var attrs: BasicFileAttributes = linkAttrs
+            var broken = false
+            var linkTarget: String? = null
+            if (isLink) {
+                linkTarget = try { Files.readSymbolicLink(entry).toString() } catch (_: Exception) { null }
+                attrs = try {
+                    if (isWindows && needs.permissions) {
+                        Files.readAttributes(entry, DosFileAttributes::class.java)
+                    } else {
+                        Files.readAttributes(entry, BasicFileAttributes::class.java)
+                    }
+                } catch (_: IOException) {
+                    broken = true
+                    linkAttrs
+                }
+            }
+            val owner = if (needs.owner) readOwner(entry) else ""
+            val group = if (needs.group) readGroup(entry) else ""
+            val inode = if (needs.inode) readInode(entry) else null
+            val nlink = if (needs.links) readNlink(entry) else null
+            val permissions = when {
+                !needs.permissions -> ""
+                isWindows && attrs is DosFileAttributes -> dosAttrsToString(attrs)
+                else -> readPermissions(entry)
+            }
+            FileEntry(
+                name = entry.name,
+                path = entry,
+                isDirectory = attrs.isDirectory,
+                size = attrs.size(),
+                creationTime = attrs.creationTime(),
+                lastModified = attrs.lastModifiedTime(),
+                owner = owner,
+                group = group,
+                permissions = permissions,
+                inode = inode,
+                nlink = nlink,
+                isSymbolicLink = isLink,
+                isBrokenSymlink = broken,
+                linkTarget = linkTarget,
+            )
+        } catch (e: IOException) {
+            thisLogger().debug("Cannot read attributes for $entry: ${e.message}")
+            null
+        }
     }
 
     private fun appendSortedEntries(

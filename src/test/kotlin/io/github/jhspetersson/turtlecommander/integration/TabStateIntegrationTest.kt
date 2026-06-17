@@ -95,6 +95,28 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
         assertEquals("LIST", state.tabs[1].viewMode)
     }
 
+    fun testTabStateCapturesShowAllNestedFiles() {
+        if (skipIfHeadless()) return
+        val panel = createPanel()
+        val tab = panel.getTabAt(0)!!
+        tab.showAllNestedFiles = true
+
+        val state = panel.saveState()
+        assertTrue("Show-all-nested-files flag should be captured", state.tabs[0].showAllNestedFiles)
+    }
+
+    fun testTabStateRestoresShowAllNestedFiles() {
+        if (skipIfHeadless()) return
+        val dir = Files.createDirectory(tempDir.resolve("nested-restore"))
+        val panelState = PanelState().apply {
+            tabs.add(TabState(path = dir.toString(), showAllNestedFiles = true))
+        }
+        val panel = createPanelWithState(panelState)
+
+        val tab = panel.getTabAt(0)!!
+        assertTrue("Restored tab should have show-all-nested-files enabled", tab.showAllNestedFiles)
+    }
+
     fun testTabStateCapturesColumnWidths() {
         if (skipIfHeadless()) return
         val panel = createPanel()

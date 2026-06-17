@@ -136,6 +136,9 @@ class FileTab(
     var currentPath: Path = initialPath
         private set
 
+    var showAllNestedFiles: Boolean = false
+        internal set
+
     internal val vfsStack = mutableListOf<VfsStackEntry>()
 
     /**
@@ -1222,7 +1225,12 @@ class FileTab(
     suspend fun navigateTo(path: Path, selectName: String? = null, requestFocus: Boolean = true) {
         val vfs = currentVfs
         val entries = try {
-            vfs?.listFiles(path) ?: fileOps.listFiles(path)
+            when {
+                vfs != null -> vfs.listFiles(path)
+                // Recursive files-only listing only applies on the real filesystem.
+                showAllNestedFiles -> fileOps.listAllNestedFiles(path)
+                else -> fileOps.listFiles(path)
+            }
         } catch (e: Exception) {
             // On the real filesystem, if the target no longer exists (e.g. the other panel
             // deleted an ancestor), fall back to the nearest surviving ancestor instead of
@@ -1300,19 +1308,13 @@ class FileTab(
             thumbnailListModel.addAll(entries)
 
             // Update tree model
-            if (viewMode == ViewMode.TREE) {
-                // In full tree mode, rebuild the tree to reflect the new location
+            if (viewMode == ViewMode.TREE && !showAllNestedFiles) {
+                // In full tree mode, rebuild the tree to reflect the new location. In
+                // show-all-nested-files mode the entries are an already-flat file list, so it
+                // renders as flat leaves like the other views instead of a hierarchy.
                 rebuildFullTree()
             } else {
-                treeRootNode.removeAllChildren()
-                for (entry in entries) {
-                    val node = DefaultMutableTreeNode(entry)
-                    if (entry.isDirectory && !entry.isParentLink) {
-                        node.add(DefaultMutableTreeNode("Loading..."))
-                    }
-                    treeRootNode.add(node)
-                }
-                treeModel.nodeStructureChanged(treeRootNode)
+                populateFlatTree()
             }
 
             updateStatusBar()
@@ -1636,6 +1638,29 @@ class FileTab(
      */
     internal fun clearColumnState() = tabColumnStates.clear()
 
+    /**
+     * Toggles "show all nested files" and re-lists [currentPath] with the new mode. The recursive
+     * listing isn't cached, so this always reflects the current subtree.
+     */
+    fun setShowAllNestedFiles(enabled: Boolean) {
+        if (showAllNestedFiles == enabled) return
+        showAllNestedFiles = enabled
+        fileOps.launch { navigateTo(currentPath) }
+    }
+
+    /** Rebuilds the tree as a flat list of [allEntries] — used outside full-tree mode. */
+    internal fun populateFlatTree() {
+        treeRootNode.removeAllChildren()
+        for (entry in allEntries) {
+            val node = DefaultMutableTreeNode(entry)
+            if (entry.isDirectory && !entry.isParentLink) {
+                node.add(DefaultMutableTreeNode("Loading..."))
+            }
+            treeRootNode.add(node)
+        }
+        treeModel.nodeStructureChanged(treeRootNode)
+    }
+
     fun saveTabState(): FileManagerStateService.TabState {
         val cm = table.columnModel
         val widths = mutableListOf<Int>()
@@ -1663,6 +1688,7 @@ class FileTab(
             columnOrder = order.joinToString(","),
             sortColumn = sortCol,
             sortAscending = sortAsc,
+            showAllNestedFiles = showAllNestedFiles,
         )
     }
 
