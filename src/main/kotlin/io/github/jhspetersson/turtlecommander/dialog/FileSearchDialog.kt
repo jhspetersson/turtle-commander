@@ -5,6 +5,7 @@ import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.ValidationInfo
+import com.intellij.ui.TextFieldWithStoredHistory
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
@@ -79,6 +80,8 @@ class FileSearchDialog(
 ) : DialogWrapper(project) {
 
     companion object {
+        private const val CONTENT_HISTORY_KEY = "TurtleCommander.contentSearchHistory"
+
         fun bytesToUnit(bytes: Long): Pair<String, String> {
             return when {
                 bytes >= 1024L * 1024 * 1024 -> Pair("%.1f".format(bytes / (1024.0 * 1024 * 1024)), "GB")
@@ -119,18 +122,12 @@ class FileSearchDialog(
     }
 
     private val contentCheckBox = JCheckBox("Search by content", initialCriteria?.contentPattern != null)
-    private val contentCombo = ComboBox<String>().apply {
-        isEditable = true
-        val history = TurtleCommanderSettings.getInstance().contentSearchHistory
-        val initialPattern = initialCriteria?.contentPattern ?: ""
-        val items = linkedSetOf<String>()
-        if (initialPattern.isNotEmpty()) items.add(initialPattern)
-        items.addAll(history)
-        model = DefaultComboBoxModel(items.toTypedArray())
-        selectedItem = initialPattern
+    private val contentField = TextFieldWithStoredHistory(CONTENT_HISTORY_KEY).apply {
+        setHistorySize(10)
+        text = initialCriteria?.contentPattern ?: ""
     }
-    private val contentEditor: JTextField get() = contentCombo.editor.editorComponent as JTextField
-    private val contentText: String get() = (contentCombo.editor.item as? String ?: "").trim()
+    private val contentEditor: JTextField get() = contentField.textEditor
+    private val contentText: String get() = contentField.text.orEmpty().trim()
     private val contentCaseSensitiveCheckBox = JCheckBox("Case sensitive", initialCriteria?.contentCaseSensitive == true)
 
     private val sizeCheckBox = JCheckBox("Search by size", initialCriteria?.sizeFilter != null)
@@ -277,7 +274,7 @@ class FileSearchDialog(
 
         fun updateContentEnabled() {
             val enabled = contentCheckBox.isSelected
-            contentCombo.isEnabled = enabled
+            contentField.isEnabled = enabled
             contentCaseSensitiveCheckBox.isEnabled = enabled
         }
 
@@ -556,7 +553,7 @@ class FileSearchDialog(
                 insets = JBUI.insets(2, 4)
             }
             gbc.gridx = 0; gbc.gridy = 0; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0
-            add(contentCombo, gbc)
+            add(contentField, gbc)
             gbc.gridx = 1; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0.0
             add(contentCaseSensitiveCheckBox, gbc)
             maximumSize = Dimension(Int.MAX_VALUE, preferredSize.height)
@@ -649,7 +646,7 @@ class FileSearchDialog(
         }
         val contentPattern = if (contentCheckBox.isSelected && contentText.isNotBlank()) contentText else null
         if (contentPattern != null) {
-            TurtleCommanderSettings.getInstance().addContentSearchHistory(contentPattern)
+            contentField.addCurrentTextToHistory()
         }
         super.doOKAction()
     }
