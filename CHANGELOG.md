@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [0.6.10] - 2026-06-18
+
+### Added
+
+- "Show all nested files" directory view mode
+
 ## [0.6.9] - 2026-06-17
 
 ### Added
