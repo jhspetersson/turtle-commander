@@ -450,6 +450,10 @@ class RuleMatcherTest {
         assertTrue(valid.style.fontColor.isNotEmpty())
         assertTrue(broken.style.fontColor.isNotEmpty())
         assertNotEquals(valid.style.fontColor, broken.style.fontColor)
+        // A dangling link points nowhere, so the broken default strikes the name through;
+        // valid links don't.
+        assertEquals(true, broken.style.strikethrough)
+        assertNull(valid.style.strikethrough)
     }
 
     @Test

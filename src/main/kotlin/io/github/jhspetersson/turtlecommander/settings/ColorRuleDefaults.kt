@@ -127,7 +127,14 @@ object ColorRuleDefaults {
         ),
     ) + symlinkRules()
 
-    private fun symlinkRule(slug: String, name: String, priority: Int, state: SymlinkState, font: String): ColorRule =
+    private fun symlinkRule(
+        slug: String,
+        name: String,
+        priority: Int,
+        state: SymlinkState,
+        font: String,
+        strikethrough: Boolean = false,
+    ): ColorRule =
         ColorRule(
             id = defaultId(slug),
             name = name,
@@ -135,17 +142,18 @@ object ColorRuleDefaults {
             active = true,
             combinator = Combinator.AND,
             matchers = listOf(RuleMatcher.Symlink(state)),
-            style = RuleStyle(fontColor = font, iconDotColor = font),
+            style = RuleStyle(fontColor = font, iconDotColor = font, strikethrough = true.takeIf { strikethrough }),
         )
 
     /**
      * Two built-in rules giving symbolic links a distinct look out of the box: valid links in
-     * cyan (the long-standing terminal convention for symlinks), broken/dangling links in red.
-     * High priority so a link's nature wins over project-marker coloring in WINNER mode.
+     * cyan (the long-standing terminal convention for symlinks), broken/dangling links in red and
+     * struck through (a dangling link points nowhere). High priority so a link's nature wins over
+     * project-marker coloring in WINNER mode.
      */
     fun symlinkRules(): List<ColorRule> = listOf(
         symlinkRule("symlink-valid", "Symbolic link", priority = 110, state = SymlinkState.VALID, font = "#4DB6AC"),
-        symlinkRule("symlink-broken", "Broken symbolic link", priority = 120, state = SymlinkState.BROKEN, font = "#E06666"),
+        symlinkRule("symlink-broken", "Broken symbolic link", priority = 120, state = SymlinkState.BROKEN, font = "#E06666", strikethrough = true),
     )
 
     /** Clones the built-in rules with fresh random IDs — used by "Reset to defaults" UI action. */

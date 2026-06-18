@@ -11,6 +11,7 @@ import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.JBUI
 import io.github.jhspetersson.turtlecommander.ui.installStandardContextMenu
 import java.awt.*
+import java.awt.font.TextAttribute
 import java.util.*
 import javax.swing.*
 import javax.swing.event.DocumentEvent
@@ -65,6 +66,7 @@ internal class ColorRuleEditDialog(
     private val dotColorButton = ColorPickerButton("...")
     private val fontStyleCombo = ComboBox(DefaultComboBoxModel(arrayOf("Default", "Plain", "Bold", "Italic", "Bold Italic")))
     private val fontSizeSpinner = JSpinner(SpinnerNumberModel(0, 0, 72, 1))
+    private val strikethroughCheck = JCheckBox("Strikethrough")
     private val previewLabel = JBLabel("Preview").apply {
         border = BorderFactory.createCompoundBorder(
             BorderFactory.createLineBorder(UIManager.getColor("Separator.foreground") ?: JBColor.GRAY),
@@ -184,6 +186,10 @@ internal class ColorRuleEditDialog(
         }
         panel.add(sizeRow, gbc)
 
+        gbc.gridy = 5
+        gbc.gridx = 0; panel.add(JBLabel("Effects:"), gbc)
+        gbc.gridx = 1; panel.add(strikethroughCheck, gbc)
+
         return panel
     }
 
@@ -200,6 +206,7 @@ internal class ColorRuleEditDialog(
         dotColorButton.addActionListener { refreshPreview() }
         fontStyleCombo.addActionListener { refreshPreview() }
         fontSizeSpinner.addChangeListener { refreshPreview() }
+        strikethroughCheck.addActionListener { refreshPreview() }
         nameField.document.addDocumentListener(object : DocumentAdapter() {
             override fun textChanged(e: DocumentEvent) { refreshPreview() }
         })
@@ -219,7 +226,12 @@ internal class ColorRuleEditDialog(
         }
         val sizeOverride = (fontSizeSpinner.value as? Number)?.toInt() ?: 0
         val size = if (sizeOverride > 0) sizeOverride else baseSize
-        previewLabel.font = Font(font?.family ?: Font.DIALOG, swingStyle, size)
+        val baseFont = Font(font?.family ?: Font.DIALOG, swingStyle, size)
+        previewLabel.font = if (strikethroughCheck.isSelected) {
+            baseFont.deriveFont(mapOf(TextAttribute.STRIKETHROUGH to TextAttribute.STRIKETHROUGH_ON))
+        } else {
+            baseFont
+        }
         val fg = fontColorButton.getColorHex()
         val bg = bgColorButton.getColorHex()
         previewLabel.foreground = if (fg.isNotEmpty()) Color.decode(fg) else UIManager.getColor("Label.foreground")
@@ -235,6 +247,7 @@ internal class ColorRuleEditDialog(
             combinatorCombo.selectedItem = Combinator.AND
             matchers.clear()
             fontStyleCombo.selectedIndex = 0
+            strikethroughCheck.isSelected = false
             return
         }
         nameField.text = rule.name
@@ -256,6 +269,7 @@ internal class ColorRuleEditDialog(
             else -> 0
         }
         fontSizeSpinner.value = rule.style.fontSize ?: 0
+        strikethroughCheck.isSelected = rule.style.strikethrough == true
     }
 
     private fun addMatcher() {
@@ -317,6 +331,7 @@ internal class ColorRuleEditDialog(
                     else -> null
                 },
                 fontSize = ((fontSizeSpinner.value as? Number)?.toInt() ?: 0).takeIf { it > 0 },
+                strikethrough = true.takeIf { strikethroughCheck.isSelected },
             ),
         )
         super.doOKAction()

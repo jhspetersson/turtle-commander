@@ -49,6 +49,31 @@ class ColorRulesIOTest {
     }
 
     @Test
+    fun `export then parse round-trips the strikethrough style flag`() {
+        val config = ColorRulesConfig(
+            name = "Struck",
+            rules = listOf(
+                ColorRule(
+                    id = "r-strike",
+                    name = "Backups",
+                    matchers = listOf(RuleMatcher.Name(PatternKind.GLOB, "*.bak")),
+                    style = RuleStyle(fontColor = "#888888", strikethrough = true),
+                ),
+                ColorRule(
+                    id = "r-plain",
+                    name = "Plain",
+                    matchers = listOf(RuleMatcher.Name(PatternKind.GLOB, "*.txt")),
+                    style = RuleStyle(fontColor = "#000000"), // strikethrough left unset
+                ),
+            ),
+        )
+        val round = ColorRulesIO.parse(ColorRulesIO.export(config))!!
+        assertEquals(true, round.rules[0].style.strikethrough)
+        // Unset stays inherit (null), not an explicit false.
+        assertNull(round.rules[1].style.strikethrough)
+    }
+
+    @Test
     fun `export then parse round-trips all three matcher kinds`() {
         val config = ColorRulesConfig(
             name = "All matchers",

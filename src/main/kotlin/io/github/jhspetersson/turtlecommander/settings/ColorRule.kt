@@ -209,10 +209,12 @@ data class RuleStyle(
     val iconDotColor: String = "",
     val fontStyle: Int? = null,
     val fontSize: Int? = null,
+    /** null = inherit, true = strike out the filename (e.g. broken links, backups). */
+    val strikethrough: Boolean? = null,
 ) {
     fun isEmpty(): Boolean =
         fontColor.isEmpty() && backgroundColor.isEmpty() && iconDotColor.isEmpty()
-            && fontStyle == null && fontSize == null
+            && fontStyle == null && fontSize == null && strikethrough == null
 
     /** Overlay [other] on this style: [other]'s set fields win. */
     fun overlay(other: RuleStyle): RuleStyle = RuleStyle(
@@ -221,6 +223,7 @@ data class RuleStyle(
         iconDotColor = other.iconDotColor.ifEmpty { iconDotColor },
         fontStyle = other.fontStyle ?: fontStyle,
         fontSize = other.fontSize ?: fontSize,
+        strikethrough = other.strikethrough ?: strikethrough,
     )
 
     companion object {
@@ -335,6 +338,7 @@ class SavedColorRule {
     var iconDotColor: String = ""
     var fontStyle: Int = -1
     var fontSize: Int = -1
+    var strikethrough: Boolean = false
 
     fun toRule(): ColorRule = ColorRule(
         id = id.ifEmpty { UUID.randomUUID().toString() },
@@ -349,6 +353,8 @@ class SavedColorRule {
             iconDotColor = iconDotColor,
             fontStyle = fontStyle.takeIf { it >= 0 },
             fontSize = fontSize.takeIf { it > 0 },
+            // Only "on" is persisted; absent/false round-trips to inherit (null).
+            strikethrough = true.takeIf { strikethrough },
         ),
     )
 
@@ -365,6 +371,7 @@ class SavedColorRule {
             iconDotColor = rule.style.iconDotColor
             fontStyle = rule.style.fontStyle ?: -1
             fontSize = rule.style.fontSize ?: -1
+            strikethrough = rule.style.strikethrough == true
         }
     }
 }

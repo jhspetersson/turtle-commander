@@ -1,5 +1,6 @@
 package io.github.jhspetersson.turtlecommander.ui
 import java.awt.Font
+import java.awt.font.TextAttribute
 
 import com.intellij.ui.*
 import com.intellij.ui.speedSearch.SpeedSearchSupply
@@ -25,6 +26,22 @@ internal fun resolvedStyleFor(entry: FileEntry, enableHighlighting: Boolean): Re
 internal fun ResolvedStyle.fontJBColor(): Color? = parseHexColor(fontColor)
 internal fun ResolvedStyle.backgroundJBColor(): Color? = parseHexColor(backgroundColor)
 internal fun ResolvedStyle.iconDotJBColor(): Color? = parseHexColor(iconDotColor)
+
+/**
+ * Builds the colored-text attributes for a filename cell, OR-ing in strikeout when the rule
+ * requests it. [baseStyle] is a [SimpleTextAttributes] style bitmask (the `Font.PLAIN/BOLD/ITALIC`
+ * bits line up with `STYLE_PLAIN/BOLD/ITALIC`).
+ */
+internal fun nameTextAttributes(baseStyle: Int, fg: Color?, strikethrough: Boolean?): SimpleTextAttributes {
+    val bits = if (strikethrough == true) baseStyle or SimpleTextAttributes.STYLE_STRIKEOUT else baseStyle
+    return SimpleTextAttributes(bits, fg)
+}
+
+private val STRIKE_FONT_ATTRS = mapOf(TextAttribute.STRIKETHROUGH to TextAttribute.STRIKETHROUGH_ON)
+
+/** [base] with a strikethrough applied for label-based renderers (thumbnail names). */
+internal fun strikeFont(base: Font, strikethrough: Boolean): Font =
+    if (strikethrough) base.deriveFont(STRIKE_FONT_ATTRS) else base
 
 private fun parseHexColor(hex: String): Color? {
     if (hex.isBlank()) return null
@@ -220,7 +237,7 @@ internal class StyledFileNameCellRenderer(
         }
 
         val fontStyle = style?.getFont(table.font)?.style ?: Font.PLAIN
-        val attrs = if (fg != null) SimpleTextAttributes(fontStyle, fg) else SimpleTextAttributes(fontStyle, null)
+        val attrs = nameTextAttributes(fontStyle, fg, resolved.strikethrough)
         val text = value as? String ?: value?.toString().orEmpty()
         append(text, attrs)
 
@@ -332,7 +349,7 @@ internal class FileListCellRenderer(private val tab: FileTab) : ColoredListCellR
             selected -> null
             else -> resolved.fontJBColor()
         }
-        val attrs = if (fg != null) SimpleTextAttributes(SimpleTextAttributes.STYLE_PLAIN, fg) else SimpleTextAttributes.REGULAR_ATTRIBUTES
+        val attrs = nameTextAttributes(SimpleTextAttributes.STYLE_PLAIN, fg, resolved.strikethrough)
         append(entry.name, attrs)
         SpeedSearchUtil.applySpeedSearchHighlighting(list, this, true, selected)
     }
@@ -389,7 +406,7 @@ internal class FileThumbnailCellRenderer(private val tab: FileTab) : ListCellRen
         val displayName = if (name.length > 16) name.substring(0, 14) + "\u2026" else name
         nameLabel.text = highlightSpeedSearchMatches(list, displayName)
         nameLabel.toolTipText = name
-        nameLabel.font = list.font
+        nameLabel.font = strikeFont(list.font, resolved.strikethrough == true)
         val isMarked = entry.path in tab.markedPaths
         val isCursor = index == list.selectionModel.leadSelectionIndex
         if (isMarked && isCursor) {
@@ -447,7 +464,7 @@ internal class FileTreeCellRenderer(private val tab: FileTab) : ColoredTreeCellR
             selected -> null
             else -> resolved.fontJBColor()
         }
-        val attrs = if (fg != null) SimpleTextAttributes(SimpleTextAttributes.STYLE_PLAIN, fg) else SimpleTextAttributes.REGULAR_ATTRIBUTES
+        val attrs = nameTextAttributes(SimpleTextAttributes.STYLE_PLAIN, fg, resolved.strikethrough)
         append(entry.name, attrs)
         SpeedSearchUtil.applySpeedSearchHighlighting(tree, this, true, selected)
     }

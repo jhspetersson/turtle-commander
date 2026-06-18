@@ -169,6 +169,37 @@ class ColorRuleEngineTest {
         assertEquals("#ABC", r.fontColor)
     }
 
+    @Test
+    fun `winner mode carries strikethrough`() {
+        val rules = listOf(
+            rule(
+                "struck", matchers = listOf(RuleMatcher.Name(PatternKind.GLOB, "*")),
+                style = RuleStyle(fontColor = "#111", strikethrough = true),
+            ),
+        )
+        val r = ColorRuleEngine.resolve(rules, file("old.bak"))
+        assertEquals(true, r.strikethrough)
+    }
+
+    @Test
+    fun `layered mode strikethrough null does not clobber earlier set value`() {
+        val rules = listOf(
+            rule(
+                "struck", priority = 1,
+                matchers = listOf(RuleMatcher.Name(PatternKind.GLOB, "*")),
+                style = RuleStyle(strikethrough = true),
+            ),
+            rule(
+                "recolor", priority = 2,
+                matchers = listOf(RuleMatcher.Name(PatternKind.GLOB, "*")),
+                style = RuleStyle(fontColor = "#ABC"), // strikethrough left null
+            ),
+        )
+        val r = ColorRuleEngine.resolve(rules, file("f"), mode = ColorizationMode.LAYERED)
+        assertEquals(true, r.strikethrough)
+        assertEquals("#ABC", r.fontColor)
+    }
+
     // --- combinator ---
 
     @Test

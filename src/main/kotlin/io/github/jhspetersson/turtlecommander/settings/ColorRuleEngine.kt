@@ -13,10 +13,11 @@ data class ResolvedStyle(
     val iconDotColor: String = "",
     val fontStyle: Int? = null,
     val fontSize: Int? = null,
+    val strikethrough: Boolean? = null,
 ) {
     fun isEmpty(): Boolean =
         fontColor.isEmpty() && backgroundColor.isEmpty() && iconDotColor.isEmpty()
-            && fontStyle == null && fontSize == null
+            && fontStyle == null && fontSize == null && strikethrough == null
 
     companion object {
         val EMPTY = ResolvedStyle()
@@ -27,6 +28,7 @@ data class ResolvedStyle(
             iconDotColor = s.iconDotColor,
             fontStyle = s.fontStyle,
             fontSize = s.fontSize,
+            strikethrough = s.strikethrough,
         )
     }
 }
