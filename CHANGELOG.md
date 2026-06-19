@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.6.11] - 2026-06-19
+
 ### Added
 
 - Strikethrough effect for colorization rules (e.g., to mark broken symlinks)
