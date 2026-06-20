@@ -32,7 +32,7 @@ internal class ColorRuleEditDialog(
     private val id: String = initial?.id ?: UUID.randomUUID().toString()
 
     private val nameField = JBTextField(24)
-    private val prioritySpinner = JSpinner(SpinnerNumberModel(0, -1000, 1000, 1))
+    private val prioritySpinner = JSpinner(SpinnerNumberModel(0, -1_000_000, 1_000_000, 1))
     private val activeCheck = JCheckBox("Active")
     private val combinatorCombo = ComboBox(DefaultComboBoxModel(Combinator.entries.toTypedArray())).apply {
         renderer = object : DefaultListCellRenderer() {

@@ -37,6 +37,9 @@ internal class ColorRulesEditor(private val project: Project?) {
     private val tableModel = RulesTableModel()
     private val table = JBTable(tableModel).apply {
         setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
+        // Select whole rows, not individual cells, so the highlight spans the row.
+        rowSelectionAllowed = true
+        columnSelectionAllowed = false
         rowHeight = JBUI.scale(24)
         tableHeader.reorderingAllowed = false
         autoResizeMode = JBTable.AUTO_RESIZE_LAST_COLUMN
@@ -92,10 +95,10 @@ internal class ColorRulesEditor(private val project: Project?) {
     }
 
     fun resetFrom(state: TurtleCommanderSettings.State) {
-        val all = ColorRuleManager.getAllRules(state)
         rules.clear()
-        rules.addAll(all)
-        savedSnapshot = all.map { it.copy() }
+        rules.addAll(ColorRuleManager.getAllRules(state))
+        rules.sortWith(BY_PRIORITY)
+        savedSnapshot = rules.map { it.copy() }
         savedMode = ColorRuleManager.getMode(state)
         modeCombo.selectedItem = savedMode
         tableModel.fireTableDataChanged()
@@ -146,12 +149,10 @@ internal class ColorRulesEditor(private val project: Project?) {
         val edit = JButton("Edit...").apply { addActionListener { editSelected() } }
         val dup = JButton("Duplicate").apply { addActionListener { duplicateSelected() } }
         val delete = JButton("Delete").apply { addActionListener { deleteSelected() } }
-        val moveUp = JButton("Up").apply { addActionListener { moveSelected(-1) } }
-        val moveDown = JButton("Down").apply { addActionListener { moveSelected(1) } }
         val reset = JButton("Reset to defaults").apply { addActionListener { resetToDefaults() } }
         val col = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
-            for (btn in listOf(add, edit, dup, delete, moveUp, moveDown, reset)) {
+            for (btn in listOf(add, edit, dup, delete, reset)) {
                 btn.alignmentX = Component.LEFT_ALIGNMENT
                 btn.maximumSize = Dimension(Int.MAX_VALUE, btn.preferredSize.height)
                 add(btn)
@@ -168,8 +169,7 @@ internal class ColorRulesEditor(private val project: Project?) {
         if (dialog.showAndGet()) {
             dialog.result?.let {
                 rules.add(it)
-                tableModel.fireTableDataChanged()
-                table.setRowSelectionInterval(rules.size - 1, rules.size - 1)
+                resortAndSelect(it.id)
             }
         }
     }
@@ -181,7 +181,7 @@ internal class ColorRulesEditor(private val project: Project?) {
         if (dialog.showAndGet()) {
             dialog.result?.let {
                 rules[idx] = it
-                tableModel.fireTableRowsUpdated(idx, idx)
+                resortAndSelect(it.id)
             }
         }
     }
@@ -191,9 +191,8 @@ internal class ColorRulesEditor(private val project: Project?) {
         if (idx < 0) return
         val src = rules[idx]
         val copy = src.copy(id = UUID.randomUUID().toString(), name = "${src.name} (copy)")
-        rules.add(idx + 1, copy)
-        tableModel.fireTableDataChanged()
-        table.setRowSelectionInterval(idx + 1, idx + 1)
+        rules.add(copy)
+        resortAndSelect(copy.id)
     }
 
     private fun deleteSelected() {
@@ -208,17 +207,6 @@ internal class ColorRulesEditor(private val project: Project?) {
         tableModel.fireTableDataChanged()
     }
 
-    private fun moveSelected(delta: Int) {
-        val idx = table.selectedRow
-        if (idx < 0) return
-        val target = idx + delta
-        if (target < 0 || target >= rules.size) return
-        val item = rules.removeAt(idx)
-        rules.add(target, item)
-        tableModel.fireTableDataChanged()
-        table.setRowSelectionInterval(target, target)
-    }
-
     private fun resetToDefaults() {
         val confirm = Messages.showYesNoDialog(
             "Replace all rules with the built-in defaults?", "Reset Rules", null,
@@ -226,7 +214,21 @@ internal class ColorRulesEditor(private val project: Project?) {
         if (confirm != Messages.YES) return
         rules.clear()
         rules.addAll(ColorRuleDefaults.builtinRules())
+        resortAndSelect(null)
+    }
+
+    /**
+     * Re-establishes the priority ordering after a mutation and restores the selection to
+     * the rule identified by [selectId] (its row moves when its priority changes), or clears
+     * it when null. The list is kept sorted so the table always reflects evaluation order.
+     */
+    private fun resortAndSelect(selectId: String?) {
+        rules.sortWith(BY_PRIORITY)
         tableModel.fireTableDataChanged()
+        if (selectId != null) {
+            val idx = rules.indexOfFirst { it.id == selectId }
+            if (idx >= 0) table.setRowSelectionInterval(idx, idx)
+        }
     }
 
     private fun exportCurrentRules() {
@@ -272,7 +274,7 @@ internal class ColorRulesEditor(private val project: Project?) {
             }
             else -> return
         }
-        tableModel.fireTableDataChanged()
+        resortAndSelect(null)
     }
 
     // --- table plumbing --------------------------------------------------
@@ -369,6 +371,13 @@ internal class ColorRulesEditor(private val project: Project?) {
     }
 
     companion object {
+        /**
+         * Display/persist order: highest priority first (the "winner" in WINNER mode, the top
+         * overlay in LAYERED), ties broken by name case-insensitively for a stable order.
+         */
+        private val BY_PRIORITY: Comparator<ColorRule> =
+            compareByDescending<ColorRule> { it.priority }.thenBy { it.name.lowercase() }
+
         private const val COL_ACTIVE = 0
         private const val COL_PRIORITY = 1
         private const val COL_NAME = 2
