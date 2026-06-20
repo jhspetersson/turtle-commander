@@ -311,6 +311,7 @@ class XmlSerializationTest {
                 iconDotColor = "#00AA00",
                 fontStyle = Font.BOLD,
                 fontSize = 16,
+                iconId = "star",
             ),
         )
         val state = TurtleCommanderSettings.State().apply {
@@ -350,6 +351,7 @@ class XmlSerializationTest {
         assertEquals("#00AA00", rt.style.iconDotColor)
         assertEquals(Font.BOLD, rt.style.fontStyle)
         assertEquals(16, rt.style.fontSize)
+        assertEquals("star", rt.style.iconId)
     }
 
     @Test

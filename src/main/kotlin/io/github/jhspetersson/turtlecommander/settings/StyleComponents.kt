@@ -134,6 +134,51 @@ internal class ColorPickerButton(text: String) : JButton(text) {
     }
 }
 
+/**
+ * Picks a [RuleIcons] override icon. Mirrors [ColorPickerButton]: a compact button that
+ * opens a popup ("None" plus one submenu per icon category). [onChange] fires after every
+ * selection so the rule editor can refresh its live preview.
+ */
+internal class IconPickerButton : JButton("...") {
+    private var iconId: String = ""
+    var onChange: (() -> Unit)? = null
+
+    init {
+        preferredSize = Dimension(28, 28)
+        isFocusable = false
+        addActionListener { showPopup() }
+    }
+
+    private fun showPopup() {
+        val popup = JPopupMenu()
+        val none = JMenuItem("None")
+        none.addActionListener { setIconId("") }
+        popup.add(none)
+        popup.addSeparator()
+        for ((category, entries) in RuleIcons.ENTRIES.groupBy { it.category }) {
+            val sub = JMenu(category)
+            for (e in entries) {
+                val item = JMenuItem(e.label, e.icon)
+                item.addActionListener { setIconId(e.key) }
+                sub.add(item)
+            }
+            popup.add(sub)
+        }
+        popup.show(this, 0, height)
+    }
+
+    fun setIconId(id: String) {
+        iconId = id
+        val ic = RuleIcons.resolve(id)
+        icon = ic
+        text = if (ic != null) "" else "..."
+        toolTipText = if (id.isEmpty()) "Default (file-type icon)" else (RuleIcons.label(id) ?: id)
+        onChange?.invoke()
+    }
+
+    fun getIconId(): String = iconId
+}
+
 internal class ColorSwatchIcon(private val color: Color) : Icon {
     override fun paintIcon(c: Component?, g: Graphics, x: Int, y: Int) {
         val g2 = (g.create() as Graphics2D).apply {

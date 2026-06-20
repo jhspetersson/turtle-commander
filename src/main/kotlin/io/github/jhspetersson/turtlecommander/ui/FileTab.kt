@@ -31,6 +31,7 @@ import io.github.jhspetersson.turtlecommander.service.FileOperationService
 import io.github.jhspetersson.turtlecommander.service.ThumbnailCache
 import io.github.jhspetersson.turtlecommander.settings.ColumnConfig
 import io.github.jhspetersson.turtlecommander.settings.ResolvedStyle
+import io.github.jhspetersson.turtlecommander.settings.RuleIcons
 import io.github.jhspetersson.turtlecommander.settings.ThumbnailSize
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
@@ -1804,8 +1805,18 @@ fun fileEntryIcon(
     enableFileNameHighlighting: Boolean,
     resolved: ResolvedStyle = ResolvedStyle.EMPTY,
 ): Icon {
+    // A rule may override the type/folder icon outright (the "..", non-highlighted, and
+    // unknown-key cases fall through to the defaults below).
+    val overrideIcon = if (enableFileNameHighlighting && !entry.isParentLink) {
+        RuleIcons.resolve(resolved.iconId)
+    } else null
     val base = when {
         entry.isParentLink -> AllIcons.Nodes.UpLevel
+        overrideIcon != null -> {
+            // Keep the directory dot working on top of a chosen icon when both are set.
+            val dot = if (entry.isDirectory) resolved.iconDotJBColor() else null
+            if (dot != null) DirectoryIcons.iconWithDot(overrideIcon, dot) else overrideIcon
+        }
         entry.isDirectory -> {
             if (!enableFileNameHighlighting) AllIcons.Nodes.Folder
             else {

@@ -95,6 +95,7 @@ object ColorRulesIO {
         style.fontStyle?.let { sb.appendLine("$prefix.fontStyle=$it") }
         style.fontSize?.let { sb.appendLine("$prefix.fontSize=$it") }
         if (style.strikethrough == true) sb.appendLine("$prefix.strikethrough=true")
+        if (style.iconId.isNotEmpty()) sb.appendLine("$prefix.iconId=${style.iconId}")
     }
 
     private fun appendMatcher(sb: StringBuilder, prefix: String, matcher: RuleMatcher) {
@@ -177,6 +178,7 @@ object ColorRulesIO {
                 fontStyle = props["$prefix.fontStyle"]?.toIntOrNull(),
                 fontSize = props["$prefix.fontSize"]?.toIntOrNull(),
                 strikethrough = props["$prefix.strikethrough"]?.equals("true", ignoreCase = true)?.takeIf { it },
+                iconId = props["$prefix.iconId"] ?: "",
             ),
         )
     }

@@ -211,10 +211,16 @@ data class RuleStyle(
     val fontSize: Int? = null,
     /** null = inherit, true = strike out the filename (e.g. broken links, backups). */
     val strikethrough: Boolean? = null,
+    /**
+     * Stable [RuleIcons] key for a rule-chosen icon that replaces the file-type/folder
+     * icon. Empty = inherit (use the default icon). A key we own — not a platform icon
+     * path — so saved rules survive IDE upgrades; unknown keys fall back to no override.
+     */
+    val iconId: String = "",
 ) {
     fun isEmpty(): Boolean =
         fontColor.isEmpty() && backgroundColor.isEmpty() && iconDotColor.isEmpty()
-            && fontStyle == null && fontSize == null && strikethrough == null
+            && fontStyle == null && fontSize == null && strikethrough == null && iconId.isEmpty()
 
     /** Overlay [other] on this style: [other]'s set fields win. */
     fun overlay(other: RuleStyle): RuleStyle = RuleStyle(
@@ -224,6 +230,7 @@ data class RuleStyle(
         fontStyle = other.fontStyle ?: fontStyle,
         fontSize = other.fontSize ?: fontSize,
         strikethrough = other.strikethrough ?: strikethrough,
+        iconId = other.iconId.ifEmpty { iconId },
     )
 
     companion object {
@@ -339,6 +346,7 @@ class SavedColorRule {
     var fontStyle: Int = -1
     var fontSize: Int = -1
     var strikethrough: Boolean = false
+    var iconId: String = ""
 
     fun toRule(): ColorRule = ColorRule(
         id = id.ifEmpty { UUID.randomUUID().toString() },
@@ -355,6 +363,7 @@ class SavedColorRule {
             fontSize = fontSize.takeIf { it > 0 },
             // Only "on" is persisted; absent/false round-trips to inherit (null).
             strikethrough = true.takeIf { strikethrough },
+            iconId = iconId,
         ),
     )
 
@@ -372,6 +381,7 @@ class SavedColorRule {
             fontStyle = rule.style.fontStyle ?: -1
             fontSize = rule.style.fontSize ?: -1
             strikethrough = rule.style.strikethrough == true
+            iconId = rule.style.iconId
         }
     }
 }

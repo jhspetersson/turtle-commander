@@ -64,6 +64,7 @@ internal class ColorRuleEditDialog(
     private val fontColorButton = ColorPickerButton("...")
     private val bgColorButton = ColorPickerButton("...")
     private val dotColorButton = ColorPickerButton("...")
+    private val iconPickerButton = IconPickerButton()
     private val fontStyleCombo = ComboBox(DefaultComboBoxModel(arrayOf("Default", "Plain", "Bold", "Italic", "Bold Italic")))
     private val fontSizeSpinner = JSpinner(SpinnerNumberModel(0, 0, 72, 1))
     private val strikethroughCheck = JCheckBox("Strikethrough")
@@ -172,10 +173,21 @@ internal class ColorRuleEditDialog(
         gbc.gridx = 1; panel.add(dotColorButton, gbc)
 
         gbc.gridy = 3
+        gbc.gridx = 0; panel.add(JBLabel("Icon:"), gbc)
+        gbc.gridx = 1
+        val iconRow = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.X_AXIS)
+            add(iconPickerButton)
+            add(Box.createHorizontalStrut(6))
+            add(JBLabel("(replaces the file-type icon)"))
+        }
+        panel.add(iconRow, gbc)
+
+        gbc.gridy = 4
         gbc.gridx = 0; panel.add(JBLabel("Font style:"), gbc)
         gbc.gridx = 1; panel.add(fontStyleCombo, gbc)
 
-        gbc.gridy = 4
+        gbc.gridy = 5
         gbc.gridx = 0; panel.add(JBLabel("Font size override:"), gbc)
         gbc.gridx = 1
         val sizeRow = JPanel().apply {
@@ -186,7 +198,7 @@ internal class ColorRuleEditDialog(
         }
         panel.add(sizeRow, gbc)
 
-        gbc.gridy = 5
+        gbc.gridy = 6
         gbc.gridx = 0; panel.add(JBLabel("Effects:"), gbc)
         gbc.gridx = 1; panel.add(strikethroughCheck, gbc)
 
@@ -204,6 +216,7 @@ internal class ColorRuleEditDialog(
         fontColorButton.addActionListener { refreshPreview() }
         bgColorButton.addActionListener { refreshPreview() }
         dotColorButton.addActionListener { refreshPreview() }
+        iconPickerButton.onChange = { refreshPreview() }
         fontStyleCombo.addActionListener { refreshPreview() }
         fontSizeSpinner.addChangeListener { refreshPreview() }
         strikethroughCheck.addActionListener { refreshPreview() }
@@ -236,6 +249,7 @@ internal class ColorRuleEditDialog(
         val bg = bgColorButton.getColorHex()
         previewLabel.foreground = if (fg.isNotEmpty()) Color.decode(fg) else UIManager.getColor("Label.foreground")
         previewLabel.background = if (bg.isNotEmpty()) Color.decode(bg) else UIManager.getColor("Panel.background")
+        previewLabel.icon = RuleIcons.resolve(iconPickerButton.getIconId())
         previewLabel.text = nameField.text.ifBlank { "Preview" }
     }
 
@@ -246,6 +260,7 @@ internal class ColorRuleEditDialog(
             activeCheck.isSelected = true
             combinatorCombo.selectedItem = Combinator.AND
             matchers.clear()
+            iconPickerButton.setIconId("")
             fontStyleCombo.selectedIndex = 0
             strikethroughCheck.isSelected = false
             return
@@ -260,6 +275,7 @@ internal class ColorRuleEditDialog(
         fontColorButton.setColor(decodeOrNull(rule.style.fontColor))
         bgColorButton.setColor(decodeOrNull(rule.style.backgroundColor))
         dotColorButton.setColor(decodeOrNull(rule.style.iconDotColor))
+        iconPickerButton.setIconId(rule.style.iconId)
         fontStyleCombo.selectedIndex = when (rule.style.fontStyle) {
             null -> 0
             Font.PLAIN -> 1
@@ -332,6 +348,7 @@ internal class ColorRuleEditDialog(
                 },
                 fontSize = ((fontSizeSpinner.value as? Number)?.toInt() ?: 0).takeIf { it > 0 },
                 strikethrough = true.takeIf { strikethroughCheck.isSelected },
+                iconId = iconPickerButton.getIconId(),
             ),
         )
         super.doOKAction()

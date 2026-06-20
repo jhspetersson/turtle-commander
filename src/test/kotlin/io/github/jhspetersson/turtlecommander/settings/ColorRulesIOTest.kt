@@ -104,6 +104,7 @@ class ColorRulesIOTest {
                         iconDotColor = "#778899",
                         fontStyle = Font.BOLD,
                         fontSize = 14,
+                        iconId = "star",
                     ),
                 ),
             ),
@@ -133,6 +134,7 @@ class ColorRulesIOTest {
         assertEquals(14, r.style.fontSize)
         assertEquals("#445566", r.style.backgroundColor)
         assertEquals("#778899", r.style.iconDotColor)
+        assertEquals("star", r.style.iconId)
     }
 
     @Test
@@ -246,6 +248,7 @@ class ColorRulesIOTest {
         assertFalse(text.contains("rule.0.iconDotColor"))
         assertFalse(text.contains("rule.0.fontStyle"))
         assertFalse(text.contains("rule.0.fontSize"))
+        assertFalse(text.contains("rule.0.iconId"))
     }
 
     @Test

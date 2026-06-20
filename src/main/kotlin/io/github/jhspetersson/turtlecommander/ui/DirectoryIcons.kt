@@ -16,6 +16,9 @@ object DirectoryIcons {
      * supplied by the colorization rule engine — see [io.github.jhspetersson.turtlecommander.settings.ColorRule].
      */
     fun folderIconWithDot(color: Color): Icon = DotOverlayIcon(AllIcons.Nodes.Folder, color)
+
+    /** Overlays the rule dot on an arbitrary [base] icon (e.g. a rule-chosen override icon). */
+    fun iconWithDot(base: Icon, color: Color): Icon = DotOverlayIcon(base, color)
 }
 
 private class DotOverlayIcon(
