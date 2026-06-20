@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Ability to replace file/directory icons depending on the matching rules
+
 ## [0.6.11] - 2026-06-19
 
 ### Added
