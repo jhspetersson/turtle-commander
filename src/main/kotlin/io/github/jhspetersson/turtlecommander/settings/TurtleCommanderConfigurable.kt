@@ -64,7 +64,7 @@ class TurtleCommanderConfigurable : Configurable {
         val settings = TurtleCommanderSettings.getInstance().state
         val fontFamilies = GraphicsEnvironment.getLocalGraphicsEnvironment().availableFontFamilyNames
 
-        highlightingCheckBox = JCheckBox("Enable colorization rules for files and directories", settings.enableFileNameHighlighting)
+        highlightingCheckBox = JCheckBox("Enable file colors and icons", settings.enableFileNameHighlighting)
         commandBarCheckBox = JCheckBox("Show command bar (F5 Copy, F6 Move, etc.)", settings.showCommandBar)
         hideDriveSelectorCheckBox = JCheckBox("Hide drive selector", settings.hideDriveSelector)
         hideStatusBarCheckBox = JCheckBox("Hide status bar", settings.hideStatusBar)

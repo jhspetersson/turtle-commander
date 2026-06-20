@@ -5,12 +5,9 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.project.ProjectManager
-import com.intellij.ui.ColorChooserService
-import com.intellij.ui.JBColor
 import com.intellij.ui.SimpleColoredComponent
 import com.intellij.ui.components.JBList
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
-import io.github.jhspetersson.turtlecommander.ui.FAVORITE_PRESET_COLORS
 import java.awt.*
 import javax.swing.*
 
@@ -64,13 +61,11 @@ internal class FavoritesEditor {
                 }
             }
         }
-        val colorButton = JButton("Color...").apply {
-            addActionListener {
-                val idx = list.selectedIndex
-                if (idx < 0) return@addActionListener
-                val entry = listModel.getElementAt(idx)
-                showColorChooser(entry, idx)
-            }
+        val colorButton = JButton("Color...")
+        colorButton.addActionListener {
+            val idx = list.selectedIndex
+            if (idx < 0) return@addActionListener
+            showColorChooser(listModel.getElementAt(idx), idx, colorButton)
         }
 
         val favButtons = listOf(addButton, removeButton, moveUpButton, moveDownButton, colorButton)
@@ -132,37 +127,13 @@ internal class FavoritesEditor {
         }
     }
 
-    private fun showColorChooser(entry: FileManagerStateService.FavoriteEntry, idx: Int) {
-        val presets = FAVORITE_PRESET_COLORS
-        val popup = JPopupMenu()
-        for ((name, hex) in presets) {
-            val item = JMenuItem(name)
-            if (hex.isNotEmpty()) {
-                item.icon = ColorSwatchIcon(Color.decode(hex))
-            }
-            item.addActionListener {
-                listModel.set(idx, FileManagerStateService.FavoriteEntry(entry.path, hex))
-                list.repaint()
-            }
-            popup.add(item)
+    private fun showColorChooser(entry: FileManagerStateService.FavoriteEntry, idx: Int, anchor: JComponent) {
+        val current = entry.color.takeIf { it.isNotBlank() }?.let { runCatching { Color.decode(it) }.getOrNull() }
+        showColorPopup(anchor, "Choose Favorite Color", current) { picked ->
+            val hex = if (picked == null) "" else String.format("#%02X%02X%02X", picked.red, picked.green, picked.blue)
+            listModel.set(idx, FileManagerStateService.FavoriteEntry(entry.path, hex))
+            list.repaint()
         }
-        popup.addSeparator()
-        val customItem = JMenuItem("Custom...")
-        customItem.addActionListener {
-            val initial = if (entry.color.isNotBlank()) {
-                try { Color.decode(entry.color) } catch (_: Exception) { null }
-            } else null
-            val chosen = ColorChooserService.getInstance().showDialog(
-                list, "Choose Favorite Color", initial ?: JBColor.GRAY, true, emptyList(), true
-            )
-            if (chosen != null) {
-                val hex = String.format("#%02X%02X%02X", chosen.red, chosen.green, chosen.blue)
-                listModel.set(idx, FileManagerStateService.FavoriteEntry(entry.path, hex))
-                list.repaint()
-            }
-        }
-        popup.add(customItem)
-        popup.show(list, list.width / 2, list.indexToLocation(idx)?.y ?: 0)
     }
 }
 

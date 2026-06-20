@@ -64,7 +64,7 @@ internal class ColorRulesEditor(private val project: Project?) {
 
     val panel: JPanel = JPanel(BorderLayout(4, 4)).apply {
         alignmentX = JComponent.LEFT_ALIGNMENT
-        border = BorderFactory.createTitledBorder("File colorization rules")
+        border = BorderFactory.createTitledBorder("File colors and icons")
     }
 
     init {
@@ -149,10 +149,18 @@ internal class ColorRulesEditor(private val project: Project?) {
         val edit = JButton("Edit...").apply { addActionListener { editSelected() } }
         val dup = JButton("Duplicate").apply { addActionListener { duplicateSelected() } }
         val delete = JButton("Delete").apply { addActionListener { deleteSelected() } }
+        val up = JButton("Up").apply {
+            toolTipText = "Raise priority (move up)"
+            addActionListener { moveSelected(-1) }
+        }
+        val down = JButton("Down").apply {
+            toolTipText = "Lower priority (move down)"
+            addActionListener { moveSelected(1) }
+        }
         val reset = JButton("Reset to defaults").apply { addActionListener { resetToDefaults() } }
         val col = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
-            for (btn in listOf(add, edit, dup, delete, reset)) {
+            for (btn in listOf(add, edit, dup, delete, up, down, reset)) {
                 btn.alignmentX = Component.LEFT_ALIGNMENT
                 btn.maximumSize = Dimension(Int.MAX_VALUE, btn.preferredSize.height)
                 add(btn)
@@ -215,6 +223,24 @@ internal class ColorRulesEditor(private val project: Project?) {
         rules.clear()
         rules.addAll(ColorRuleDefaults.builtinRules())
         resortAndSelect(null)
+    }
+
+    /**
+     * Raises ([direction] = -1) or lowers ([direction] = +1) the selected rule's priority so it
+     * swaps places with its neighbour in the priority-sorted list. The new priority is set just
+     * past the neighbour's, so a single click always reorders even when priorities are spaced
+     * apart (a plain +/-1 could leave the row visually stuck).
+     */
+    private fun moveSelected(direction: Int) {
+        val idx = table.selectedRow
+        if (idx < 0) return
+        val target = idx + direction
+        if (target < 0 || target >= rules.size) return // already at the top/bottom
+        val cur = rules[idx]
+        val neighbor = rules[target]
+        val newPriority = if (direction < 0) neighbor.priority + 1 else neighbor.priority - 1
+        rules[idx] = cur.copy(priority = newPriority)
+        resortAndSelect(cur.id)
     }
 
     /**
@@ -291,7 +317,10 @@ internal class ColorRulesEditor(private val project: Project?) {
             maxWidth = JBUI.scale(80)
             cellRenderer = CenterAlignedRenderer()
         }
-        cm.getColumn(COL_NAME).preferredWidth = JBUI.scale(220)
+        cm.getColumn(COL_NAME).apply {
+            preferredWidth = JBUI.scale(220)
+            cellRenderer = NoFocusRenderer()
+        }
         cm.getColumn(COL_COLOR).apply {
             preferredWidth = JBUI.scale(50)
             maxWidth = JBUI.scale(60)
@@ -307,12 +336,20 @@ internal class ColorRulesEditor(private val project: Project?) {
             maxWidth = JBUI.scale(60)
             cellRenderer = ColorSwatchCellRenderer()
         }
-        cm.getColumn(COL_MATCHERS).preferredWidth = JBUI.scale(300)
+        cm.getColumn(COL_ICON).apply {
+            preferredWidth = JBUI.scale(50)
+            maxWidth = JBUI.scale(60)
+            cellRenderer = IconCellRenderer()
+        }
+        cm.getColumn(COL_MATCHERS).apply {
+            preferredWidth = JBUI.scale(300)
+            cellRenderer = NoFocusRenderer()
+        }
     }
 
     private inner class RulesTableModel : AbstractTableModel() {
         override fun getRowCount(): Int = rules.size
-        override fun getColumnCount(): Int = 7
+        override fun getColumnCount(): Int = 8
         override fun getColumnName(column: Int): String = when (column) {
             COL_ACTIVE -> "On"
             COL_PRIORITY -> "Prio"
@@ -320,6 +357,7 @@ internal class ColorRulesEditor(private val project: Project?) {
             COL_COLOR -> "Fg"
             COL_BG -> "Bg"
             COL_DOT -> "Dot"
+            COL_ICON -> "Icon"
             COL_MATCHERS -> "Matchers"
             else -> ""
         }
@@ -339,6 +377,7 @@ internal class ColorRulesEditor(private val project: Project?) {
                 COL_COLOR -> r.style.fontColor
                 COL_BG -> r.style.backgroundColor
                 COL_DOT -> r.style.iconDotColor
+                COL_ICON -> r.style.iconId
                 COL_MATCHERS -> summarizeMatchers(r)
                 else -> ""
             }
@@ -365,8 +404,32 @@ internal class ColorRulesEditor(private val project: Project?) {
         }
     }
 
-    private class CenterAlignedRenderer : DefaultTableCellRenderer() {
-        init { horizontalAlignment = CENTER
+    /**
+     * Base text renderer that drops the per-cell focus rectangle: with whole-row selection
+     * the focused-cell border otherwise reads as a single selected cell rather than a row.
+     */
+    private open class NoFocusRenderer : DefaultTableCellRenderer() {
+        override fun getTableCellRendererComponent(
+            table: JTable?, value: Any?, isSelected: Boolean, hasFocus: Boolean, row: Int, column: Int,
+        ): Component = super.getTableCellRendererComponent(table, value, isSelected, false, row, column)
+    }
+
+    private class CenterAlignedRenderer : NoFocusRenderer() {
+        init { horizontalAlignment = CENTER }
+    }
+
+    /** Renders a rule's chosen override icon (centered), or nothing when no icon is set. */
+    private class IconCellRenderer : NoFocusRenderer() {
+        init { horizontalAlignment = CENTER }
+        override fun getTableCellRendererComponent(
+            table: JTable?, value: Any?, isSelected: Boolean, hasFocus: Boolean, row: Int, column: Int,
+        ): Component {
+            val c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column)
+            val id = value as? String ?: ""
+            text = ""
+            icon = RuleIcons.resolve(id)
+            toolTipText = if (id.isEmpty()) null else RuleIcons.label(id)
+            return c
         }
     }
 
@@ -384,7 +447,8 @@ internal class ColorRulesEditor(private val project: Project?) {
         private const val COL_COLOR = 3
         private const val COL_BG = 4
         private const val COL_DOT = 5
-        private const val COL_MATCHERS = 6
+        private const val COL_ICON = 6
+        private const val COL_MATCHERS = 7
 
         private fun summarizeMatchers(rule: ColorRule): String {
             if (rule.matchers.isEmpty()) return "(none)"

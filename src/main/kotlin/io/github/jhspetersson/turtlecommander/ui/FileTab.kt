@@ -1810,23 +1810,18 @@ fun fileEntryIcon(
     val overrideIcon = if (enableFileNameHighlighting && !entry.isParentLink) {
         RuleIcons.resolve(resolved.iconId)
     } else null
-    val base = when {
+    var base: Icon = when {
         entry.isParentLink -> AllIcons.Nodes.UpLevel
-        overrideIcon != null -> {
-            // Keep the directory dot working on top of a chosen icon when both are set.
-            val dot = if (entry.isDirectory) resolved.iconDotJBColor() else null
-            if (dot != null) DirectoryIcons.iconWithDot(overrideIcon, dot) else overrideIcon
-        }
-        entry.isDirectory -> {
-            if (!enableFileNameHighlighting) AllIcons.Nodes.Folder
-            else {
-                val dot = resolved.iconDotJBColor()
-                if (dot != null) DirectoryIcons.folderIconWithDot(dot) else AllIcons.Nodes.Folder
-            }
-        }
+        overrideIcon != null -> overrideIcon
+        entry.isDirectory -> AllIcons.Nodes.Folder
         isArchiveFile(entry) -> AllIcons.FileTypes.Archive
         else -> FileTypeManager.getInstance().getFileTypeByFileName(entry.name).icon
             ?: AllIcons.FileTypes.Any_type
+    }
+    // Overlay the rule's colored dot on whatever icon was chosen — file or folder alike. The
+    // ".." parent link is exempt; it never carries rule styling.
+    if (enableFileNameHighlighting && !entry.isParentLink) {
+        resolved.iconDotJBColor()?.let { base = DirectoryIcons.iconWithDot(base, it) }
     }
     // Badge symbolic links with the platform's link-arrow overlay so they read as links in
     // every view. Color (the valid/broken default rules) conveys whether the target resolves.

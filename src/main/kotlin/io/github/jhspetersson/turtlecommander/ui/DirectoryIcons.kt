@@ -1,6 +1,5 @@
 package io.github.jhspetersson.turtlecommander.ui
 
-import com.intellij.icons.AllIcons
 import com.intellij.ui.scale.JBUIScale
 import java.awt.Color
 import java.awt.Component
@@ -12,12 +11,10 @@ import javax.swing.Icon
 object DirectoryIcons {
 
     /**
-     * Builds a folder icon overlaid with a dot of the given color. The dot color is
-     * supplied by the colorization rule engine — see [io.github.jhspetersson.turtlecommander.settings.ColorRule].
+     * Overlays a dot of the given color on the [base] icon (any file-type, folder, or
+     * rule-chosen override icon). The dot color is supplied by the colorization rule engine —
+     * see [io.github.jhspetersson.turtlecommander.settings.ColorRule].
      */
-    fun folderIconWithDot(color: Color): Icon = DotOverlayIcon(AllIcons.Nodes.Folder, color)
-
-    /** Overlays the rule dot on an arbitrary [base] icon (e.g. a rule-chosen override icon). */
     fun iconWithDot(base: Icon, color: Color): Icon = DotOverlayIcon(base, color)
 }
 

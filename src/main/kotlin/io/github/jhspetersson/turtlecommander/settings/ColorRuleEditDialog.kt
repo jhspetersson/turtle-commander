@@ -213,9 +213,9 @@ internal class ColorRuleEditDialog(
     }
 
     private fun wireLivePreview() {
-        fontColorButton.addActionListener { refreshPreview() }
-        bgColorButton.addActionListener { refreshPreview() }
-        dotColorButton.addActionListener { refreshPreview() }
+        fontColorButton.onChange = { refreshPreview() }
+        bgColorButton.onChange = { refreshPreview() }
+        dotColorButton.onChange = { refreshPreview() }
         iconPickerButton.onChange = { refreshPreview() }
         fontStyleCombo.addActionListener { refreshPreview() }
         fontSizeSpinner.addChangeListener { refreshPreview() }
@@ -398,7 +398,8 @@ internal class ColorSwatchCellRenderer : DefaultTableCellRenderer() {
     override fun getTableCellRendererComponent(
         table: JTable?, value: Any?, isSelected: Boolean, hasFocus: Boolean, row: Int, column: Int,
     ): Component {
-        val c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column)
+        // Ignore focus so the whole selected row renders uniformly (no single-cell border).
+        val c = super.getTableCellRendererComponent(table, value, isSelected, false, row, column)
         text = ""
         icon = when (value) {
             is Color -> ColorSwatchIcon(value)

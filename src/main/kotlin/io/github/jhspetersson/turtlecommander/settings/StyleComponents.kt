@@ -3,6 +3,9 @@ package io.github.jhspetersson.turtlecommander.settings
 import com.intellij.ui.ColorChooserService
 import com.intellij.ui.JBColor
 import com.intellij.openapi.ui.ComboBox
+import com.intellij.openapi.ui.popup.JBPopupFactory
+import com.intellij.openapi.ui.popup.PopupStep
+import com.intellij.openapi.ui.popup.util.BaseListPopupStep
 import io.github.jhspetersson.turtlecommander.ui.FAVORITE_PRESET_COLORS
 import java.awt.*
 import javax.swing.*
@@ -87,38 +90,44 @@ internal class ComponentStyleEditor(
     }
 }
 
+/**
+ * Shows an IntelliJ-style [JBPopupFactory] list popup of preset colors (each with a swatch) plus a
+ * "Custom..." entry that opens the platform color chooser, so every color picker in settings looks
+ * like the icon picker. [onPick] receives the chosen color, or null for the "None" preset.
+ */
+internal fun showColorPopup(anchor: JComponent, title: String, current: Color?, onPick: (Color?) -> Unit) {
+    val presets = FAVORITE_PRESET_COLORS.entries.toList()
+    val items: List<Map.Entry<String, String>?> = presets + listOf(null) // null = "Custom..."
+    val step = object : BaseListPopupStep<Map.Entry<String, String>?>(title, items) {
+        override fun getTextFor(value: Map.Entry<String, String>?): String = value?.key ?: "Custom..."
+        override fun getIconFor(value: Map.Entry<String, String>?): Icon? {
+            val hex = value?.value
+            return if (hex.isNullOrEmpty()) null else runCatching { ColorSwatchIcon(Color.decode(hex)) }.getOrNull()
+        }
+        override fun isSpeedSearchEnabled(): Boolean = true
+        override fun onChosen(selectedValue: Map.Entry<String, String>?, finalChoice: Boolean): PopupStep<*>? {
+            if (selectedValue == null) {
+                return doFinalStep {
+                    val chosen = ColorChooserService.getInstance()
+                        .showDialog(anchor, title, current ?: JBColor.GRAY, true, emptyList(), true)
+                    if (chosen != null) onPick(chosen)
+                }
+            }
+            val hex = selectedValue.value
+            return doFinalStep { onPick(if (hex.isEmpty()) null else Color.decode(hex)) }
+        }
+    }
+    JBPopupFactory.getInstance().createListPopup(step).showUnderneathOf(anchor)
+}
+
 internal class ColorPickerButton(text: String) : JButton(text) {
     private var selectedColor: Color? = null
+    var onChange: (() -> Unit)? = null
 
     init {
         preferredSize = Dimension(28, 28)
         isFocusable = false
-        addActionListener {
-            val popup = JPopupMenu()
-            val presets = FAVORITE_PRESET_COLORS
-            for ((name, hex) in presets) {
-                val item = JMenuItem(name)
-                if (hex.isNotEmpty()) {
-                    item.icon = ColorSwatchIcon(Color.decode(hex))
-                }
-                item.addActionListener {
-                    setColor(if (hex.isEmpty()) null else Color.decode(hex))
-                }
-                popup.add(item)
-            }
-            popup.addSeparator()
-            val customItem = JMenuItem("Custom...")
-            customItem.addActionListener {
-                val chosen = ColorChooserService.getInstance().showDialog(
-                    this, "Choose Color", selectedColor ?: JBColor.GRAY, true, emptyList(), true
-                )
-                if (chosen != null) {
-                    setColor(chosen)
-                }
-            }
-            popup.add(customItem)
-            popup.show(this, 0, height)
-        }
+        addActionListener { showColorPopup(this, "Choose Color", selectedColor) { setColor(it) } }
     }
 
     fun setColor(color: Color?) {
@@ -126,6 +135,7 @@ internal class ColorPickerButton(text: String) : JButton(text) {
         icon = if (color != null) ColorSwatchIcon(color) else null
         text = if (color != null) "" else "..."
         toolTipText = if (color != null) String.format("#%02X%02X%02X", color.red, color.green, color.blue) else "Default"
+        onChange?.invoke()
     }
 
     fun getColorHex(): String {
@@ -135,9 +145,10 @@ internal class ColorPickerButton(text: String) : JButton(text) {
 }
 
 /**
- * Picks a [RuleIcons] override icon. Mirrors [ColorPickerButton]: a compact button that
- * opens a popup ("None" plus one submenu per icon category). [onChange] fires after every
- * selection so the rule editor can refresh its live preview.
+ * Picks a [RuleIcons] override icon. Opens a platform [com.intellij.openapi.ui.popup.JBPopup]
+ * list popup with type-to-filter speed search and a category separator above each group; the
+ * first row ("None") clears the override. [onChange] fires after every selection so the rule
+ * editor can refresh its live preview.
  */
 internal class IconPickerButton : JButton("...") {
     private var iconId: String = ""
@@ -150,21 +161,25 @@ internal class IconPickerButton : JButton("...") {
     }
 
     private fun showPopup() {
-        val popup = JPopupMenu()
-        val none = JMenuItem("None")
-        none.addActionListener { setIconId("") }
-        popup.add(none)
-        popup.addSeparator()
-        for ((category, entries) in RuleIcons.ENTRIES.groupBy { it.category }) {
-            val sub = JMenu(category)
-            for (e in entries) {
-                val item = JMenuItem(e.label, e.icon)
-                item.addActionListener { setIconId(e.key) }
-                sub.add(item)
+        val entriesByCategory = RuleIcons.ENTRIES.groupBy { it.category } // insertion-ordered
+        // Top level: "None" (null) followed by each category, which opens a submenu.
+        val topItems: List<String?> = listOf(null) + entriesByCategory.keys
+        val top = object : BaseListPopupStep<String?>("Choose Icon", topItems) {
+            override fun getTextFor(value: String?): String = value ?: "None"
+            override fun hasSubstep(selectedValue: String?): Boolean = selectedValue != null
+            override fun onChosen(selectedValue: String?, finalChoice: Boolean): PopupStep<*>? {
+                if (selectedValue == null) return doFinalStep { setIconId("") }
+                val entries = entriesByCategory[selectedValue].orEmpty()
+                return object : BaseListPopupStep<RuleIcons.Entry>(selectedValue, entries) {
+                    override fun getTextFor(value: RuleIcons.Entry): String = value.label
+                    override fun getIconFor(value: RuleIcons.Entry): Icon = value.icon
+                    override fun isSpeedSearchEnabled(): Boolean = true
+                    override fun onChosen(value: RuleIcons.Entry, finalChoice: Boolean): PopupStep<*>? =
+                        doFinalStep { setIconId(value.key) }
+                }
             }
-            popup.add(sub)
         }
-        popup.show(this, 0, height)
+        JBPopupFactory.getInstance().createListPopup(top).showUnderneathOf(this)
     }
 
     fun setIconId(id: String) {
