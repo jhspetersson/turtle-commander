@@ -15,6 +15,7 @@
 ### Fixed
 
 - Command bar styling bug
+- Breadcrumbs width is now calculated more accurately
 
 ## [0.6.11] - 2026-06-19
 
