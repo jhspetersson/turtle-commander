@@ -384,6 +384,11 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
                 btn.button.text = if (key.isNotEmpty()) "$key ${btn.label}" else btn.label
                 bar.add(btn.button)
             }
+            // Re-apply the theme to the buttons now on the bar. Modifier rows are detached
+            // between key presses, so a settings change only restyles the attached set — the
+            // freshly-shown row would otherwise appear with stale (default) styling.
+            val styles = TurtleCommanderSettings.getInstance().state.styles
+            applyCommandBarStyle(bar, styles.commandBarStyle, styles.commandButtonStyle)
             bar.revalidate()
             bar.repaint()
         }

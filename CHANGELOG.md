@@ -12,6 +12,10 @@
 
 - Improved colorization rules UI
 
+### Fixed
+
+- Command bar styling bug
+
 ## [0.6.11] - 2026-06-19
 
 ### Added
