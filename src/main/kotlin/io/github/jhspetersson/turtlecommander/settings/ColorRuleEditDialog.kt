@@ -68,6 +68,11 @@ internal class ColorRuleEditDialog(
         }
         columnModel.getColumn(0).apply { preferredWidth = JBUI.scale(120); cellRenderer = noFocusRenderer }
         columnModel.getColumn(1).apply { preferredWidth = JBUI.scale(420); cellRenderer = noFocusRenderer }
+        addMouseListener(object : java.awt.event.MouseAdapter() {
+            override fun mousePressed(e: java.awt.event.MouseEvent) {
+                if (e.clickCount == 2 && rowAtPoint(e.point) >= 0) editSelectedMatcher()
+            }
+        })
     }
 
     // Styling

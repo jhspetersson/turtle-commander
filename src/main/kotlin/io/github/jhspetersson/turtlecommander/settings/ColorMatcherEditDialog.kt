@@ -13,6 +13,8 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeParseException
 import javax.swing.*
+import javax.swing.event.PopupMenuEvent
+import javax.swing.event.PopupMenuListener
 
 /**
  * Edit a single [RuleMatcher]. The kind switcher flips between card-layout forms
@@ -139,7 +141,37 @@ internal class ColorMatcherEditDialog(
         kindCombo.addActionListener { showSelectedCard() }
         sizeOpCombo.addActionListener { updateSizeVisibility() }
         dateOpCombo.addActionListener { updateDateVisibility() }
+
+        // After the user picks a matching operator from a dropdown, jump straight to its value field.
+        sizeOpCombo.focusNextOnSelect { sizeValueSpinner.editorField() }
+        dateOpCombo.focusNextOnSelect {
+            when {
+                dateValueField.isVisible -> dateValueField
+                dateAmountSpinner.isVisible -> dateAmountSpinner.editorField()
+                else -> null
+            }
+        }
+        nameKindCombo.focusNextOnSelect { namePatternField }
+        containsKindCombo.focusNextOnSelect { containsPatternField }
+        textKindCombo.focusNextOnSelect { textPatternField }
+
         init()
+    }
+
+    override fun getPreferredFocusedComponent(): JComponent = primaryInput()
+
+    /** The editable value field of the currently selected card, so focus lands on input, not the kind combo. */
+    private fun primaryInput(): JComponent = when (kindCombo.selectedItem as Kind) {
+        Kind.SIZE -> sizeValueSpinner.editorField()
+        Kind.NAME -> namePatternField
+        Kind.CONTAINS -> containsPatternField
+        Kind.OWNER, Kind.GROUP, Kind.PERMISSIONS -> textPatternField
+        Kind.CREATED, Kind.MODIFIED -> when {
+            dateValueField.isVisible -> dateValueField
+            dateAmountSpinner.isVisible -> dateAmountSpinner.editorField()
+            else -> dateOpCombo
+        }
+        Kind.SYMLINK -> symlinkStateCombo
     }
 
     override fun createCenterPanel(): JComponent {
@@ -519,6 +551,29 @@ internal class ColorMatcherEditDialog(
             caseSensitive = textCaseCheck.isSelected,
         )
     }
+
+    /**
+     * Moves keyboard focus to [next] after the user selects an item from this combo's popup.
+     * Guarded by a popup-open flag so plain arrow-key navigation (popup closed) doesn't keep
+     * stealing focus on every selection change.
+     */
+    private fun ComboBox<*>.focusNextOnSelect(next: () -> JComponent?) {
+        var fromPopup = false
+        addPopupMenuListener(object : PopupMenuListener {
+            override fun popupMenuWillBecomeVisible(e: PopupMenuEvent?) { fromPopup = true }
+            override fun popupMenuWillBecomeInvisible(e: PopupMenuEvent?) {}
+            override fun popupMenuCanceled(e: PopupMenuEvent?) { fromPopup = false }
+        })
+        addActionListener {
+            if (fromPopup) {
+                fromPopup = false
+                SwingUtilities.invokeLater { next()?.requestFocusInWindow() }
+            }
+        }
+    }
+
+    /** The inner text field of a spinner, so focus lands on the editable value rather than the spinner shell. */
+    private fun JSpinner.editorField(): JComponent = (editor as JSpinner.DefaultEditor).textField
 
     /** Parses `YYYY-MM-DD` from [field], or shows an error on it and returns null. */
     private fun parseIsoDate(field: JBTextField): LocalDate? {
