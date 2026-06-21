@@ -54,10 +54,20 @@ internal class ColorRuleEditDialog(
     private val matcherModel = MatcherTableModel()
     private val matcherTable = JBTable(matcherModel).apply {
         setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
+        // Select whole rows, not individual cells, so the highlight spans the row.
+        rowSelectionAllowed = true
+        columnSelectionAllowed = false
         rowHeight = JBUI.scale(22)
         tableHeader.reorderingAllowed = false
-        columnModel.getColumn(0).preferredWidth = JBUI.scale(120)
-        columnModel.getColumn(1).preferredWidth = JBUI.scale(420)
+        // Drop the per-cell focus rectangle; otherwise the focused cell reads as a
+        // single selected cell rather than the whole selected row.
+        val noFocusRenderer = object : DefaultTableCellRenderer() {
+            override fun getTableCellRendererComponent(
+                table: JTable?, value: Any?, isSelected: Boolean, hasFocus: Boolean, row: Int, column: Int,
+            ): Component = super.getTableCellRendererComponent(table, value, isSelected, false, row, column)
+        }
+        columnModel.getColumn(0).apply { preferredWidth = JBUI.scale(120); cellRenderer = noFocusRenderer }
+        columnModel.getColumn(1).apply { preferredWidth = JBUI.scale(420); cellRenderer = noFocusRenderer }
     }
 
     // Styling
