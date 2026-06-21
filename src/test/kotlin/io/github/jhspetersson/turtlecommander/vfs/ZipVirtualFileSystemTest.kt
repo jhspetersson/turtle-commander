@@ -6,6 +6,8 @@ import io.github.jhspetersson.turtlecommander.service.OverwriteResponse
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
+import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -132,6 +134,31 @@ class ZipVirtualFileSystemTest {
         val entries = vfs.listFiles(vfs.root)
         entries.filter { !it.isParentLink }.forEach {
             assertEquals("", it.permissions)
+        }
+    }
+
+    @Test
+    fun `entry surfaces stored unix mode as permissions`() = runBlocking {
+        val zip = Files.createTempFile("test-perm-", ".zip")
+        try {
+            ZipArchiveOutputStream(Files.newOutputStream(zip)).use { out ->
+                val content = "data".toByteArray()
+                val entry = ZipArchiveEntry("script.sh")
+                entry.unixMode = 0b111_101_101 // 0755 rwxr-xr-x
+                entry.size = content.size.toLong()
+                out.putArchiveEntry(entry)
+                out.write(content)
+                out.closeArchiveEntry()
+            }
+            ZipVirtualFileSystem(zip).use { fs ->
+                val entry = fs.listFiles(fs.root).first { it.name == "script.sh" }
+                assertEquals("rwxr-xr-x", entry.permissions)
+                // ZIP carries no owner/group names.
+                assertEquals("", entry.owner)
+                assertEquals("", entry.group)
+            }
+        } finally {
+            Files.deleteIfExists(zip)
         }
     }
 

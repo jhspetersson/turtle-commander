@@ -53,6 +53,32 @@ class TarVirtualFileSystemTest {
     }
 
     @Test
+    fun `entry surfaces tar mode owner and group as permissions`() = runBlocking {
+        val tar = Files.createTempFile("test-perm-", ".tar")
+        try {
+            TarArchiveOutputStream(Files.newOutputStream(tar)).use { out ->
+                val content = "data".toByteArray()
+                val entry = TarArchiveEntry("script.sh")
+                entry.mode = 0b111_101_101 // 0755 rwxr-xr-x
+                entry.userName = "alice"
+                entry.groupName = "devs"
+                entry.size = content.size.toLong()
+                out.putArchiveEntry(entry)
+                out.write(content)
+                out.closeArchiveEntry()
+            }
+            TarVirtualFileSystem(tar, inputStreamFactory = { Files.newInputStream(it) }).use { fs ->
+                val entry = fs.listFiles(fs.root).first { it.name == "script.sh" }
+                assertEquals("rwxr-xr-x", entry.permissions)
+                assertEquals("alice", entry.owner)
+                assertEquals("devs", entry.group)
+            }
+        } finally {
+            Files.deleteIfExists(tar)
+        }
+    }
+
+    @Test
     fun `isRoot returns true for root`() {
         assertTrue(vfs.isRoot(vfs.root))
     }

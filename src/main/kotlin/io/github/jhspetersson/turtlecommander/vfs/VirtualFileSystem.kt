@@ -40,7 +40,27 @@ interface VirtualFileSystem : Closeable {
      * so opening a 5 GB ISO doesn't pre-extract 5 GB of files into temp.
      */
     fun materialize(path: Path) {}
+
+    /**
+     * Owner / group / permission metadata stored in the archive for the entry at [path], or
+     * null when this VFS carries none (the temp-dir copy's own stat is meaningless — extraction
+     * gives it the host umask, not the archive's recorded mode). Archive implementations that
+     * capture the original metadata (tar, zip) override this so directory listings — and the
+     * colorization rules that match on owner/group/permissions — see the real values.
+     */
+    fun entryMetadata(path: Path): ArchiveEntryMetadata? = null
 }
+
+/**
+ * Owner / group / permission strings recorded inside an archive for one entry. Fields are
+ * empty when the format doesn't carry them (e.g. zip stores a Unix mode but no owner/group
+ * names), so consumers treat empty as "unknown / inherit" rather than a real value.
+ */
+data class ArchiveEntryMetadata(
+    val owner: String = "",
+    val group: String = "",
+    val permissions: String = "",
+)
 
 /**
  * Global registry of currently-open VFS instances, used by consumer sites that hold a
@@ -181,7 +201,10 @@ internal fun parentEntry(path: Path) = FileEntry(
     isParentLink = true,
 )
 
-internal fun readDirectoryEntries(directory: Path): List<FileEntry> {
+internal fun readDirectoryEntries(
+    directory: Path,
+    metadataFor: (Path) -> ArchiveEntryMetadata? = { null },
+): List<FileEntry> {
     val dirs = mutableListOf<FileEntry>()
     val files = mutableListOf<FileEntry>()
 
@@ -189,6 +212,7 @@ internal fun readDirectoryEntries(directory: Path): List<FileEntry> {
         for (entry in stream) {
             try {
                 val attrs = Files.readAttributes(entry, BasicFileAttributes::class.java)
+                val meta = metadataFor(entry)
                 val fileEntry = FileEntry(
                     name = entry.fileName.toString(),
                     path = entry,
@@ -196,7 +220,9 @@ internal fun readDirectoryEntries(directory: Path): List<FileEntry> {
                     size = if (attrs.isDirectory) 0 else attrs.size(),
                     creationTime = attrs.creationTime(),
                     lastModified = attrs.lastModifiedTime(),
-                    permissions = "",
+                    owner = meta?.owner ?: "",
+                    group = meta?.group ?: "",
+                    permissions = meta?.permissions ?: "",
                 )
                 if (attrs.isDirectory) dirs.add(fileEntry) else files.add(fileEntry)
             } catch (e: Exception) {
@@ -463,7 +489,7 @@ abstract class AbstractTempDirVirtualFileSystem(
         } else {
             result.add(parentEntry(archivePath.parent ?: archivePath))
         }
-        result.addAll(readDirectoryEntries(directory))
+        result.addAll(readDirectoryEntries(directory) { entryMetadata(it) })
         result
     }
 

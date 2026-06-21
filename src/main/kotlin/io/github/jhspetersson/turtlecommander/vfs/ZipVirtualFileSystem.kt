@@ -2,6 +2,7 @@ package io.github.jhspetersson.turtlecommander.vfs
 
 import com.intellij.openapi.diagnostic.thisLogger
 import io.github.jhspetersson.turtlecommander.model.FileEntry
+import io.github.jhspetersson.turtlecommander.util.formatPosixMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
@@ -63,6 +64,16 @@ class ZipFileSystemProvider : VirtualFileSystemProvider {
 class ZipVirtualFileSystem(override val archivePath: Path) : VirtualFileSystem {
     private var fileSystem: FileSystem = openZipFs()
 
+    /**
+     * Unix permission strings parsed from the ZIP central directory, keyed by entry name (no
+     * trailing slash). Java's [FileSystem] doesn't expose the stored Unix mode by default, so
+     * we read it once with Commons Compress and cache it; lazily, because most browsing never
+     * touches permissions and a fat JAR's central directory is large. Invalidated whenever the
+     * archive is rewritten ([flush]) or an entry is renamed. ZIP stores no owner/group names,
+     * so only [ArchiveEntryMetadata.permissions] is populated.
+     */
+    private var metadataCache: Map<String, ArchiveEntryMetadata>? = null
+
     override val root: Path get() = fileSystem.getPath("/")
 
     private fun openZipFs(): FileSystem {
@@ -87,9 +98,37 @@ class ZipVirtualFileSystem(override val archivePath: Path) : VirtualFileSystem {
             result.add(parentEntry(archivePath.parent ?: archivePath))
         }
 
-        result.addAll(readDirectoryEntries(directory))
+        result.addAll(readDirectoryEntries(directory) { entryMetadata(it) })
 
         result
+    }
+
+    override fun entryMetadata(path: Path): ArchiveEntryMetadata? {
+        val key = path.toString().trim('/')
+        if (key.isEmpty()) return null
+        return metadata()[key]
+    }
+
+    private fun metadata(): Map<String, ArchiveEntryMetadata> =
+        metadataCache ?: buildMetadata().also { metadataCache = it }
+
+    private fun buildMetadata(): Map<String, ArchiveEntryMetadata> {
+        val map = HashMap<String, ArchiveEntryMetadata>()
+        try {
+            ZipFile.builder().setPath(archivePath).get().use { zip ->
+                val entries = zip.entries
+                while (entries.hasMoreElements()) {
+                    val entry = entries.nextElement()
+                    val mode = entry.unixMode
+                    if (mode == 0) continue // No external Unix attributes (e.g. ZIP written on Windows).
+                    val name = entry.name.trimEnd('/')
+                    if (name.isNotEmpty()) map[name] = ArchiveEntryMetadata(permissions = formatPosixMode(mode))
+                }
+            }
+        } catch (e: Exception) {
+            thisLogger().debug("Failed to read zip permissions for $archivePath: ${e.message}")
+        }
+        return map
     }
 
     override suspend fun renameFile(source: Path, newName: String): Path = withContext(Dispatchers.IO) {
@@ -103,6 +142,7 @@ class ZipVirtualFileSystem(override val archivePath: Path) : VirtualFileSystem {
         }
         val relativePath = if (oldParent == fileSystem.getPath("/")) "" else fileSystem.getPath("/").relativize(oldParent).toString()
         Files.move(source, target)
+        metadataCache = null
         fileSystem.close()
         fileSystem = openZipFs()
         val newParent = if (relativePath.isEmpty()) fileSystem.getPath("/") else fileSystem.getPath(relativePath)
@@ -110,6 +150,7 @@ class ZipVirtualFileSystem(override val archivePath: Path) : VirtualFileSystem {
     }
 
     override fun flush() {
+        metadataCache = null
         fileSystem.close()
         fileSystem = openZipFs()
     }
@@ -163,6 +204,14 @@ class ZipExtractVirtualFileSystem(
     private val pendingEntries = ConcurrentHashMap<Path, PendingEntry>()
 
     /**
+     * Unix permission strings parsed from each ZIP entry's external attributes during
+     * [extract], keyed by relative name in the temp dir. Surfaced in listings (and to
+     * colorization rules) because the extracted stub only carries the host umask. ZIP records
+     * no owner/group names, so only [ArchiveEntryMetadata.permissions] is populated.
+     */
+    private val entryMetadataByName = ConcurrentHashMap<String, ArchiveEntryMetadata>()
+
+    /**
      * Kept open for the VFS lifetime so [materialize] can stream individual entries without
      * re-parsing the central directory on every call. Re-created by [extract] (which runs
      * again on every flush) and closed in [close] — and in [repack], before the archive is
@@ -180,6 +229,7 @@ class ZipExtractVirtualFileSystem(
         // bookkeeping of the previous round first.
         closeReader()
         pendingEntries.clear()
+        entryMetadataByName.clear()
         val zip = ZipFile.builder().setPath(archivePath).get()
         try {
             // Iterating the (already in-memory) central directory twice is cheaper than
@@ -199,6 +249,11 @@ class ZipExtractVirtualFileSystem(
                 index++
                 progress.onEntry(index, total, entry.name)
                 val entryPath = resolveEntryPath(into, entry.name) ?: continue
+                val mode = entry.unixMode
+                if (mode != 0) {
+                    entryMetadataByName[into.relativize(entryPath).toString().replace('\\', '/')] =
+                        ArchiveEntryMetadata(permissions = formatPosixMode(mode))
+                }
                 try {
                     if (entry.isDirectory) {
                         Files.createDirectories(entryPath)
@@ -282,7 +337,13 @@ class ZipExtractVirtualFileSystem(
         pendingEntries.remove(source.normalize())?.let { entry ->
             pendingEntries[target.normalize()] = entry
         }
+        val oldName = tempDir.relativize(source).toString().replace('\\', '/')
+        val newName = tempDir.relativize(target).toString().replace('\\', '/')
+        entryMetadataByName.remove(oldName)?.let { entryMetadataByName[newName] = it }
     }
+
+    override fun entryMetadata(path: Path): ArchiveEntryMetadata? =
+        entryMetadataByName[tempDir.relativize(path).toString().replace('\\', '/')]
 
     /**
      * Materialise every still-pending stub before [repack] overwrites the archive they

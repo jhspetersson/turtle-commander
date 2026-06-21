@@ -1,6 +1,7 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
 import com.intellij.openapi.diagnostic.thisLogger
+import io.github.jhspetersson.turtlecommander.util.formatPosixMode
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
@@ -78,6 +79,14 @@ class TarVirtualFileSystem(
 
     private val pendingEntries = ConcurrentHashMap<Path, PendingEntry>()
 
+    /**
+     * Owner / group / permissions recorded in the tar header for each entry, keyed by the
+     * entry's relative name in the temp dir. Tar carries a full Unix mode plus the owner and
+     * group *names*, so all three are surfaced in listings (and to colorization rules) — the
+     * extracted temp-dir copy itself only has the host umask, which would be meaningless.
+     */
+    private val entryMetadataByName = mutableMapOf<String, ArchiveEntryMetadata>()
+
     init {
         openTempDir()
     }
@@ -86,6 +95,7 @@ class TarVirtualFileSystem(
         val progress = takeOpenProgress()
         unresolvedSymlinks.clear()
         pendingEntries.clear()
+        entryMetadataByName.clear()
         inputStreamFactory(archivePath).use { raw ->
             TarArchiveInputStream(raw).use { tar ->
                 var ordinal = -1
@@ -99,6 +109,11 @@ class TarVirtualFileSystem(
                         entry = tar.nextEntry
                         continue
                     }
+                    entryMetadataByName[normalizeRelativeName(into, entryPath)] = ArchiveEntryMetadata(
+                        owner = entry.userName.orEmpty(),
+                        group = entry.groupName.orEmpty(),
+                        permissions = formatPosixMode(entry.mode),
+                    )
                     try {
                         if (entry.isSymbolicLink) {
                             val linkTarget = entry.linkName
@@ -228,6 +243,11 @@ class TarVirtualFileSystem(
         pendingEntries.remove(source.normalize())?.let { pending ->
             pendingEntries[target.normalize()] = pending
         }
+        // Carry display metadata over to the new name so a renamed entry keeps showing the
+        // archive's recorded owner/group/permissions instead of reverting to blanks.
+        val oldName = normalizeRelativeName(tempDir, source)
+        val newName = normalizeRelativeName(tempDir, target)
+        entryMetadataByName.remove(oldName)?.let { entryMetadataByName[newName] = it }
     }
 
     /**
@@ -309,6 +329,9 @@ class TarVirtualFileSystem(
             }
         }
     }
+
+    override fun entryMetadata(path: Path): ArchiveEntryMetadata? =
+        entryMetadataByName[normalizeRelativeName(tempDir, path)]
 
     private fun normalizeRelativeName(base: Path, path: Path): String =
         base.relativize(path).toString().replace('\\', '/')
