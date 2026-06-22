@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Custom icons for Favorites
+
 ## [0.7.0] - 2026-06-22
 
 ### Added
