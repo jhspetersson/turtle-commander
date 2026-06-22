@@ -160,27 +160,7 @@ internal class IconPickerButton : JButton("...") {
         addActionListener { showPopup() }
     }
 
-    private fun showPopup() {
-        val entriesByCategory = RuleIcons.ENTRIES.groupBy { it.category } // insertion-ordered
-        // Top level: "None" (null) followed by each category, which opens a submenu.
-        val topItems: List<String?> = listOf(null) + entriesByCategory.keys
-        val top = object : BaseListPopupStep<String?>("Choose Icon", topItems) {
-            override fun getTextFor(value: String?): String = value ?: "None"
-            override fun hasSubstep(selectedValue: String?): Boolean = selectedValue != null
-            override fun onChosen(selectedValue: String?, finalChoice: Boolean): PopupStep<*>? {
-                if (selectedValue == null) return doFinalStep { setIconId("") }
-                val entries = entriesByCategory[selectedValue].orEmpty()
-                return object : BaseListPopupStep<RuleIcons.Entry>(selectedValue, entries) {
-                    override fun getTextFor(value: RuleIcons.Entry): String = value.label
-                    override fun getIconFor(value: RuleIcons.Entry): Icon = value.icon
-                    override fun isSpeedSearchEnabled(): Boolean = true
-                    override fun onChosen(value: RuleIcons.Entry, finalChoice: Boolean): PopupStep<*>? =
-                        doFinalStep { setIconId(value.key) }
-                }
-            }
-        }
-        JBPopupFactory.getInstance().createListPopup(top).showUnderneathOf(this)
-    }
+    private fun showPopup() = showIconChooserPopup(this) { setIconId(it) }
 
     fun setIconId(id: String) {
         iconId = id
@@ -192,6 +172,33 @@ internal class IconPickerButton : JButton("...") {
     }
 
     fun getIconId(): String = iconId
+}
+
+/**
+ * Shows the two-level icon chooser ([RuleIcons] categories → entries, with a leading "None")
+ * underneath [anchor] and invokes [onPick] with the chosen [RuleIcons.Entry.key] (empty for
+ * "None"). Shared by the colorization rule editor's [IconPickerButton] and the favorites editor.
+ */
+internal fun showIconChooserPopup(anchor: JComponent, onPick: (String) -> Unit) {
+    val entriesByCategory = RuleIcons.ENTRIES.groupBy { it.category } // insertion-ordered
+    // Top level: "None" (null) followed by each category, which opens a submenu.
+    val topItems: List<String?> = listOf(null) + entriesByCategory.keys
+    val top = object : BaseListPopupStep<String?>("Choose Icon", topItems) {
+        override fun getTextFor(value: String?): String = value ?: "None"
+        override fun hasSubstep(selectedValue: String?): Boolean = selectedValue != null
+        override fun onChosen(selectedValue: String?, finalChoice: Boolean): PopupStep<*>? {
+            if (selectedValue == null) return doFinalStep { onPick("") }
+            val entries = entriesByCategory[selectedValue].orEmpty()
+            return object : BaseListPopupStep<RuleIcons.Entry>(selectedValue, entries) {
+                override fun getTextFor(value: RuleIcons.Entry): String = value.label
+                override fun getIconFor(value: RuleIcons.Entry): Icon = value.icon
+                override fun isSpeedSearchEnabled(): Boolean = true
+                override fun onChosen(value: RuleIcons.Entry, finalChoice: Boolean): PopupStep<*>? =
+                    doFinalStep { onPick(value.key) }
+            }
+        }
+    }
+    JBPopupFactory.getInstance().createListPopup(top).showUnderneathOf(anchor)
 }
 
 internal class ColorSwatchIcon(private val color: Color) : Icon {

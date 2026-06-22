@@ -107,12 +107,17 @@ class FileManagerStateService(
         @Attribute
         var color: String = ""
 
+        /** Stable [io.github.jhspetersson.turtlecommander.settings.RuleIcons] key, or empty for the default folder icon. */
+        @Attribute
+        var icon: String = ""
+
         /** Required by XML deserializer */
         constructor()
 
-        constructor(path: String, color: String = "") {
+        constructor(path: String, color: String = "", icon: String = "") {
             this.path = path
             this.color = color
+            this.icon = icon
         }
     }
 

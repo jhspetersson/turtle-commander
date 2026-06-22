@@ -16,6 +16,7 @@ import io.github.jhspetersson.turtlecommander.action.EdtAction
 import com.intellij.ide.actions.RevealFileAction
 import com.intellij.openapi.ide.CopyPasteManager
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
+import io.github.jhspetersson.turtlecommander.settings.RuleIcons
 import java.awt.Color
 import java.awt.Component
 import java.awt.Graphics
@@ -48,6 +49,7 @@ internal class FavoriteAction(
     val favPath: String,
     index: Int,
     colorHex: String,
+    iconKey: String,
     private val project: Project,
 ) : EdtAction(), CustomComponentAction {
     init {
@@ -56,7 +58,7 @@ internal class FavoriteAction(
         templatePresentation.setText(name, false)
         val shortcut = if (index in 1..9) "<br>Ctrl+$index" else ""
         templatePresentation.description = "<html>$favPath$shortcut</html>"
-        templatePresentation.icon = favoriteIcon(colorHex)
+        templatePresentation.icon = favoriteIcon(colorHex, iconKey)
         templatePresentation.putClientProperty(ActionUtil.SHOW_TEXT_IN_TOOLBAR, true)
     }
 
@@ -152,7 +154,7 @@ internal class FavoriteOverflowAction(
         val popupMenu = JPopupMenu()
         for ((i, entry) in overflowEntries.withIndex()) {
             val name = Path.of(entry.path).fileName?.toString() ?: entry.path
-            val menuItem = JMenuItem(name, favoriteIcon(entry.color))
+            val menuItem = JMenuItem(name, favoriteIcon(entry.color, entry.icon))
             val favIndex = startIndex + i + 1
             val shortcut = if (favIndex in 1..9) "<br>Ctrl+$favIndex" else ""
             menuItem.toolTipText = "<html>${entry.path}$shortcut</html>"
@@ -181,10 +183,15 @@ val FAVORITE_PRESET_COLORS = linkedMapOf(
     "Gray" to "#9E9E9E",
 )
 
-private fun favoriteIcon(colorHex: String): Icon {
-    if (colorHex.isBlank()) return AllIcons.Nodes.Folder
-    val color = try { Color.decode(colorHex) } catch (_: Exception) { return AllIcons.Nodes.Folder }
-    return ColorFolderIcon(color)
+internal fun favoriteIcon(colorHex: String, iconKey: String = ""): Icon {
+    val color = colorHex.takeIf { it.isNotBlank() }?.let { runCatching { Color.decode(it) }.getOrNull() }
+    val customIcon = RuleIcons.resolve(iconKey)
+    return when {
+        // A chosen icon takes over the glyph; the color (if any) becomes a corner dot.
+        customIcon != null -> if (color != null) DirectoryIcons.iconWithDot(customIcon, color) else customIcon
+        color != null -> ColorFolderIcon(color)
+        else -> AllIcons.Nodes.Folder
+    }
 }
 
 private class ColorFolderIcon(private val color: Color) : Icon {

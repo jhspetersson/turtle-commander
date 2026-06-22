@@ -1,6 +1,5 @@
 package io.github.jhspetersson.turtlecommander.settings
 
-import com.intellij.icons.AllIcons
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
@@ -8,6 +7,7 @@ import com.intellij.openapi.project.ProjectManager
 import com.intellij.ui.SimpleColoredComponent
 import com.intellij.ui.components.JBList
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
+import io.github.jhspetersson.turtlecommander.ui.favoriteIcon
 import java.awt.*
 import javax.swing.*
 
@@ -67,8 +67,18 @@ internal class FavoritesEditor {
             if (idx < 0) return@addActionListener
             showColorChooser(listModel.getElementAt(idx), idx, colorButton)
         }
+        val iconButton = JButton("Icon...")
+        iconButton.addActionListener {
+            val idx = list.selectedIndex
+            if (idx < 0) return@addActionListener
+            val entry = listModel.getElementAt(idx)
+            showIconChooserPopup(iconButton) { key ->
+                listModel.set(idx, FileManagerStateService.FavoriteEntry(entry.path, entry.color, key))
+                list.repaint()
+            }
+        }
 
-        val favButtons = listOf(addButton, removeButton, moveUpButton, moveDownButton, colorButton)
+        val favButtons = listOf(addButton, removeButton, moveUpButton, moveDownButton, colorButton, iconButton)
         for (btn in favButtons) {
             btn.maximumSize = Dimension(Int.MAX_VALUE, btn.preferredSize.height)
         }
@@ -82,6 +92,7 @@ internal class FavoritesEditor {
             add(moveDownButton)
             add(Box.createVerticalStrut(8))
             add(colorButton)
+            add(iconButton)
         }
 
         panel = JPanel(BorderLayout(8, 0)).apply {
@@ -102,7 +113,7 @@ internal class FavoritesEditor {
         for (i in 0 until listModel.size()) {
             val m = listModel.getElementAt(i)
             val s = saved[i]
-            if (m.path != s.path || m.color != s.color) return true
+            if (m.path != s.path || m.color != s.color || m.icon != s.icon) return true
         }
         return false
     }
@@ -123,7 +134,7 @@ internal class FavoritesEditor {
         val currentProject = ProjectManager.getInstance().openProjects.firstOrNull() ?: return
         val stateService = currentProject.service<FileManagerStateService>()
         stateService.getFavoriteEntries().forEach {
-            listModel.addElement(FileManagerStateService.FavoriteEntry(it.path, it.color))
+            listModel.addElement(FileManagerStateService.FavoriteEntry(it.path, it.color, it.icon))
         }
     }
 
@@ -131,7 +142,7 @@ internal class FavoritesEditor {
         val current = entry.color.takeIf { it.isNotBlank() }?.let { runCatching { Color.decode(it) }.getOrNull() }
         showColorPopup(anchor, "Choose Favorite Color", current) { picked ->
             val hex = if (picked == null) "" else String.format("#%02X%02X%02X", picked.red, picked.green, picked.blue)
-            listModel.set(idx, FileManagerStateService.FavoriteEntry(entry.path, hex))
+            listModel.set(idx, FileManagerStateService.FavoriteEntry(entry.path, hex, entry.icon))
             list.repaint()
         }
     }
@@ -152,12 +163,7 @@ private class FavoriteListCellRenderer : ListCellRenderer<FileManagerStateServic
         delegate.foreground = if (isSelected) list.selectionForeground else list.foreground
         delegate.isOpaque = true
         if (value != null) {
-            val icon = if (value.color.isNotBlank()) {
-                try { ColorSwatchIcon(Color.decode(value.color)) } catch (_: Exception) { AllIcons.Nodes.Folder }
-            } else {
-                AllIcons.Nodes.Folder
-            }
-            delegate.icon = icon
+            delegate.icon = favoriteIcon(value.color, value.icon)
             delegate.append(value.path)
         }
         return delegate

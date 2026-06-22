@@ -162,7 +162,7 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
             val overflowEntries = entries.drop(maxVisible)
 
             for ((index, entry) in visibleEntries.withIndex()) {
-                titleActions.add(FavoriteAction(entry.path, index + 1, entry.color, project))
+                titleActions.add(FavoriteAction(entry.path, index + 1, entry.color, entry.icon, project))
                 titleActions.add(RemoveFavoriteAction(entry.path, project))
             }
 

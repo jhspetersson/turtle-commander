@@ -50,6 +50,17 @@ class StateAndFavoritesIntegrationTest : BasePlatformTestCase() {
         assertEquals("#FF0000", entry!!.color)
     }
 
+    fun testFavoriteEntryRetainsCustomIcon() {
+        stateService.setFavoriteEntries(
+            listOf(FileManagerStateService.FavoriteEntry("/iconed/path", "#00FF00", "star")),
+        )
+
+        val entry = stateService.getFavoriteEntries().find { it.path == "/iconed/path" }
+        assertNotNull("Should find favorite entry", entry)
+        assertEquals("#00FF00", entry!!.color)
+        assertEquals("star", entry.icon)
+    }
+
     fun testRemoveFavorite() {
         stateService.setFavoriteEntries(emptyList())
         stateService.addFavorite("/to/remove")
