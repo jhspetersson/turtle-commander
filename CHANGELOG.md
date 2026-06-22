@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-22
+
 ### Added
 
 - Ability to replace file/directory icons depending on the matching rules
