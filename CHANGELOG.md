@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Rename files/directories with one click
+
 ## [0.7.1] - 2026-06-23
 
 ### Added

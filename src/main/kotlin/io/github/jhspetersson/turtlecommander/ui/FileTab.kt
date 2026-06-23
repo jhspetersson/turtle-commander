@@ -134,6 +134,14 @@ class FileTab(
     internal var enableFileNameHighlighting = TurtleCommanderSettings.getInstance().state.enableFileNameHighlighting
     private var nameEditor: DefaultCellEditor? = null
 
+    // Explorer-style "click the name of the already-selected item to rename": a click only
+    // arms a row once it is the sole selection; the *next* single click on that same name
+    // starts the rename. [renameArmedRow] is the armed view row (-1 = none) and is cleared
+    // whenever the selection changes. [renameClickTimer] defers the rename by the double-click
+    // interval so a double-click (which opens) cancels it instead.
+    private var renameArmedRow = -1
+    private var renameClickTimer: Timer? = null
+
     var currentPath: Path = initialPath
         private set
 
@@ -602,11 +610,17 @@ class FileTab(
             addMouseListener(object : MouseAdapter() {
                 override fun mouseClicked(e: MouseEvent) {
                     if (e.clickCount == 2) {
+                        // A double-click opens; cancel any rename armed by its first click.
+                        renameClickTimer?.stop()
                         openSelectedEntry()
+                        return
                     }
+                    if (e.clickCount == 1) maybeArmOrStartRename(e)
                 }
 
                 override fun mousePressed(e: MouseEvent) {
+                    // Any new gesture cancels a pending click-to-rename.
+                    renameClickTimer?.stop()
                     handleTableContextMenu(e)
                 }
 
@@ -631,9 +645,55 @@ class FileTab(
                 if (!insideToggle && !insideRestore && !insideViewSwitch && markedPaths.isNotEmpty()) {
                     restoreTableMarks()
                 }
+                // A selection change means this click (re)selected a row rather than landing on an
+                // already-selected one, so disarm click-to-rename and drop any pending rename.
+                renameArmedRow = -1
+                renameClickTimer?.stop()
                 updateStatusBar()
             }
         }
+    }
+
+    /**
+     * Single-click-to-rename: a click only *arms* the row it leaves as the sole selection; the
+     * next single left-click on that same already-selected name starts an inline rename. The
+     * rename is deferred by the system double-click interval so a double-click (which opens the
+     * entry) cancels it, and any selection change or new mouse gesture disarms it.
+     */
+    private fun maybeArmOrStartRename(e: MouseEvent) {
+        if (!SwingUtilities.isLeftMouseButton(e)) return
+        // Ctrl/Shift/Alt/Meta clicks are multi-select gestures, not rename intents.
+        val modifierMask = InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK or
+            InputEvent.ALT_DOWN_MASK or InputEvent.META_DOWN_MASK
+        if (e.modifiersEx and modifierMask != 0) return
+
+        val row = table.rowAtPoint(e.point)
+        val col = table.columnAtPoint(e.point)
+        val onNameCell = row >= 0 && col >= 0 &&
+            table.convertColumnIndexToModel(col) == FileTableModel.COL_NAME
+        val soleSelection = table.selectedRowCount == 1 && table.selectedRow == row
+
+        if (onNameCell && soleSelection && row == renameArmedRow && canRenameRow(row)) {
+            renameClickTimer?.stop()
+            renameClickTimer = Timer(doubleClickInterval()) {
+                // Re-check: the user may have moved on (keyboard nav, another click, a view
+                // switch) during the deferral window.
+                if (viewMode == ViewMode.TABLE && table.selectedRowCount == 1 && table.selectedRow == row) {
+                    startRename()
+                }
+            }.apply { isRepeats = false; start() }
+        }
+        renameArmedRow = if (soleSelection) row else -1
+    }
+
+    private fun canRenameRow(viewRow: Int): Boolean {
+        val entry = tableModel.getEntryAt(table.convertRowIndexToModel(viewRow)) ?: return false
+        return !entry.isParentLink
+    }
+
+    private fun doubleClickInterval(): Int {
+        val v = Toolkit.getDefaultToolkit().getDesktopProperty("awt.multiClickInterval") as? Int
+        return (v ?: 400).coerceIn(200, 800)
     }
 
     private fun setupList() {
@@ -1545,6 +1605,7 @@ class FileTab(
     }
 
     override fun dispose() {
+        renameClickTimer?.stop()
         stopDriveUpdates()
         closeVfsStack()
     }
