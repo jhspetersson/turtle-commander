@@ -1080,7 +1080,7 @@ class FileTab(
         updateStatusBar()
     }
 
-    private fun moveSelection(offset: Int) {
+    internal fun moveSelection(offset: Int) {
         when (viewMode) {
             ViewMode.TABLE -> {
                 val current = table.selectedRow

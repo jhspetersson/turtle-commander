@@ -127,6 +127,12 @@
                     description="Switch focus between left and right panels">
                 <keyboard-shortcut first-keystroke="TAB" keymap="$default"/>
             </action>
+            <action id="TurtleCommander.ExecuteCommand"
+                    class="io.github.jhspetersson.turtlecommander.action.ExecuteCommandAction"
+                    text="Execute Command"
+                    description="Show the command line below the panels to run a shell command in the active panel's directory">
+                <keyboard-shortcut first-keystroke="ctrl E" keymap="$default"/>
+            </action>
             <action id="TurtleCommander.GoToFirst"
                     class="io.github.jhspetersson.turtlecommander.action.GoToFirstAction"
                     text="Go to First"

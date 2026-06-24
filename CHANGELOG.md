@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Command line (`Ctrl+E`) to run a shell command in the active panel's directory
+
 ## [0.7.2] - 2026-06-24
 
 ### Added

@@ -12,6 +12,7 @@ import com.intellij.util.xmlb.annotations.Tag
 import com.intellij.util.xmlb.annotations.XCollection
 import io.github.jhspetersson.turtlecommander.settings.PanelLayout
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
+import io.github.jhspetersson.turtlecommander.ui.CommandInputBar
 import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
 import io.github.jhspetersson.turtlecommander.ui.FileTab
 
@@ -36,6 +37,7 @@ class FileManagerStateService(
         private set
     private var splitter: OnePixelSplitter? = null
     private var swapSinglePanelCallback: (() -> Unit)? = null
+    private var commandInputBar: CommandInputBar? = null
 
     fun registerPanels(left: FileManagerPanel, right: FileManagerPanel, split: OnePixelSplitter?) {
         leftPanel = left
@@ -49,6 +51,15 @@ class FileManagerStateService(
 
     fun setSwapSinglePanelCallback(cb: (() -> Unit)?) {
         swapSinglePanelCallback = cb
+    }
+
+    fun registerCommandInputBar(bar: CommandInputBar) {
+        commandInputBar = bar
+    }
+
+    /** Show the bottom command line, targeting whichever panel is currently active. */
+    fun activateCommandInput() {
+        commandInputBar?.activate(getActivePanel())
     }
 
     override fun getState(): FileManagerState {
@@ -242,6 +253,12 @@ class FileManagerStateService(
     }
 
     fun switchToOtherPanel() {
+        commandInputBar?.let {
+            if (it.hasFieldFocus()) {
+                it.switchTargetPanel()
+                return
+            }
+        }
         val left = leftPanel ?: return
         val right = rightPanel ?: return
         val currentlyLeft = left.hasFocusInPanel()

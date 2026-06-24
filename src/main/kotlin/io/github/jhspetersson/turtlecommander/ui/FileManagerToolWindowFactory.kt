@@ -109,9 +109,16 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
         val bottomBar = createBottomBar(leftPanel, rightPanel, toolWindow)
         bottomBar.isVisible = settings.state.showCommandBar
 
+        val commandInputBar = CommandInputBar(project, leftPanel, rightPanel)
+        stateService.registerCommandInputBar(commandInputBar)
+
+        val southPanel = JPanel(BorderLayout()).apply {
+            add(commandInputBar, BorderLayout.NORTH)
+            add(bottomBar, BorderLayout.SOUTH)
+        }
         val contentPanel = JPanel(BorderLayout()).apply {
             add(layoutHost, BorderLayout.CENTER)
-            add(bottomBar, BorderLayout.SOUTH)
+            add(southPanel, BorderLayout.SOUTH)
         }
         val content = ContentFactory.getInstance().createContent(contentPanel, null, false)
         toolWindow.contentManager.addContent(content)
@@ -245,6 +252,7 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
             "TurtleCommander.CreateLink",
             "TurtleCommander.DeleteFiles",
             "TurtleCommander.SwitchPanel",
+            "TurtleCommander.ExecuteCommand",
             "TurtleCommander.GoToFirst",
             "TurtleCommander.GoToLast",
             "TurtleCommander.Refresh",

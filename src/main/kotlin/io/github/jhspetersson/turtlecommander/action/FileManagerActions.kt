@@ -142,6 +142,17 @@ class SwitchPanelAction : EdtAction() {
     }
 }
 
+class ExecuteCommandAction : EdtAction() {
+    override fun update(e: AnActionEvent) {
+        e.presentation.isEnabled = isToolWindowActive(e)
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project ?: return
+        project.service<FileManagerStateService>().activateCommandInput()
+    }
+}
+
 class GoToFirstAction : FileManagerAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val tab = findActiveTab(e) ?: return
