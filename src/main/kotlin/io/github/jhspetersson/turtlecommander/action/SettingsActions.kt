@@ -10,6 +10,7 @@ import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.options.SearchableConfigurable
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.DumbAware
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.util.IconLoader
 import com.intellij.ui.treeStructure.Tree
@@ -159,7 +160,7 @@ class UserManualAction : AnAction(), DumbAware {
     }
 }
 
-private class AboutDialog(project: com.intellij.openapi.project.Project?) : DialogWrapper(project, false) {
+private class AboutDialog(project: Project?) : DialogWrapper(project, false) {
     init {
         title = "About Turtle Commander"
         setOKButtonText("Close")
@@ -169,7 +170,6 @@ private class AboutDialog(project: com.intellij.openapi.project.Project?) : Dial
     override fun createCenterPanel(): JComponent {
         val plugin = (AboutDialog::class.java.classLoader as? PluginAwareClassLoader)?.pluginDescriptor as? IdeaPluginDescriptor
         val version = plugin?.version ?: "unknown"
-        val vendor = plugin?.vendorEmail ?: ""
 
         val panel = JPanel(BorderLayout(JBUI.scale(12), 0))
         panel.border = JBUI.Borders.empty(10)
@@ -193,13 +193,6 @@ private class AboutDialog(project: com.intellij.openapi.project.Project?) : Dial
         val versionLabel = JLabel("Version: $version")
         versionLabel.alignmentX = Component.LEFT_ALIGNMENT
         infoPanel.add(versionLabel)
-
-        if (vendor.isNotEmpty()) {
-            infoPanel.add(Box.createVerticalStrut(JBUI.scale(4)))
-            val vendorLabel = JLabel("Author: $vendor")
-            vendorLabel.alignmentX = Component.LEFT_ALIGNMENT
-            infoPanel.add(vendorLabel)
-        }
 
         infoPanel.add(Box.createVerticalStrut(JBUI.scale(8)))
 
