@@ -4,7 +4,9 @@
 
 ## [Unreleased]
 
-### Changed
+## [0.7.2] - 2026-06-24
+
+### Added
 
 - Rename files/directories with one click
 
