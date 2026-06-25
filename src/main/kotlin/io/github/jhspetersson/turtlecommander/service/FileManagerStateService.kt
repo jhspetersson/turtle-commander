@@ -62,6 +62,20 @@ class FileManagerStateService(
         commandInputBar?.activate(getActivePanel())
     }
 
+    /** Command-line history, oldest first. */
+    fun getCommandHistory(): List<String> = myState.commandHistory.toList()
+
+    /** Record [command] as the most recent entry, de-duplicating and capping the history size. */
+    fun addCommandToHistory(command: String) {
+        val trimmed = command.trim()
+        if (trimmed.isEmpty()) return
+        myState.commandHistory.remove(trimmed)
+        myState.commandHistory.add(trimmed)
+        while (myState.commandHistory.size > MAX_COMMAND_HISTORY) {
+            myState.commandHistory.removeAt(0)
+        }
+    }
+
     override fun getState(): FileManagerState {
         leftPanel?.let { myState.leftPanel = it.saveState() }
         rightPanel?.let { myState.rightPanel = it.saveState() }
@@ -108,6 +122,10 @@ class FileManagerStateService(
 
         @XCollection
         var favoriteEntries: MutableList<FavoriteEntry> = mutableListOf()
+
+        /** Most-recent-last history of commands run from the command line (`Ctrl+E`). */
+        @XCollection(elementTypes = [String::class])
+        var commandHistory: MutableList<String> = mutableListOf()
 
     }
 
@@ -250,6 +268,7 @@ class FileManagerStateService(
 
     companion object {
         val FAVORITES_TOPIC = Topic.create("TurtleCommanderFavorites", FavoritesChangeListener::class.java)
+        private const val MAX_COMMAND_HISTORY = 50
     }
 
     fun switchToOtherPanel() {

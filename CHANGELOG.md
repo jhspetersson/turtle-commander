@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Keep shell commands history
+
 ## [0.7.3] - 2026-06-25
 
 ### Added
