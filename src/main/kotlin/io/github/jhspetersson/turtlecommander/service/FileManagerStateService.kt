@@ -65,8 +65,12 @@ class FileManagerStateService(
     /** Command-line history, oldest first. */
     fun getCommandHistory(): List<String> = myState.commandHistory.toList()
 
-    /** Record [command] as the most recent entry, de-duplicating and capping the history size. */
+    /**
+     * Record [command] as the most recent entry, de-duplicating and capping the history size.
+     * No-op when the user has disabled command-history persistence in settings.
+     */
     fun addCommandToHistory(command: String) {
+        if (!TurtleCommanderSettings.getInstance().state.saveCommandHistory) return
         val trimmed = command.trim()
         if (trimmed.isEmpty()) return
         myState.commandHistory.remove(trimmed)
@@ -74,6 +78,11 @@ class FileManagerStateService(
         while (myState.commandHistory.size > MAX_COMMAND_HISTORY) {
             myState.commandHistory.removeAt(0)
         }
+    }
+
+    /** Drop all recorded command-line history. */
+    fun clearCommandHistory() {
+        myState.commandHistory.clear()
     }
 
     override fun getState(): FileManagerState {

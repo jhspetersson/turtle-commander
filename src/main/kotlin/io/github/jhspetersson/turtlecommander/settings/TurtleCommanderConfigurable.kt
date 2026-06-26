@@ -1,6 +1,7 @@
 package io.github.jhspetersson.turtlecommander.settings
 
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.components.service
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.fileChooser.FileChooserFactory
@@ -30,6 +31,7 @@ class TurtleCommanderConfigurable : Configurable {
 
     private var highlightingCheckBox: JCheckBox? = null
     private var commandBarCheckBox: JCheckBox? = null
+    private var saveCommandHistoryCheckBox: JCheckBox? = null
     private var hideDriveSelectorCheckBox: JCheckBox? = null
     private var hideStatusBarCheckBox: JCheckBox? = null
     private var overwritePolicyCombo: ComboBox<OverwritePolicy>? = null
@@ -66,6 +68,7 @@ class TurtleCommanderConfigurable : Configurable {
 
         highlightingCheckBox = JCheckBox("Enable file colors and icons", settings.enableFileNameHighlighting)
         commandBarCheckBox = JCheckBox("Show command bar (F5 Copy, F6 Move, etc.)", settings.showCommandBar)
+        saveCommandHistoryCheckBox = JCheckBox("Save command execution history", settings.saveCommandHistory)
         hideDriveSelectorCheckBox = JCheckBox("Hide drive selector", settings.hideDriveSelector)
         hideStatusBarCheckBox = JCheckBox("Hide status bar", settings.hideStatusBar)
         overwritePolicyCombo = ComboBox(OverwritePolicy.entries.toTypedArray()).apply {
@@ -224,6 +227,22 @@ class TurtleCommanderConfigurable : Configurable {
             listOf(tabEditor, driveSelectorEditor, pathBarEditor, columnHeaderEditor, panelEditor, statusBarEditor, commandBarEditor, commandButtonEditor)
         )
 
+        val clearCommandHistoryButton = JButton("Clear").apply {
+            toolTipText = "Remove all saved command-line history"
+            addActionListener {
+                for (project in com.intellij.openapi.project.ProjectManager.getInstance().openProjects) {
+                    project.service<io.github.jhspetersson.turtlecommander.service.FileManagerStateService>()
+                        .clearCommandHistory()
+                }
+            }
+        }
+        val commandHistoryRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
+            alignmentX = JComponent.LEFT_ALIGNMENT
+            add(saveCommandHistoryCheckBox!!)
+            add(Box.createHorizontalStrut(8))
+            add(clearCommandHistoryButton)
+        }
+
         highlightingCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         commandBarCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         hideDriveSelectorCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
@@ -256,6 +275,7 @@ class TurtleCommanderConfigurable : Configurable {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             add(highlightingCheckBox)
             add(commandBarCheckBox)
+            add(commandHistoryRow)
             add(hideDriveSelectorCheckBox)
             add(hideStatusBarCheckBox)
             add(deleteToRecycleBinCheckBox)
@@ -668,6 +688,7 @@ class TurtleCommanderConfigurable : Configurable {
         val settings = TurtleCommanderSettings.getInstance().state
         return highlightingCheckBox?.isSelected != settings.enableFileNameHighlighting
             || commandBarCheckBox?.isSelected != settings.showCommandBar
+            || saveCommandHistoryCheckBox?.isSelected != settings.saveCommandHistory
             || hideDriveSelectorCheckBox?.isSelected != settings.hideDriveSelector
             || hideStatusBarCheckBox?.isSelected != settings.hideStatusBar
             || (overwritePolicyCombo?.item ?: OverwritePolicy.ASK).name != settings.defaultOverwritePolicy
@@ -700,6 +721,7 @@ class TurtleCommanderConfigurable : Configurable {
         val settings = service.state
         settings.enableFileNameHighlighting = highlightingCheckBox?.isSelected ?: settings.enableFileNameHighlighting
         settings.showCommandBar = commandBarCheckBox?.isSelected ?: settings.showCommandBar
+        settings.saveCommandHistory = saveCommandHistoryCheckBox?.isSelected ?: settings.saveCommandHistory
         settings.hideDriveSelector = hideDriveSelectorCheckBox?.isSelected ?: settings.hideDriveSelector
         settings.hideStatusBar = hideStatusBarCheckBox?.isSelected ?: settings.hideStatusBar
         settings.defaultOverwritePolicy =
@@ -744,6 +766,7 @@ class TurtleCommanderConfigurable : Configurable {
         val settings = TurtleCommanderSettings.getInstance().state
         highlightingCheckBox?.isSelected = settings.enableFileNameHighlighting
         commandBarCheckBox?.isSelected = settings.showCommandBar
+        saveCommandHistoryCheckBox?.isSelected = settings.saveCommandHistory
         hideDriveSelectorCheckBox?.isSelected = settings.hideDriveSelector
         hideStatusBarCheckBox?.isSelected = settings.hideStatusBar
         overwritePolicyCombo?.item = TurtleCommanderSettings.getInstance().getDefaultOverwritePolicy()

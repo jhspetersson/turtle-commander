@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Saving command history is now configurable
+
 ## [0.7.4] - 2026-06-26
 
 ### Changed

@@ -237,6 +237,8 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
     class State {
         var enableFileNameHighlighting: Boolean = true
         var showCommandBar: Boolean = true
+        /** When true, commands run from the command line are persisted across sessions. */
+        var saveCommandHistory: Boolean = true
         var hideDriveSelector: Boolean = false
         var hideStatusBar: Boolean = false
         /**
