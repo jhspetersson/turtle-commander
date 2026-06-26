@@ -1042,8 +1042,17 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
 
     fun testSwitchToTablePreservesWidthsWhenSavedState() {
         if (skipIfHeadless()) return
+        // Real temp dir in its own tab, fully settled via waitForNavigation. Using getTabAt(0)
+        // (the virtual project.basePath tab) here is flaky: createPanel only pumps the EDT queue
+        // once, so tab 0's initial navigateTo may still be in flight with initialized == false.
+        // If its EDT continuation runs after we saveColumnState, navigateTo skips both
+        // saveColumnState and restoreColumnState (both guarded by initialized) while setEntries
+        // resets the columns to default widths — wiping the 500 we set before the assertion.
+        val dir = Files.createDirectory(tempDir.resolve("preservewidths"))
         val panel = createPanel()
-        val tab = panel.getTabAt(0)!!
+        panel.openDirectoryInNewTab(dir)
+        waitForNavigation()
+        val tab = panel.getTabAt(1)!!
 
         tab.table.columnModel.getColumn(0).apply { preferredWidth = 500; width = 500 }
         tab.saveColumnState()
