@@ -203,6 +203,7 @@ class XmlSerializationTest {
             defaultOverwritePolicy = "OVERWRITE_ALL"
             sortWithDirectories = true
             calculateDirectorySize = false
+            openDirectoriesWithSingleClick = true
         }
         val restored = roundTrip(state)
         assertFalse(restored.enableFileNameHighlighting)
@@ -212,6 +213,7 @@ class XmlSerializationTest {
         assertEquals("OVERWRITE_ALL", restored.defaultOverwritePolicy)
         assertTrue(restored.sortWithDirectories)
         assertFalse(restored.calculateDirectorySize)
+        assertTrue(restored.openDirectoriesWithSingleClick)
     }
 
     @Test

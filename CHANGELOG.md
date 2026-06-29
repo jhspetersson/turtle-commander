@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Option to open directories with one click
+
 ## [0.7.5] - 2026-06-29
 
 ### Changed

@@ -39,6 +39,7 @@ class TurtleCommanderConfigurable : Configurable {
     private var sortWithDirectoriesCheckBox: JCheckBox? = null
     private var naturalNameSortCheckBox: JCheckBox? = null
     private var calculateDirectorySizeCheckBox: JCheckBox? = null
+    private var openDirectoriesWithSingleClickCheckBox: JCheckBox? = null
     private var defaultViewModeCombo: ComboBox<String>? = null
     private var panelLayoutCombo: ComboBox<String>? = null
     private var thumbnailSizeCombo: ComboBox<ThumbnailSize>? = null
@@ -79,6 +80,7 @@ class TurtleCommanderConfigurable : Configurable {
         sortWithDirectoriesCheckBox = JCheckBox("Sort directories together with files", settings.sortWithDirectories)
         naturalNameSortCheckBox = JCheckBox("Natural sort order for file names (file2 before file10)", settings.naturalNameSort)
         calculateDirectorySizeCheckBox = JCheckBox("Calculate directory size on selection", settings.calculateDirectorySize)
+        openDirectoriesWithSingleClickCheckBox = JCheckBox("Open directories with a single click", settings.openDirectoriesWithSingleClick)
 
         val viewModeItems = arrayOf("Table", "List", "Thumbnail", "Tree")
         defaultViewModeCombo = ComboBox(DefaultComboBoxModel(viewModeItems)).apply {
@@ -251,6 +253,7 @@ class TurtleCommanderConfigurable : Configurable {
         sortWithDirectoriesCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         naturalNameSortCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         calculateDirectorySizeCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
+        openDirectoriesWithSingleClickCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
 
         // Columns editor
         val colEditor = ColumnsEditor(fontItems, TurtleCommanderSettings.getInstance().getEffectiveColumns())
@@ -282,6 +285,7 @@ class TurtleCommanderConfigurable : Configurable {
             add(sortWithDirectoriesCheckBox)
             add(naturalNameSortCheckBox)
             add(calculateDirectorySizeCheckBox)
+            add(openDirectoriesWithSingleClickCheckBox)
             add(Box.createVerticalStrut(8))
             add(overwritePolicyRow)
             add(viewModeRow)
@@ -696,6 +700,7 @@ class TurtleCommanderConfigurable : Configurable {
             || sortWithDirectoriesCheckBox?.isSelected != settings.sortWithDirectories
             || naturalNameSortCheckBox?.isSelected != settings.naturalNameSort
             || calculateDirectorySizeCheckBox?.isSelected != settings.calculateDirectorySize
+            || openDirectoriesWithSingleClickCheckBox?.isSelected != settings.openDirectoriesWithSingleClick
             || getSelectedViewMode() != settings.defaultViewMode
             || getSelectedPanelLayout() != settings.panelLayout
             || getSelectedThumbnailSize() != settings.thumbnailSize
@@ -730,6 +735,7 @@ class TurtleCommanderConfigurable : Configurable {
         settings.sortWithDirectories = sortWithDirectoriesCheckBox?.isSelected ?: settings.sortWithDirectories
         settings.naturalNameSort = naturalNameSortCheckBox?.isSelected ?: settings.naturalNameSort
         settings.calculateDirectorySize = calculateDirectorySizeCheckBox?.isSelected ?: settings.calculateDirectorySize
+        settings.openDirectoriesWithSingleClick = openDirectoriesWithSingleClickCheckBox?.isSelected ?: settings.openDirectoriesWithSingleClick
         settings.defaultViewMode = getSelectedViewMode()
         settings.panelLayout = getSelectedPanelLayout()
         settings.thumbnailSize = getSelectedThumbnailSize()
@@ -774,6 +780,7 @@ class TurtleCommanderConfigurable : Configurable {
         sortWithDirectoriesCheckBox?.isSelected = settings.sortWithDirectories
         naturalNameSortCheckBox?.isSelected = settings.naturalNameSort
         calculateDirectorySizeCheckBox?.isSelected = settings.calculateDirectorySize
+        openDirectoriesWithSingleClickCheckBox?.isSelected = settings.openDirectoriesWithSingleClick
         defaultViewModeCombo?.selectedItem = when (settings.defaultViewMode) {
             "LIST" -> "List"
             "THUMBNAIL" -> "Thumbnail"
@@ -818,6 +825,7 @@ class TurtleCommanderConfigurable : Configurable {
         sortWithDirectoriesCheckBox = null
         naturalNameSortCheckBox = null
         calculateDirectorySizeCheckBox = null
+        openDirectoriesWithSingleClickCheckBox = null
         panelFontCombo = null
         panelFontSizeSpinner = null
         tabFontCombo = null

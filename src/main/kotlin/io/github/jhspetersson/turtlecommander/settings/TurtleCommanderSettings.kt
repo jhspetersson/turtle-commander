@@ -259,6 +259,8 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
         var sortWithDirectories: Boolean = false
         var naturalNameSort: Boolean = true
         var calculateDirectorySize: Boolean = true
+        /** When true, a single left-click on a directory navigates into it (off by default). */
+        var openDirectoriesWithSingleClick: Boolean = false
         var panelLayout: String = PanelLayout.HORIZONTAL.name
         var thumbnailSize: String = ThumbnailSize.SMALL.name
         var fileSizeFormat: String = FileSizeFormat.DEFAULT_NAME

@@ -615,7 +615,10 @@ class FileTab(
                         openSelectedEntry()
                         return
                     }
-                    if (e.clickCount == 1) maybeArmOrStartRename(e)
+                    if (e.clickCount == 1) {
+                        if (maybeSingleClickOpenDirectory(e, table.rowAtPoint(e.point) >= 0)) return
+                        maybeArmOrStartRename(e)
+                    }
                 }
 
                 override fun mousePressed(e: MouseEvent) {
@@ -686,6 +689,29 @@ class FileTab(
         renameArmedRow = if (soleSelection) row else -1
     }
 
+    /**
+     * Single-click-to-open: when the "open directories with one click" setting is on, a plain
+     * left-click that lands on a row opens it if (and only if) it's a directory or the parent
+     * link. Files are left alone so they keep their normal single-click behavior (selection /
+     * click-to-rename). Returns true when it consumed the click by opening, so the caller can
+     * skip its own handling. Modifier-clicks (Ctrl/Shift/Alt/Meta) are multi-select gestures
+     * and never open.
+     */
+    private fun maybeSingleClickOpenDirectory(e: MouseEvent, onItem: Boolean): Boolean {
+        if (!onItem) return false
+        if (!TurtleCommanderSettings.getInstance().state.openDirectoriesWithSingleClick) return false
+        if (!SwingUtilities.isLeftMouseButton(e)) return false
+        val modifierMask = InputEvent.CTRL_DOWN_MASK or InputEvent.SHIFT_DOWN_MASK or
+            InputEvent.ALT_DOWN_MASK or InputEvent.META_DOWN_MASK
+        if (e.modifiersEx and modifierMask != 0) return false
+        val entry = getSelectedEntry() ?: return false
+        if (entry.isParentLink || entry.isDirectory) {
+            openSelectedEntry()
+            return true
+        }
+        return false
+    }
+
     private fun canRenameRow(viewRow: Int): Boolean {
         val entry = tableModel.getEntryAt(table.convertRowIndexToModel(viewRow)) ?: return false
         return !entry.isParentLink
@@ -707,6 +733,10 @@ class FileTab(
                 override fun mouseClicked(e: MouseEvent) {
                     if (e.clickCount == 2) {
                         openSelectedEntry()
+                    } else if (e.clickCount == 1) {
+                        val idx = locationToIndex(e.point)
+                        val onItem = idx >= 0 && getCellBounds(idx, idx)?.contains(e.point) == true
+                        maybeSingleClickOpenDirectory(e, onItem)
                     }
                 }
 
@@ -775,6 +805,10 @@ class FileTab(
                 override fun mouseClicked(e: MouseEvent) {
                     if (e.clickCount == 2) {
                         openSelectedEntry()
+                    } else if (e.clickCount == 1) {
+                        val idx = locationToIndex(e.point)
+                        val onItem = idx >= 0 && getCellBounds(idx, idx)?.contains(e.point) == true
+                        maybeSingleClickOpenDirectory(e, onItem)
                     }
                 }
 
