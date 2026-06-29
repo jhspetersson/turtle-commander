@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.5] - 2026-06-29
+
 ### Changed
 
 - Saving command history is now configurable
