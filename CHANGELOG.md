@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.6] - 2026-06-30
+
 ### Added
 
 - Option to open directories with one click
