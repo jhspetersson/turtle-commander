@@ -3,7 +3,11 @@ package io.github.jhspetersson.turtlecommander.util
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeFalse
+import org.junit.Assume.assumeNoException
+import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.IOException
@@ -213,6 +217,41 @@ class FileUtilsTest {
         assertTrue(PermissionFlag.SETUID !in flags)
         assertTrue(PermissionFlag.SETGID !in flags)
         assertTrue(PermissionFlag.STICKY !in flags)
+    }
+
+    // --- isNamedPipeMode (Unix file-type bits identify a FIFO) ---
+
+    @Test
+    fun `isNamedPipeMode is true for a FIFO mode`() {
+        // 0o010644: S_IFIFO type bits with rw-r--r-- permissions.
+        assertTrue(isNamedPipeMode(octal("010644")))
+    }
+
+    @Test
+    fun `isNamedPipeMode is false for non-FIFO types`() {
+        assertFalse(isNamedPipeMode(octal("100644"))) // regular file
+        assertFalse(isNamedPipeMode(octal("040755"))) // directory
+        assertFalse(isNamedPipeMode(octal("120777"))) // symlink
+        assertFalse(isNamedPipeMode(octal("140644"))) // socket
+        assertFalse(isNamedPipeMode(octal("020644"))) // character device
+        assertFalse(isNamedPipeMode(octal("060644"))) // block device
+        assertFalse(isNamedPipeMode(octal("644")))    // permission bits only, no type
+    }
+
+    @Test
+    fun `isNamedPipe detects a real FIFO and not a regular file`() {
+        // FIFOs are a Unix concept; skip where mkfifo isn't available (e.g. Windows).
+        assumeFalse(System.getProperty("os.name").lowercase().contains("win"))
+        val fifo = root.resolve("pipe")
+        try {
+            val exit = ProcessBuilder("mkfifo", fifo.toString()).inheritIO().start().waitFor()
+            assumeTrue("mkfifo unavailable on this host", exit == 0 && Files.exists(fifo))
+        } catch (e: Exception) {
+            assumeNoException("mkfifo unavailable on this host", e)
+        }
+        val regular = Files.writeString(root.resolve("plain.txt"), "hi")
+        assertTrue(isNamedPipe(fifo))
+        assertFalse(isNamedPipe(regular))
     }
 
     // --- wrapAsSubstringGlobIfPlain ---

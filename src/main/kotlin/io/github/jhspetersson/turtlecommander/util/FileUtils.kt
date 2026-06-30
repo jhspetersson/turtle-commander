@@ -182,6 +182,20 @@ fun readFilePermissions(path: Path, isWindows: Boolean): String {
     }
 }
 
+private const val S_IFMT = 0xF000  // 0170000 type mask
+private const val S_IFIFO = 0x1000 // 0010000 named pipe (FIFO)
+
+fun isNamedPipe(path: Path): Boolean {
+    return try {
+        val mode = Files.getAttribute(path, "unix:mode") as? Int ?: return false
+        isNamedPipeMode(mode)
+    } catch (_: Exception) {
+        false
+    }
+}
+
+internal fun isNamedPipeMode(mode: Int): Boolean = (mode and S_IFMT) == S_IFIFO
+
 // POSIX mode bits (octal in comments) used to render the permissions string.
 private const val S_ISUID = 0x800 // 04000 setuid
 private const val S_ISGID = 0x400 // 02000 setgid

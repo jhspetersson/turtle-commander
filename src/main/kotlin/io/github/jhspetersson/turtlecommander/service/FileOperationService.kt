@@ -13,6 +13,7 @@ import io.github.jhspetersson.turtlecommander.settings.RuleMatcher
 import io.github.jhspetersson.turtlecommander.settings.TextProperty
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.util.readFileGroup
+import io.github.jhspetersson.turtlecommander.util.isNamedPipe
 import io.github.jhspetersson.turtlecommander.util.readFileInode
 import io.github.jhspetersson.turtlecommander.util.readFileNlink
 import io.github.jhspetersson.turtlecommander.util.readFileOwner
@@ -235,6 +236,7 @@ class FileOperationService(
                     linkAttrs
                 }
             }
+            val namedPipe = !isWindows && !isLink && attrs.isOther && isNamedPipe(entry)
             val owner = if (needs.owner) readOwner(entry) else ""
             val group = if (needs.group) readGroup(entry) else ""
             val inode = if (needs.inode) readInode(entry) else null
@@ -259,6 +261,7 @@ class FileOperationService(
                 isSymbolicLink = isLink,
                 isBrokenSymlink = broken,
                 linkTarget = linkTarget,
+                isNamedPipe = namedPipe,
             )
         } catch (e: IOException) {
             thisLogger().debug("Cannot read attributes for $entry: ${e.message}")

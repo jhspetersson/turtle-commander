@@ -135,6 +135,7 @@ class PropertiesDialog(
 
     private fun typeDescription(): String {
         if (entry.isDirectory) return "Directory"
+        if (entry.isNamedPipe) return "Named pipe (FIFO)"
         val type = FileTypeManager.getInstance().getFileTypeByFileName(entry.name)
         // UnknownFileType.description is "Unknown" — not very informative.
         // Synthesize a name from the extension instead.

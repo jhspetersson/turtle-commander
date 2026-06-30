@@ -830,6 +830,13 @@ internal fun openDirectoryInSystemExplorer(path: Path) {
 }
 
 internal fun FileTab.openFile(entry: FileEntry) {
+    if (entry.isNamedPipe) {
+        NotificationGroupManager.getInstance()
+            .getNotificationGroup("Turtle Commander")
+            .createNotification("${entry.name} is a named pipe (FIFO) and cannot be opened", NotificationType.WARNING)
+            .notify(project)
+        return
+    }
     val vfs = currentVfs
     if (vfs != null) {
         if (vfs.isReadOnly) {

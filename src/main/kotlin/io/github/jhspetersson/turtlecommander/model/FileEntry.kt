@@ -24,4 +24,6 @@ data class FileEntry(
     val isBrokenSymlink: Boolean = false,
     /** The raw link target, for display, when [isSymbolicLink]; null otherwise or if unreadable. */
     val linkTarget: String? = null,
+    /** True when the entry is a Unix named pipe (FIFO). Always false on Windows. */
+    val isNamedPipe: Boolean = false,
 )

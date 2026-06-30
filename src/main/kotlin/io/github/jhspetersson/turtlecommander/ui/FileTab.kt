@@ -1603,7 +1603,7 @@ class FileTab(
     }
 
     private fun openNonDirectoryEntry(entry: FileEntry) {
-        if (isEntryBrowsableArchive(entry)) {
+        if (!entry.isNamedPipe && isEntryBrowsableArchive(entry)) {
             enterVfs(entry)
         } else {
             openFile(entry)

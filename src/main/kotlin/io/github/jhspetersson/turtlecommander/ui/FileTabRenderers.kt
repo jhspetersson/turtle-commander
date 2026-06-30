@@ -208,10 +208,11 @@ internal class StyledFileNameCellRenderer(
         val isCursor = row == table.selectionModel.leadSelectionIndex
         val resolved = if (entry != null) resolvedStyleFor(entry, tab.enableFileNameHighlighting) else ResolvedStyle.EMPTY
         icon = if (entry != null) fileEntryIcon(entry, tab.enableFileNameHighlighting, resolved) else null
-        toolTipText = if (entry?.isSymbolicLink == true && entry.linkTarget != null) {
-            "→ ${entry.linkTarget}" + if (entry.isBrokenSymlink) " (broken)" else ""
-        } else {
-            null
+        toolTipText = when {
+            entry?.isSymbolicLink == true && entry.linkTarget != null ->
+                "→ ${entry.linkTarget}" + if (entry.isBrokenSymlink) " (broken)" else ""
+            entry?.isNamedPipe == true -> "Named pipe (FIFO)"
+            else -> null
         }
 
         if (isMarked && isCursor) {

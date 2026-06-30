@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Recognize Unix named pipes (FIFOs) as a distinct file type
+
 ## [0.7.6] - 2026-06-30
 
 ### Added

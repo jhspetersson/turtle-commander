@@ -3,6 +3,7 @@ import java.util.concurrent.locks.LockSupport
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.util.SystemInfo
 import io.github.jhspetersson.turtlecommander.util.PermissionFlag
+import io.github.jhspetersson.turtlecommander.util.isNamedPipe
 import io.github.jhspetersson.turtlecommander.util.readFileGroup
 import io.github.jhspetersson.turtlecommander.util.readFileOwner
 import io.github.jhspetersson.turtlecommander.util.readFilePermissionFlags
@@ -198,6 +199,7 @@ class FileSearchService(
             isSymbolicLink = isLink,
             isBrokenSymlink = brokenLink,
             linkTarget = linkTarget,
+            isNamedPipe = !isWindows && !isLink && attrs.isOther && isNamedPipe(path),
         )
         onResult(entry)
     }
