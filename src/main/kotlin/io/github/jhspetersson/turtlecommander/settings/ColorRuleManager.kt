@@ -21,20 +21,31 @@ object ColorRuleManager {
                 state.colorRules.add(SavedColorRule.fromRule(rule.copy(active = defaultsActive)))
             }
             state.colorRulesInitialized = true
-            // builtinRules() already includes the symlink defaults on a fresh seed.
+            // builtinRules() already includes the symlink and named-pipe defaults on a fresh seed.
             state.symlinkColorRulesSeeded = true
+            state.namedPipeColorRulesSeeded = true
             return
         }
         // Upgrade path: an install seeded before the symlink defaults existed. Add just those,
         // skipping any the user might already have, then mark them seeded so a deleted rule
         // doesn't come back.
         if (!state.symlinkColorRulesSeeded) {
-            for (rule in ColorRuleDefaults.symlinkRules()) {
-                if (state.colorRules.none { it.id == rule.id }) {
-                    state.colorRules.add(SavedColorRule.fromRule(rule.copy(active = defaultsActive)))
-                }
-            }
+            seedMissing(state, ColorRuleDefaults.symlinkRules(), defaultsActive)
             state.symlinkColorRulesSeeded = true
+        }
+        // Same upgrade path for the later-added named-pipe default.
+        if (!state.namedPipeColorRulesSeeded) {
+            seedMissing(state, ColorRuleDefaults.namedPipeRules(), defaultsActive)
+            state.namedPipeColorRulesSeeded = true
+        }
+    }
+
+    /** Adds each rule that isn't already present (matched by id), honoring the active default. */
+    private fun seedMissing(state: TurtleCommanderSettings.State, rules: List<ColorRule>, active: Boolean) {
+        for (rule in rules) {
+            if (state.colorRules.none { it.id == rule.id }) {
+                state.colorRules.add(SavedColorRule.fromRule(rule.copy(active = active)))
+            }
         }
     }
 
@@ -69,6 +80,7 @@ object ColorRuleManager {
         }
         state.colorRulesInitialized = true
         state.symlinkColorRulesSeeded = true
+        state.namedPipeColorRulesSeeded = true
     }
 
     fun getMode(state: TurtleCommanderSettings.State): ColorizationMode =

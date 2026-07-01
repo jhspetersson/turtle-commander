@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Colorization rules for named pipes
+
 ## [0.7.7] - 2026-07-01
 
 ### Added

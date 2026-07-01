@@ -462,4 +462,39 @@ class RuleMatcherTest {
         val restored = SavedColorMatcher.fromMatcher(original).toMatcher()
         assertEquals(original, restored)
     }
+
+    // --- Named pipe (FIFO) ---
+
+    private fun namedPipe() = FileEntry(
+        name = "pipe",
+        path = dummyPath,
+        isDirectory = false,
+        size = 0,
+        lastModified = null,
+        permissions = "",
+        isNamedPipe = true,
+    )
+
+    @Test
+    fun `named pipe matches FIFOs but not plain files, dirs, or symlinks`() {
+        val m = RuleMatcher.NamedPipe
+        assertTrue(m.matches(namedPipe(), emptyContains))
+        assertFalse(m.matches(file("regular.txt"), emptyContains))
+        assertFalse(m.matches(file("dir", isDir = true), emptyContains))
+        assertFalse(m.matches(symlink(broken = false), emptyContains))
+    }
+
+    @Test
+    fun `default named-pipe rule has a distinct color`() {
+        val rule = ColorRuleDefaults.namedPipeRules().single()
+        assertTrue(rule.matchers.any { it is RuleMatcher.NamedPipe })
+        assertTrue(rule.style.fontColor.isNotEmpty())
+        assertNull(rule.style.strikethrough)
+    }
+
+    @Test
+    fun `named pipe matcher survives saved round-trip`() {
+        val restored = SavedColorMatcher.fromMatcher(RuleMatcher.NamedPipe).toMatcher()
+        assertEquals(RuleMatcher.NamedPipe, restored)
+    }
 }

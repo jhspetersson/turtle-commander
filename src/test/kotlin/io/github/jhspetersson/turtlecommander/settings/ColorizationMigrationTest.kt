@@ -12,7 +12,7 @@ class ColorizationMigrationTest {
         }
         ColorRuleManager.ensureInitialRules(state)
         assertTrue(state.colorRulesInitialized)
-        assertEquals(11, state.colorRules.size)
+        assertEquals(12, state.colorRules.size)
         assertTrue(state.colorRules.all { it.active })
     }
 
@@ -23,7 +23,7 @@ class ColorizationMigrationTest {
         }
         ColorRuleManager.ensureInitialRules(state)
         assertTrue(state.colorRulesInitialized)
-        assertEquals(11, state.colorRules.size)
+        assertEquals(12, state.colorRules.size)
         assertTrue(state.colorRules.none { it.active })
     }
 
@@ -105,10 +105,42 @@ class ColorizationMigrationTest {
     }
 
     @Test
+    fun `seeded rules include the named-pipe default`() {
+        val state = TurtleCommanderSettings.State()
+        ColorRuleManager.ensureInitialRules(state)
+        val ids = state.colorRules.map { it.id }.toSet()
+        assertTrue("default:named-pipe" in ids)
+        assertTrue(state.namedPipeColorRulesSeeded)
+    }
+
+    @Test
+    fun `upgrade adds the named-pipe default to a pre-existing ruleset`() {
+        // An install seeded before the named-pipe default existed (symlinks already seeded).
+        val state = TurtleCommanderSettings.State().apply {
+            colorRulesInitialized = true
+            symlinkColorRulesSeeded = true
+            namedPipeColorRulesSeeded = false
+        }
+        ColorRuleManager.ensureInitialRules(state)
+        val ids = state.colorRules.map { it.id }.toSet()
+        assertTrue("default:named-pipe" in ids)
+        assertTrue(state.namedPipeColorRulesSeeded)
+    }
+
+    @Test
+    fun `upgrade does not re-add a deleted named-pipe default`() {
+        val state = TurtleCommanderSettings.State()
+        ColorRuleManager.ensureInitialRules(state)
+        state.colorRules.removeIf { it.id == "default:named-pipe" }
+        ColorRuleManager.ensureInitialRules(state)
+        assertTrue(state.colorRules.none { it.id == "default:named-pipe" })
+    }
+
+    @Test
     fun `getAllRules seeds on first call`() {
         val state = TurtleCommanderSettings.State()
         val all = ColorRuleManager.getAllRules(state)
-        assertEquals(11, all.size)
+        assertEquals(12, all.size)
         assertTrue(state.colorRulesInitialized)
     }
 
@@ -121,7 +153,7 @@ class ColorizationMigrationTest {
             ColorRule(id = "custom-1", name = "custom", matchers = listOf(RuleMatcher.Name(PatternKind.GLOB, "*.x")))
         ))
         ColorRuleManager.resetToDefaults(state)
-        assertEquals(11, state.colorRules.size)
+        assertEquals(12, state.colorRules.size)
         assertTrue(state.colorRules.none { it.id == "custom-1" })
     }
 

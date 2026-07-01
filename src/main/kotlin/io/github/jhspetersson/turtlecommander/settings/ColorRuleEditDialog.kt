@@ -395,6 +395,7 @@ internal class ColorRuleEditDialog(
                         TextProperty.PERMISSIONS -> "Permissions"
                     }
                     is RuleMatcher.Symlink -> "Symlink"
+                    is RuleMatcher.NamedPipe -> "Named pipe"
                 }
                 1 -> m.describe()
                 else -> ""

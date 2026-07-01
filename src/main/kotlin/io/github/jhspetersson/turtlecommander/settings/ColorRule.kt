@@ -201,6 +201,17 @@ sealed class RuleMatcher {
             }
         }
     }
+
+    /**
+     * Matches Unix named pipes (FIFOs). There is no sub-state — an entry either is a pipe or it
+     * isn't — so this carries no fields. Always false on Windows, where [FileEntry.isNamedPipe]
+     * is never set.
+     */
+    data object NamedPipe : RuleMatcher() {
+        override val cost: Int get() = 0
+
+        override fun matches(entry: FileEntry, contains: ContainsEvaluator): Boolean = entry.isNamedPipe
+    }
 }
 
 data class RuleStyle(
@@ -455,6 +466,7 @@ class SavedColorMatcher {
                 state = runCatching { SymlinkState.valueOf(symlinkState) }.getOrDefault(SymlinkState.ANY),
             )
         }.getOrNull()
+        "NAMED_PIPE" -> RuleMatcher.NamedPipe
         else -> null
     }
 
@@ -499,6 +511,9 @@ class SavedColorMatcher {
                 is RuleMatcher.Symlink -> {
                     type = "SYMLINK"
                     symlinkState = m.state.name
+                }
+                is RuleMatcher.NamedPipe -> {
+                    type = "NAMED_PIPE"
                 }
             }
         }

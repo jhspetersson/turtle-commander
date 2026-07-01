@@ -184,6 +184,29 @@ class ColorRulesIOTest {
     }
 
     @Test
+    fun `export then parse round-trips symlink and named-pipe matchers`() {
+        val config = ColorRulesConfig(
+            name = "Special files",
+            rules = listOf(
+                ColorRule(
+                    id = "special",
+                    name = "Special files",
+                    combinator = Combinator.OR,
+                    matchers = listOf(
+                        RuleMatcher.Symlink(SymlinkState.BROKEN),
+                        RuleMatcher.NamedPipe,
+                    ),
+                ),
+            ),
+        )
+        val round = ColorRulesIO.parse(ColorRulesIO.export(config))!!
+        val m = round.rules[0].matchers
+        assertEquals(2, m.size)
+        assertEquals(RuleMatcher.Symlink(SymlinkState.BROKEN), m[0])
+        assertEquals(RuleMatcher.NamedPipe, m[1])
+    }
+
+    @Test
     fun `export then parse round-trips multiple rules with preserved order`() {
         val config = ColorRulesConfig(
             name = "Ordered",

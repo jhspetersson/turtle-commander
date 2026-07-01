@@ -357,7 +357,8 @@ class ColorRuleEngineTest {
         assertTrue(slugs.contains("default:dotnet"))
         assertTrue(slugs.contains("default:symlink-valid"))
         assertTrue(slugs.contains("default:symlink-broken"))
-        assertEquals(11, ColorRuleDefaults.builtinRules().size)
+        assertTrue(slugs.contains("default:named-pipe"))
+        assertEquals(12, ColorRuleDefaults.builtinRules().size)
     }
 
     @Test

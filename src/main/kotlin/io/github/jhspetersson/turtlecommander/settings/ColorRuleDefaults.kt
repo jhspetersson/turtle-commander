@@ -125,7 +125,7 @@ object ColorRuleDefaults {
             patterns = listOf(PatternKind.EXACT to ".git"),
             font = "#8AAA7A", dot = "#9AAA7C",
         ),
-    ) + symlinkRules()
+    ) + symlinkRules() + namedPipeRules()
 
     private fun symlinkRule(
         slug: String,
@@ -154,6 +154,25 @@ object ColorRuleDefaults {
     fun symlinkRules(): List<ColorRule> = listOf(
         symlinkRule("symlink-valid", "Symbolic link", priority = 110, state = SymlinkState.VALID, font = "#4DB6AC"),
         symlinkRule("symlink-broken", "Broken symbolic link", priority = 120, state = SymlinkState.BROKEN, font = "#E06666", strikethrough = true),
+    )
+
+    /**
+     * One built-in rule giving named pipes (FIFOs) a distinct amber look out of the box — the
+     * `ls` convention colors pipes yellow (`pi=33`). High priority (like the symlink defaults)
+     * so a pipe's nature wins over any project-marker coloring in WINNER mode. Never fires on
+     * Windows, where [io.github.jhspetersson.turtlecommander.model.FileEntry.isNamedPipe] is
+     * always false.
+     */
+    fun namedPipeRules(): List<ColorRule> = listOf(
+        ColorRule(
+            id = defaultId("named-pipe"),
+            name = "Named pipe (FIFO)",
+            priority = 115,
+            active = true,
+            combinator = Combinator.AND,
+            matchers = listOf(RuleMatcher.NamedPipe),
+            style = RuleStyle(fontColor = "#C9A227", iconDotColor = "#C9A227"),
+        ),
     )
 
     /** Clones the built-in rules with fresh random IDs — used by "Reset to defaults" UI action. */

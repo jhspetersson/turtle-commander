@@ -36,7 +36,8 @@ internal class ColorMatcherEditDialog(
         GROUP,
         PERMISSIONS,
         CONTAINS,
-        SYMLINK;
+        SYMLINK,
+        NAMED_PIPE;
 
         /** The card-layout key this kind displays — several kinds share a card. */
         fun cardName(): String = when (this) {
@@ -46,6 +47,7 @@ internal class ColorMatcherEditDialog(
             OWNER, GROUP, PERMISSIONS -> "TEXT"
             CONTAINS -> "CONTAINS"
             SYMLINK -> "SYMLINK"
+            NAMED_PIPE -> "NAMED_PIPE"
         }
 
         companion object {
@@ -54,6 +56,7 @@ internal class ColorMatcherEditDialog(
                 is RuleMatcher.Name -> NAME
                 is RuleMatcher.Contains -> CONTAINS
                 is RuleMatcher.Symlink -> SYMLINK
+                is RuleMatcher.NamedPipe -> NAMED_PIPE
                 is RuleMatcher.Date -> when (m.field) {
                     DateField.CREATED -> CREATED
                     DateField.MODIFIED -> MODIFIED
@@ -172,6 +175,7 @@ internal class ColorMatcherEditDialog(
             else -> dateOpCombo
         }
         Kind.SYMLINK -> symlinkStateCombo
+        Kind.NAMED_PIPE -> kindCombo
     }
 
     override fun createCenterPanel(): JComponent {
@@ -181,6 +185,7 @@ internal class ColorMatcherEditDialog(
         cardPanel.add(buildTextPanel(), "TEXT")
         cardPanel.add(buildContainsPanel(), "CONTAINS")
         cardPanel.add(buildSymlinkPanel(), "SYMLINK")
+        cardPanel.add(buildNamedPipePanel(), "NAMED_PIPE")
 
         val root = JPanel(BorderLayout(0, 8)).apply {
             preferredSize = Dimension(440, 210)
@@ -354,6 +359,22 @@ internal class ColorMatcherEditDialog(
         return panel
     }
 
+    private fun buildNamedPipePanel(): JPanel {
+        val panel = JPanel(GridBagLayout())
+        panel.border = BorderFactory.createTitledBorder("Named pipe")
+        val gbc = GridBagConstraints().apply {
+            anchor = GridBagConstraints.WEST
+            insets = JBUI.insets(2, 4)
+            gridy = 0
+            gridx = 0
+        }
+        // No fields: an entry either is a FIFO or it isn't. Explain the (Unix-only) scope.
+        panel.add(JBLabel("Matches Unix named pipes (FIFOs). No options.").apply { foreground = Color.GRAY }, gbc)
+        gbc.gridy = 1
+        panel.add(JBLabel("Never matches on Windows.").apply { foreground = Color.GRAY }, gbc)
+        return panel
+    }
+
     private fun showSelectedCard() {
         val kind = kindCombo.selectedItem as Kind
         cards.show(cardPanel, kind.cardName())
@@ -432,6 +453,9 @@ internal class ColorMatcherEditDialog(
                 kindCombo.selectedItem = Kind.SYMLINK
                 symlinkStateCombo.selectedItem = matcher.state
             }
+            is RuleMatcher.NamedPipe -> {
+                kindCombo.selectedItem = Kind.NAMED_PIPE
+            }
             null -> {
                 kindCombo.selectedItem = Kind.CONTAINS
                 containsKindCombo.selectedItem = PatternKind.EXACT
@@ -506,6 +530,7 @@ internal class ColorMatcherEditDialog(
             Kind.GROUP -> buildTextMatcher(TextProperty.GROUP) ?: return
             Kind.PERMISSIONS -> buildTextMatcher(TextProperty.PERMISSIONS) ?: return
             Kind.SYMLINK -> RuleMatcher.Symlink(state = symlinkStateCombo.selectedItem as SymlinkState)
+            Kind.NAMED_PIPE -> RuleMatcher.NamedPipe
         }
         super.doOKAction()
     }
@@ -636,6 +661,7 @@ internal fun RuleMatcher.describe(): String = when (this) {
         SymlinkState.VALID -> "symlink (valid)"
         SymlinkState.BROKEN -> "symlink (broken)"
     }
+    is RuleMatcher.NamedPipe -> "named pipe"
 }
 
 private val SYSTEM_ZONE: ZoneId get() = ZoneId.systemDefault()
@@ -671,6 +697,7 @@ private fun ColorMatcherEditDialog.Kind.label(): String = when (this) {
     ColorMatcherEditDialog.Kind.PERMISSIONS -> "Permissions"
     ColorMatcherEditDialog.Kind.CONTAINS -> "Directory contains"
     ColorMatcherEditDialog.Kind.SYMLINK -> "Symbolic link"
+    ColorMatcherEditDialog.Kind.NAMED_PIPE -> "Named pipe (FIFO)"
 }
 
 private fun SymlinkState.label(): String = when (this) {

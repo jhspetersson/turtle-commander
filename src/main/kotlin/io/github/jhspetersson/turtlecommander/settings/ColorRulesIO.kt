@@ -139,6 +139,9 @@ object ColorRulesIO {
                 sb.appendLine("$prefix.type=SYMLINK")
                 sb.appendLine("$prefix.symlinkState=${matcher.state.name}")
             }
+            is RuleMatcher.NamedPipe -> {
+                sb.appendLine("$prefix.type=NAMED_PIPE")
+            }
         }
     }
 
@@ -229,6 +232,7 @@ object ColorRulesIO {
                     .getOrDefault(SymlinkState.ANY)
                 RuleMatcher.Symlink(state = state)
             }
+            "NAMED_PIPE" -> RuleMatcher.NamedPipe
             else -> null
         }
     }
