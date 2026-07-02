@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Associate `.tctheme` files with the plugin
+
 ## [0.7.8] - 2026-07-02
 
 ### Added

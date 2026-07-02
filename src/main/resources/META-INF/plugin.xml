@@ -13,6 +13,15 @@
             anchor="bottom"
             icon="/icons/turtleCommander.svg"
         />
+        <fileType
+            name="Turtle Commander Theme"
+            implementationClass="io.github.jhspetersson.turtlecommander.filetype.TctThemeFileType"
+            fieldName="INSTANCE"
+            extensions="tctheme"
+        />
+        <editorNotificationProvider
+            implementation="io.github.jhspetersson.turtlecommander.filetype.TctThemeEditorNotificationProvider"
+        />
         <notificationGroup
             id="Turtle Commander"
             displayType="BALLOON"
