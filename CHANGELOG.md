@@ -8,6 +8,10 @@
 
 - Associate `.tctheme` files with the plugin
 
+### Fixed
+
+- Don't delete source directory if cross-filesystem move fails
+
 ## [0.7.8] - 2026-07-02
 
 ### Added

@@ -1002,26 +1002,46 @@ class FileOperationService(
     }
 
     private fun copyDirectoryRecursive(source: Path, target: Path) {
+        val failures = mutableListOf<Pair<Path, Exception>>()
         walkFileTree(source, object : SimpleFileVisitor<Path>() {
             override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
                 val relativePath = source.relativize(dir).toString()
                 val targetDir = if (relativePath.isEmpty()) target else target.resolve(relativePath)
-                Files.createDirectories(targetDir)
+                try {
+                    Files.createDirectories(targetDir)
+                } catch (e: IOException) {
+                    failures.add(dir to e)
+                    thisLogger().warn("Failed to create directory $targetDir: ${e.message}")
+                    return FileVisitResult.SKIP_SUBTREE
+                }
                 return FileVisitResult.CONTINUE
             }
 
             override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
-                OpenVfsRegistry.materializeIfNeeded(file)
-                val relativePath = source.relativize(file).toString()
-                Files.copy(file, target.resolve(relativePath), StandardCopyOption.REPLACE_EXISTING)
+                try {
+                    OpenVfsRegistry.materializeIfNeeded(file)
+                    val relativePath = source.relativize(file).toString()
+                    Files.copy(file, target.resolve(relativePath), StandardCopyOption.REPLACE_EXISTING)
+                } catch (e: IOException) {
+                    failures.add(file to e)
+                    thisLogger().warn("Failed to copy $file: ${e.message}")
+                }
                 return FileVisitResult.CONTINUE
             }
 
             override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
+                failures.add(file to exc)
                 thisLogger().warn("Failed to copy $file: ${exc.message}")
                 return FileVisitResult.CONTINUE
             }
         })
+        if (failures.isNotEmpty()) {
+            val (firstPath, firstError) = failures.first()
+            throw IOException(
+                "Failed to copy ${failures.size} item(s) under $source, including $firstPath: ${firstError.message}",
+                firstError,
+            )
+        }
     }
 
     internal fun crossFileSystemMove(source: Path, target: Path, vararg options: CopyOption) {

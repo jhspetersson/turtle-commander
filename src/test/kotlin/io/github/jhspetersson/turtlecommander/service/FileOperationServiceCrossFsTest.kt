@@ -66,4 +66,47 @@ class FileOperationServiceCrossFsTest {
             )
         }
     }
+
+    @Test
+    fun `crossFileSystemMove of directory preserves source when an item cannot be copied`() {
+        val service = FileOperationService(CoroutineScope(Dispatchers.Unconfined))
+
+        val srcDir = Files.createTempDirectory("xfs-src2-")
+        tempPaths.add(srcDir)
+        val innerFile = srcDir.resolve("sub").resolve("inner.txt")
+        Files.createDirectories(innerFile.parent)
+        Files.writeString(innerFile, "keep me")
+
+        val zipPath = Files.createTempFile("xfs-tgt2-", ".zip")
+        Files.deleteIfExists(zipPath)
+        tempPaths.add(zipPath)
+
+        // Plant a regular file where the "sub" subdirectory would have to be created, so
+        // copying that subtree fails and inner.txt never reaches the target.
+        FileSystems.newFileSystem(
+            URI.create("jar:" + zipPath.toUri()),
+            mapOf("create" to "true"),
+        ).use { zipFs ->
+            val tgt = zipFs.getPath("/" + srcDir.fileName.toString())
+            Files.createDirectories(tgt)
+            Files.writeString(tgt.resolve("sub"), "blocker")
+        }
+
+        FileSystems.newFileSystem(zipPath, emptyMap<String, Any>()).use { zipFs ->
+            val tgt = zipFs.getPath("/" + srcDir.fileName.toString())
+            var threw = false
+            try {
+                service.crossFileSystemMove(srcDir, tgt)
+            } catch (_: Exception) {
+                threw = true
+            }
+
+            assertTrue("move must fail when an item cannot be copied", threw)
+            assertTrue(
+                "source file must be preserved when the copy did not fully succeed",
+                Files.exists(innerFile),
+            )
+            assertTrue("source directory must be preserved", Files.isDirectory(srcDir))
+        }
+    }
 }
