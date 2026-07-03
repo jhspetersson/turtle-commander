@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.9] - 2026-07-03
+
 ### Added
 
 - Associate `.tctheme` files with the plugin
