@@ -90,14 +90,20 @@ class RpmVirtualFileSystem(
                             entry.isDirectory -> Files.createDirectories(entryPath)
                             entry.isSymbolicLink -> {
                                 // cpio stores the link target as the entry body.
-                                Files.createDirectories(entryPath.parent)
                                 val target = cpio.readBytes().toString(Charsets.UTF_8)
-                                try {
-                                    Files.createSymbolicLink(entryPath, Path.of(target))
-                                } catch (_: Exception) {
-                                    // Windows without SeCreateSymbolicLinkPrivilege, or weird targets.
-                                    // Materialize as a plain text file so the contents aren't lost.
-                                    Files.writeString(entryPath, target)
+                                if (symlinkTargetEscapes(into, entryPath, target)) {
+                                    // Refuse a link pointing outside the extraction root — see
+                                    // TarVirtualFileSystem for the symlink-then-child escape.
+                                    thisLogger().warn("Skipping rpm symlink escaping the archive root: $name -> $target")
+                                } else {
+                                    entryPath.parent?.let { Files.createDirectories(it) }
+                                    try {
+                                        Files.createSymbolicLink(entryPath, Path.of(target))
+                                    } catch (_: Exception) {
+                                        // Windows without SeCreateSymbolicLinkPrivilege, or weird targets.
+                                        // Materialize as a plain text file so the contents aren't lost.
+                                        Files.writeString(entryPath, target)
+                                    }
                                 }
                             }
                             else -> {

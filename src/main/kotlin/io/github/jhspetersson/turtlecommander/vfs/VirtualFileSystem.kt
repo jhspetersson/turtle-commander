@@ -312,6 +312,29 @@ internal fun resolveEntryPath(baseDir: Path, entryName: String): Path? {
 }
 
 /**
+ * True when a symbolic link located at [linkPath] and pointing at [target] would resolve outside
+ * [baseDir] — i.e. following it, or writing through it, escapes the extraction root.
+ *
+ * [resolveEntryPath] only rejects textual `..` in an entry *name*; it can't see link *targets*.
+ * Without this check a hostile archive can ship `evil -> /home/user` (or `../../..`) followed by a
+ * child entry `evil/.bashrc`: the child's name passes the containment check, but the real write
+ * follows the symlink out of the temp dir. Absolute targets, and relative targets that climb above
+ * [baseDir], are treated as escaping. The target is resolved against the link's own directory, the
+ * way the OS dereferences it, so a legitimate in-tree link such as `bin/sh -> ../usr/bin/sh` is
+ * still allowed.
+ */
+internal fun symlinkTargetEscapes(baseDir: Path, linkPath: Path, target: String): Boolean {
+    return try {
+        val base = baseDir.normalize()
+        val parent = (linkPath.parent ?: base).normalize()
+        !parent.resolve(Path.of(target)).normalize().startsWith(base)
+    } catch (_: Exception) {
+        // Unparseable target (illegal chars, cross-scheme, …) — refuse it, the safe default.
+        true
+    }
+}
+
+/**
  * Create a placeholder file of [size] bytes at [path] for lazily-materialising VFS
  * implementations ([IsoVirtualFileSystem], [ZipExtractVirtualFileSystem]). Opens with
  * [StandardOpenOption.SPARSE] so the OS can keep the allocation sparse where supported

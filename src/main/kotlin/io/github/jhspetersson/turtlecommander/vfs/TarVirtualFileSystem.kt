@@ -117,35 +117,48 @@ class TarVirtualFileSystem(
                     try {
                         if (entry.isSymbolicLink) {
                             val linkTarget = entry.linkName
-                            Files.createDirectories(entryPath.parent)
-                            try {
-                                Files.createSymbolicLink(entryPath, Path.of(linkTarget))
-                            } catch (_: Exception) {
-                                // Symlink creation may fail (e.g. Windows without privileges).
-                                // Record it so repack can still re-emit the original entry and
-                                // users don't silently lose symlinks when they edit a tar.
-                                unresolvedSymlinks[normalizeRelativeName(into, entryPath)] = linkTarget
+                            if (symlinkTargetEscapes(into, entryPath, linkTarget)) {
+                                // Refuse a link that would point outside the extraction root —
+                                // creating it on disk would let a later child entry (or a copy-out)
+                                // write through it into the host filesystem.
+                                thisLogger().warn("Skipping tar symlink escaping the archive root: ${entry.name} -> $linkTarget")
+                            } else {
+                                entryPath.parent?.let { Files.createDirectories(it) }
+                                try {
+                                    Files.createSymbolicLink(entryPath, Path.of(linkTarget))
+                                } catch (_: Exception) {
+                                    // Symlink creation may fail (e.g. Windows without privileges).
+                                    // Record it so repack can still re-emit the original entry and
+                                    // users don't silently lose symlinks when they edit a tar.
+                                    unresolvedSymlinks[normalizeRelativeName(into, entryPath)] = linkTarget
+                                }
+                                setEntryMtime(entryPath, entry)
                             }
-                            setEntryMtime(entryPath, entry)
                         } else if (entry.isDirectory) {
                             Files.createDirectories(entryPath)
                             setEntryMtime(entryPath, entry)
                         } else if (entry.isLink) {
                             // Hard link: the target precedes the link in any well-formed tar,
                             // so it is already recorded — materialise it now and link against
-                            // the real inode.
-                            val linkTarget = into.resolve(entry.linkName)
-                            Files.createDirectories(entryPath.parent)
-                            materialize(linkTarget)
-                            try {
-                                Files.createLink(entryPath, linkTarget)
-                            } catch (_: Exception) {
-                                // Hard link may fail, try copying the target instead
-                                if (Files.exists(linkTarget)) {
-                                    Files.copy(linkTarget, entryPath)
+                            // the real inode. Resolve the target through resolveEntryPath so a
+                            // malicious linkName like "/etc/passwd" or "../../secret" (which would
+                            // otherwise hard-link/copy a host file into the archive) is rejected.
+                            val linkTarget = resolveEntryPath(into, entry.linkName)
+                            if (linkTarget == null) {
+                                thisLogger().warn("Skipping tar hard link escaping the archive root: ${entry.name} -> ${entry.linkName}")
+                            } else {
+                                entryPath.parent?.let { Files.createDirectories(it) }
+                                materialize(linkTarget)
+                                try {
+                                    Files.createLink(entryPath, linkTarget)
+                                } catch (_: Exception) {
+                                    // Hard link may fail, try copying the target instead
+                                    if (Files.exists(linkTarget)) {
+                                        Files.copy(linkTarget, entryPath)
+                                    }
                                 }
+                                setEntryMtime(entryPath, entry)
                             }
-                            setEntryMtime(entryPath, entry)
                         } else {
                             Files.createDirectories(entryPath.parent)
                             createSparseStub(entryPath, entry.size)

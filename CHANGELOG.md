@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Reject symlink and hard-link entries that escape the archive root when opening tar/RPM archives
+
 ## [0.7.9] - 2026-07-03
 
 ### Added

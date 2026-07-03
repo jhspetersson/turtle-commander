@@ -337,4 +337,78 @@ class TarVirtualFileSystemTest {
             )
         }
     }
+
+    @Test
+    fun `symlink-then-child entry cannot write outside the extraction root`() {
+        val outsideDir = Files.createTempDirectory("tar-escape-outside-")
+        val malicious = Files.createTempFile("tar-escape-", ".tar")
+        try {
+            TarArchiveOutputStream(Files.newOutputStream(malicious)).use { tar ->
+                // A symlink pointing at an absolute path outside the temp dir...
+                val link = TarArchiveEntry("escape", TarArchiveEntry.LF_SYMLINK)
+                link.linkName = outsideDir.toString()
+                tar.putArchiveEntry(link)
+                tar.closeArchiveEntry()
+
+                // ...followed by a child entry that would be written *through* the symlink.
+                val content = "pwned".toByteArray()
+                val child = TarArchiveEntry("escape/pwned.txt")
+                child.size = content.size.toLong()
+                tar.putArchiveEntry(child)
+                tar.write(content)
+                tar.closeArchiveEntry()
+            }
+
+            TarVirtualFileSystem(
+                malicious,
+                inputStreamFactory = { Files.newInputStream(it) },
+                outputStreamFactory = { Files.newOutputStream(it) },
+            ).use { fs ->
+                assertFalse(
+                    "nothing must be written outside the extraction root via the symlink",
+                    Files.exists(outsideDir.resolve("pwned.txt")),
+                )
+                // The child is instead contained: "escape" became a real directory in the temp dir.
+                assertTrue(
+                    "child entry must be contained inside the extraction root",
+                    Files.exists(fs.root.resolve("escape").resolve("pwned.txt")),
+                )
+            }
+        } finally {
+            Files.deleteIfExists(outsideDir.resolve("pwned.txt"))
+            Files.deleteIfExists(outsideDir)
+            Files.deleteIfExists(malicious)
+        }
+    }
+
+    @Test
+    fun `hard link to a host file outside the archive is refused`() {
+        val outsideDir = Files.createTempDirectory("tar-hardlink-outside-")
+        val secret = outsideDir.resolve("secret.txt")
+        Files.writeString(secret, "top secret")
+        val malicious = Files.createTempFile("tar-hardlink-", ".tar")
+        try {
+            TarArchiveOutputStream(Files.newOutputStream(malicious)).use { tar ->
+                val link = TarArchiveEntry("stolen.txt", TarArchiveEntry.LF_LINK)
+                link.linkName = secret.toString() // absolute path outside the archive
+                tar.putArchiveEntry(link)
+                tar.closeArchiveEntry()
+            }
+
+            TarVirtualFileSystem(
+                malicious,
+                inputStreamFactory = { Files.newInputStream(it) },
+                outputStreamFactory = { Files.newOutputStream(it) },
+            ).use { fs ->
+                assertFalse(
+                    "a hard link escaping the archive root must not pull the host file in",
+                    Files.exists(fs.root.resolve("stolen.txt")),
+                )
+            }
+        } finally {
+            Files.deleteIfExists(secret)
+            Files.deleteIfExists(outsideDir)
+            Files.deleteIfExists(malicious)
+        }
+    }
 }
