@@ -426,6 +426,13 @@ class FileOperationService(
         return if (sourceNewer) TargetAction.OVERWRITE else TargetAction.SKIP
     }
 
+    private fun targetIsInsideSource(source: Path, target: Path): Boolean =
+        try {
+            target.toAbsolutePath().normalize().startsWith(source.toAbsolutePath().normalize())
+        } catch (_: Exception) {
+            false
+        }
+
     suspend fun copyFilesWithProgress(
         sources: List<Path>,
         destination: Path,
@@ -441,6 +448,10 @@ class FileOperationService(
         loop@ for (source in sources) {
             if (isCancelled()) break
             val target = destination.resolve(source.name)
+            if (targetIsInsideSource(source, target)) {
+                onError(source, IOException("Cannot copy \"${source.name}\" into itself"))
+                continue@loop
+            }
             try {
                 val sourceIsLink = Files.isSymbolicLink(source)
                 if (source.isDirectory() && !sourceIsLink) {
@@ -606,6 +617,10 @@ class FileOperationService(
         loop@ for (source in sources) {
             if (isCancelled()) break
             val target = destination.resolve(source.name)
+            if (targetIsInsideSource(source, target)) {
+                onError(source, IOException("Cannot move \"${source.name}\" into itself"))
+                continue@loop
+            }
             try {
                 // A symlink to a directory must be moved as the link node itself —
                 // isDirectory() follows the link, and recursing through it would move the

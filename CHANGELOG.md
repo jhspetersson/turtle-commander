@@ -11,6 +11,7 @@
 ### Fixed
 
 - Don't delete source directory if cross-filesystem move fails
+- Refuse to move directory into itself or its subdirectory
 
 ## [0.7.8] - 2026-07-02
 

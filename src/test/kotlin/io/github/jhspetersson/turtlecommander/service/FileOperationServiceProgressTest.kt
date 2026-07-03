@@ -77,6 +77,55 @@ class FileOperationServiceProgressTest {
     }
 
     @Test
+    fun `copying a directory into itself is rejected and does not recurse`() = runBlocking {
+        val service = newService()
+        val src = makeTreeWithThreeFiles("copy-into-self-src-")
+
+        val errors = mutableListOf<Path>()
+        var ticks = 0
+        // destination == src → target resolves to src/<name>, i.e. inside src itself.
+        service.copyFilesWithProgress(
+            sources = listOf(src),
+            destination = src,
+            initialPolicy = OverwritePolicy.OVERWRITE_ALL,
+            onProgress = { _, _ -> ticks++ },
+            onOverwriteConfirm = { OverwriteResponse.OVERWRITE_ALL },
+            onError = { path, _ -> errors.add(path) },
+            isCancelled = { false },
+        )
+
+        assertEquals("the self-referential source must be reported once", listOf(src), errors)
+        assertEquals("nothing should be copied", 0, ticks)
+        assertFalse(
+            "the copy must not have started creating a nested copy of the source",
+            Files.exists(src.resolve(src.fileName.toString())),
+        )
+    }
+
+    @Test
+    fun `moving a directory onto itself is rejected and leaves the source intact`() = runBlocking {
+        val service = newService()
+        val src = makeTreeWithThreeFiles("move-into-self-src-")
+
+        val errors = mutableListOf<Path>()
+        // destination == src.parent → target resolves to src itself.
+        service.moveFilesWithProgress(
+            sources = listOf(src),
+            destination = src.parent,
+            initialPolicy = OverwritePolicy.OVERWRITE_ALL,
+            onProgress = { _, _ -> },
+            onOverwriteConfirm = { OverwriteResponse.OVERWRITE_ALL },
+            onError = { path, _ -> errors.add(path) },
+            isCancelled = { false },
+        )
+
+        assertEquals("the self-referential source must be reported once", listOf(src), errors)
+        assertTrue("source directory must be preserved", Files.isDirectory(src))
+        assertTrue("source contents must be preserved", Files.exists(src.resolve("a.txt")))
+        assertTrue("nested source contents must be preserved", Files.exists(src.resolve("sub").resolve("b.txt")))
+    }
+
+    @Test
     fun `copying into an existing tree invalidates nested destination directories`() = runBlocking {
         val service = newService()
 
