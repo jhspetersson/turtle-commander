@@ -7,6 +7,10 @@
 ### Fixed
 
 - Reject symlink and hard-link entries that escape the archive root when opening tar/RPM archives
+- Saving a file edited inside an archive now writes back every save, not just the first
+- Editing two files from the same archive no longer loses the second file's changes
+- Repacking an archive is now atomic: a failure mid-write no longer corrupts the original
+- Leaving an archive no longer briefly freezes the UI
 
 ## [0.7.9] - 2026-07-03
 

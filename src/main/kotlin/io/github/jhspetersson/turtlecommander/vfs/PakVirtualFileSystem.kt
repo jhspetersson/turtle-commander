@@ -235,7 +235,8 @@ class PakVirtualFileSystem(
             files.add(relativeName to path)
         }
 
-        RandomAccessFile(archivePath.toFile(), "rw").use { raf ->
+        repackAtomically(archivePath) { target ->
+        RandomAccessFile(target.toFile(), "rw").use { raf ->
             raf.setLength(0)
             raf.seek(HEADER_SIZE.toLong())
 
@@ -270,6 +271,7 @@ class PakVirtualFileSystem(
             raf.write("PACK".toByteArray(StandardCharsets.US_ASCII))
             raf.write(leInt32(dirOffset.toInt()))
             raf.write(leInt32(directory.size * DIRECTORY_ENTRY_SIZE.toInt()))
+        }
         }
     }
 

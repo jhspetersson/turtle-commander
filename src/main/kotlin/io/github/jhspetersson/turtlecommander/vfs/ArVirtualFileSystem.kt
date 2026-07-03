@@ -91,23 +91,25 @@ class ArVirtualFileSystem(
     }
 
     override fun repack(from: Path) {
-        Files.newOutputStream(archivePath).use { raw ->
-            ArArchiveOutputStream(raw).use { ar ->
-                forEachArchiveEntry(from) { path, relativeName ->
-                    val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
-                    if (attrs.isDirectory) return@forEachArchiveEntry // AR format is flat, skip directories
-                    val metadata = entryMetadata[relativeName]
-                    val entry = ArArchiveEntry(
-                        relativeName,
-                        attrs.size(),
-                        metadata?.userId ?: 0,
-                        metadata?.groupId ?: 0,
-                        metadata?.mode ?: DEFAULT_FILE_MODE,
-                        metadata?.lastModifiedSeconds ?: (attrs.lastModifiedTime().toMillis() / 1000),
-                    )
-                    ar.putArchiveEntry(entry)
-                    Files.copy(path, ar)
-                    ar.closeArchiveEntry()
+        repackAtomically(archivePath) { target ->
+            Files.newOutputStream(target).use { raw ->
+                ArArchiveOutputStream(raw).use { ar ->
+                    forEachArchiveEntry(from) { path, relativeName ->
+                        val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
+                        if (attrs.isDirectory) return@forEachArchiveEntry // AR format is flat, skip directories
+                        val metadata = entryMetadata[relativeName]
+                        val entry = ArArchiveEntry(
+                            relativeName,
+                            attrs.size(),
+                            metadata?.userId ?: 0,
+                            metadata?.groupId ?: 0,
+                            metadata?.mode ?: DEFAULT_FILE_MODE,
+                            metadata?.lastModifiedSeconds ?: (attrs.lastModifiedTime().toMillis() / 1000),
+                        )
+                        ar.putArchiveEntry(entry)
+                        Files.copy(path, ar)
+                        ar.closeArchiveEntry()
+                    }
                 }
             }
         }

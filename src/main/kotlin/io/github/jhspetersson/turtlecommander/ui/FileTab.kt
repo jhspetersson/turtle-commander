@@ -42,9 +42,11 @@ import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import com.intellij.openapi.diagnostic.thisLogger
 import java.awt.*
 import java.awt.datatransfer.DataFlavor
 import java.awt.event.*
@@ -1648,13 +1650,41 @@ class FileTab(
      * Close every open VFS in the stack and delete their temp files. Also called mid-life
      * when the user leaves an archive via drive selection or a breadcrumb click — unlike
      * [dispose], the tab keeps living (and keeps its drive-roots subscription).
+     *
+     * The stack is emptied synchronously (so the tab immediately reflects "left the archive"),
+     * but the actual close is scheduled off the EDT via [scheduleVfsClose].
      */
     internal fun closeVfsStack() {
-        for (entry in vfsStack.asReversed()) {
-            entry.vfs.close()
-            entry.cleanupTempFile()
-        }
+        if (vfsStack.isEmpty()) return
+        val entries = vfsStack.toList()
         vfsStack.clear()
+        scheduleVfsClose(entries)
+    }
+
+    /**
+     * Close [entries]' VFS handles and delete their extracted temp dirs off the EDT, holding
+     * [vfsWriteMutex]. `close()` recursively deletes a potentially large temp tree — freezing the
+     * EDT if done inline — and must not run while an in-flight write-back is flushing/copying
+     * through the same stack, which would delete a temp dir mid-copy and raise
+     * `ClosedFileSystemException`/`NoSuchFileException`. [NonCancellable] keeps a scope shutdown
+     * from skipping the cleanup; anything still missed is swept by `VfsTempCleanup` on next start.
+     */
+    internal fun scheduleVfsClose(entries: List<VfsStackEntry>) {
+        if (entries.isEmpty()) return
+        fileOps.launch {
+            withContext(NonCancellable + Dispatchers.IO) {
+                vfsWriteMutex.withLock {
+                    for (entry in entries) {
+                        try {
+                            entry.vfs.close()
+                        } catch (e: Exception) {
+                            thisLogger().warn("Failed to close VFS ${entry.vfs.archivePath}: ${e.message}")
+                        }
+                        entry.cleanupTempFile()
+                    }
+                }
+            }
+        }
     }
 
     /** True when keyboard focus is inside any of the four view components owned by this tab. */

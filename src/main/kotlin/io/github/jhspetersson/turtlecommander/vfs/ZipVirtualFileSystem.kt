@@ -366,22 +366,24 @@ class ZipExtractVirtualFileSystem(
 
     override fun repack(from: Path) {
         materializeAllForRepack()
-        // Release the read handle: the output stream below truncates the same file.
+        // Release the read handle: the atomic move below replaces the same file.
         closeReader()
-        ZipArchiveOutputStream(Files.newOutputStream(archivePath)).use { zip ->
-            forEachArchiveEntry(from) { path, relativeName ->
-                val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
-                val entryName = if (attrs.isDirectory) "$relativeName/" else relativeName
-                val entry = ZipArchiveEntry(entryName)
-                entry.time = attrs.lastModifiedTime().toMillis()
-                if (!attrs.isDirectory) {
-                    entry.size = attrs.size()
+        repackAtomically(archivePath) { target ->
+            ZipArchiveOutputStream(Files.newOutputStream(target)).use { zip ->
+                forEachArchiveEntry(from) { path, relativeName ->
+                    val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
+                    val entryName = if (attrs.isDirectory) "$relativeName/" else relativeName
+                    val entry = ZipArchiveEntry(entryName)
+                    entry.time = attrs.lastModifiedTime().toMillis()
+                    if (!attrs.isDirectory) {
+                        entry.size = attrs.size()
+                    }
+                    zip.putArchiveEntry(entry)
+                    if (!attrs.isDirectory) {
+                        Files.copy(path, zip)
+                    }
+                    zip.closeArchiveEntry()
                 }
-                zip.putArchiveEntry(entry)
-                if (!attrs.isDirectory) {
-                    Files.copy(path, zip)
-                }
-                zip.closeArchiveEntry()
             }
         }
     }

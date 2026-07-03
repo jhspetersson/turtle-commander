@@ -34,6 +34,14 @@ class VfsEditEntry(
     val tempFilePath: Path,
     val vfsStack: MutableList<VfsStackEntry>,
     /**
+     * Path of the edited file relative to the innermost VFS root, captured when the edit is
+     * tracked (while [vfsFilePath] is still valid). The write-back resolves the destination fresh
+     * from this against the *current* innermost root on every save, so it survives the temp dir
+     * being recreated by a flush — whether this file's own earlier save, or another file edited
+     * from the same archive (see [writeBackLocked]). Empty when there is no VFS stack.
+     */
+    val vfsFileRelPath: String = "",
+    /**
      * Mutex owned by the originating [io.github.jhspetersson.turtlecommander.ui.FileTab] that
      * serializes all write-back work against the shared [vfsStack]. Must be held while flushing
      * or copying into any VFS in the stack; otherwise a concurrent refresh can close a parent
@@ -76,12 +84,14 @@ class VfsEditService(
             } else {
                 writeBackLocked(entry)
             }
+            // Keep the entry tracked on success: the same file can be saved again, and each save
+            // must be written back. (Previously it was removed here, so only the *first* save ever
+            // reached the archive — every later save silently no-op'd.) It is cleaned up in
+            // [dispose]; a failed write-back is dropped below.
         } catch (e: Exception) {
             thisLogger().warn("VFS edit write-back failed: ${e.message}")
-        } finally {
-            // Always release the tracking entry; otherwise a single failure leaves the edit
-            // stuck in activeEdits forever and further saves to the same file become no-ops
-            // until the IDE is restarted.
+            // Drop a failed edit so a permanently broken entry (e.g. the archive was closed
+            // underneath it) doesn't keep retrying — and failing — on every subsequent save.
             activeEdits.remove(normalizeKey(entry.tempFilePath))
         }
     }
@@ -92,19 +102,29 @@ class VfsEditService(
      * mid-`Files.copy` into one of its ZipPaths.
      */
     private fun writeBackLocked(entry: VfsEditEntry) {
-        // Copy temp file content back to VFS path
-        Files.copy(entry.tempFilePath, entry.vfsFilePath, StandardCopyOption.REPLACE_EXISTING)
+        val stack = entry.vfsStack
+        val innermostVfs = stack.lastOrNull()?.vfs
+
+        // Resolve the destination against the CURRENT innermost root every time. Any absolute path
+        // captured when the edit was opened may now dangle: the temp dir gets deleted and recreated
+        // by a flush — this file's own previous save, or another file edited from the same archive
+        // that was saved first. Re-resolving from the archive-relative path keeps every save landing
+        // on the right entry instead of a NoSuchFile/ClosedFileSystem failure that loses the edit.
+        val target = when {
+            innermostVfs == null -> entry.vfsFilePath
+            entry.vfsFileRelPath.isEmpty() -> innermostVfs.root
+            else -> innermostVfs.root.resolve(entry.vfsFileRelPath)
+        }
+        Files.copy(entry.tempFilePath, target, StandardCopyOption.REPLACE_EXISTING)
+        entry.vfsFilePath = target
 
         // Capture the relative path of currentPath BEFORE any flush invalidates it
         val currentPathRel = entry.onBeforeFlush?.invoke() ?: ""
 
-        // Flush the innermost VFS and reconstruct the file path
-        val stack = entry.vfsStack
-        if (stack.isNotEmpty()) {
-            val innermostVfs = stack.last().vfs
-            val relPath = vfsRelativePath(innermostVfs, entry.vfsFilePath)
+        // Flush the innermost VFS and reconstruct the file path for navigation/reuse.
+        if (innermostVfs != null) {
             innermostVfs.flush()
-            entry.vfsFilePath = if (relPath.isEmpty()) innermostVfs.root else innermostVfs.root.resolve(relPath)
+            entry.vfsFilePath = if (entry.vfsFileRelPath.isEmpty()) innermostVfs.root else innermostVfs.root.resolve(entry.vfsFileRelPath)
         }
 
         // Write-back through the VFS stack (innermost to outermost)

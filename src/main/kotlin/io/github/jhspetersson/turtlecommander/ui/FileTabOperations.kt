@@ -921,8 +921,16 @@ private fun FileTab.openVfsFileEditable(entry: FileEntry) {
                 vf
             } ?: return@launch
 
+            // Capture the archive-relative path now, while vfsFilePath is still valid — the
+            // write-back re-resolves the destination from it against the current VFS root so a
+            // later flush (this file's own re-save, or another file saved from the same archive)
+            // can't leave it pointing at a deleted temp dir.
+            val innerVfs = stackRef.lastOrNull()?.vfs
+            val vfsFileRel = if (innerVfs != null) vfsRelativePath(innerVfs, vfsFilePath) else ""
+
             val editService = project.service<VfsEditService>()
             editService.trackEdit(VfsEditEntry(vfsFilePath, tempPath, stackRef,
+                vfsFileRelPath = vfsFileRel,
                 vfsWriteMutex = vfsWriteMutex,
                 onBeforeFlush = {
                     val innerVfs = currentVfs ?: return@VfsEditEntry ""

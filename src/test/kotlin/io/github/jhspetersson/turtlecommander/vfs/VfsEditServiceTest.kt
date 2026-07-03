@@ -1,10 +1,13 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
 import org.junit.Assert.*
 import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -131,6 +134,108 @@ class VfsEditServiceActiveEditsTest {
         } finally {
             service.dispose()
             tempDir.toFile().deleteRecursively()
+        }
+    }
+
+    /**
+     * Bug 5 regression: after a *successful* write-back the entry must stay tracked, otherwise
+     * every save after the first silently no-ops. Also verifies the second save actually applies.
+     */
+    @Test
+    fun `entry stays tracked after a successful write-back and later saves still apply`() {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val service = VfsEditService(scope)
+        val dir = Files.createTempDirectory("vfs-edit-success-")
+        try {
+            val temp = dir.resolve("edited.txt")
+            val target = dir.resolve("target.txt")
+            Files.writeString(target, "v0")
+            Files.writeString(temp, "v1")
+
+            // No VFS stack: write-back is a plain copy temp -> target.
+            service.trackEdit(VfsEditEntry(vfsFilePath = target, tempFilePath = temp, vfsStack = mutableListOf()))
+            val key = temp.toString().replace('\\', '/')
+
+            service.onFileSaved(temp.toString())
+            runBlocking {
+                withTimeout(5_000.milliseconds) { while (Files.readString(target) != "v1") delay(20.milliseconds) }
+            }
+            assertTrue("entry must remain tracked after a successful save", service.isTrackedForTest(key))
+
+            // Second save of the same file must reach the target too.
+            Files.writeString(temp, "v2")
+            service.onFileSaved(temp.toString())
+            runBlocking {
+                withTimeout(5_000.milliseconds) { while (Files.readString(target) != "v2") delay(20.milliseconds) }
+            }
+            assertEquals("v2", Files.readString(target))
+        } finally {
+            service.dispose()
+            dir.toFile().deleteRecursively()
+        }
+    }
+
+    /**
+     * Bug 6 regression: two files edited from the *same* archive. Saving the first flushes the
+     * archive, which recreates the VFS temp dir and dangles any absolute path the second entry
+     * captured at open time. The second save must still land, not get lost.
+     */
+    @Test
+    fun `second file edited from the same archive still writes back after the first save flushes`() {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val service = VfsEditService(scope)
+        val zipPath = Files.createTempFile("vfs-edit-two-", ".zip")
+        ZipOutputStream(Files.newOutputStream(zipPath)).use { zos ->
+            zos.putNextEntry(ZipEntry("a.txt")); zos.write("a0".toByteArray()); zos.closeEntry()
+            zos.putNextEntry(ZipEntry("b.txt")); zos.write("b0".toByteArray()); zos.closeEntry()
+        }
+        val vfs = ZipVirtualFileSystem(zipPath)
+        // Both edits from the same tab share one mutex, which serializes their write-backs.
+        val mutex = Mutex()
+
+        fun readInArchive(name: String): String? =
+            try { Files.readString(vfs.getPath(name)) } catch (_: Exception) { null }
+
+        try {
+            val sharedStack = mutableListOf(VfsStackEntry(vfs, parentPath = zipPath))
+
+            val aVfsPath = vfs.getPath("/a.txt")
+            val aTempDir = Files.createTempDirectory("edit-a-")
+            val aTemp = aTempDir.resolve("a.txt"); Files.copy(aVfsPath, aTemp)
+            service.trackEdit(
+                VfsEditEntry(aVfsPath, aTemp, sharedStack.toMutableList(),
+                    vfsFileRelPath = vfsRelativePath(vfs.root, aVfsPath), vfsWriteMutex = mutex),
+            )
+
+            val bVfsPath = vfs.getPath("/b.txt")
+            val bTempDir = Files.createTempDirectory("edit-b-")
+            val bTemp = bTempDir.resolve("b.txt"); Files.copy(bVfsPath, bTemp)
+            service.trackEdit(
+                VfsEditEntry(bVfsPath, bTemp, sharedStack.toMutableList(),
+                    vfsFileRelPath = vfsRelativePath(vfs.root, bVfsPath), vfsWriteMutex = mutex),
+            )
+
+            // Save A first, and wait until its flush has rebuilt the temp dir (a.txt == "a1").
+            Files.writeString(aTemp, "a1")
+            service.onFileSaved(aTemp.toString())
+            runBlocking {
+                withTimeout(5_000.milliseconds) { while (readInArchive("/a.txt") != "a1") delay(20.milliseconds) }
+            }
+
+            // Now save B. Its captured absolute path is stale; only the relative re-resolution
+            // lets it reach the archive.
+            Files.writeString(bTemp, "b1")
+            service.onFileSaved(bTemp.toString())
+            runBlocking {
+                withTimeout(5_000.milliseconds) { while (readInArchive("/b.txt") != "b1") delay(20.milliseconds) }
+            }
+
+            assertEquals("second file's edit must be written back", "b1", readInArchive("/b.txt"))
+            assertEquals("first file's edit must be preserved", "a1", readInArchive("/a.txt"))
+        } finally {
+            service.dispose()
+            try { vfs.close() } catch (_: Exception) {}
+            Files.deleteIfExists(zipPath)
         }
     }
 

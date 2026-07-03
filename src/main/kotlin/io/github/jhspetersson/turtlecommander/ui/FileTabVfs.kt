@@ -94,8 +94,10 @@ internal fun FileTab.enterVfs(entry: FileEntry) {
 internal fun FileTab.exitVfs() {
     if (vfsStack.isEmpty()) return
     val entry = vfsStack.removeLast()
-    entry.vfs.close()
-    entry.cleanupTempFile()
+    // Close off the EDT under the write mutex — see FileTab.scheduleVfsClose. Closing here
+    // (Backspace at an archive root) used to run the recursive temp-dir delete inline and could
+    // race an in-flight write-back on the same stack.
+    scheduleVfsClose(listOf(entry))
     val parentPath = entry.parentPath
     val selectName = parentPath.fileName?.toString() ?: ""
     if (vfsStack.isNotEmpty()) {
@@ -135,11 +137,11 @@ internal fun FileTab.handleVfsBreadcrumbClick(segmentPath: String) {
 
     if (targetLevel < 0) return
 
+    val removed = mutableListOf<VfsStackEntry>()
     while (vfsStack.size > targetLevel + 1) {
-        val entry = vfsStack.removeLast()
-        entry.vfs.close()
-        entry.cleanupTempFile()
+        removed.add(vfsStack.removeLast())
     }
+    scheduleVfsClose(removed)
 
     val vfs = vfsStack.last().vfs
     val archivePrefix = prefixes[targetLevel]

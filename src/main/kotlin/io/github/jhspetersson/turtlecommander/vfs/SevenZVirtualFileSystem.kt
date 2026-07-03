@@ -124,7 +124,8 @@ class SevenZipVirtualFileSystem(
     }
 
     override fun repack(from: Path) {
-        SevenZOutputFile(archivePath.toFile()).use { out ->
+        repackAtomically(archivePath) { target ->
+        SevenZOutputFile(target.toFile()).use { out ->
             // SevenZOutputFile duck-types as an OutputStream (write(int)/write(byte[])/
             // write(byte[],int,int)) but doesn't actually extend it, so we can't hand it
             // to Files.copy directly. A thin adapter lets us replace the hand-rolled 8KB
@@ -149,6 +150,7 @@ class SevenZipVirtualFileSystem(
                 }
                 out.closeArchiveEntry()
             }
+        }
         }
     }
 }

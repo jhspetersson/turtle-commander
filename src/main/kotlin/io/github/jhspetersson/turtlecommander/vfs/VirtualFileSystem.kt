@@ -9,6 +9,7 @@ import io.github.jhspetersson.turtlecommander.model.FileEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.Closeable
+import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.file.*
@@ -331,6 +332,34 @@ internal fun symlinkTargetEscapes(baseDir: Path, linkPath: Path, target: String)
     } catch (_: Exception) {
         // Unparseable target (illegal chars, cross-scheme, …) — refuse it, the safe default.
         true
+    }
+}
+
+/**
+ * Rebuild an archive without risking the original: [write] emits the new archive into a sibling
+ * temp file, which is atomically moved over [archivePath] only after it finishes successfully. A
+ * crash, disk-full, or unreadable entry mid-repack then leaves the original archive intact instead
+ * of truncating it in place into an unrecoverable half-written file (the temp dir it was extracted
+ * into is deleted on close, so the on-disk archive is often the only surviving copy of the data).
+ *
+ * The temp file is a sibling — same directory, hence same filesystem — so the move can be atomic.
+ */
+internal fun repackAtomically(archivePath: Path, write: (Path) -> Unit) {
+    val dir = archivePath.toAbsolutePath().normalize().parent
+        ?: throw IOException("Cannot repack an archive with no parent directory: $archivePath")
+    val tmp = Files.createTempFile(dir, "tc-repack-", ".tmp")
+    try {
+        write(tmp)
+        try {
+            Files.move(tmp, archivePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+        } catch (_: AtomicMoveNotSupportedException) {
+            // Rare (e.g. some network filesystems): a non-atomic replace is still far safer than
+            // truncating the original before the new archive bytes exist.
+            Files.move(tmp, archivePath, StandardCopyOption.REPLACE_EXISTING)
+        }
+    } catch (e: Throwable) {
+        runCatching { Files.deleteIfExists(tmp) }
+        throw e
     }
 }
 
