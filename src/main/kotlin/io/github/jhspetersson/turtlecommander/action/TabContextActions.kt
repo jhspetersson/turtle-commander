@@ -1,6 +1,7 @@
 package io.github.jhspetersson.turtlecommander.action
 
 import com.intellij.ide.actions.RevealFileAction
+import com.intellij.openapi.actionSystem.ActionPlaces
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.components.service
 import io.github.jhspetersson.turtlecommander.dialog.FileSearchDialog
@@ -11,6 +12,12 @@ import io.github.jhspetersson.turtlecommander.ui.openDirectoryInSystemExplorer
 object TabContextMenuState {
     var clickedTabIndex: Int = -1
     var clickedPanel: FileManagerPanel? = null
+
+    /** Release the panel reference once the tab context menu closes (see the popup listener). */
+    fun clear() {
+        clickedTabIndex = -1
+        clickedPanel = null
+    }
 }
 
 abstract class TabContextAction : EdtAction() {
@@ -20,10 +27,17 @@ abstract class TabContextAction : EdtAction() {
     }
 
     protected fun resolveTabContext(e: AnActionEvent): Pair<FileManagerPanel?, Int> {
-        val contextPanel = TabContextMenuState.clickedPanel
-        if (contextPanel != null && TabContextMenuState.clickedTabIndex >= 0) {
-            return contextPanel to TabContextMenuState.clickedTabIndex
+        // Trust the clicked-tab state only when actually invoked from the tab context menu.
+        if (e.place == ActionPlaces.POPUP) {
+            val contextPanel = TabContextMenuState.clickedPanel
+            if (contextPanel != null && TabContextMenuState.clickedTabIndex >= 0) {
+                return contextPanel to TabContextMenuState.clickedTabIndex
+            }
         }
+        // Keyboard shortcut (e.g. Ctrl+W) or Find Action: the cached state is stale and could
+        // target a tab in the wrong panel — or even a different project. Only act when the tool
+        // window has focus, and operate on its active tab.
+        if (!isToolWindowActive(e)) return null to -1
         val project = e.project ?: return null to -1
         val panel = project.service<FileManagerStateService>().getActivePanel() ?: return null to -1
         val index = panel.getActiveTabIndex()

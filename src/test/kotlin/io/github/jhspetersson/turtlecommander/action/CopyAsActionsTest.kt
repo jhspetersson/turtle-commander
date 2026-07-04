@@ -148,6 +148,31 @@ class CopyAsActionsTest : BasePlatformTestCase() {
         assertEquals(Path.of("/home/user").toString(), clipboardText())
     }
 
+    // --- Context-menu state clearing (leak fix) ---
+
+    fun testFileContextMenuStateClearReleasesReferences() {
+        FileContextMenuState.clickedEntry = fileEntry("report.pdf")
+        // clickedTab needs a real FileTab; the leak we care about is the reference being dropped.
+        FileContextMenuState.clear()
+        assertNull(FileContextMenuState.clickedEntry)
+        assertNull(FileContextMenuState.clickedTab)
+    }
+
+    fun testTabContextMenuStateClearResetsState() {
+        TabContextMenuState.clickedTabIndex = 3
+        TabContextMenuState.clear()
+        assertEquals(-1, TabContextMenuState.clickedTabIndex)
+        assertNull(TabContextMenuState.clickedPanel)
+    }
+
+    fun testSearchContextMenuStateClearReleasesReferences() {
+        SearchContextMenuState.clickedEntry = fileEntry("found.txt")
+        SearchContextMenuState.selectedEntries = listOf(fileEntry("found.txt"))
+        SearchContextMenuState.clear()
+        assertNull(SearchContextMenuState.clickedEntry)
+        assertTrue(SearchContextMenuState.selectedEntries.isEmpty())
+    }
+
     // --- Search context: state ---
 
     fun testSearchContextMenuStateInitiallyNull() {

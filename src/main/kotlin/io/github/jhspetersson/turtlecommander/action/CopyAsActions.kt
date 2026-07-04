@@ -360,4 +360,10 @@ class SearchCopyAsJsonAction : EntryCopyExportAction({ entriesToJson(it, exportC
 object SearchContextMenuState {
     var clickedEntry: FileEntry? = null
     var selectedEntries: List<FileEntry> = emptyList()
+
+    /** Release entry references once the search results context menu closes. */
+    fun clear() {
+        clickedEntry = null
+        selectedEntries = emptyList()
+    }
 }

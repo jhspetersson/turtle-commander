@@ -19,8 +19,6 @@ import io.github.jhspetersson.turtlecommander.ui.unselectAllEntries
 import io.github.jhspetersson.turtlecommander.ui.unselectByMask
 import io.github.jhspetersson.turtlecommander.ui.unselectSameExtension
 
-private const val FILE_CONTEXT_PLACE = "TurtleCommander.FileContextMenu"
-
 /**
  * Resolves the tab a Selection action should target.
  *

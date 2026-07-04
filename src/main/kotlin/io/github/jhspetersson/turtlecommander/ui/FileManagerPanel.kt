@@ -121,6 +121,7 @@ class FileManagerPanel(
                 val am = ActionManager.getInstance()
                 val group = am.getAction("TurtleCommander.TabContextMenu") as? DefaultActionGroup ?: return
                 val popupMenu = am.createActionPopupMenu(ActionPlaces.POPUP, group)
+                popupMenu.component.clearStateOnClose { TabContextMenuState.clear() }
                 popupMenu.component.show(tabbedPane, e.x, e.y)
             }
         })

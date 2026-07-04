@@ -16,10 +16,34 @@ import com.intellij.ide.actions.RevealFileAction
 import com.intellij.openapi.util.SystemInfo
 import io.github.jhspetersson.turtlecommander.util.NativeProperties
 
+/** The `place` the file context menu is shown with (see FileTab.showContextMenu). */
+internal const val FILE_CONTEXT_PLACE = "TurtleCommander.FileContextMenu"
+
 object FileContextMenuState {
     var clickedEntry: FileEntry? = null
     var clickedTab: FileTab? = null
+
+    /** Release the tab reference once the file context menu closes (see the popup listener). */
+    fun clear() {
+        clickedEntry = null
+        clickedTab = null
+    }
 }
+
+/**
+ * Resolves the tab a file context action should target.
+ *
+ * - From the file context menu ([FILE_CONTEXT_PLACE]): the right-clicked tab.
+ * - Keyboard (Ctrl+C/X/V) or Find Action: the focused tab only. The cached [FileContextMenuState]
+ *   is stale between menus and would otherwise make these hijack the editor's copy/paste (or act
+ *   on a tab in the other panel) while the tool window is merely open.
+ */
+internal fun resolveFileContextTab(e: AnActionEvent): FileTab? =
+    if (e.place == FILE_CONTEXT_PLACE) {
+        FileContextMenuState.clickedTab ?: findActiveTab(e)
+    } else {
+        findActiveTab(e)?.takeIf { it.hasAnyViewFocus() }
+    }
 
 object FileCopyBuffer {
     var entries: List<FileEntry> = emptyList()
@@ -104,12 +128,12 @@ class OpenInExplorerAction : EdtAction() {
 
 class ContextCopyAction : EdtAction() {
     override fun update(e: AnActionEvent) {
-        val tab = FileContextMenuState.clickedTab ?: findActiveTab(e)
+        val tab = resolveFileContextTab(e)
         e.presentation.isEnabled = tab != null && tab.getSelectedEntries().isNotEmpty()
     }
 
     override fun actionPerformed(e: AnActionEvent) {
-        val tab = FileContextMenuState.clickedTab ?: findActiveTab(e) ?: return
+        val tab = resolveFileContextTab(e) ?: return
         FileCopyBuffer.isCut = false
         FileCopyBuffer.entries = tab.getSelectedEntries()
     }
@@ -117,12 +141,12 @@ class ContextCopyAction : EdtAction() {
 
 class ContextCutAction : EdtAction() {
     override fun update(e: AnActionEvent) {
-        val tab = FileContextMenuState.clickedTab ?: findActiveTab(e)
+        val tab = resolveFileContextTab(e)
         e.presentation.isEnabled = tab != null && tab.getSelectedEntries().isNotEmpty()
     }
 
     override fun actionPerformed(e: AnActionEvent) {
-        val tab = FileContextMenuState.clickedTab ?: findActiveTab(e) ?: return
+        val tab = resolveFileContextTab(e) ?: return
         FileCopyBuffer.isCut = true
         FileCopyBuffer.entries = tab.getSelectedEntries()
     }
@@ -131,7 +155,7 @@ class ContextCutAction : EdtAction() {
 class ContextPasteAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val hasBuffer = FileCopyBuffer.entries.isNotEmpty()
-        val tab = FileContextMenuState.clickedTab ?: findActiveTab(e)
+        val tab = resolveFileContextTab(e)
         e.presentation.isEnabled = hasBuffer && tab != null && tab.currentVfs?.isReadOnly != true
     }
 
@@ -139,7 +163,7 @@ class ContextPasteAction : EdtAction() {
         val entries = FileCopyBuffer.entries
         if (entries.isEmpty()) return
         val cut = FileCopyBuffer.isCut
-        val tab = FileContextMenuState.clickedTab ?: findActiveTab(e) ?: return
+        val tab = resolveFileContextTab(e) ?: return
         val destination = tab.currentPath
 
         if (cut) {
@@ -155,7 +179,7 @@ class ContextPasteIntoAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val hasBuffer = FileCopyBuffer.entries.isNotEmpty()
         val entry = FileContextMenuState.clickedEntry
-        val tab = FileContextMenuState.clickedTab ?: findActiveTab(e)
+        val tab = resolveFileContextTab(e)
         e.presentation.isEnabledAndVisible = hasBuffer && entry != null && entry.isDirectory && !entry.isParentLink && tab?.currentVfs?.isReadOnly != true
     }
 
@@ -164,7 +188,7 @@ class ContextPasteIntoAction : EdtAction() {
         if (entries.isEmpty()) return
         val cut = FileCopyBuffer.isCut
         val entry = FileContextMenuState.clickedEntry ?: return
-        val tab = FileContextMenuState.clickedTab ?: findActiveTab(e) ?: return
+        val tab = resolveFileContextTab(e) ?: return
 
         if (cut) {
             FileCopyBuffer.entries = emptyList()

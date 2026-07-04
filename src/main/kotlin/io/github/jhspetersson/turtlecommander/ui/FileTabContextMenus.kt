@@ -6,7 +6,28 @@ import io.github.jhspetersson.turtlecommander.action.FileContextMenuState
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import java.awt.event.MouseEvent
 import javax.swing.JComponent
+import javax.swing.JPopupMenu
+import javax.swing.SwingUtilities
+import javax.swing.event.PopupMenuEvent
+import javax.swing.event.PopupMenuListener
 import javax.swing.tree.DefaultMutableTreeNode
+
+/**
+ * Clear the shared context-menu state once [this] popup closes, so it stops pinning the target
+ * FileTab / panel (and transitively the project) after the menu is dismissed. Deferred to a later
+ * EDT event so the selected menu item's own action — which reads the state — runs first.
+ */
+internal fun JPopupMenu.clearStateOnClose(clear: () -> Unit) {
+    addPopupMenuListener(object : PopupMenuListener {
+        override fun popupMenuWillBecomeVisible(e: PopupMenuEvent) {}
+        override fun popupMenuWillBecomeInvisible(e: PopupMenuEvent) {
+            SwingUtilities.invokeLater { clear() }
+        }
+        override fun popupMenuCanceled(e: PopupMenuEvent) {
+            SwingUtilities.invokeLater { clear() }
+        }
+    })
+}
 
 /**
  * Per-view right-click wiring for [FileTab]. Each view (table / list / thumbnail
@@ -69,5 +90,6 @@ internal inline fun FileTab.showContextMenu(
     val am = ActionManager.getInstance()
     val group = am.getAction("TurtleCommander.FileContextMenu") as? ActionGroup ?: return
     val popupMenu = am.createActionPopupMenu("TurtleCommander.FileContextMenu", group)
+    popupMenu.component.clearStateOnClose { FileContextMenuState.clear() }
     popupMenu.component.show(component, e.x, e.y)
 }

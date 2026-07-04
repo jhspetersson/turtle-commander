@@ -136,6 +136,7 @@ class SearchResultsPanel(
                     val am = ActionManager.getInstance()
                     val group = am.getAction("TurtleCommander.SearchContextMenu") as? ActionGroup ?: return
                     val popupMenu = am.createActionPopupMenu("TurtleCommander.SearchContextMenu", group)
+                    popupMenu.component.clearStateOnClose { SearchContextMenuState.clear() }
                     popupMenu.component.show(table, e.x, e.y)
                 }
             })

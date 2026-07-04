@@ -73,6 +73,7 @@ fun FileTab.showContextMenu() {
     val am = ActionManager.getInstance()
     val group = am.getAction("TurtleCommander.FileContextMenu") as? ActionGroup ?: return
     val popupMenu = am.createActionPopupMenu("TurtleCommander.FileContextMenu", group)
+    popupMenu.component.clearStateOnClose { FileContextMenuState.clear() }
 
     when (viewMode) {
         ViewMode.TABLE -> {

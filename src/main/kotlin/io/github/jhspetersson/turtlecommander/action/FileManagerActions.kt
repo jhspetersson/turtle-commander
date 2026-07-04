@@ -23,7 +23,12 @@ internal fun findActiveTab(e: AnActionEvent): FileTab? {
 internal fun isToolWindowActive(e: AnActionEvent): Boolean {
     val project = e.project ?: return false
     val toolWindow = ToolWindowManager.getInstance(project).getToolWindow("Turtle Commander") ?: return false
-    return toolWindow.isVisible
+    // Require the tool window to actually hold focus, not merely be visible. These shortcuts
+    // (Ctrl+E, Ctrl+T, Ctrl+S, Alt+←/→, Alt+F1/F2, Ctrl+1..9, TAB, F10) are registered in the
+    // global keymap, so gating on visibility alone made them contend with the IDE's own actions
+    // (Recent Files, Update Project, editor navigation, bookmarks…) whenever the panel was docked
+    // open but the editor had focus.
+    return toolWindow.isActive
 }
 
 abstract class FileManagerAction : EdtAction() {

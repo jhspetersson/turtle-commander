@@ -1647,14 +1647,29 @@ class FileTab(
     }
 
     /**
-     * Close every open VFS in the stack and delete their temp files. Also called mid-life
-     * when the user leaves an archive via drive selection or a breadcrumb click — unlike
-     * [dispose], the tab keeps living (and keeps its drive-roots subscription).
-     *
-     * The stack is emptied synchronously (so the tab immediately reflects "left the archive"),
-     * but the actual close is scheduled off the EDT via [scheduleVfsClose].
+     * Close every open VFS in the stack and delete their temp files **synchronously**. Used from
+     * [dispose]: the Disposable contract requires cleanup to be finished when dispose returns, so
+     * this can't be deferred to a coroutine (whose scope may be cancelling at teardown). For the
+     * mid-life "user left the archive" paths use [closeVfsStackAsync] instead.
      */
     internal fun closeVfsStack() {
+        for (entry in vfsStack.asReversed()) {
+            try {
+                entry.vfs.close()
+            } catch (e: Exception) {
+                thisLogger().warn("Failed to close VFS ${entry.vfs.archivePath}: ${e.message}")
+            }
+            entry.cleanupTempFile()
+        }
+        vfsStack.clear()
+    }
+
+    /**
+     * Leave the archive mid-life (drive selection, breadcrumb click): empty the stack synchronously
+     * so the tab immediately reflects "left the archive", then close the handles off the EDT via
+     * [scheduleVfsClose]. Unlike [dispose], the tab keeps living.
+     */
+    internal fun closeVfsStackAsync() {
         if (vfsStack.isEmpty()) return
         val entries = vfsStack.toList()
         vfsStack.clear()
