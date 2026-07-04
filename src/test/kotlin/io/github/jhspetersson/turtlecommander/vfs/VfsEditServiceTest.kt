@@ -152,13 +152,16 @@ class VfsEditServiceActiveEditsTest {
             Files.writeString(target, "v0")
             Files.writeString(temp, "v1")
 
-            // No VFS stack: write-back is a plain copy temp -> target.
+            // No VFS stack: write-back is a plain copy temp -> target. Tolerate a transient
+            // NoSuchFile/partial read while Files.copy(REPLACE_EXISTING) is mid-write.
+            fun readOrNull(p: Path): String? = try { Files.readString(p) } catch (_: Exception) { null }
+
             service.trackEdit(VfsEditEntry(vfsFilePath = target, tempFilePath = temp, vfsStack = mutableListOf()))
             val key = temp.toString().replace('\\', '/')
 
             service.onFileSaved(temp.toString())
             runBlocking {
-                withTimeout(5_000.milliseconds) { while (Files.readString(target) != "v1") delay(20.milliseconds) }
+                withTimeout(5_000.milliseconds) { while (readOrNull(target) != "v1") delay(20.milliseconds) }
             }
             assertTrue("entry must remain tracked after a successful save", service.isTrackedForTest(key))
 
@@ -166,9 +169,9 @@ class VfsEditServiceActiveEditsTest {
             Files.writeString(temp, "v2")
             service.onFileSaved(temp.toString())
             runBlocking {
-                withTimeout(5_000.milliseconds) { while (Files.readString(target) != "v2") delay(20.milliseconds) }
+                withTimeout(5_000.milliseconds) { while (readOrNull(target) != "v2") delay(20.milliseconds) }
             }
-            assertEquals("v2", Files.readString(target))
+            assertEquals("v2", readOrNull(target))
         } finally {
             service.dispose()
             dir.toFile().deleteRecursively()

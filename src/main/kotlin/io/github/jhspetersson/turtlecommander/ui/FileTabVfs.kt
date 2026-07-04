@@ -112,7 +112,7 @@ internal fun FileTab.handleVfsBreadcrumbClick(segmentPath: String) {
     val outerArchiveStr = vfsStack.first().parentPath.toString()
 
     if (segmentPath.length < outerArchiveStr.length) {
-        closeVfsStack()
+        closeVfsStackAsync()
         val path = try { Path.of(segmentPath) } catch (_: Exception) { null }
         if (path != null) {
             // Stat off the EDT: a dead network path can block for many seconds.

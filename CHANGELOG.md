@@ -11,6 +11,9 @@
 - Editing two files from the same archive no longer loses the second file's changes
 - Repacking an archive is now atomic: a failure mid-write no longer corrupts the original
 - Leaving an archive no longer briefly freezes the UI
+- Keyboard shortcuts (Close Tab, Copy/Cut/Paste) now act on the focused tab instead of the last right-clicked one
+- Turtle Commander shortcuts no longer contend with the IDE's own when the panel is open but not focused
+- The command bar only tracks Ctrl/Alt/Shift while the tool window has focus, not globally
 
 ## [0.7.9] - 2026-07-03
 

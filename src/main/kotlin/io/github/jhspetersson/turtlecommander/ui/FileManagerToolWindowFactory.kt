@@ -2,7 +2,6 @@ package io.github.jhspetersson.turtlecommander.ui
 
 import com.intellij.icons.AllIcons
 import com.intellij.ide.DataManager
-import com.intellij.ide.IdeEventQueue
 import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.actionSystem.ex.ActionUtil
 import com.intellij.openapi.application.ApplicationManager
@@ -12,6 +11,7 @@ import com.intellij.openapi.keymap.KeymapManagerListener
 import com.intellij.openapi.keymap.KeymapUtil
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.OnePixelSplitter
@@ -418,24 +418,34 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
                 }
             })
 
-        IdeEventQueue.getInstance().addDispatcher(
-            object : IdeEventQueue.NonLockedEventDispatcher {
-                override fun dispatch(e: AWTEvent): Boolean {
-                    if (e is KeyEvent && bar.isShowing &&
-                        (e.id == KeyEvent.KEY_PRESSED || e.id == KeyEvent.KEY_RELEASED)
-                    ) {
-                        when (e.keyCode) {
-                            KeyEvent.VK_SHIFT, KeyEvent.VK_CONTROL,
-                            KeyEvent.VK_ALT, KeyEvent.VK_META -> {
-                                updateBar(e.modifiersEx and modifierMask)
-                            }
-                        }
+        // Swap the command-bar row while a modifier is held — but only when focus is inside the
+        // tool window, so holding Ctrl/Alt in the editor (or anywhere else) no longer flips the
+        // bar's labels. Uses the public AWT KeyboardFocusManager instead of the internal
+        // IdeEventQueue dispatcher, and skips redundant rebuilds (updateBar reconstructs the row).
+        var lastBarModifier = 0
+        fun applyBarModifier(mod: Int) {
+            if (mod != lastBarModifier) {
+                lastBarModifier = mod
+                updateBar(mod)
+            }
+        }
+        val keyDispatcher = KeyEventDispatcher { e ->
+            if (bar.isShowing && (e.id == KeyEvent.KEY_PRESSED || e.id == KeyEvent.KEY_RELEASED)) {
+                when (e.keyCode) {
+                    KeyEvent.VK_SHIFT, KeyEvent.VK_CONTROL, KeyEvent.VK_ALT, KeyEvent.VK_META -> {
+                        val focusOwner = KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner
+                        val insideToolWindow = focusOwner != null &&
+                            SwingUtilities.isDescendingFrom(focusOwner, toolWindow.component)
+                        applyBarModifier(if (insideToolWindow) e.modifiersEx and modifierMask else 0)
                     }
-                    return false
                 }
-            },
-            toolWindow.disposable,
-        )
+            }
+            false
+        }
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(keyDispatcher)
+        Disposer.register(toolWindow.disposable) {
+            KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(keyDispatcher)
+        }
 
         return bar
     }

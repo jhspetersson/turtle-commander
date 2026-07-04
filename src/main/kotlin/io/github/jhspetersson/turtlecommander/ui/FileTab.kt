@@ -497,7 +497,7 @@ class FileTab(
                     val targetPath = resolveDriveSelectionTarget(Path.of(selected), otherPanelPathProvider(), availableRoots)
                     // Exit VFS if active
                     if (vfsStack.isNotEmpty()) {
-                        closeVfsStack()
+                        closeVfsStackAsync()
                     }
                     if (targetPath != currentPath) {
                         fileOps.launch {
