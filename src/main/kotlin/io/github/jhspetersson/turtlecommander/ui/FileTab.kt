@@ -483,14 +483,22 @@ class FileTab(
         driveCombo.apply {
             renderer = DriveComboRenderer()
             addPopupMenuListener(object : PopupMenuListener {
+                private var selectionOnOpen: String? = null
+
                 override fun popupMenuWillBecomeVisible(e: PopupMenuEvent) {
                     driveComboPopupOpen = true
+                    selectionOnOpen = selectedItem as? String
                 }
                 override fun popupMenuWillBecomeInvisible(e: PopupMenuEvent) {
                     driveComboPopupOpen = false
                     flushPendingDriveRootsLater()
                     if (updatingDriveCombo) return
                     val selected = selectedItem as? String ?: return
+                    // Only act on a real change of drive; a dismissed dropdown keeps the selection.
+                    if (selected == selectionOnOpen) {
+                        table.requestFocusInWindow()
+                        return
+                    }
                     // Use the shared poller's cache — calling getRoots() here would do
                     // File.listRoots() on the EDT, which can block on network drives.
                     val availableRoots = (fileOps.currentRoots() ?: emptyList()).map { Path.of(it) }
