@@ -14,6 +14,7 @@
 - Keyboard shortcuts (Close Tab, Copy/Cut/Paste) now act on the focused tab instead of the last right-clicked one
 - Turtle Commander shortcuts no longer contend with the IDE's own when the panel is open but not focused
 - The command bar only tracks Ctrl/Alt/Shift while the tool window has focus, not globally
+- Closing the last search tab no longer leaves an empty, unusable panel
 
 ## [0.7.9] - 2026-07-03
 

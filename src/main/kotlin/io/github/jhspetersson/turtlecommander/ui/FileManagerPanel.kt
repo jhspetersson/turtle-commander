@@ -393,7 +393,7 @@ class FileManagerPanel(
         focusActiveTab()
     }
 
-    fun openSearchTab(criteria: FileSearchCriteria) {
+    fun openSearchTab(criteria: FileSearchCriteria): SearchResultsPanel {
         val searchPanel = SearchResultsPanel(project, criteria)
         parentDisposable?.let { Disposer.register(it, searchPanel) }
 
@@ -405,6 +405,18 @@ class FileManagerPanel(
         tabbedPane.selectedIndex = insertIndex
 
         searchPanel.startSearch()
+        return searchPanel
+    }
+
+    internal fun closeSearchTab(searchPanel: SearchResultsPanel) {
+        Disposer.dispose(searchPanel)
+        val idx = tabbedPane.indexOfComponent(searchPanel)
+        if (idx < 0) return
+        tabbedPane.removeTabAt(idx)
+        if (getRealTabCount() == 0) {
+            addNewTab(initialPath)
+        }
+        focusActiveTab()
     }
 
     private fun createSearchTabHeader(title: String, searchPanel: SearchResultsPanel): JPanel {
@@ -413,14 +425,7 @@ class FileManagerPanel(
         val label = JLabel(title)
         applyTabStyleToHeader(panel, label)
         panel.add(label, BorderLayout.CENTER)
-        val closeButton = TabCloseButton {
-            Disposer.dispose(searchPanel)
-            val idx = tabbedPane.indexOfComponent(searchPanel)
-            if (idx >= 0) {
-                tabbedPane.removeTabAt(idx)
-                focusActiveTab()
-            }
-        }
+        val closeButton = TabCloseButton { closeSearchTab(searchPanel) }
         panel.add(closeButton, BorderLayout.EAST)
         return panel
     }

@@ -7,6 +7,8 @@ import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
 import com.intellij.openapi.components.service
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import io.github.jhspetersson.turtlecommander.dialog.FileSearchCriteria
+import io.github.jhspetersson.turtlecommander.dialog.NamePatternMode
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.ui.*
@@ -153,6 +155,34 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
         assertNotNull("Should still have an active tab", panel.getActiveTab())
+    }
+
+    fun testClosingLastSearchTabLeavesAUsableFileTab() {
+        if (skipIfHeadless()) return
+        val panel = createPanel()
+
+        // Open a search tab, then close the only file tab (allowed while the search tab exists).
+        val criteria = FileSearchCriteria(
+            rootPath = tempDir,
+            namePattern = "*.txt",
+            namePatternMode = NamePatternMode.GLOB,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+        )
+        val searchPanel = panel.openSearchTab(criteria)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        panel.closeTab(0) // close the file tab; only the search tab remains
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertNull("With only a search tab, getActiveTab() is null", panel.getActiveTab())
+
+        // Closing the last (search) tab must not leave the panel empty.
+        panel.closeSearchTab(searchPanel)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        assertEquals("Panel must keep a real tab", 1, panel.getRealTabCount())
+        assertNotNull("A usable file tab must remain after closing the last search tab", panel.getActiveTab())
     }
 
     fun testCloseOtherTabs() {
