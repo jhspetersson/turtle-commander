@@ -22,6 +22,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 internal object VfsTempCleanup {
     private val PREFIXES = listOf(
         "turtle-vfs-",
+        // Archive entries extracted for a drag out of the panel (FileEntryTransferable).
+        "turtle-dnd-",
         // AbstractTempDirVirtualFileSystem subclasses, see their constructor arguments.
         "turtle-zip-", "turtle-tar-", "turtle-rar-", "turtle-7z-", "turtle-iso-",
         "turtle-pak-", "turtle-rpm-", "turtle-crx-", "turtle-ar-", "turtle-decompress-",
