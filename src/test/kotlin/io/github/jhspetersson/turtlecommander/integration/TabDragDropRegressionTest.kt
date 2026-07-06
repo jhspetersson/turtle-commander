@@ -25,6 +25,11 @@ class TabDragDropRegressionTest : BasePlatformTestCase() {
     override fun setUp() {
         super.setUp()
         projectPath = Path.of(project.basePath!!)
+        // The reused light project's basePath dir belongs to whichever earlier test created
+        // the project and may have been cleaned with that test's temp files. Panels here are
+        // rooted at projectPath, and a missing dir makes tabs silently fall back to the
+        // nearest existing ancestor, breaking the path-equality assertions.
+        Files.createDirectories(projectPath)
         stateService = project.service()
         tempDir = Files.createTempDirectory("turtle-test-dnd-")
         TurtleCommanderSettings.getInstance().state.defaultViewMode = "TABLE"

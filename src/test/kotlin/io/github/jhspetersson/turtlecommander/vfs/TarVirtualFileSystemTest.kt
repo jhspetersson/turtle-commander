@@ -344,6 +344,10 @@ class TarVirtualFileSystemTest {
         val malicious = Files.createTempFile("tar-escape-", ".tar")
         try {
             TarArchiveOutputStream(Files.newOutputStream(malicious)).use { tar ->
+                // The linkname embeds an absolute temp path, whose length depends on the host
+                // (macOS TMPDIR alone is ~50 chars) — without POSIX long-name support the
+                // classic header's 100-byte linkname field makes putArchiveEntry throw.
+                tar.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX)
                 // A symlink pointing at an absolute path outside the temp dir...
                 val link = TarArchiveEntry("escape", TarArchiveEntry.LF_SYMLINK)
                 link.linkName = outsideDir.toString()
@@ -389,6 +393,9 @@ class TarVirtualFileSystemTest {
         val malicious = Files.createTempFile("tar-hardlink-", ".tar")
         try {
             TarArchiveOutputStream(Files.newOutputStream(malicious)).use { tar ->
+                // See the symlink test above: the absolute-path linkname can exceed the
+                // classic header's 100-byte field on hosts with a long temp dir.
+                tar.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX)
                 val link = TarArchiveEntry("stolen.txt", TarArchiveEntry.LF_LINK)
                 link.linkName = secret.toString() // absolute path outside the archive
                 tar.putArchiveEntry(link)
