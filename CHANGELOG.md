@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.11] - 2026-07-07
+
 ### Added
 
 - Allow drag-and-drop extraction from archives
