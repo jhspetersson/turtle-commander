@@ -3,6 +3,7 @@ package io.github.jhspetersson.turtlecommander.settings
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
@@ -12,6 +13,8 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeParseException
+import java.util.regex.Pattern
+import java.util.regex.PatternSyntaxException
 import javax.swing.*
 import javax.swing.event.PopupMenuEvent
 import javax.swing.event.PopupMenuListener
@@ -159,6 +162,7 @@ internal class ColorMatcherEditDialog(
         textKindCombo.focusNextOnSelect { textPatternField }
 
         init()
+        initValidation()
     }
 
     override fun getPreferredFocusedComponent(): JComponent = primaryInput()
@@ -489,6 +493,15 @@ internal class ColorMatcherEditDialog(
         else -> value
     }
 
+    override fun doValidate(): ValidationInfo? = when (kindCombo.selectedItem as Kind) {
+        Kind.NAME -> validatePattern(nameKindCombo.selectedItem as PatternKind, namePatternField)
+        Kind.CONTAINS -> validatePattern(containsKindCombo.selectedItem as PatternKind, containsPatternField)
+        Kind.OWNER, Kind.GROUP, Kind.PERMISSIONS ->
+            validatePattern(textKindCombo.selectedItem as PatternKind, textPatternField)
+        Kind.CREATED, Kind.MODIFIED -> validateDateCard()
+        Kind.SIZE, Kind.SYMLINK, Kind.NAMED_PIPE -> null
+    }
+
     override fun doOKAction() {
         result = when (kindCombo.selectedItem as Kind) {
             Kind.SIZE -> {
@@ -499,82 +512,87 @@ internal class ColorMatcherEditDialog(
                 } else 0L
                 RuleMatcher.Size(op = op, bytes = bytes, bytesMax = bytesMax)
             }
-            Kind.NAME -> {
-                val pattern = namePatternField.text.trim()
-                if (pattern.isEmpty()) {
-                    setErrorText("Pattern cannot be empty", namePatternField)
-                    return
-                }
-                RuleMatcher.Name(
-                    kind = nameKindCombo.selectedItem as PatternKind,
-                    pattern = pattern,
-                    caseSensitive = nameCaseCheck.isSelected,
-                    appliesTo = nameAppliesCombo.selectedItem as AppliesTo,
-                )
-            }
-            Kind.CONTAINS -> {
-                val pattern = containsPatternField.text.trim()
-                if (pattern.isEmpty()) {
-                    setErrorText("Pattern cannot be empty", containsPatternField)
-                    return
-                }
-                RuleMatcher.Contains(
-                    kind = containsKindCombo.selectedItem as PatternKind,
-                    pattern = pattern,
-                    caseSensitive = containsCaseCheck.isSelected,
-                )
-            }
-            Kind.CREATED -> buildDateMatcher(DateField.CREATED) ?: return
-            Kind.MODIFIED -> buildDateMatcher(DateField.MODIFIED) ?: return
-            Kind.OWNER -> buildTextMatcher(TextProperty.OWNER) ?: return
-            Kind.GROUP -> buildTextMatcher(TextProperty.GROUP) ?: return
-            Kind.PERMISSIONS -> buildTextMatcher(TextProperty.PERMISSIONS) ?: return
+            Kind.NAME -> RuleMatcher.Name(
+                kind = nameKindCombo.selectedItem as PatternKind,
+                pattern = namePatternField.text.trim(),
+                caseSensitive = nameCaseCheck.isSelected,
+                appliesTo = nameAppliesCombo.selectedItem as AppliesTo,
+            )
+            Kind.CONTAINS -> RuleMatcher.Contains(
+                kind = containsKindCombo.selectedItem as PatternKind,
+                pattern = containsPatternField.text.trim(),
+                caseSensitive = containsCaseCheck.isSelected,
+            )
+            Kind.CREATED -> buildDateMatcher(DateField.CREATED)
+            Kind.MODIFIED -> buildDateMatcher(DateField.MODIFIED)
+            Kind.OWNER -> buildTextMatcher(TextProperty.OWNER)
+            Kind.GROUP -> buildTextMatcher(TextProperty.GROUP)
+            Kind.PERMISSIONS -> buildTextMatcher(TextProperty.PERMISSIONS)
             Kind.SYMLINK -> RuleMatcher.Symlink(state = symlinkStateCombo.selectedItem as SymlinkState)
             Kind.NAMED_PIPE -> RuleMatcher.NamedPipe
         }
         super.doOKAction()
     }
 
-    /** Reads the date card into a matcher, or shows an error and returns null. */
-    private fun buildDateMatcher(field: DateField): RuleMatcher.Date? {
+    /** Reads the date card into a matcher; [doValidate] has already vetted the fields. */
+    private fun buildDateMatcher(field: DateField): RuleMatcher.Date {
         return when (val op = dateOpCombo.selectedItem as DateOp) {
             DateOp.BEFORE, DateOp.AFTER -> {
-                val millis = parseIsoDate(dateValueField)?.let { startOfDayMillis(it) } ?: return null
+                val millis = startOfDayMillis(LocalDate.parse(dateValueField.text.trim()))
                 RuleMatcher.Date(field = field, op = op, epochMillis = millis)
             }
             DateOp.BETWEEN -> {
-                val lo = parseIsoDate(dateValueField)?.let { startOfDayMillis(it) } ?: return null
-                val hi = parseIsoDate(dateMaxField)?.let { endOfDayMillis(it) } ?: return null
-                if (hi < lo) {
-                    setErrorText("End date is before start date", dateMaxField)
-                    return null
-                }
+                val lo = startOfDayMillis(LocalDate.parse(dateValueField.text.trim()))
+                val hi = endOfDayMillis(LocalDate.parse(dateMaxField.text.trim()))
                 RuleMatcher.Date(field = field, op = op, epochMillis = lo, epochMillisMax = hi)
             }
             DateOp.WITHIN_LAST, DateOp.OLDER_THAN -> {
                 val amount = (dateAmountSpinner.value as Number).toLong()
-                if (amount <= 0L) {
-                    setErrorText("Amount must be positive", dateAmountSpinner)
-                    return null
-                }
                 RuleMatcher.Date(field = field, op = op, amount = amount, unit = dateUnitCombo.selectedItem as DateUnit)
             }
         }
     }
 
-    /** Reads the text card into a matcher, or shows an error and returns null. */
-    private fun buildTextMatcher(field: TextProperty): RuleMatcher.Text? {
-        val pattern = textPatternField.text.trim()
-        if (pattern.isEmpty()) {
-            setErrorText("Pattern cannot be empty", textPatternField)
-            return null
+    /** Reads the text card into a matcher; [doValidate] has already vetted the fields. */
+    private fun buildTextMatcher(field: TextProperty): RuleMatcher.Text = RuleMatcher.Text(
+        field = field,
+        kind = textKindCombo.selectedItem as PatternKind,
+        pattern = textPatternField.text.trim(),
+        caseSensitive = textCaseCheck.isSelected,
+    )
+
+    /** Checks that [field] holds a non-empty pattern that compiles for [kind]. */
+    private fun validatePattern(kind: PatternKind, field: JBTextField): ValidationInfo? {
+        val pattern = field.text.trim()
+        if (pattern.isEmpty()) return ValidationInfo("Pattern cannot be empty", field)
+        val regex = when (kind) {
+            PatternKind.EXACT -> return null
+            PatternKind.GLOB -> globToRegex(pattern)
+            PatternKind.REGEX -> pattern
         }
-        return RuleMatcher.Text(
-            field = field,
-            kind = textKindCombo.selectedItem as PatternKind,
-            pattern = pattern,
-            caseSensitive = textCaseCheck.isSelected,
-        )
+        return try {
+            Pattern.compile(regex)
+            null
+        } catch (e: PatternSyntaxException) {
+            val message = when (kind) {
+                PatternKind.GLOB -> "Invalid glob pattern"
+                else -> "Invalid regular expression: ${e.description}"
+            }
+            ValidationInfo(message, field)
+        }
+    }
+
+    private fun validateDateCard(): ValidationInfo? = when (dateOpCombo.selectedItem as DateOp) {
+        DateOp.BEFORE, DateOp.AFTER -> validateIsoDate(dateValueField)
+        DateOp.BETWEEN -> validateIsoDate(dateValueField) ?: validateIsoDate(dateMaxField) ?: run {
+            val lo = LocalDate.parse(dateValueField.text.trim())
+            val hi = LocalDate.parse(dateMaxField.text.trim())
+            if (hi < lo) ValidationInfo("End date is before start date", dateMaxField) else null
+        }
+        DateOp.WITHIN_LAST, DateOp.OLDER_THAN -> {
+            val amount = (dateAmountSpinner.value as Number).toLong()
+            if (amount <= 0L) ValidationInfo("Amount must be positive", dateAmountSpinner.editorField()) else null
+        }
     }
 
     /**
@@ -600,18 +618,15 @@ internal class ColorMatcherEditDialog(
     /** The inner text field of a spinner, so focus lands on the editable value rather than the spinner shell. */
     private fun JSpinner.editorField(): JComponent = (editor as JSpinner.DefaultEditor).textField
 
-    /** Parses `YYYY-MM-DD` from [field], or shows an error on it and returns null. */
-    private fun parseIsoDate(field: JBTextField): LocalDate? {
+    /** Checks that [field] holds a `YYYY-MM-DD` date. */
+    private fun validateIsoDate(field: JBTextField): ValidationInfo? {
         val text = field.text.trim()
-        if (text.isEmpty()) {
-            setErrorText("Enter a date (YYYY-MM-DD)", field)
-            return null
-        }
+        if (text.isEmpty()) return ValidationInfo("Enter a date (YYYY-MM-DD)", field)
         return try {
             LocalDate.parse(text)
-        } catch (_: DateTimeParseException) {
-            setErrorText("Invalid date, use YYYY-MM-DD", field)
             null
+        } catch (_: DateTimeParseException) {
+            ValidationInfo("Invalid date, use YYYY-MM-DD", field)
         }
     }
 }

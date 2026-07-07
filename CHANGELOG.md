@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Improved validation UX of colorization rules
+
 ## [0.7.11] - 2026-07-07
 
 ### Added
