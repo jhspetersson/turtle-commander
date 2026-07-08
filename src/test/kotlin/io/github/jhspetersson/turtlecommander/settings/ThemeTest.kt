@@ -469,11 +469,10 @@ class ThemeTest {
 
     @Test
     fun `ComponentStyleEditor round-trips all fields including backgroundColor`() {
-        val fontItems = arrayOf("(Default)", "Arial", "Courier New")
         val original = ComponentStyle().apply {
             fontFamily = "Arial"; fontSize = 14; fontColor = "#FF0000"; backgroundColor = "#0000FF"
         }
-        val editor = ComponentStyleEditor("Test", fontItems, original)
+        val editor = ComponentStyleEditor("Test", original)
         val result = ComponentStyle()
         editor.applyTo(result)
         assertEquals("Arial", result.fontFamily)
@@ -484,8 +483,7 @@ class ThemeTest {
 
     @Test
     fun `ComponentStyleEditor reset to empty clears backgroundColor`() {
-        val fontItems = arrayOf("(Default)", "Arial")
-        val editor = ComponentStyleEditor("Test", fontItems, ComponentStyle().apply { backgroundColor = "#112233" })
+        val editor = ComponentStyleEditor("Test", ComponentStyle().apply { backgroundColor = "#112233" })
         editor.resetFrom(ComponentStyle())
         val result = ComponentStyle()
         editor.applyTo(result)
@@ -494,9 +492,8 @@ class ThemeTest {
 
     @Test
     fun `ComponentStyleEditor isModified detects backgroundColor change`() {
-        val fontItems = arrayOf("(Default)", "Arial")
         val saved = ComponentStyle().apply { backgroundColor = "#112233" }
-        val editor = ComponentStyleEditor("Test", fontItems, saved)
+        val editor = ComponentStyleEditor("Test", saved)
         assertFalse(editor.isModified(saved))
         editor.bgColorButton.setColor(Color.RED)
         assertTrue(editor.isModified(saved))

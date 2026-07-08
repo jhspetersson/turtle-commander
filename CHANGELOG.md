@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Improved font selectors
+
 ## [0.7.12] - 2026-07-08
 
 ### Changed

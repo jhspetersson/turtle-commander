@@ -7,7 +7,6 @@ import java.awt.*
 import javax.swing.*
 
 internal class ColumnsEditor(
-    private val fontItems: Array<String>,
     initialColumns: List<ColumnConfig>,
 ) {
     private data class ColumnRow(
@@ -155,7 +154,7 @@ internal class ColumnsEditor(
     fun resetFrom(columns: List<ColumnConfig>) {
         rows.clear()
         for (col in columns) {
-            val editor = ComponentStyleEditor(col.id, fontItems, col.style)
+            val editor = ComponentStyleEditor(col.id, col.style)
             rows.add(ColumnRow(col.id, col.visible, editor))
         }
         rebuildListModel()

@@ -1,26 +1,59 @@
 package io.github.jhspetersson.turtlecommander.settings
 
+import com.intellij.openapi.application.ApplicationBundle
 import com.intellij.ui.ColorChooserService
+import com.intellij.ui.FontComboBox
+import com.intellij.ui.GroupedComboBoxRenderer
 import com.intellij.ui.JBColor
+import com.intellij.ui.SimpleColoredComponent
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.popup.JBPopupFactory
+import com.intellij.openapi.ui.popup.ListSeparator
 import com.intellij.openapi.ui.popup.PopupStep
 import com.intellij.openapi.ui.popup.util.BaseListPopupStep
+import com.intellij.util.ui.FontInfo
+import com.intellij.util.ui.JBUI
 import io.github.jhspetersson.turtlecommander.ui.FAVORITE_PRESET_COLORS
 import java.awt.*
 import javax.swing.*
 
 internal class ComponentStyleEditor(
     val label: String,
-    fontItems: Array<String>,
     style: ComponentStyle,
     legacyFamily: String = "",
     legacySize: Int = 0,
 ) {
-    private val defaultLabel = "(Default)"
-    val fontCombo = ComboBox(DefaultComboBoxModel(fontItems)).apply {
+    val fontCombo = FontComboBox(false, false, true).apply {
         preferredSize = Dimension(160, preferredSize.height)
         maximumSize = Dimension(160, maximumSize.height)
+        renderer = object : GroupedComboBoxRenderer<Any?>(this) {
+            override fun separatorFor(value: Any?): ListSeparator? {
+                if (value !is FontInfo) return null
+                var firstMono: FontInfo? = null
+                var firstProportional: FontInfo? = null
+                for (i in 0 until model.size) {
+                    val info = model.getElementAt(i) as? FontInfo ?: continue
+                    if (info.isMonospaced) {
+                        if (firstMono == null) firstMono = info
+                    } else {
+                        if (firstProportional == null) firstProportional = info
+                    }
+                    if (firstMono != null && firstProportional != null) break
+                }
+                return when (value) {
+                    firstMono -> ListSeparator(ApplicationBundle.message("settings.editor.font.monospaced"))
+                    firstProportional -> ListSeparator(ApplicationBundle.message("settings.editor.font.proportional"))
+                    else -> null
+                }
+            }
+
+            override fun customize(
+                item: SimpleColoredComponent, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean,
+            ) {
+                item.font = if (value is FontInfo && index != -1) value.getFont() else JBUI.Fonts.label()
+                item.append(value?.toString().orEmpty())
+            }
+        }
     }
     val sizeSpinner = JSpinner(SpinnerNumberModel(13, 8, 48, 1)).apply {
         preferredSize = Dimension(60, preferredSize.height)
@@ -37,7 +70,7 @@ internal class ComponentStyleEditor(
 
     fun resetFrom(style: ComponentStyle, legacyFamily: String = "", legacySize: Int = 0) {
         val family = style.fontFamily.ifEmpty { legacyFamily }
-        fontCombo.selectedItem = family.ifEmpty { defaultLabel }
+        fontCombo.fontName = family.takeIf { it.isNotEmpty() }
         val size = if (style.fontSize > 0) style.fontSize else if (legacySize > 0) legacySize else 13
         sizeSpinner.value = size
         styleCombo.selectedIndex = when (style.fontStyle) {
@@ -53,8 +86,7 @@ internal class ComponentStyleEditor(
     }
 
     fun applyTo(style: ComponentStyle) {
-        val sel = fontCombo.selectedItem as? String ?: ""
-        style.fontFamily = if (sel == defaultLabel) "" else sel
+        style.fontFamily = if (fontCombo.isNoFontSelected) "" else fontCombo.fontName.orEmpty()
         style.fontSize = (sizeSpinner.value as? Number)?.toInt() ?: 0
         style.fontStyle = when (styleCombo.selectedIndex) {
             1 -> Font.BOLD

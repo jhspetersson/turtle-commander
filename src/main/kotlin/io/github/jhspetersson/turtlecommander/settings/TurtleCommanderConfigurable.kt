@@ -51,12 +51,6 @@ class TurtleCommanderConfigurable : Configurable {
     private var favoritesEditor: FavoritesEditor? = null
     private var colorRulesEditor: ColorRulesEditor? = null
 
-    // Legacy font combos kept for backward compat during migration
-    private var panelFontCombo: ComboBox<String>? = null
-    private var panelFontSizeSpinner: JSpinner? = null
-    private var tabFontCombo: ComboBox<String>? = null
-    private var tabFontSizeSpinner: JSpinner? = null
-
     private val styleEditors = mutableMapOf<String, ComponentStyleEditor>()
     private var themeCombo: ComboBox<Theme>? = null
     private var suppressThemeAction = false
@@ -65,7 +59,6 @@ class TurtleCommanderConfigurable : Configurable {
 
     override fun createComponent(): JComponent {
         val settings = TurtleCommanderSettings.getInstance().state
-        val fontFamilies = GraphicsEnvironment.getLocalGraphicsEnvironment().availableFontFamilyNames
 
         highlightingCheckBox = JCheckBox("Enable file colors and icons", settings.enableFileNameHighlighting)
         commandBarCheckBox = JCheckBox("Show command bar (F5 Copy, F6 Move, etc.)", settings.showCommandBar)
@@ -141,28 +134,15 @@ class TurtleCommanderConfigurable : Configurable {
                 "(e.g. 2026-06-16T12:34:56Z); otherwise a Java DateTimeFormatter pattern in local time."
         }
 
-        val defaultLabel = "(Default)"
-        val fontItems = arrayOf(defaultLabel) + fontFamilies
-
-        // Keep legacy combos wired to panelStyle/tabStyle
-        panelFontCombo = ComboBox(DefaultComboBoxModel(fontItems)).apply {
-            selectedItem = effectivePanelFamily(settings).ifEmpty { defaultLabel }
-        }
-        panelFontSizeSpinner = JSpinner(SpinnerNumberModel(effectivePanelSize(settings), 8, 48, 1))
-        tabFontCombo = ComboBox(DefaultComboBoxModel(fontItems)).apply {
-            selectedItem = effectiveTabFamily(settings).ifEmpty { defaultLabel }
-        }
-        tabFontSizeSpinner = JSpinner(SpinnerNumberModel(effectiveTabSize(settings), 8, 48, 1))
-
         // Style editors for each component
-        val panelEditor = ComponentStyleEditor("File panel", fontItems, settings.styles.panelStyle, effectivePanelFamily(settings), effectivePanelSize(settings))
-        val tabEditor = ComponentStyleEditor("Tab bar", fontItems, settings.styles.tabStyle, effectiveTabFamily(settings), effectiveTabSize(settings))
-        val pathBarEditor = ComponentStyleEditor("Path bar", fontItems, settings.styles.pathBarStyle)
-        val statusBarEditor = ComponentStyleEditor("Status bar", fontItems, settings.styles.statusBarStyle)
-        val commandBarEditor = ComponentStyleEditor("Command bar", fontItems, settings.styles.commandBarStyle)
-        val commandButtonEditor = ComponentStyleEditor("Cmd buttons", fontItems, settings.styles.commandButtonStyle)
-        val driveSelectorEditor = ComponentStyleEditor("Drive selector", fontItems, settings.styles.driveSelectorStyle)
-        val columnHeaderEditor = ComponentStyleEditor("Column headers", fontItems, settings.styles.columnHeaderStyle)
+        val panelEditor = ComponentStyleEditor("File panel", settings.styles.panelStyle, effectivePanelFamily(settings), effectivePanelSize(settings))
+        val tabEditor = ComponentStyleEditor("Tab bar", settings.styles.tabStyle, effectiveTabFamily(settings), effectiveTabSize(settings))
+        val pathBarEditor = ComponentStyleEditor("Path bar", settings.styles.pathBarStyle)
+        val statusBarEditor = ComponentStyleEditor("Status bar", settings.styles.statusBarStyle)
+        val commandBarEditor = ComponentStyleEditor("Command bar", settings.styles.commandBarStyle)
+        val commandButtonEditor = ComponentStyleEditor("Cmd buttons", settings.styles.commandButtonStyle)
+        val driveSelectorEditor = ComponentStyleEditor("Drive selector", settings.styles.driveSelectorStyle)
+        val columnHeaderEditor = ComponentStyleEditor("Column headers", settings.styles.columnHeaderStyle)
         styleEditors["panel"] = panelEditor
         styleEditors["tab"] = tabEditor
         styleEditors["pathBar"] = pathBarEditor
@@ -256,7 +236,7 @@ class TurtleCommanderConfigurable : Configurable {
         openDirectoriesWithSingleClickCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
 
         // Columns editor
-        val colEditor = ColumnsEditor(fontItems, TurtleCommanderSettings.getInstance().getEffectiveColumns())
+        val colEditor = ColumnsEditor(TurtleCommanderSettings.getInstance().getEffectiveColumns())
         columnsEditor = colEditor
 
         // Favorites editor
@@ -826,10 +806,6 @@ class TurtleCommanderConfigurable : Configurable {
         naturalNameSortCheckBox = null
         calculateDirectorySizeCheckBox = null
         openDirectoriesWithSingleClickCheckBox = null
-        panelFontCombo = null
-        panelFontSizeSpinner = null
-        tabFontCombo = null
-        tabFontSizeSpinner = null
         defaultViewModeCombo = null
         panelLayoutCombo = null
         thumbnailSizeCombo = null
