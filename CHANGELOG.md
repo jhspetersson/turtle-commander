@@ -6,6 +6,8 @@
 
 ### Changed
 
+## [0.7.12] - 2026-07-08
+
 - Improved validation UX of colorization rules
 
 ## [0.7.11] - 2026-07-07
