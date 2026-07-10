@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Support UNC paths in breadcrumbs
+
 ## [0.7.14] - 2026-07-10
 
 ### Fixed
