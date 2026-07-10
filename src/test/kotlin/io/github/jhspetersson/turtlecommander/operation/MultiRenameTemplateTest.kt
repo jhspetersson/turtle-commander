@@ -275,14 +275,64 @@ class MultiRenameTemplateTest {
         val tmp = Files.createTempDirectory("multi-rename-conflict-")
         try {
             val a = tmp.resolve("a").also { Files.createFile(it) }
-            val b = tmp.resolve("b").also { Files.createFile(it) }
-            val sources = listOf(a, b)
-            val targets = listOf("b", "c") // renaming a→b would collide with existing b
+            tmp.resolve("b").also { Files.createFile(it) } // external file, not part of the batch
+            val sources = listOf(a)
+            val targets = listOf("b") // renaming a→b collides with the unrelated existing b
 
             val conflicts = MultiRenameTemplate.detectConflicts(sources, targets, caseInsensitiveDuplicates = false) { Files.exists(it) }
 
             assertTrue(0 in conflicts)
-            assertFalse(1 in conflicts)
+        } finally {
+            tmp.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `detectConflicts allows a swap since both sources are vacated`() {
+        val tmp = Files.createTempDirectory("multi-rename-swap-")
+        try {
+            val a = tmp.resolve("a").also { Files.createFile(it) }
+            val b = tmp.resolve("b").also { Files.createFile(it) }
+            val sources = listOf(a, b)
+            val targets = listOf("b", "a") // a↔b: executor handles this via two-phase temp rename
+
+            val conflicts = MultiRenameTemplate.detectConflicts(sources, targets, caseInsensitiveDuplicates = false) { Files.exists(it) }
+
+            assertEquals(emptySet<Int>(), conflicts)
+        } finally {
+            tmp.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `detectConflicts allows a rename chain onto a vacated source`() {
+        val tmp = Files.createTempDirectory("multi-rename-chain-")
+        try {
+            val a = tmp.resolve("a").also { Files.createFile(it) }
+            val b = tmp.resolve("b").also { Files.createFile(it) }
+            val sources = listOf(a, b)
+            val targets = listOf("b", "c") // a→b lands on b, but b→c vacates it
+
+            val conflicts = MultiRenameTemplate.detectConflicts(sources, targets, caseInsensitiveDuplicates = false) { Files.exists(it) }
+
+            assertEquals(emptySet<Int>(), conflicts)
+        } finally {
+            tmp.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `detectConflicts still flags a target onto a source that is not renamed`() {
+        val tmp = Files.createTempDirectory("multi-rename-static-")
+        try {
+            val a = tmp.resolve("a").also { Files.createFile(it) }
+            val b = tmp.resolve("b").also { Files.createFile(it) }
+            val sources = listOf(a, b)
+            val targets = listOf("b", "b") // a→b collides with b, which stays put (b→b, no rename)
+
+            val conflicts = MultiRenameTemplate.detectConflicts(sources, targets, caseInsensitiveDuplicates = false) { Files.exists(it) }
+
+            assertTrue(0 in conflicts)
         } finally {
             tmp.toFile().deleteRecursively()
         }

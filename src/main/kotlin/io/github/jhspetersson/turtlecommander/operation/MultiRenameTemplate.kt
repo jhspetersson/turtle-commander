@@ -454,14 +454,25 @@ object MultiRenameTemplate {
                 conflicts.add(prev)
             }
         }
+        val vacated = HashSet<String>()
+        sources.forEachIndexed { j, src ->
+            val currentName = src.fileName?.toString() ?: return@forEachIndexed
+            if (targetNames[j] != currentName) vacated.add(pathKey(src, caseInsensitiveDuplicates))
+        }
         for (i in sources.indices) {
             if (i in conflicts) continue
             val source = sources[i]
             val newName = targetNames[i]
             if (newName == source.fileName?.toString()) continue
             val target = source.resolveSibling(newName)
+            if (pathKey(target, caseInsensitiveDuplicates) in vacated) continue
             if (existsOnDisk(target)) conflicts.add(i)
         }
         return conflicts
+    }
+
+    private fun pathKey(path: Path, caseInsensitive: Boolean): String {
+        val s = path.toString()
+        return if (caseInsensitive) s.lowercase(Locale.ROOT) else s
     }
 }

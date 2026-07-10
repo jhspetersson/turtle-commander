@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [0.7.14] - 2026-07-10
+
+### Fixed
+
+- MultiRename tool improved
+
 ## [0.7.13] - 2026-07-09
 
 ### Changed
