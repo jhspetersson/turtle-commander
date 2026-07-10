@@ -268,39 +268,6 @@ class BreadcrumbPathField : JPanel() {
         return s.substring(0, left) + ellipsis + s.substring(s.length - right)
     }
 
-    private data class PathSegment(val name: String, val fullPath: String)
-
-    private fun splitPath(pathStr: String): List<PathSegment> {
-        if (pathStr.isEmpty()) return emptyList()
-
-        val segments = mutableListOf<PathSegment>()
-        val isWindows = pathStr.length >= 2 && pathStr[1] == ':'
-
-        if (isWindows) {
-            val parts = pathStr.split("\\")
-            for (i in parts.indices) {
-                val part = parts[i]
-                if (part.isEmpty()) continue
-                val displayName = if (i == 0) "$part\\" else part
-                val fullPath = if (i == 0) "$part\\" else parts.take(i + 1).joinToString("\\")
-                segments.add(PathSegment(displayName, fullPath))
-            }
-        } else {
-            val parts = pathStr.split("/")
-            if (parts.isNotEmpty() && parts[0].isEmpty()) {
-                segments.add(PathSegment("/", "/"))
-            }
-            for (i in parts.indices) {
-                val part = parts[i]
-                if (part.isEmpty()) continue
-                val fullPath = parts.take(i + 1).joinToString("/").ifEmpty { "/" }
-                segments.add(PathSegment(part, fullPath))
-            }
-        }
-
-        return segments
-    }
-
     fun applyStyle(style: ComponentStyle) {
         customFont = style.getFont(defaultEditFieldFont)
         customFg = style.parsedFontColor()
@@ -324,9 +291,55 @@ class BreadcrumbPathField : JPanel() {
         rebuildBreadcrumbs()
     }
 
+    internal data class PathSegment(val name: String, val fullPath: String)
+
     companion object {
         private const val BREADCRUMBS = "breadcrumbs"
         private const val EDITOR = "editor"
         private const val SEPARATOR = " › "
+
+        internal fun splitPath(pathStr: String): List<PathSegment> {
+            if (pathStr.isEmpty()) return emptyList()
+
+            val segments = mutableListOf<PathSegment>()
+            val isUnc = pathStr.length >= 2 && pathStr[0] == '\\' && pathStr[1] == '\\'
+            val isWindows = pathStr.length >= 2 && pathStr[1] == ':'
+
+            if (isUnc) {
+                // \\server\share\a\b -> one root crumb "\\server\share" (you can't navigate above
+                // the share), then a, b. A bare "\\server" with no share is kept as the root crumb.
+                val parts = pathStr.substring(2).split("\\").filter { it.isNotEmpty() }
+                if (parts.isEmpty()) return emptyList()
+                val rootEnd = if (parts.size >= 2) 2 else 1
+                val rootPath = "\\\\" + parts.take(rootEnd).joinToString("\\")
+                segments.add(PathSegment(rootPath, rootPath))
+                for (i in rootEnd until parts.size) {
+                    val fullPath = "\\\\" + parts.take(i + 1).joinToString("\\")
+                    segments.add(PathSegment(parts[i], fullPath))
+                }
+            } else if (isWindows) {
+                val parts = pathStr.split("\\")
+                for (i in parts.indices) {
+                    val part = parts[i]
+                    if (part.isEmpty()) continue
+                    val displayName = if (i == 0) "$part\\" else part
+                    val fullPath = if (i == 0) "$part\\" else parts.take(i + 1).joinToString("\\")
+                    segments.add(PathSegment(displayName, fullPath))
+                }
+            } else {
+                val parts = pathStr.split("/")
+                if (parts.isNotEmpty() && parts[0].isEmpty()) {
+                    segments.add(PathSegment("/", "/"))
+                }
+                for (i in parts.indices) {
+                    val part = parts[i]
+                    if (part.isEmpty()) continue
+                    val fullPath = parts.take(i + 1).joinToString("/").ifEmpty { "/" }
+                    segments.add(PathSegment(part, fullPath))
+                }
+            }
+
+            return segments
+        }
     }
 }
