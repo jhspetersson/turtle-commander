@@ -16,6 +16,7 @@ import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
+import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.wm.IdeGlassPaneUtil
 import com.intellij.ui.*
 import com.intellij.ui.components.JBList
@@ -26,6 +27,7 @@ import com.intellij.ui.treeStructure.Tree
 import io.github.jhspetersson.turtlecommander.dialog.DriveSpaceDialog
 import io.github.jhspetersson.turtlecommander.dialog.collectDriveInfo
 import io.github.jhspetersson.turtlecommander.model.FileEntry
+import io.github.jhspetersson.turtlecommander.operation.CdCommand
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.service.FileOperationService
 import io.github.jhspetersson.turtlecommander.service.ThumbnailCache
@@ -1863,6 +1865,34 @@ class FileTab(
             .getNotificationGroup("Turtle Commander")
             .createNotification(content, NotificationType.ERROR)
             .notify(project)
+    }
+
+    /**
+     * Handle a `cd` typed in the command bar. [rawArg] is the already-unquoted target ("" navigates
+     * home). Resolves it against the current directory (absolute paths and a leading `~` are
+     * honored) and navigates there when it's an existing directory; otherwise shows an error.
+     * [onSuccess] runs on the EDT after a successful move so the caller can refresh its prompt.
+     * No-op inside an archive — the command bar blocks commands there already.
+     */
+    fun changeDirectoryFromCommand(rawArg: String, onSuccess: () -> Unit = {}) {
+        if (currentVfs != null) return
+        val home = Path.of(System.getProperty("user.home"))
+        val target = CdCommand.resolveTarget(rawArg, currentPath, home, SystemInfo.isWindows)
+        if (target == null) {
+            fileErrorNotification("cd: invalid path: $rawArg")
+            return
+        }
+        fileOps.launch {
+            val isDir = withContext(Dispatchers.IO) { Files.isDirectory(target) }
+            if (isDir) {
+                navigateTo(target)
+                withContext(Dispatchers.EDT) { onSuccess() }
+            } else {
+                withContext(Dispatchers.EDT) {
+                    fileErrorNotification("cd: no such directory: ${target}")
+                }
+            }
+        }
     }
 
     private fun nearestExistingAncestor(path: Path): Path? =

@@ -15,6 +15,7 @@ import com.intellij.ui.JBColor
 import com.intellij.ui.TextFieldWithHistory
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
+import io.github.jhspetersson.turtlecommander.operation.CdCommand
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import java.awt.BorderLayout
 import java.awt.event.KeyAdapter
@@ -158,7 +159,14 @@ class CommandInputBar(
         }
         stateService.addCommandToHistory(command)
         syncHistory()
-        runCommand(command, tab.currentPath)
+        // A `cd` can't outlive a one-shot child shell, so handle it ourselves by navigating the
+        // active tab instead of spawning a process that would immediately discard the change.
+        val cdTarget = CdCommand.parseArgument(command)
+        if (cdTarget != null) {
+            tab.changeDirectoryFromCommand(cdTarget) { updatePrompt() }
+        } else {
+            runCommand(command, tab.currentPath)
+        }
         editor.text = ""
         historyIndex = -1
     }

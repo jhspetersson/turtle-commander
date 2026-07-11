@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Special handling of `cd` command
+
 ### Fixed
 
 - Support UNC paths in breadcrumbs
