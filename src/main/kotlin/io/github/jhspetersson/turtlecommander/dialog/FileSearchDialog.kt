@@ -17,7 +17,9 @@ import java.awt.Dimension
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.nio.file.FileSystems
+import java.nio.file.InvalidPathException
 import java.nio.file.Path
+import java.text.ParsePosition
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.swing.*
@@ -89,6 +91,31 @@ class FileSearchDialog(
                 bytes >= 1024L -> Pair("%.1f".format(bytes / 1024.0), "KB")
                 else -> Pair(bytes.toString(), "B")
             }
+        }
+
+        internal fun parseDateRange(text: String): Pair<Long, Long>? {
+            if (text.isBlank()) return null
+            data class Fmt(val pattern: String, val unit: Int)
+            val formats = listOf(
+                Fmt("yyyy-MM-dd HH:mm", Calendar.MINUTE),
+                Fmt("yyyy-MM-dd", Calendar.DAY_OF_MONTH),
+                Fmt("yyyy-MM", Calendar.MONTH),
+                Fmt("yyyy", Calendar.YEAR),
+            )
+            for (fmt in formats) {
+                val sdf = SimpleDateFormat(fmt.pattern)
+                sdf.isLenient = false
+                val pos = ParsePosition(0)
+                val d = sdf.parse(text, pos) ?: continue
+                if (pos.index != text.length) continue
+                val cal = Calendar.getInstance()
+                cal.time = d
+                val start = cal.timeInMillis
+                cal.add(fmt.unit, 1)
+                cal.add(Calendar.MILLISECOND, -1)
+                return Pair(start, cal.timeInMillis)
+            }
+            return null
         }
     }
 
@@ -614,7 +641,22 @@ class FileSearchDialog(
      * invalid glob/regex is caught immediately instead of surfacing later in the search results
      * tab, by which time the input form is already gone.
      */
-    override fun doValidate(): ValidationInfo? {
+    override fun doValidate(): ValidationInfo? =
+        validateRoot() ?: validateName() ?: validateSize() ?: validateDates()
+
+    /** The search root must be a syntactically valid path — otherwise [getCriteria]'s `Path.of` throws. */
+    private fun validateRoot(): ValidationInfo? {
+        val text = rootField.text.trim()
+        if (text.isEmpty()) return ValidationInfo("Enter a folder to search in", rootField)
+        return try {
+            Path.of(text)
+            null
+        } catch (e: InvalidPathException) {
+            ValidationInfo("Invalid folder path: ${e.reason ?: text}", rootField)
+        }
+    }
+
+    private fun validateName(): ValidationInfo? {
         if (!nameCheckBox.isSelected) return null
         val pattern = nameText
         if (pattern.isBlank()) return null
@@ -633,6 +675,46 @@ class FileSearchDialog(
                 ValidationInfo("Invalid glob: ${e.message ?: pattern}", nameEditor)
             }
         }
+    }
+
+    /** A non-numeric size would silently become 0 ("more than 0 B" matches everything). */
+    private fun validateSize(): ValidationInfo? {
+        if (!sizeCheckBox.isSelected) return null
+        validateSizeField(sizeField1)?.let { return it }
+        if (sizeModeCombo.selectedIndex == SizeFilterMode.IN_BETWEEN.ordinal) {
+            validateSizeField(sizeField2)?.let { return it }
+        }
+        return null
+    }
+
+    private fun validateSizeField(field: JBTextField): ValidationInfo? {
+        val text = field.text.trim()
+        if (text.isEmpty()) return ValidationInfo("Enter a size", field)
+        val value = text.toDoubleOrNull() ?: return ValidationInfo("Size must be a number", field)
+        if (value < 0) return ValidationInfo("Size cannot be negative", field)
+        return null
+    }
+
+    /** An unparseable date would be dropped silently, running the search with no date filter. */
+    private fun validateDates(): ValidationInfo? {
+        validateDateField(creationDateCheckBox, creationDateModeCombo, creationDateField1, creationDateField2)?.let { return it }
+        return validateDateField(modificationDateCheckBox, modificationDateModeCombo, modificationDateField1, modificationDateField2)
+    }
+
+    private fun validateDateField(
+        checkBox: JCheckBox,
+        modeCombo: ComboBox<String>,
+        field1: JBTextField,
+        field2: JBTextField,
+    ): ValidationInfo? {
+        if (!checkBox.isSelected) return null
+        if (parseDateRange(field1.text.trim()) == null) {
+            return ValidationInfo("Invalid date — use yyyy, yyyy-MM, yyyy-MM-dd, or yyyy-MM-dd HH:mm", field1)
+        }
+        if (modeCombo.selectedIndex == DateFilterMode.IN_BETWEEN.ordinal && parseDateRange(field2.text.trim()) == null) {
+            return ValidationInfo("Invalid date — use yyyy, yyyy-MM, yyyy-MM-dd, or yyyy-MM-dd HH:mm", field2)
+        }
+        return null
     }
 
     override fun doOKAction() {
@@ -726,56 +808,6 @@ class FileSearchDialog(
             parseDateRange(text2) ?: return null
         } else null
         return DateFilter(mode, start1, end1, range2?.first, range2?.second, text1, if (mode == DateFilterMode.IN_BETWEEN) text2 else null)
-    }
-
-    private fun parseDateRange(text: String): Pair<Long, Long>? {
-        if (text.isBlank()) return null
-        val cal = Calendar.getInstance()
-        // yyyy-MM-dd HH:mm
-        try {
-            val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm")
-            sdf.isLenient = false
-            val d = sdf.parse(text)
-            cal.time = d
-            val start = cal.timeInMillis
-            cal.add(Calendar.MINUTE, 1)
-            cal.add(Calendar.MILLISECOND, -1)
-            return Pair(start, cal.timeInMillis)
-        } catch (_: Exception) {}
-        // yyyy-MM-dd
-        try {
-            val sdf = SimpleDateFormat("yyyy-MM-dd")
-            sdf.isLenient = false
-            val d = sdf.parse(text)
-            cal.time = d
-            val start = cal.timeInMillis
-            cal.add(Calendar.DAY_OF_MONTH, 1)
-            cal.add(Calendar.MILLISECOND, -1)
-            return Pair(start, cal.timeInMillis)
-        } catch (_: Exception) {}
-        // yyyy-MM
-        try {
-            val sdf = SimpleDateFormat("yyyy-MM")
-            sdf.isLenient = false
-            val d = sdf.parse(text)
-            cal.time = d
-            val start = cal.timeInMillis
-            cal.add(Calendar.MONTH, 1)
-            cal.add(Calendar.MILLISECOND, -1)
-            return Pair(start, cal.timeInMillis)
-        } catch (_: Exception) {}
-        // yyyy
-        try {
-            val sdf = SimpleDateFormat("yyyy")
-            sdf.isLenient = false
-            val d = sdf.parse(text)
-            cal.time = d
-            val start = cal.timeInMillis
-            cal.add(Calendar.YEAR, 1)
-            cal.add(Calendar.MILLISECOND, -1)
-            return Pair(start, cal.timeInMillis)
-        } catch (_: Exception) {}
-        return null
     }
 
     override fun getPreferredFocusedComponent() = nameEditor
