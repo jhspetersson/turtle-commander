@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.15] - 2026-07-12
+
 ### Added
 
 - Special handling of `cd` command
