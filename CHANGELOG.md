@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Added search dialog fields validation
+
 ## [0.7.15] - 2026-07-12
 
 ### Added
