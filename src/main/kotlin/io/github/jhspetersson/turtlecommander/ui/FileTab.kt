@@ -115,6 +115,9 @@ class FileTab(
     }
     private val statusPanel = JPanel(BorderLayout())
     private var allEntries: List<FileEntry> = emptyList()
+
+    /** [allEntries] after the quick filter; identical to it when no filter is active. */
+    private var filteredEntries: List<FileEntry> = emptyList()
     private val quickFilterBar = QuickFilterBar(
         onFilterChanged = { applyFilter() },
         onHideRequested = { hideQuickFilter() },
@@ -1029,8 +1032,30 @@ class FileTab(
     }
 
     fun showQuickFilter() {
+        if (viewMode == ViewMode.TREE && !showAllNestedFiles) {
+            // The hierarchical tree can't be name-filtered (a flat glob doesn't map onto a
+            // lazily-loaded hierarchy), so refuse instead of showing a bar that does nothing.
+            statusLabel.text = "Quick filter is not available in the directory tree"
+            return
+        }
         quickFilterBar.activate()
         revalidate()
+    }
+
+    internal fun hideQuickFilterIfActive() {
+        if (quickFilterBar.isVisible) hideQuickFilter()
+    }
+
+    internal fun isQuickFilterActive(): Boolean = quickFilterBar.isVisible
+
+    /**
+     * Drives the quick filter the way typing does: activates the bar through [showQuickFilter]
+     * (so the full-hierarchy-tree refusal applies) and sets the pattern, firing the same
+     * document event a user's keystrokes would. A no-op when activation was refused.
+     */
+    internal fun setQuickFilterText(text: String) {
+        showQuickFilter()
+        if (quickFilterBar.isVisible) quickFilterBar.text = text
     }
 
     private fun hideQuickFilter() {
@@ -1098,6 +1123,7 @@ class FileTab(
 
         val selectedName = getSelectedEntry()?.name
 
+        filteredEntries = filtered
         tableModel.setEntries(filtered)
 
         listModel.clear()
@@ -1106,22 +1132,23 @@ class FileTab(
         thumbnailListModel.clear()
         thumbnailListModel.addAll(filtered)
 
-        if (viewMode != ViewMode.TREE) {
-            treeRootNode.removeAllChildren()
-            for (entry in filtered) {
-                val node = DefaultMutableTreeNode(entry)
-                if (entry.isDirectory && !entry.isParentLink) {
-                    node.add(DefaultMutableTreeNode("Loading..."))
-                }
-                treeRootNode.add(node)
-            }
-            treeModel.nodeStructureChanged(treeRootNode)
+        // The full-hierarchy tree (TREE view without show-all-nested-files) is the one view a
+        // flat name filter can't map onto, so it is left alone — showQuickFilter() refuses to
+        // open the bar there and setViewMode() drops an active filter on the way in. Every
+        // other case shows the flat tree, which filters like the rest.
+        if (viewMode != ViewMode.TREE || showAllNestedFiles) {
+            populateFlatTree()
         }
 
         val selIdx = findPreservedSelectionIndex(filtered, selectedName)
         if (selIdx >= 0 && table.rowCount > 0) table.setRowSelectionInterval(selIdx.coerceAtMost(table.rowCount - 1), selIdx.coerceAtMost(table.rowCount - 1))
         if (selIdx >= 0 && listModel.size() > 0) list.selectedIndex = selIdx.coerceAtMost(listModel.size() - 1)
         if (selIdx >= 0 && thumbnailListModel.size() > 0) thumbnailList.selectedIndex = selIdx.coerceAtMost(thumbnailListModel.size() - 1)
+        if (selIdx >= 0 && viewMode == ViewMode.TREE && showAllNestedFiles && tree.rowCount > 0) {
+            val row = selIdx.coerceAtMost(tree.rowCount - 1)
+            tree.setSelectionRow(row)
+            tree.scrollRowToVisible(row)
+        }
 
         updateStatusBar()
     }
@@ -1392,6 +1419,7 @@ class FileTab(
             }
 
             allEntries = entries
+            filteredEntries = entries
             directorySizes.clear()
             // Drop marks on directory change so they don't accumulate across navigations.
             // (Path-keyed marks would survive technically, but that's poor UX — users expect
@@ -1799,10 +1827,14 @@ class FileTab(
         fileOps.launch { navigateTo(currentPath) }
     }
 
-    /** Rebuilds the tree as a flat list of [allEntries] — used outside full-tree mode. */
+    /**
+     * Rebuilds the tree as a flat list of [filteredEntries] — used outside full-tree mode.
+     * Reading the filtered list (== [allEntries] when no filter is active) keeps the flat
+     * tree consistent with the other views under an active quick filter.
+     */
     internal fun populateFlatTree() {
         treeRootNode.removeAllChildren()
-        for (entry in allEntries) {
+        for (entry in filteredEntries) {
             val node = DefaultMutableTreeNode(entry)
             if (entry.isDirectory && !entry.isParentLink) {
                 node.add(DefaultMutableTreeNode("Loading..."))

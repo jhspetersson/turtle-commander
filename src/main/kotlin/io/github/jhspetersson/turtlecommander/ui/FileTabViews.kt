@@ -54,6 +54,9 @@ fun FileTab.setViewMode(mode: ViewMode) {
     }
 
     if (mode == ViewMode.TREE) {
+        // The hierarchical tree can't be name-filtered: drop an active quick filter on the
+        // way in rather than leave the other views' models filtered behind an unfiltered tree.
+        if (!showAllNestedFiles) hideQuickFilterIfActive()
         // In show-all-nested-files mode the tree shows the flat recursive file list (leaves),
         // consistent with the other views; otherwise it builds the real directory hierarchy.
         if (showAllNestedFiles) populateFlatTree() else rebuildFullTree(selectedNames)

@@ -32,7 +32,12 @@ internal class QuickFilterBar(
 
     private val searchField = SearchTextField(false)
 
-    val text: String get() = searchField.text
+    /** Setting the text fires [onFilterChanged] through the document listener, like typing does. */
+    var text: String
+        get() = searchField.text
+        set(value) {
+            searchField.text = value
+        }
 
     init {
         isVisible = false

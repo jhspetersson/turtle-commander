@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Quick filter works in "Show all nested files" mode
+
 ## [0.7.16] - 2026-07-13
 
 ### Changed
