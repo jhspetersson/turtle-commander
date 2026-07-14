@@ -13,8 +13,13 @@ import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.ui.*
 import com.intellij.ide.actions.RevealFileAction
+import com.intellij.openapi.application.EDT
 import com.intellij.openapi.util.SystemInfo
 import io.github.jhspetersson.turtlecommander.util.NativeProperties
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.nio.file.Files
+import java.nio.file.LinkOption
 
 /** The `place` the file context menu is shown with (see FileTab.showContextMenu). */
 internal const val FILE_CONTEXT_PLACE = "TurtleCommander.FileContextMenu"
@@ -167,10 +172,30 @@ class ContextPasteAction : EdtAction() {
         val destination = tab.currentPath
 
         if (cut) {
-            FileCopyBuffer.entries = emptyList()
-            tab.performMoveEntries(entries, destination, tab.getDisplayPath())
+            tab.performMoveEntries(entries, destination, tab.getDisplayPath()) {
+                pruneMovedEntriesFromCutBuffer(entries)
+            }
         } else {
             tab.performCopyEntries(entries, destination, tab.getDisplayPath())
+        }
+    }
+}
+
+/**
+ * Settles the cut buffer against a finished cut-paste move. Existence decides each entry's
+ * outcome: a source path that is gone was moved and leaves the buffer; one still on disk
+ * failed, was skipped, or was never reached after a cancel — it stays cut so pasting again
+ * retries just the remainder (a partially moved directory keeps its leftovers the same way).
+ * A no-op when the buffer no longer holds the exact list this paste consumed: a cut/copy
+ * made while the move was running wins.
+ */
+internal suspend fun pruneMovedEntriesFromCutBuffer(consumed: List<FileEntry>) {
+    val remaining = withContext(Dispatchers.IO) {
+        consumed.filter { Files.exists(it.path, LinkOption.NOFOLLOW_LINKS) }
+    }
+    withContext(Dispatchers.EDT) {
+        if (FileCopyBuffer.isCut && FileCopyBuffer.entries === consumed) {
+            FileCopyBuffer.entries = remaining
         }
     }
 }
@@ -191,8 +216,9 @@ class ContextPasteIntoAction : EdtAction() {
         val tab = resolveFileContextTab(e) ?: return
 
         if (cut) {
-            FileCopyBuffer.entries = emptyList()
-            tab.performMoveEntries(entries, entry.path, tab.getDisplayPath())
+            tab.performMoveEntries(entries, entry.path, tab.getDisplayPath()) {
+                pruneMovedEntriesFromCutBuffer(entries)
+            }
         } else {
             tab.performCopyEntries(entries, entry.path, tab.getDisplayPath())
         }

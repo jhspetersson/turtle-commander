@@ -80,7 +80,12 @@ internal fun FileTab.performMove() {
     performMoveEntries(selected, destination)
 }
 
-internal fun FileTab.performMoveEntries(selected: List<FileEntry>, destination: Path, destinationDisplayPath: String? = null) {
+internal fun FileTab.performMoveEntries(
+    selected: List<FileEntry>,
+    destination: Path,
+    destinationDisplayPath: String? = null,
+    onTransferFinished: (suspend () -> Unit)? = null,
+) {
     if (selected.isEmpty()) return
     val displayPath = destinationDisplayPath ?: getOtherPanelDisplayPath() ?: destination.toString()
     val dialog = TransferDialog(project, "Move", selected, destination, displayPath)
@@ -93,6 +98,7 @@ internal fun FileTab.performMoveEntries(selected: List<FileEntry>, destination: 
         progressVerb = "Moving",
         errorVerb = "move",
         op = fileOps::moveFilesWithProgress,
+        onTransferFinished = onTransferFinished,
     )
 }
 
@@ -134,6 +140,12 @@ private fun FileTab.runTransfer(
     progressVerb: String,
     errorVerb: String,
     op: TransferOp,
+    /**
+     * Runs after [op] returns — normally, after per-file errors, or after a cancel — but
+     * never when the transfer dialog was dismissed (the caller's transfer didn't start).
+     * Used by cut-paste to settle the cut buffer against the actual outcome.
+     */
+    onTransferFinished: (suspend () -> Unit)? = null,
 ) {
     fileOps.launch {
         withIndicatorProgress(project, taskTitle) { indicator ->
@@ -158,6 +170,7 @@ private fun FileTab.runTransfer(
                     { indicator.isCanceled },
                 )
 
+                onTransferFinished?.invoke()
                 refreshAfterVfsChange()
                 withContext(Dispatchers.EDT) {
                     onRefreshOtherPanel()

@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Cut files are no longer dropped from the paste buffer when the move fails or is canceled
+
 ## [0.7.17] - 2026-07-14
 
 ### Fixed
