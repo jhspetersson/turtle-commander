@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.18] - 2026-07-15
+
 ### Fixed
 
 - Cut files are no longer dropped from the paste buffer when the move fails or is canceled
