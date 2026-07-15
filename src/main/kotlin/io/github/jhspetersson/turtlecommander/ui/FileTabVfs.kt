@@ -55,8 +55,8 @@ internal fun FileTab.enterVfs(entry: FileEntry) {
                                 OpenVfsRegistry.materializeIfNeeded(archivePath)
                                 val tempDir = Files.createTempDirectory("turtle-vfs-")
                                 val tempPath = tempDir.resolve(fileName)
-                                Files.copy(archivePath, tempPath)
                                 tempFile = tempPath.toFile()
+                                Files.copy(archivePath, tempPath)
                                 VirtualFileSystemRegistry.create(tempPath, openProgress)
                             }
                             if (indicator.isCanceled) {
