@@ -141,7 +141,6 @@ class ArchiveService {
             BufferedOutputStream(Files.newOutputStream(archivePath)).use { fos ->
                 GZIPOutputStream(fos).use { gzos ->
                     TarOutputStream(gzos).use { tarOs ->
-                        var packedCount = 0
                         for (source in sourcePaths) {
                             if (isCancelled()) break
                             if (source.toFile().isDirectory) {
@@ -152,8 +151,7 @@ class ArchiveService {
                                         if (relativePath.isNotEmpty()) {
                                             tarOs.putDirectoryEntry("$relativePath/", attrs.lastModifiedTime().toMillis())
                                         }
-                                        packedCount++
-                                        onProgress(packedCount, dir.fileName.toString())
+                                        onProgress(successCount, dir.fileName.toString())
                                         return FileVisitResult.CONTINUE
                                     }
 
@@ -163,11 +161,10 @@ class ArchiveService {
                                             val relativePath = (source.parent ?: source).relativize(file).toString().replace("\\", "/")
                                             tarOs.putFileEntry(relativePath, file, attrs.lastModifiedTime().toMillis())
                                             successCount++
+                                            onProgress(successCount, file.fileName.toString())
                                         } catch (e: Exception) {
                                             onError(file, e)
                                         }
-                                        packedCount++
-                                        onProgress(packedCount, file.fileName.toString())
                                         return FileVisitResult.CONTINUE
                                     }
 
@@ -182,11 +179,10 @@ class ArchiveService {
                                     val attrs = Files.readAttributes(source, BasicFileAttributes::class.java)
                                     tarOs.putFileEntry(source.fileName.toString(), source, attrs.lastModifiedTime().toMillis())
                                     successCount++
+                                    onProgress(successCount, source.fileName.toString())
                                 } catch (e: Exception) {
                                     onError(source, e)
                                 }
-                                packedCount++
-                                onProgress(packedCount, source.fileName.toString())
                             }
                         }
                         tarOs.finish()

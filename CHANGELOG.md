@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Packing progress for `tar.gz` no longer counts failed files
+
 ## [0.7.19] - 2026-07-16
 
 ### Fixed

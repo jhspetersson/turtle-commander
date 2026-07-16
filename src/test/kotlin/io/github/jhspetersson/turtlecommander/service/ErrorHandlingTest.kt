@@ -402,6 +402,32 @@ class PackTarGzErrorHandlingTest {
     }
 
     @Test
+    fun `packTarGz progress count agrees with return value despite failures and directories`() = runBlocking {
+        val dir = Files.createTempDirectory("pack-test-")
+        tempDirs(dir)
+        Files.writeString(dir.resolve("a.txt"), "a")
+        Files.writeString(dir.resolve("b.txt"), "b")
+        val nonexistent = dir.resolve("parent").resolve("missing.txt")
+
+        val archivePath = Files.createTempFile("pack-test-", ".tar.gz")
+        tempDirs(archivePath)
+
+        val progressCounts = mutableListOf<Int>()
+        val service = ArchiveService()
+        val count = service.packTarGz(
+            archivePath, listOf(dir, nonexistent),
+            onProgress = { c, _ -> progressCounts.add(c) },
+            onError = { _, _ -> },
+            isCancelled = { false },
+        )
+
+        assertEquals(2, count)
+        // Neither the failed file nor the directory entry may tick the counter the
+        // progress UI shows — it must end exactly on the returned count.
+        assertEquals(count, progressCounts.max())
+    }
+
+    @Test
     fun `packTarGz single file success`() = runBlocking {
         val dir = Files.createTempDirectory("pack-test-")
         tempDirs(dir)
