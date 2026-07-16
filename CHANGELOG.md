@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.19] - 2026-07-16
+
 ### Fixed
 
 - Don't leave a temp directory behind when opening a nested archive fails
