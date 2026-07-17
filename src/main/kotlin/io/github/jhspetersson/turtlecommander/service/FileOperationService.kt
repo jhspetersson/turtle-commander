@@ -680,6 +680,8 @@ class FileOperationService(
         }
     }
 
+    private data class MoveDirResult(val movedCount: Int, val cancelled: Boolean, val leftBehind: Boolean)
+
     private suspend fun moveDirectoryWithProgress(
         source: Path,
         target: Path,
@@ -689,8 +691,9 @@ class FileOperationService(
         onOverwriteConfirm: suspend (Path) -> OverwriteResponse,
         onError: suspend (Path, Exception) -> Unit,
         isCancelled: () -> Boolean,
-    ): Pair<Int, Boolean> {
+    ): MoveDirResult {
         var movedCount = startCount
+        var leftBehind = false
 
         try {
             // Same as the copy path: only an actually-created directory counts as work.
@@ -703,24 +706,25 @@ class FileOperationService(
         } catch (e: Exception) {
             thisLogger().warn("Failed to create directory $target: ${e.message}")
             onError(source, e)
-            return movedCount to false
+            return MoveDirResult(movedCount, cancelled = false, leftBehind = true)
         }
 
         try {
             Files.newDirectoryStream(source).use { stream ->
                 for (entry in stream) {
-                    if (isCancelled()) return movedCount to true
+                    if (isCancelled()) return MoveDirResult(movedCount, cancelled = true, leftBehind = true)
                     val entryTarget = target.resolve(entry.name)
                     // Same symlink guard as the top-level loop: recurse only into real
                     // directories, move link nodes as files.
                     val entryIsLink = Files.isSymbolicLink(entry)
                     if (entry.isDirectory() && !entryIsLink) {
-                        val (sub, cancelled) = moveDirectoryWithProgress(
+                        val sub = moveDirectoryWithProgress(
                             entry, entryTarget, movedCount, holder,
                             onProgress, onOverwriteConfirm, onError, isCancelled,
                         )
-                        movedCount = sub
-                        if (cancelled) return movedCount to true
+                        movedCount = sub.movedCount
+                        if (sub.leftBehind) leftBehind = true
+                        if (sub.cancelled) return MoveDirResult(movedCount, cancelled = true, leftBehind = true)
                     } else {
                         try {
                             when (moveFileWithOverwrite(entry, entryTarget, holder, onOverwriteConfirm)) {
@@ -728,12 +732,13 @@ class FileOperationService(
                                     movedCount++
                                     onProgress(movedCount, entry.name)
                                 }
-                                TargetAction.SKIP -> { /* nothing */ }
-                                TargetAction.CANCEL -> return movedCount to true
+                                TargetAction.SKIP -> leftBehind = true
+                                TargetAction.CANCEL -> return MoveDirResult(movedCount, cancelled = true, leftBehind = true)
                             }
                         } catch (e: Exception) {
                             thisLogger().warn("Failed to move $entry: ${e.message}")
                             onError(entry, e)
+                            leftBehind = true
                         }
                     }
                 }
@@ -741,18 +746,19 @@ class FileOperationService(
         } catch (e: Exception) {
             thisLogger().warn("Failed to list directory $source: ${e.message}")
             onError(source, e)
-            return movedCount to false
+            return MoveDirResult(movedCount, cancelled = false, leftBehind = true)
         }
 
-        // Source directory is now empty; remove it so the overall move semantics match
-        // the previous single-call Files.move behaviour.
         try {
             Files.deleteIfExists(source)
         } catch (e: Exception) {
-            thisLogger().warn("Failed to remove emptied source directory $source: ${e.message}")
-            onError(source, e)
+            if (e !is DirectoryNotEmptyException || !leftBehind) {
+                thisLogger().warn("Failed to remove source directory $source: ${e.message}")
+                onError(source, e)
+            }
+            leftBehind = true
         }
-        return movedCount to false
+        return MoveDirResult(movedCount, cancelled = false, leftBehind = leftBehind)
     }
 
     suspend fun deleteFilesWithProgress(

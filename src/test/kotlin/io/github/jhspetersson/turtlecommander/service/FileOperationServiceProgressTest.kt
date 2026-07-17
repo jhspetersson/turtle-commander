@@ -77,6 +77,89 @@ class FileOperationServiceProgressTest {
     }
 
     @Test
+    fun `skipping files during a directory move does not report a spurious error`() = runBlocking {
+        val service = newService()
+        val src = makeTreeWithThreeFiles("move-skip-src-")
+        val destParent = Files.createTempDirectory("move-skip-dst-")
+        tempPaths.add(destParent)
+        val destTop = Files.createDirectory(destParent.resolve(src.fileName.toString()))
+        val destSub = Files.createDirectory(destTop.resolve("sub"))
+        Files.writeString(destTop.resolve("a.txt"), "old")
+        Files.writeString(destSub.resolve("b.txt"), "old")
+        Files.writeString(destSub.resolve("c.txt"), "old")
+
+        val errors = mutableListOf<Path>()
+        service.moveFilesWithProgress(
+            sources = listOf(src),
+            destination = destParent,
+            initialPolicy = OverwritePolicy.SKIP_ALL,
+            onProgress = { _, _ -> },
+            onOverwriteConfirm = { OverwriteResponse.SKIP_ALL },
+            onError = { path, _ -> errors.add(path) },
+            isCancelled = { false },
+        )
+
+        assertTrue("skipping must not surface any error, got: $errors", errors.isEmpty())
+        assertTrue("skipped file stays in the source", Files.exists(src.resolve("a.txt")))
+        assertTrue("nested skipped file stays in the source", Files.exists(src.resolve("sub").resolve("b.txt")))
+        assertEquals("skipped target must be untouched", "old", Files.readString(destTop.resolve("a.txt")))
+    }
+
+    @Test
+    fun `fully moved directory is removed from the source`() = runBlocking {
+        val service = newService()
+        val src = makeTreeWithThreeFiles("move-clean-src-")
+        val destParent = Files.createTempDirectory("move-clean-dst-")
+        tempPaths.add(destParent)
+
+        val errors = mutableListOf<Path>()
+        service.moveFilesWithProgress(
+            sources = listOf(src),
+            destination = destParent,
+            initialPolicy = OverwritePolicy.OVERWRITE_ALL,
+            onProgress = { _, _ -> },
+            onOverwriteConfirm = { OverwriteResponse.OVERWRITE_ALL },
+            onError = { path, _ -> errors.add(path) },
+            isCancelled = { false },
+        )
+
+        assertTrue("no errors expected, got: $errors", errors.isEmpty())
+        assertFalse("source directory must be gone after a full move", Files.exists(src))
+        assertTrue(
+            "moved content must be in the destination",
+            Files.exists(destParent.resolve(src.fileName.toString()).resolve("sub").resolve("c.txt")),
+        )
+    }
+
+    @Test
+    fun `a failed file move is reported once without a spurious directory error`() = runBlocking {
+        val service = newService()
+        val src = Files.createTempDirectory("move-fail-src-")
+        tempPaths.add(src)
+        Files.writeString(src.resolve("x.txt"), "x")
+        val destParent = Files.createTempDirectory("move-fail-dst-")
+        tempPaths.add(destParent)
+        val destTop = Files.createDirectory(destParent.resolve(src.fileName.toString()))
+        // A non-empty directory occupying the target name makes REPLACE_EXISTING fail.
+        val blocking = Files.createDirectory(destTop.resolve("x.txt"))
+        Files.writeString(blocking.resolve("occupied.txt"), "occupied")
+
+        val errors = mutableListOf<Path>()
+        service.moveFilesWithProgress(
+            sources = listOf(src),
+            destination = destParent,
+            initialPolicy = OverwritePolicy.OVERWRITE_ALL,
+            onProgress = { _, _ -> },
+            onOverwriteConfirm = { OverwriteResponse.OVERWRITE_ALL },
+            onError = { path, _ -> errors.add(path) },
+            isCancelled = { false },
+        )
+
+        assertEquals("only the failing file must be reported", listOf(src.resolve("x.txt")), errors)
+        assertTrue("the failed file stays in the source", Files.exists(src.resolve("x.txt")))
+    }
+
+    @Test
     fun `copying a directory into itself is rejected and does not recurse`() = runBlocking {
         val service = newService()
         val src = makeTreeWithThreeFiles("copy-into-self-src-")
