@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.21] - 2026-07-18
+
 ### Fixed
 
 - Skipping files during a move no longer shows a spurious "Failed to move" error for their directory
