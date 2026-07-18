@@ -8,6 +8,7 @@ import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.ui.FileTab
 import io.github.jhspetersson.turtlecommander.ui.getDisplayPath
 import io.github.jhspetersson.turtlecommander.ui.getSelectedEntries
+import io.github.jhspetersson.turtlecommander.util.DateTimeFormatters
 import java.nio.file.attribute.FileTime
 import java.time.Instant
 import java.time.ZoneId
@@ -92,6 +93,34 @@ abstract class EntryCopyParentPathAction : EdtAction() {
     }
 }
 
+/**
+ * Copies a single metadata attribute of the clicked entry. Disabled when the entry
+ * doesn't carry the attribute (no creation time recorded, blank owner/group on
+ * platforms that don't report them) so the menu never copies an empty string.
+ */
+abstract class EntryCopyAttributeAction(
+    private val value: (FileEntry) -> String?,
+) : EdtAction() {
+    protected abstract fun entry(): FileEntry?
+
+    override fun update(e: AnActionEvent) {
+        val entry = entry()
+        e.presentation.isEnabled = entry != null && !entry.isParentLink && !value(entry).isNullOrBlank()
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val entry = entry() ?: return
+        val text = value(entry)
+        if (!text.isNullOrBlank()) CopyPasteManager.copyTextToClipboard(text)
+    }
+}
+
+/** Renders [ft] with the same formatter the file table uses, so the copy matches the display. */
+internal fun displayFileTime(ft: FileTime?): String? = ft?.let { DateTimeFormatters.format(it.toMillis()) }
+
+internal fun userGroupOf(entry: FileEntry): String? =
+    if (entry.owner.isBlank() || entry.group.isBlank()) null else "${entry.owner}:${entry.group}"
+
 abstract class EntryCopyExportAction(
     private val format: (List<FileEntry>) -> String,
 ) : EdtAction() {
@@ -122,6 +151,26 @@ class CopyAsFullPathAction : EntryCopyFullPathAction() {
 class CopyAsParentPathAction : EntryCopyParentPathAction() {
     override fun entry(): FileEntry? = resolveEntry()
     override fun tab(e: AnActionEvent): FileTab? = resolveTab(e)
+}
+
+class CopyAsDateCreatedAction : EntryCopyAttributeAction({ displayFileTime(it.creationTime) }) {
+    override fun entry(): FileEntry? = resolveEntry()
+}
+
+class CopyAsDateModifiedAction : EntryCopyAttributeAction({ displayFileTime(it.lastModified) }) {
+    override fun entry(): FileEntry? = resolveEntry()
+}
+
+class CopyAsUserAction : EntryCopyAttributeAction({ it.owner }) {
+    override fun entry(): FileEntry? = resolveEntry()
+}
+
+class CopyAsFileGroupAction : EntryCopyAttributeAction({ it.group }) {
+    override fun entry(): FileEntry? = resolveEntry()
+}
+
+class CopyAsUserGroupAction : EntryCopyAttributeAction({ userGroupOf(it) }) {
+    override fun entry(): FileEntry? = resolveEntry()
 }
 
 class CopyAsCsvAction : EntryCopyExportAction({ entriesToCsv(it, exportColumnIds()) }) {
@@ -347,6 +396,26 @@ internal fun collectSearchTargetEntries(): List<FileEntry> {
     if (selected.isNotEmpty()) return selected
     val clicked = SearchContextMenuState.clickedEntry
     return if (clicked != null && !clicked.isParentLink) listOf(clicked) else emptyList()
+}
+
+class SearchCopyAsDateCreatedAction : EntryCopyAttributeAction({ displayFileTime(it.creationTime) }) {
+    override fun entry(): FileEntry? = SearchContextMenuState.clickedEntry
+}
+
+class SearchCopyAsDateModifiedAction : EntryCopyAttributeAction({ displayFileTime(it.lastModified) }) {
+    override fun entry(): FileEntry? = SearchContextMenuState.clickedEntry
+}
+
+class SearchCopyAsUserAction : EntryCopyAttributeAction({ it.owner }) {
+    override fun entry(): FileEntry? = SearchContextMenuState.clickedEntry
+}
+
+class SearchCopyAsFileGroupAction : EntryCopyAttributeAction({ it.group }) {
+    override fun entry(): FileEntry? = SearchContextMenuState.clickedEntry
+}
+
+class SearchCopyAsUserGroupAction : EntryCopyAttributeAction({ userGroupOf(it) }) {
+    override fun entry(): FileEntry? = SearchContextMenuState.clickedEntry
 }
 
 class SearchCopyAsCsvAction : EntryCopyExportAction({ entriesToCsv(it, exportColumnIds()) }) {

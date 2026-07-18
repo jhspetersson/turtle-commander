@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- More `Copy as` options: Date Created, Date Modified, User, Group, User:Group
+
 ## [0.7.21] - 2026-07-18
 
 ### Fixed

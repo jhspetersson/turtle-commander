@@ -498,6 +498,21 @@
         <action id="TurtleCommander.CopyAsSha3_512"
                 class="io.github.jhspetersson.turtlecommander.action.CopyAsSha3_512Action"
                 text="SHA3-512"/>
+        <action id="TurtleCommander.CopyAsDateCreated"
+                class="io.github.jhspetersson.turtlecommander.action.CopyAsDateCreatedAction"
+                text="Date Created"/>
+        <action id="TurtleCommander.CopyAsDateModified"
+                class="io.github.jhspetersson.turtlecommander.action.CopyAsDateModifiedAction"
+                text="Date Modified"/>
+        <action id="TurtleCommander.CopyAsUser"
+                class="io.github.jhspetersson.turtlecommander.action.CopyAsUserAction"
+                text="User"/>
+        <action id="TurtleCommander.CopyAsFileGroup"
+                class="io.github.jhspetersson.turtlecommander.action.CopyAsFileGroupAction"
+                text="Group"/>
+        <action id="TurtleCommander.CopyAsUserGroup"
+                class="io.github.jhspetersson.turtlecommander.action.CopyAsUserGroupAction"
+                text="User:Group"/>
         <action id="TurtleCommander.CopyAsCsv"
                 class="io.github.jhspetersson.turtlecommander.action.CopyAsCsvAction"
                 text="CSV"
@@ -523,6 +538,13 @@
             <reference ref="TurtleCommander.CopyAsName"/>
             <reference ref="TurtleCommander.CopyAsFullPath"/>
             <reference ref="TurtleCommander.CopyAsParentPath"/>
+            <separator/>
+            <reference ref="TurtleCommander.CopyAsDateCreated"/>
+            <reference ref="TurtleCommander.CopyAsDateModified"/>
+            <separator/>
+            <reference ref="TurtleCommander.CopyAsUser"/>
+            <reference ref="TurtleCommander.CopyAsFileGroup"/>
+            <reference ref="TurtleCommander.CopyAsUserGroup"/>
             <separator/>
             <reference ref="TurtleCommander.CopyAsCsv"/>
             <reference ref="TurtleCommander.CopyAsJson"/>
@@ -644,6 +666,21 @@
         <action id="TurtleCommander.SearchCopyAsParentPath"
                 class="io.github.jhspetersson.turtlecommander.action.SearchCopyAsParentPathAction"
                 text="Parent Path"/>
+        <action id="TurtleCommander.SearchCopyAsDateCreated"
+                class="io.github.jhspetersson.turtlecommander.action.SearchCopyAsDateCreatedAction"
+                text="Date Created"/>
+        <action id="TurtleCommander.SearchCopyAsDateModified"
+                class="io.github.jhspetersson.turtlecommander.action.SearchCopyAsDateModifiedAction"
+                text="Date Modified"/>
+        <action id="TurtleCommander.SearchCopyAsUser"
+                class="io.github.jhspetersson.turtlecommander.action.SearchCopyAsUserAction"
+                text="User"/>
+        <action id="TurtleCommander.SearchCopyAsFileGroup"
+                class="io.github.jhspetersson.turtlecommander.action.SearchCopyAsFileGroupAction"
+                text="Group"/>
+        <action id="TurtleCommander.SearchCopyAsUserGroup"
+                class="io.github.jhspetersson.turtlecommander.action.SearchCopyAsUserGroupAction"
+                text="User:Group"/>
         <action id="TurtleCommander.SearchCopyAsCsv"
                 class="io.github.jhspetersson.turtlecommander.action.SearchCopyAsCsvAction"
                 text="CSV"
@@ -656,6 +693,13 @@
             <reference ref="TurtleCommander.SearchCopyAsName"/>
             <reference ref="TurtleCommander.SearchCopyAsFullPath"/>
             <reference ref="TurtleCommander.SearchCopyAsParentPath"/>
+            <separator/>
+            <reference ref="TurtleCommander.SearchCopyAsDateCreated"/>
+            <reference ref="TurtleCommander.SearchCopyAsDateModified"/>
+            <separator/>
+            <reference ref="TurtleCommander.SearchCopyAsUser"/>
+            <reference ref="TurtleCommander.SearchCopyAsFileGroup"/>
+            <reference ref="TurtleCommander.SearchCopyAsUserGroup"/>
             <separator/>
             <reference ref="TurtleCommander.SearchCopyAsCsv"/>
             <reference ref="TurtleCommander.SearchCopyAsJson"/>
