@@ -685,7 +685,7 @@ class TurtleCommanderConfigurable : Configurable {
             || getSelectedPanelLayout() != settings.panelLayout
             || getSelectedThumbnailSize() != settings.thumbnailSize
             || getSelectedFileSizeFormat() != settings.fileSizeFormat
-            || getEnteredDateTimeFormat() != settings.dateTimeFormat
+            || getEnteredDateTimeFormat() != settings.dateTimeFormat.ifBlank { DEFAULT_DATE_TIME_FORMAT }
             || getEnteredExportDateTimeFormat() != settings.exportDateTimeFormat
             || styleEditors["panel"]?.isModified(settings.styles.panelStyle, effectivePanelFamily(settings), effectivePanelSize(settings)) == true
             || styleEditors["tab"]?.isModified(settings.styles.tabStyle, effectiveTabFamily(settings), effectiveTabSize(settings)) == true
@@ -798,6 +798,7 @@ class TurtleCommanderConfigurable : Configurable {
     override fun disposeUIResources() {
         highlightingCheckBox = null
         commandBarCheckBox = null
+        saveCommandHistoryCheckBox = null
         hideDriveSelectorCheckBox = null
         hideStatusBarCheckBox = null
         overwritePolicyCombo = null
