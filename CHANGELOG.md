@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.22] - 2026-07-19
+
 ### Added
 
 - More `Copy as` options: Date Created, Date Modified, User, Group, User:Group
