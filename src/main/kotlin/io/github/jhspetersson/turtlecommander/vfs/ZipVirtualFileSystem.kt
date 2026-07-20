@@ -22,7 +22,7 @@ class ZipFileSystemProvider : VirtualFileSystemProvider {
     companion object {
         val ARCHIVE_EXTENSIONS = setOf(
             // Plain ZIP and Java/Android variants
-            "zip", "jar", "war", "ear", "apk", "aar", "apkg",
+            "zip", "jar", "war", "ear", "apk", "aar", "aab", "apkg",
             // Microsoft Office Open XML (incl. macro-enabled / template / Visio variants)
             "docx", "docm", "dotx", "dotm",
             "xlsx", "xlsm", "xltx", "xltm", "xlsb", "xlam",

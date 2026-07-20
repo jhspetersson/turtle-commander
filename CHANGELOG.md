@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Support Android App Bundles (`.aab`) as browsable ZIP archives
+
 ## [0.7.22] - 2026-07-19
 
 ### Added

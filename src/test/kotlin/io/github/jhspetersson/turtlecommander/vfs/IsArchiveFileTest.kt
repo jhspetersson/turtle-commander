@@ -108,6 +108,11 @@ class IsArchiveFileTest {
     }
 
     @Test
+    fun `aab file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("app-release.aab")))
+    }
+
+    @Test
     fun `whl file is archive`() {
         assertTrue(isArchiveFile(fileEntry("package-1.0-py3-none-any.whl")))
     }
