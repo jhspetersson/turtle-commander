@@ -113,6 +113,11 @@ class IsArchiveFileTest {
     }
 
     @Test
+    fun `vsix file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("extension.vsix")))
+    }
+
+    @Test
     fun `whl file is archive`() {
         assertTrue(isArchiveFile(fileEntry("package-1.0-py3-none-any.whl")))
     }

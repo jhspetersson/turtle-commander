@@ -37,6 +37,8 @@ class ZipFileSystemProvider : VirtualFileSystemProvider {
             "nupkg",
             // Firefox / Mozilla browser extensions (plain ZIPs)
             "xpi",
+            // VS Code / Visual Studio extensions (plain ZIPs)
+            "vsix",
             // Quake 3 / id Tech 3 game data (plain ZIPs)
             "pk3",
             // Python wheels (PEP 427) and legacy setuptools eggs

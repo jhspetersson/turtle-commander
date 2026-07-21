@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Support VS Code / Visual Studio extensions (`.vsix`) as browsable ZIP archives
+
 ## [0.7.23] - 2026-07-20
 
 ### Added
