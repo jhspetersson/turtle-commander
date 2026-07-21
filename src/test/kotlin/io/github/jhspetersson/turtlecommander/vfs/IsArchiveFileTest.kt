@@ -113,6 +113,11 @@ class IsArchiveFileTest {
     }
 
     @Test
+    fun `ipa file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("app.ipa")))
+    }
+
+    @Test
     fun `vsix file is archive`() {
         assertTrue(isArchiveFile(fileEntry("extension.vsix")))
     }

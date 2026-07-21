@@ -217,7 +217,7 @@ class ArchiveService {
             name.endsWith(".zip") || name.endsWith(".jar") || name.endsWith(".war") ||
                 name.endsWith(".ear") || name.endsWith(".apk") ||
                 name.endsWith(".aar") || name.endsWith(".aab") || name.endsWith(".apkg") ||
-                name.endsWith(".vsix") -> countZipEntries(archivePath)
+                name.endsWith(".vsix") || name.endsWith(".ipa") -> countZipEntries(archivePath)
             name.endsWith(".7z") -> countSevenZEntries(archivePath)
             name.endsWith(".tar.gz") || name.endsWith(".tgz") ->
                 countTarCompressed(archivePath) { GzipCompressorInputStream(it) }
