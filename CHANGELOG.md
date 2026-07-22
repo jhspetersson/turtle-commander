@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.25] - 2026-07-22
+
 ### Added
 
 - Support iOS app packages (`.ipa`) as browsable ZIP archives
