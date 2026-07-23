@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.26] - 2026-07-23
+
 ### Added
 
 - Support Windows app packages (`.appx`, `.appxbundle`, `.msix`, `.msixbundle`) as browsable ZIP archives
