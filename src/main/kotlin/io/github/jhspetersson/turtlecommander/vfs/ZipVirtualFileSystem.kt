@@ -32,6 +32,8 @@ class ZipFileSystemProvider : VirtualFileSystemProvider {
             "xlsx", "xlsm", "xltx", "xltm", "xlsb", "xlam",
             "pptx", "pptm", "potx", "potm", "ppsx", "ppsm", "ppam",
             "vsdx", "vsdm", "vstx", "vstm", "thmx",
+            // XPS / OpenXPS documents (OPC ZIPs)
+            "xps", "oxps",
             // OpenDocument (documents + templates)
             "odt", "ods", "odp", "odg", "odf", "odb", "odc", "odm",
             "ott", "ots", "otp", "otg",
