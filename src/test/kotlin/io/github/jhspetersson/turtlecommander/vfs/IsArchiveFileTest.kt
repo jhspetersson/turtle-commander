@@ -118,6 +118,14 @@ class IsArchiveFileTest {
     }
 
     @Test
+    fun `appx and msix files are archives`() {
+        assertTrue(isArchiveFile(fileEntry("app.appx")))
+        assertTrue(isArchiveFile(fileEntry("app.appxbundle")))
+        assertTrue(isArchiveFile(fileEntry("app.msix")))
+        assertTrue(isArchiveFile(fileEntry("app.msixbundle")))
+    }
+
+    @Test
     fun `vsix file is archive`() {
         assertTrue(isArchiveFile(fileEntry("extension.vsix")))
     }

@@ -25,6 +25,8 @@ class ZipFileSystemProvider : VirtualFileSystemProvider {
             "zip", "jar", "war", "ear", "apk", "aar", "aab", "apkg",
             // iOS app packages (plain ZIPs with a Payload/ directory)
             "ipa",
+            // Windows app packages (OPC ZIPs; bundles nest the per-arch packages)
+            "appx", "appxbundle", "msix", "msixbundle",
             // Microsoft Office Open XML (incl. macro-enabled / template / Visio variants)
             "docx", "docm", "dotx", "dotm",
             "xlsx", "xlsm", "xltx", "xltm", "xlsb", "xlam",

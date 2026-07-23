@@ -95,7 +95,7 @@ class ArchiveServiceLeakTest {
         // .aar (Android library) and .apkg (Anki deck) are both zip-format. The fast-count
         // table used to omit them, forcing a full extract via the VFS fallback. Returning
         // the expected entry count here verifies they take the header-only path.
-        for (suffix in listOf(".aar", ".aab", ".apkg", ".vsix", ".ipa")) {
+        for (suffix in listOf(".aar", ".aab", ".apkg", ".vsix", ".ipa", ".appx", ".appxbundle", ".msix", ".msixbundle")) {
             val zip = Files.createTempFile("fastcount-", suffix)
             tempFiles.add(zip)
             ZipOutputStream(Files.newOutputStream(zip)).use { zos ->
