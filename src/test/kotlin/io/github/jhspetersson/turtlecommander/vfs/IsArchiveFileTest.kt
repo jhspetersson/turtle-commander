@@ -132,6 +132,11 @@ class IsArchiveFileTest {
     }
 
     @Test
+    fun `kmz file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("places.kmz")))
+    }
+
+    @Test
     fun `vsix file is archive`() {
         assertTrue(isArchiveFile(fileEntry("extension.vsix")))
     }

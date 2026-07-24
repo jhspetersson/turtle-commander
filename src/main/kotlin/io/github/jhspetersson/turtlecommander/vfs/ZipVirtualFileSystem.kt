@@ -49,6 +49,8 @@ class ZipFileSystemProvider : VirtualFileSystemProvider {
             "pk3",
             // Python wheels (PEP 427) and legacy setuptools eggs
             "whl", "egg",
+            // Google Earth KML (zipped KML + assets)
+            "kmz",
         )
     }
 
