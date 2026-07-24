@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.27] - 2026-07-24
+
 ### Added
 
 - Support XPS / OpenXPS documents (`.xps`, `.oxps`) as browsable ZIP archives
