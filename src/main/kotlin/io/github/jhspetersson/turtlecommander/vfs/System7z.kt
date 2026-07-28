@@ -7,15 +7,6 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.util.ArrayDeque
 
-/**
- * Shared access to a system-installed 7-Zip command-line binary (`7z` / `7zz` / `7za`).
- *
- * Two callers rely on it: [SevenZipVirtualFileSystem] uses it as a fallback for `.7z`
- * archives whose coders commons-compress can't decode, and [RarVirtualFileSystem] uses it
- * as the decoder for RAR5 (no in-process Java reader exists) and for encrypted RARs junrar
- * can't handle. 7-Zip auto-detects the format from content, so a single `x` invocation
- * works for every format it supports.
- */
 internal object System7z {
 
     /** Locates a usable 7-Zip CLI, or `null` if none is installed / on PATH. */
