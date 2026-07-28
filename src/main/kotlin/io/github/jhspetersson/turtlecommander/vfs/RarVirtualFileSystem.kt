@@ -3,7 +3,7 @@ package io.github.jhspetersson.turtlecommander.vfs
 import com.github.junrar.Archive
 import com.github.junrar.exception.RarException
 import com.github.junrar.exception.UnsupportedRarEncryptedException
-import com.github.junrar.exception.UnsupportedRarV5Exception
+import com.github.junrar.exception.UnsupportedRarVersionException
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.ui.Messages
 import java.io.IOException
@@ -12,7 +12,6 @@ import java.nio.file.Path
 
 class RarFileSystemProvider : VirtualFileSystemProvider {
     companion object {
-        // ".cbr" is a comic-book archive that is just a RAR.
         val ARCHIVE_EXTENSIONS = setOf("rar", "cbr")
     }
 
@@ -24,24 +23,6 @@ class RarFileSystemProvider : VirtualFileSystemProvider {
         RarVirtualFileSystem(archivePath, openProgress)
 }
 
-/**
- * Read-only VFS for RAR archives. RAR has no open compressor (RARLAB's unrar license permits
- * decompression only), so the archive is never written back — [isReadOnly] is `true` and the
- * base class skips repack on flush/close.
- *
- * Decoder dispatch is driven by the archive signature, sniffed up front:
- *
- *  - **RAR4** (classic) is unpacked in-process with the pure-Java **junrar** library — no
- *    external tooling needed.
- *  - **RAR5** has no pure-Java reader, so it's delegated to a system **7-Zip** binary. When
- *    none is installed the user gets an actionable error pointing at 7-Zip/p7zip.
- *
- * Encryption is handled lazily: if junrar reports the entry list or a file is password
- * protected (or 7-Zip reports an encryption failure), the user is prompted for a password and
- * the extraction is retried. If junrar can't decrypt it (e.g. RAR4 header encryption or a
- * cipher it doesn't implement), extraction falls back to the system 7-Zip binary with the same
- * password.
- */
 class RarVirtualFileSystem(
     override val archivePath: Path,
     openProgress: VfsOpenProgress? = null,
@@ -55,29 +36,23 @@ class RarVirtualFileSystem(
 
     override fun extract(into: Path) {
         val progress = takeOpenProgress()
-        when (sniffVersion()) {
-            RarVersion.RAR4 -> extractRar4(into, progress)
-            RarVersion.RAR5 -> extractRar5(into, progress, password = null)
-            RarVersion.NOT_RAR -> throw SilentVfsOpenException()
-        }
-    }
+        if (!sniffIsRar()) throw SilentVfsOpenException()
 
-    // ---- RAR4: junrar in-process, with a 7-Zip fallback for encryption it can't handle ----
-
-    private fun extractRar4(into: Path, progress: VfsOpenProgress) {
         try {
             junrarExtract(into, password = null, progress)
             return
         } catch (_: PasswordRequired) {
-            // fall through to the password flow below
-        } catch (_: UnsupportedRarV5Exception) {
-            // Mis-sniffed as RAR4 (shouldn't normally happen) — let 7-Zip take it.
+        } catch (_: UnsupportedRarVersionException) {
             reset(into)
-            extractRar5(into, progress, password = null)
+            sevenZipFallback(
+                into, progress, password = null,
+                missingBinaryMessage = "This RAR archive uses a format revision that can't be read " +
+                    "in-process. Install 7-Zip / p7zip and ensure 7z, 7zz, or 7za is on PATH (or in " +
+                    "the standard 7-Zip install location on Windows) to open it.",
+            )
             return
         } catch (e: RarException) {
             if (!isPasswordIssue(e)) throw IOException("Failed to read RAR archive: ${e.message}", e)
-            // encryption-related — fall through to the password flow
         }
 
         val password = promptPassword()
@@ -86,10 +61,13 @@ class RarVirtualFileSystem(
             reset(into)
             junrarExtract(into, password, progress)
         } catch (e: Exception) {
-            // junrar couldn't decrypt this (header encryption or an unsupported cipher) —
-            // delegate to the system 7-Zip binary with the same password.
             reset(into)
-            sevenZipWithPassword(into, progress, password)
+            sevenZipFallback(
+                into, progress, password,
+                missingBinaryMessage = "This encrypted RAR couldn't be read in-process. Install " +
+                    "7-Zip / p7zip (7z, 7zz, or 7za on PATH, or the standard 7-Zip install on " +
+                    "Windows) to open it.",
+            )
         }
     }
 
@@ -118,14 +96,14 @@ class RarVirtualFileSystem(
         }
     }
 
-    // ---- RAR5 (and the encrypted-RAR4 fallback): system 7-Zip ----
-
-    private fun extractRar5(into: Path, progress: VfsOpenProgress, password: String?) {
+    private fun sevenZipFallback(
+        into: Path,
+        progress: VfsOpenProgress,
+        password: String?,
+        missingBinaryMessage: String,
+    ) {
         if (System7z.findBinary() == null) {
-            throw IOException(
-                "This is a RAR5 archive. Reading RAR5 needs 7-Zip / p7zip: install it and ensure " +
-                    "7z, 7zz, or 7za is on PATH (or in the standard 7-Zip install location on Windows).",
-            )
+            throw IOException(missingBinaryMessage)
         }
         try {
             System7z.extract(archivePath, into, progress, password)
@@ -141,35 +119,17 @@ class RarVirtualFileSystem(
         }
     }
 
-    private fun sevenZipWithPassword(into: Path, progress: VfsOpenProgress, password: String) {
-        if (System7z.findBinary() == null) {
-            throw IOException(
-                "This encrypted RAR couldn't be read in-process. Install 7-Zip / p7zip (7z, 7zz, or " +
-                    "7za on PATH, or the standard 7-Zip install on Windows) to open it.",
-            )
-        }
-        System7z.extract(archivePath, into, progress, password)
-    }
-
-    // ---- helpers ----
-
-    /** Internal signal that the no-password attempt hit encrypted content. */
     private class PasswordRequired : RuntimeException()
 
-    private enum class RarVersion { RAR4, RAR5, NOT_RAR }
-
-    private fun sniffVersion(): RarVersion {
+    private fun sniffIsRar(): Boolean {
         val header = ByteArray(8)
         val read = try {
             Files.newInputStream(archivePath).use { it.readNBytes(header, 0, header.size) }
         } catch (_: Exception) {
-            return RarVersion.NOT_RAR
+            return false
         }
-        return when {
-            read >= RAR5_SIGNATURE.size && header.startsWith(RAR5_SIGNATURE) -> RarVersion.RAR5
-            read >= RAR4_SIGNATURE.size && header.startsWith(RAR4_SIGNATURE) -> RarVersion.RAR4
-            else -> RarVersion.NOT_RAR
-        }
+        return (read >= RAR5_SIGNATURE.size && header.startsWith(RAR5_SIGNATURE)) ||
+            (read >= RAR4_SIGNATURE.size && header.startsWith(RAR4_SIGNATURE))
     }
 
     private fun ByteArray.startsWith(signature: ByteArray): Boolean {
@@ -197,12 +157,6 @@ class RarVirtualFileSystem(
         return "password" in text || "encrypt" in text
     }
 
-    /**
-     * Shows a modal password prompt on the EDT and returns the entered password, or `null`
-     * when the user cancels (or leaves it empty). [extract] always runs on a background
-     * thread (see `enterVfs` / `ArchiveService.extractArchiveWithProgress`), so blocking here
-     * with `invokeAndWait` is safe.
-     */
     private fun promptPassword(): String? {
         var result: String? = null
         ApplicationManager.getApplication().invokeAndWait {
@@ -220,8 +174,6 @@ class RarVirtualFileSystem(
     }
 
     companion object {
-        // RAR archive signatures: "Rar!" + 0x1A 0x07 then 0x00 (RAR 1.5-4, 7 bytes)
-        // or 0x01 0x00 (RAR5, 8 bytes).
         private val RAR4_SIGNATURE = byteArrayOf(0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x00)
         private val RAR5_SIGNATURE = byteArrayOf(0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x01, 0x00)
     }
