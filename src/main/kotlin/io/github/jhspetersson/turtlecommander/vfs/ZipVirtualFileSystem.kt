@@ -51,6 +51,8 @@ class ZipFileSystemProvider : VirtualFileSystemProvider {
             "whl", "egg",
             // Google Earth KML (zipped KML + assets)
             "kmz",
+            // Universal Scene Description (Pixar USD / Apple AR Quick Look, uncompressed ZIP)
+            "usdz",
         )
     }
 

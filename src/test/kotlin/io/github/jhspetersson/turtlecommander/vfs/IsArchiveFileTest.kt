@@ -137,6 +137,11 @@ class IsArchiveFileTest {
     }
 
     @Test
+    fun `usdz file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("model.usdz")))
+    }
+
+    @Test
     fun `vsix file is archive`() {
         assertTrue(isArchiveFile(fileEntry("extension.vsix")))
     }
