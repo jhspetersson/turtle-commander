@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.28] - 2026-08-03
+
 ### Added
 
 - Support Google Earth KML archives (`.kmz`) as browsable ZIP archives
