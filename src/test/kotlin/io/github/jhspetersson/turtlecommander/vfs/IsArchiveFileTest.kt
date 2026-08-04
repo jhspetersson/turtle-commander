@@ -142,6 +142,11 @@ class IsArchiveFileTest {
     }
 
     @Test
+    fun `oxt file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("extension.oxt")))
+    }
+
+    @Test
     fun `vsix file is archive`() {
         assertTrue(isArchiveFile(fileEntry("extension.vsix")))
     }

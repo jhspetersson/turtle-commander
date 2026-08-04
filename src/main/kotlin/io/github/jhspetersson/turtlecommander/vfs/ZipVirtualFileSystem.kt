@@ -53,6 +53,8 @@ class ZipFileSystemProvider : VirtualFileSystemProvider {
             "kmz",
             // Universal Scene Description (Pixar USD / Apple AR Quick Look, uncompressed ZIP)
             "usdz",
+            // LibreOffice / OpenOffice extensions (plain ZIPs)
+            "oxt",
         )
     }
 
