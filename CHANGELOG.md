@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.29] - 2026-08-04
+
 ### Added
 
 - Support Universal Scene Description archives (`.usdz`) as browsable ZIP archives
