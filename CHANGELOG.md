@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.30] - 2026-08-05
+
 ### Added
 
 - Support LibreOffice / OpenOffice extensions (`.oxt`) as browsable ZIP archives
