@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.31] - 2026-08-06
+
 ### Added
 
 - Support Doom 3 / id Tech 4 game data (`.pk4`) as browsable ZIP archives
