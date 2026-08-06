@@ -45,8 +45,8 @@ class ZipFileSystemProvider : VirtualFileSystemProvider {
             "xpi",
             // VS Code / Visual Studio extensions (plain ZIPs)
             "vsix",
-            // Quake 3 / id Tech 3 game data (plain ZIPs)
-            "pk3",
+            // Quake 3 / Doom 3 (id Tech 3/4) game data (plain ZIPs)
+            "pk3", "pk4",
             // Python wheels (PEP 427) and legacy setuptools eggs
             "whl", "egg",
             // Google Earth KML (zipped KML + assets)

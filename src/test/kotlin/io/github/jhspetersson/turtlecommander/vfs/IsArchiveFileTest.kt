@@ -147,6 +147,12 @@ class IsArchiveFileTest {
     }
 
     @Test
+    fun `pk3 and pk4 files are archives`() {
+        assertTrue(isArchiveFile(fileEntry("pak0.pk3")))
+        assertTrue(isArchiveFile(fileEntry("game00.pk4")))
+    }
+
+    @Test
     fun `vsix file is archive`() {
         assertTrue(isArchiveFile(fileEntry("extension.vsix")))
     }
