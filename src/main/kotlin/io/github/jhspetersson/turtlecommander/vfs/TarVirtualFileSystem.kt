@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 class TarFileSystemProvider : VirtualFileSystemProvider {
     companion object {
-        val ARCHIVE_EXTENSIONS = setOf("tar")
+        val ARCHIVE_EXTENSIONS = setOf("tar", "cbt")
     }
 
     override fun supportsExtension(ext: String): Boolean {

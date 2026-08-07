@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Support 7z and tar comic book archives (`.cb7`, `.cbt`)
+
 ## [0.7.31] - 2026-08-06
 
 ### Added

@@ -153,6 +153,12 @@ class IsArchiveFileTest {
     }
 
     @Test
+    fun `cb7 and cbt files are archives`() {
+        assertTrue(isArchiveFile(fileEntry("comic.cb7")))
+        assertTrue(isArchiveFile(fileEntry("comic.cbt")))
+    }
+
+    @Test
     fun `vsix file is archive`() {
         assertTrue(isArchiveFile(fileEntry("extension.vsix")))
     }

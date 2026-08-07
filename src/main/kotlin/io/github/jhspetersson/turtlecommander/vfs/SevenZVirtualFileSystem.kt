@@ -14,7 +14,7 @@ import java.util.*
 
 class SevenZipFileSystemProvider : VirtualFileSystemProvider {
     companion object {
-        val ARCHIVE_EXTENSIONS = setOf("7z")
+        val ARCHIVE_EXTENSIONS = setOf("7z", "cb7")
     }
 
     override fun supportsExtension(ext: String): Boolean {

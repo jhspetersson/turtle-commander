@@ -1,5 +1,9 @@
 package io.github.jhspetersson.turtlecommander.service
 
+import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry
+import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -104,5 +108,32 @@ class ArchiveServiceLeakTest {
             }
             assertEquals("expected fast-count to recognise $suffix", 2, svc.countArchiveEntriesFast(zip))
         }
+    }
+
+    @Test
+    fun `countArchiveEntriesFast recognises cb7 and cbt comic archives`() {
+        val svc = ArchiveService()
+
+        val cb7 = Files.createTempFile("fastcount-", ".cb7")
+        tempFiles.add(cb7)
+        SevenZOutputFile(cb7.toFile()).use { out ->
+            for (name in listOf("page1.jpg", "page2.jpg")) {
+                out.putArchiveEntry(SevenZArchiveEntry().apply { this.name = name })
+                out.write(byteArrayOf(1))
+                out.closeArchiveEntry()
+            }
+        }
+        assertEquals("expected fast-count to recognise .cb7", 2, svc.countArchiveEntriesFast(cb7))
+
+        val cbt = Files.createTempFile("fastcount-", ".cbt")
+        tempFiles.add(cbt)
+        TarArchiveOutputStream(Files.newOutputStream(cbt)).use { tos ->
+            for (name in listOf("page1.jpg", "page2.jpg")) {
+                tos.putArchiveEntry(TarArchiveEntry(name).apply { size = 1 })
+                tos.write(1)
+                tos.closeArchiveEntry()
+            }
+        }
+        assertEquals("expected fast-count to recognise .cbt", 2, svc.countArchiveEntriesFast(cbt))
     }
 }

@@ -224,14 +224,15 @@ class ArchiveService {
                 name.endsWith(".kmz") || name.endsWith(".usdz") ||
                 name.endsWith(".oxt") ||
                 name.endsWith(".pk3") || name.endsWith(".pk4") -> countZipEntries(archivePath)
-            name.endsWith(".7z") -> countSevenZEntries(archivePath)
+            name.endsWith(".7z") || name.endsWith(".cb7") -> countSevenZEntries(archivePath)
             name.endsWith(".tar.gz") || name.endsWith(".tgz") ->
                 countTarCompressed(archivePath) { GzipCompressorInputStream(it) }
             name.endsWith(".tar.bz2") || name.endsWith(".tbz2") || name.endsWith(".tbz") ->
                 countTarCompressed(archivePath) { BZip2CompressorInputStream(it) }
             name.endsWith(".tar.xz") || name.endsWith(".txz") ->
                 countTarCompressed(archivePath) { XZCompressorInputStream(it) }
-            name.endsWith(".tar") -> countTarEntries(Files.newInputStream(archivePath))
+            name.endsWith(".tar") || name.endsWith(".cbt") ->
+                countTarEntries(Files.newInputStream(archivePath))
             name.endsWith(".ar") || name.endsWith(".deb") || name.endsWith(".a") ->
                 countArEntries(archivePath)
             // Standalone single-file compressors wrap exactly one inner file.
