@@ -29,6 +29,10 @@ java {
 repositories {
     mavenCentral()
 
+    maven("https://codeberg.org/api/packages/fuxle/maven") {
+        content { includeGroup("de.morihofi.cab4j") }
+    }
+
     intellijPlatform {
         defaultRepositories()
     }
@@ -41,6 +45,9 @@ dependencies {
     // junrar pulls slf4j-api transitively; the IntelliJ Platform already ships slf4j, so
     // exclude it to avoid bundling a duplicate binding into the plugin.
     implementation(libs.junrar) {
+        exclude(group = "org.slf4j", module = "slf4j-api")
+    }
+    implementation(libs.cab4j) {
         exclude(group = "org.slf4j", module = "slf4j-api")
     }
     testImplementation(libs.junit)

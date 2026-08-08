@@ -159,6 +159,11 @@ class IsArchiveFileTest {
     }
 
     @Test
+    fun `cab file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("drivers.cab")))
+    }
+
+    @Test
     fun `vsix file is archive`() {
         assertTrue(isArchiveFile(fileEntry("extension.vsix")))
     }

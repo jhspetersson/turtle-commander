@@ -600,6 +600,7 @@ object VirtualFileSystemRegistry {
         register(TarFileSystemProvider())
         register(SevenZipFileSystemProvider())
         register(RarFileSystemProvider())
+        register(CabFileSystemProvider())
         register(ArFileSystemProvider())
         register(XzFileSystemProvider())
         register(CrxFileSystemProvider())
