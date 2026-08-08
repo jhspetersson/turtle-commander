@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.33] - 2026-08-08
+
 ### Added
 
 - Support Microsoft Cabinet archives (`.cab`) as browsable archives
