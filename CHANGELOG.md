@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.34] - 2026-08-09
+
 ### Added
 
 - Support Java module files (`.jmod`) as browsable archives (read-only)
