@@ -223,7 +223,8 @@ class ArchiveService {
                 name.endsWith(".xps") || name.endsWith(".oxps") ||
                 name.endsWith(".kmz") || name.endsWith(".usdz") ||
                 name.endsWith(".oxt") ||
-                name.endsWith(".pk3") || name.endsWith(".pk4") -> countZipEntries(archivePath)
+                name.endsWith(".pk3") || name.endsWith(".pk4") ||
+                name.endsWith(".jmod") -> countZipEntries(archivePath)
             name.endsWith(".7z") || name.endsWith(".cb7") -> countSevenZEntries(archivePath)
             name.endsWith(".tar.gz") || name.endsWith(".tgz") ->
                 countTarCompressed(archivePath) { GzipCompressorInputStream(it) }

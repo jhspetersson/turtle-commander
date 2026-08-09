@@ -164,6 +164,11 @@ class IsArchiveFileTest {
     }
 
     @Test
+    fun `jmod file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("java.base.jmod")))
+    }
+
+    @Test
     fun `vsix file is archive`() {
         assertTrue(isArchiveFile(fileEntry("extension.vsix")))
     }

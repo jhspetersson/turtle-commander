@@ -111,6 +111,21 @@ class ArchiveServiceLeakTest {
     }
 
     @Test
+    fun `countArchiveEntriesFast recognises jmod despite its 4-byte header`() {
+        val svc = ArchiveService()
+        val jmod = Files.createTempFile("fastcount-", ".jmod")
+        tempFiles.add(jmod)
+        Files.newOutputStream(jmod).use { os ->
+            os.write(byteArrayOf('J'.code.toByte(), 'M'.code.toByte(), 1, 0))
+            ZipOutputStream(os).use { zos ->
+                zos.putNextEntry(ZipEntry("classes/module-info.class")); zos.write(1); zos.closeEntry()
+                zos.putNextEntry(ZipEntry("conf/settings.properties")); zos.write(2); zos.closeEntry()
+            }
+        }
+        assertEquals("expected fast-count to recognise .jmod", 2, svc.countArchiveEntriesFast(jmod))
+    }
+
+    @Test
     fun `countArchiveEntriesFast recognises cb7 and cbt comic archives`() {
         val svc = ArchiveService()
 
