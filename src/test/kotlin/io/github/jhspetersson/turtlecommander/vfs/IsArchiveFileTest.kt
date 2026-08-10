@@ -169,6 +169,11 @@ class IsArchiveFileTest {
     }
 
     @Test
+    fun `msi file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("setup.msi")))
+    }
+
+    @Test
     fun `vsix file is archive`() {
         assertTrue(isArchiveFile(fileEntry("extension.vsix")))
     }

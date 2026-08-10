@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Support Windows Installer packages (`.msi`) as browsable archives (read-only, requires a system 7-Zip / p7zip tool)
+
 ## [0.7.34] - 2026-08-09
 
 ### Added
