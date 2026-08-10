@@ -1508,6 +1508,7 @@ class FileTab(
                 table.scrollRectToVisible(table.getCellRect(targetRow, 0, true))
             } else if (table.rowCount > 0) {
                 table.setRowSelectionInterval(0, 0)
+                table.scrollRectToVisible(table.getCellRect(0, 0, true))
             }
 
             // Select in list view too

@@ -8,6 +8,10 @@
 
 - Support Windows Installer packages (`.msi`) as browsable archives (read-only, requires a system 7-Zip / p7zip tool)
 
+### Fixed
+
+- Entering a directory or archive no longer leaves the cursor scrolled out of view in table mode
+
 ## [0.7.34] - 2026-08-09
 
 ### Added
