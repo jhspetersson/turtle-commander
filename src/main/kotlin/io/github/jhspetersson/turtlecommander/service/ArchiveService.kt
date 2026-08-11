@@ -217,6 +217,7 @@ class ArchiveService {
             name.endsWith(".zip") || name.endsWith(".jar") || name.endsWith(".war") ||
                 name.endsWith(".ear") || name.endsWith(".apk") ||
                 name.endsWith(".aar") || name.endsWith(".aab") || name.endsWith(".apkg") ||
+                name.endsWith(".xapk") || name.endsWith(".apks") || name.endsWith(".apkm") ||
                 name.endsWith(".vsix") || name.endsWith(".ipa") ||
                 name.endsWith(".appx") || name.endsWith(".appxbundle") ||
                 name.endsWith(".msix") || name.endsWith(".msixbundle") ||

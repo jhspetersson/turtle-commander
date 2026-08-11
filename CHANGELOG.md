@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Support Android split app bundles (`.xapk`, `.apks`, `.apkm`) as browsable ZIP archives
+
 ## [0.7.35] - 2026-08-10
 
 ### Added

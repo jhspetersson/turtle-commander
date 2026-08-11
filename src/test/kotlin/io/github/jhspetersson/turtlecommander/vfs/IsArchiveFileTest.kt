@@ -174,6 +174,13 @@ class IsArchiveFileTest {
     }
 
     @Test
+    fun `android split app bundles are archives`() {
+        assertTrue(isArchiveFile(fileEntry("app.xapk")))
+        assertTrue(isArchiveFile(fileEntry("app.apks")))
+        assertTrue(isArchiveFile(fileEntry("app.apkm")))
+    }
+
+    @Test
     fun `vsix file is archive`() {
         assertTrue(isArchiveFile(fileEntry("extension.vsix")))
     }
