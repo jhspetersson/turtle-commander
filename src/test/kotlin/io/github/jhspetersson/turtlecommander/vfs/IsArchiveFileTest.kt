@@ -174,6 +174,13 @@ class IsArchiveFileTest {
     }
 
     @Test
+    fun `zstd files are archives`() {
+        assertTrue(isArchiveFile(fileEntry("pkg.tar.zst")))
+        assertTrue(isArchiveFile(fileEntry("pkg.tzst")))
+        assertTrue(isArchiveFile(fileEntry("dump.sql.zst")))
+    }
+
+    @Test
     fun `android split app bundles are archives`() {
         assertTrue(isArchiveFile(fileEntry("app.xapk")))
         assertTrue(isArchiveFile(fileEntry("app.apks")))

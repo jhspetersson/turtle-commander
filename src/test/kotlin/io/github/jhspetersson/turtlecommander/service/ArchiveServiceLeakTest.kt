@@ -5,6 +5,7 @@ import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
+import org.apache.commons.compress.compressors.zstandard.ZstdCompressorOutputStream
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -123,6 +124,28 @@ class ArchiveServiceLeakTest {
             }
         }
         assertEquals("expected fast-count to recognise .jmod", 2, svc.countArchiveEntriesFast(jmod))
+    }
+
+    @Test
+    fun `countArchiveEntriesFast recognises zstd tarballs and standalone zst`() {
+        val svc = ArchiveService()
+        for (suffix in listOf(".tar.zst", ".tzst")) {
+            val tar = Files.createTempFile("fastcount-", suffix)
+            tempFiles.add(tar)
+            TarArchiveOutputStream(ZstdCompressorOutputStream(Files.newOutputStream(tar))).use { tos ->
+                for (name in listOf("a.txt", "b.txt")) {
+                    tos.putArchiveEntry(TarArchiveEntry(name).apply { size = 1 })
+                    tos.write(1)
+                    tos.closeArchiveEntry()
+                }
+            }
+            assertEquals("expected fast-count to recognise $suffix", 2, svc.countArchiveEntriesFast(tar))
+        }
+
+        val zst = Files.createTempFile("fastcount-", ".zst")
+        tempFiles.add(zst)
+        ZstdCompressorOutputStream(Files.newOutputStream(zst)).use { it.write(1) }
+        assertEquals("standalone .zst wraps exactly one file", 1, svc.countArchiveEntriesFast(zst))
     }
 
     @Test

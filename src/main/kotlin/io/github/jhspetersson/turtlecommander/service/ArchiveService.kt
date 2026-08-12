@@ -15,6 +15,7 @@ import org.apache.commons.compress.archivers.zip.ZipFile
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.compress.compressors.xz.XZCompressorInputStream
+import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream
 import java.io.BufferedOutputStream
 import java.io.IOException
 import java.io.InputStream
@@ -233,12 +234,15 @@ class ArchiveService {
                 countTarCompressed(archivePath) { BZip2CompressorInputStream(it) }
             name.endsWith(".tar.xz") || name.endsWith(".txz") ->
                 countTarCompressed(archivePath) { XZCompressorInputStream(it) }
+            name.endsWith(".tar.zst") || name.endsWith(".tzst") ->
+                countTarCompressed(archivePath) { ZstdCompressorInputStream(it) }
             name.endsWith(".tar") || name.endsWith(".cbt") ->
                 countTarEntries(Files.newInputStream(archivePath))
             name.endsWith(".ar") || name.endsWith(".deb") || name.endsWith(".a") ->
                 countArEntries(archivePath)
             // Standalone single-file compressors wrap exactly one inner file.
-            name.endsWith(".gz") || name.endsWith(".bz2") || name.endsWith(".xz") -> 1
+            name.endsWith(".gz") || name.endsWith(".bz2") || name.endsWith(".xz") ||
+                name.endsWith(".zst") -> 1
             else -> -1
         }
     }

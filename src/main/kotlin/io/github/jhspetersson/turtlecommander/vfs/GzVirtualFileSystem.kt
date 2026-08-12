@@ -6,6 +6,8 @@ import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream
 import org.apache.commons.compress.compressors.xz.XZCompressorInputStream
 import org.apache.commons.compress.compressors.xz.XZCompressorOutputStream
+import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream
+import org.apache.commons.compress.compressors.zstandard.ZstdCompressorOutputStream
 import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Path
@@ -84,6 +86,32 @@ class XzFileSystemProvider : VirtualFileSystemProvider {
             )
         } else {
             CompressedSingleFileVirtualFileSystem(archivePath, ".xz") { XZCompressorInputStream(it) }
+        }
+    }
+}
+
+class ZstFileSystemProvider : VirtualFileSystemProvider {
+    companion object {
+        val ARCHIVE_EXTENSIONS = setOf("zst", "tzst")
+    }
+
+    override fun supportsExtension(ext: String): Boolean {
+        return ext in ARCHIVE_EXTENSIONS
+    }
+
+    override fun create(archivePath: Path): VirtualFileSystem = create(archivePath, null)
+
+    override fun create(archivePath: Path, openProgress: VfsOpenProgress?): VirtualFileSystem {
+        val name = archivePath.fileName?.toString()?.lowercase() ?: ""
+        return if (name.endsWith(".tar.zst") || name.endsWith(".tzst")) {
+            TarVirtualFileSystem(
+                archivePath,
+                inputStreamFactory = { ZstdCompressorInputStream(Files.newInputStream(it)) },
+                outputStreamFactory = { ZstdCompressorOutputStream(Files.newOutputStream(it)) },
+                openProgress = openProgress,
+            )
+        } else {
+            CompressedSingleFileVirtualFileSystem(archivePath, ".zst") { ZstdCompressorInputStream(it) }
         }
     }
 }
