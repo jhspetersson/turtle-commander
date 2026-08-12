@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.37] - 2026-08-12
+
 ### Added
 
 - Support Zstandard compression (`.tar.zst`, `.tzst`, `.zst`)
