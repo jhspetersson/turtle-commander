@@ -97,6 +97,14 @@ class VirtualFileSystemRegistryTest {
     }
 
     @Test
+    fun `supports squashfs extensions`() {
+        assertTrue(VirtualFileSystemRegistry.supportsByExtension("rootfs.squashfs"))
+        assertTrue(VirtualFileSystemRegistry.supportsByExtension("image.sqsh"))
+        assertTrue(VirtualFileSystemRegistry.supportsByExtension("module.sfs"))
+        assertTrue(VirtualFileSystemRegistry.supportsByExtension("app_1234.snap"))
+    }
+
+    @Test
     fun `does not support unknown extension`() {
         assertFalse(VirtualFileSystemRegistry.supportsByExtension("document.pdf"))
     }

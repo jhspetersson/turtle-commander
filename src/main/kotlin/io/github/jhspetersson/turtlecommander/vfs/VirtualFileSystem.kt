@@ -607,6 +607,7 @@ object VirtualFileSystemRegistry {
         register(CrxFileSystemProvider())
         register(JmodFileSystemProvider())
         register(MsiFileSystemProvider())
+        register(SquashfsFileSystemProvider())
         register(RpmFileSystemProvider())
         register(PakFileSystemProvider())
         register(IsoFileSystemProvider())

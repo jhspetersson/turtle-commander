@@ -218,6 +218,14 @@ class IsArchiveFileTest {
     }
 
     @Test
+    fun `squashfs files are archives`() {
+        assertTrue(isArchiveFile(fileEntry("rootfs.squashfs")))
+        assertTrue(isArchiveFile(fileEntry("image.sqsh")))
+        assertTrue(isArchiveFile(fileEntry("module.sfs")))
+        assertTrue(isArchiveFile(fileEntry("app_1234.snap")))
+    }
+
+    @Test
     fun `txt file is not archive`() {
         assertFalse(isArchiveFile(fileEntry("readme.txt")))
     }

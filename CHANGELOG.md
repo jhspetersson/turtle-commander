@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Support SquashFS images and snap packages (`.squashfs`, `.sqsh`, `.sfs`, `.snap`) as browsable archives
+
 ## [0.7.37] - 2026-08-12
 
 ### Added
