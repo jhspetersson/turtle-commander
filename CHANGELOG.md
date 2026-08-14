@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.39] - 2026-08-14
+
 ### Added
 
 - Support virtual disk images (`.vhd`, `.vhdx`, `.vmdk`) as browsable archives (read-only, requires a system 7-Zip / p7zip tool; `.vhdx` needs 7-Zip 21.02+)
