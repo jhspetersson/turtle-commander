@@ -1,6 +1,5 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
-import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.file.Files
@@ -34,19 +33,28 @@ class DiskImageVirtualFileSystem(
     override fun extract(into: Path) {
         val progress = takeOpenProgress()
         if (!sniffIsDiskImage()) throw SilentVfsOpenException()
-        if (System7z.findBinary() == null) {
-            throw IOException(
-                "Browsing virtual disk images requires a system 7-Zip. Install 7-Zip / p7zip and " +
-                    "ensure 7z, 7zz, or 7za is on PATH (or in the standard 7-Zip install " +
-                    "location on Windows) to open it.",
+        val binary = System7z.findBinary()
+            ?: throw System7zUnavailableException(
+                "Browsing virtual disk images requires a system 7-Zip. ${System7z.INSTALL_HINT}",
             )
+        if (extension() == "vhdx") {
+            val version = System7z.binaryVersion(binary)
+            if (version != null && version < VHDX_MIN_7Z_VERSION) {
+                throw System7zUnavailableException(
+                    "Browsing VHDX images requires 7-Zip ${System7z.formatVersion(VHDX_MIN_7Z_VERSION)} " +
+                        "or newer; the installed 7-Zip is ${System7z.formatVersion(version)}. " +
+                        "Download: ${System7z.DOWNLOAD_URL}",
+                )
+            }
         }
         System7z.extract(archivePath, into, progress)
     }
 
+    private fun extension(): String? =
+        archivePath.fileName?.toString()?.substringAfterLast('.', "")?.lowercase()
+
     private fun sniffIsDiskImage(): Boolean {
-        val ext = archivePath.fileName?.toString()?.substringAfterLast('.', "")?.lowercase() ?: return false
-        return when (ext) {
+        return when (extension()) {
             "vhd" -> hasBytesAt(0, VHD_COOKIE) || hasVhdFooterCookie()
             "vhdx" -> hasBytesAt(0, VHDX_SIGNATURE)
             "vmdk" -> hasBytesAt(0, VMDK_MAGIC)
@@ -84,5 +92,6 @@ class DiskImageVirtualFileSystem(
         private val VHD_COOKIE = "conectix".toByteArray(Charsets.US_ASCII)
         private val VHDX_SIGNATURE = "vhdxfile".toByteArray(Charsets.US_ASCII)
         private val VMDK_MAGIC = byteArrayOf(0x4B, 0x44, 0x4D, 0x56)
+        private const val VHDX_MIN_7Z_VERSION = 2102
     }
 }

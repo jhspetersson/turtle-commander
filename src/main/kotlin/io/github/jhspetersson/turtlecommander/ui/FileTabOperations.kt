@@ -815,7 +815,7 @@ internal fun FileTab.extractArchives(archivePaths: List<Path>, destination: Path
                             askOverwriteConfirm(path)
                         },
                         onError = { path, error ->
-                            fileErrorNotification("Failed to extract ${path.fileName}: ${fileErrorMessage(error)}")
+                            fileErrorNotification("Failed to extract ${path.fileName}: ${fileErrorMessage(error)}", error)
                         },
                         isCancelled = { indicator.isCanceled },
                         openProgress = openProgress,

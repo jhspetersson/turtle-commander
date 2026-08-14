@@ -1,7 +1,6 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
 import de.morihofi.cab4j.extract.CabExtractor
-import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.file.Files
@@ -76,12 +75,9 @@ class CabVirtualFileSystem(
 
     private fun sevenZipFallback(into: Path, progress: VfsOpenProgress, cause: Exception) {
         if (System7z.findBinary() == null) {
-            throw IOException(
-                "This CAB archive couldn't be read in-process. Install 7-Zip / p7zip and " +
-                    "ensure 7z, 7zz, or 7za is on PATH (or in the standard 7-Zip install " +
-                    "location on Windows) to open it.",
-                cause,
-            )
+            throw System7zUnavailableException(
+                "This CAB archive couldn't be read in-process. ${System7z.INSTALL_HINT}",
+            ).initCause(cause)
         }
         System7z.extract(archivePath, into, progress)
     }

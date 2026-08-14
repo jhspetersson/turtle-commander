@@ -3,6 +3,8 @@ import io.github.jhspetersson.turtlecommander.util.DriveLabels
 import java.nio.file.PathMatcher
 
 import com.intellij.icons.AllIcons
+import com.intellij.ide.BrowserUtil
+import com.intellij.notification.NotificationAction
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.Disposable
@@ -40,6 +42,8 @@ import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
 import io.github.jhspetersson.turtlecommander.util.formatSize
 import io.github.jhspetersson.turtlecommander.util.formatSizeAuto
 import io.github.jhspetersson.turtlecommander.util.wrapAsSubstringGlobIfPlain
+import io.github.jhspetersson.turtlecommander.vfs.System7z
+import io.github.jhspetersson.turtlecommander.vfs.System7zUnavailableException
 import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
@@ -1893,11 +1897,22 @@ class FileTab(
         applyColumnState(state.widths, state.order)
     }
 
-    internal fun fileErrorNotification(content: String) {
-        NotificationGroupManager.getInstance()
+    /**
+     * Error balloon in the "Turtle Commander" group. When [error] (or anything in its cause
+     * chain) is a [System7zUnavailableException] — the system 7-Zip is missing or too old for
+     * the format being opened — the balloon gets a "Download 7-Zip" action opening the official
+     * download page, so the fix is one click away instead of buried in the message text.
+     */
+    internal fun fileErrorNotification(content: String, error: Throwable? = null) {
+        val notification = NotificationGroupManager.getInstance()
             .getNotificationGroup("Turtle Commander")
             .createNotification(content, NotificationType.ERROR)
-            .notify(project)
+        if (generateSequence(error) { it.cause }.any { it is System7zUnavailableException }) {
+            notification.addAction(NotificationAction.createSimpleExpiring("Download 7-Zip") {
+                BrowserUtil.browse(System7z.DOWNLOAD_URL)
+            })
+        }
+        notification.notify(project)
     }
 
     /**

@@ -1,6 +1,5 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
-import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -32,10 +31,8 @@ class SquashfsVirtualFileSystem(
         val progress = takeOpenProgress()
         if (!sniffIsSquashfs()) throw SilentVfsOpenException()
         if (System7z.findBinary() == null) {
-            throw IOException(
-                "Browsing SquashFS images requires a system 7-Zip. Install 7-Zip / p7zip and " +
-                    "ensure 7z, 7zz, or 7za is on PATH (or in the standard 7-Zip install " +
-                    "location on Windows) to open it.",
+            throw System7zUnavailableException(
+                "Browsing SquashFS images requires a system 7-Zip. ${System7z.INSTALL_HINT}",
             )
         }
         System7z.extract(archivePath, into, progress)

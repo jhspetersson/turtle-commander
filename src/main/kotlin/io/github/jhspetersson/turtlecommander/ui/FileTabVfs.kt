@@ -77,14 +77,14 @@ internal fun FileTab.enterVfs(entry: FileEntry) {
                             tempFile?.let {
                                 try { it.delete(); it.parentFile?.delete() } catch (_: Exception) {}
                             }
-                            fileErrorNotification("Cannot open nested archive: ${fileErrorMessage(e)}")
+                            fileErrorNotification("Cannot open nested archive: ${fileErrorMessage(e)}", e)
                         }
                     }
                 } catch (_: SilentVfsOpenException) {
                     // Recognised extension but unrecognised contents: open it as a normal file.
                     openFile(entry)
                 } catch (e: Exception) {
-                    fileErrorNotification("Cannot open archive: ${fileErrorMessage(e)}")
+                    fileErrorNotification("Cannot open archive: ${fileErrorMessage(e)}", e)
                 }
             }
         }

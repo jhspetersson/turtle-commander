@@ -47,8 +47,7 @@ class RarVirtualFileSystem(
             sevenZipFallback(
                 into, progress, password = null,
                 missingBinaryMessage = "This RAR archive uses a format revision that can't be read " +
-                    "in-process. Install 7-Zip / p7zip and ensure 7z, 7zz, or 7za is on PATH (or in " +
-                    "the standard 7-Zip install location on Windows) to open it.",
+                    "in-process. ${System7z.INSTALL_HINT}",
             )
             return
         } catch (e: RarException) {
@@ -64,9 +63,8 @@ class RarVirtualFileSystem(
             reset(into)
             sevenZipFallback(
                 into, progress, password,
-                missingBinaryMessage = "This encrypted RAR couldn't be read in-process. Install " +
-                    "7-Zip / p7zip (7z, 7zz, or 7za on PATH, or the standard 7-Zip install on " +
-                    "Windows) to open it.",
+                missingBinaryMessage = "This encrypted RAR couldn't be read in-process. " +
+                    System7z.INSTALL_HINT,
             )
         }
     }
@@ -103,7 +101,7 @@ class RarVirtualFileSystem(
         missingBinaryMessage: String,
     ) {
         if (System7z.findBinary() == null) {
-            throw IOException(missingBinaryMessage)
+            throw System7zUnavailableException(missingBinaryMessage)
         }
         try {
             System7z.extract(archivePath, into, progress, password)
