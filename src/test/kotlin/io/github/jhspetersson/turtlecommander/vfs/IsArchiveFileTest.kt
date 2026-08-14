@@ -218,6 +218,13 @@ class IsArchiveFileTest {
     }
 
     @Test
+    fun `disk image files are archives`() {
+        assertTrue(isArchiveFile(fileEntry("disk.vhd")))
+        assertTrue(isArchiveFile(fileEntry("disk.vhdx")))
+        assertTrue(isArchiveFile(fileEntry("disk.vmdk")))
+    }
+
+    @Test
     fun `squashfs files are archives`() {
         assertTrue(isArchiveFile(fileEntry("rootfs.squashfs")))
         assertTrue(isArchiveFile(fileEntry("image.sqsh")))

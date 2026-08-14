@@ -97,6 +97,13 @@ class VirtualFileSystemRegistryTest {
     }
 
     @Test
+    fun `supports disk image extensions`() {
+        assertTrue(VirtualFileSystemRegistry.supportsByExtension("disk.vhd"))
+        assertTrue(VirtualFileSystemRegistry.supportsByExtension("disk.vhdx"))
+        assertTrue(VirtualFileSystemRegistry.supportsByExtension("disk.vmdk"))
+    }
+
+    @Test
     fun `supports squashfs extensions`() {
         assertTrue(VirtualFileSystemRegistry.supportsByExtension("rootfs.squashfs"))
         assertTrue(VirtualFileSystemRegistry.supportsByExtension("image.sqsh"))
