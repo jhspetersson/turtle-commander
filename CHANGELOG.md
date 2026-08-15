@@ -4,9 +4,11 @@
 
 ## [Unreleased]
 
+## [0.7.40] - 2026-08-15
+
 ### Changed
 
-- Errors about a missing or outdated system 7-Zip now include the download URL and a "Download 7-Zip" button
+- Errors about a missing or outdated system 7-Zip now include the download URL and a "Download 7-Zip" link
 - Opening a `.vhdx` with a 7-Zip older than 21.02 now reports the required and installed versions up front
 
 ## [0.7.39] - 2026-08-14
