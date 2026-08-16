@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.41] - 2026-08-16
+
 ### Added
 
 - Support ARJ archives (`.arj`, `.cba`) as browsable archives
