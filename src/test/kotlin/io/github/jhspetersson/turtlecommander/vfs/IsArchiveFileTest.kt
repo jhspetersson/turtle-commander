@@ -233,6 +233,12 @@ class IsArchiveFileTest {
     }
 
     @Test
+    fun `arj and cba files are archives`() {
+        assertTrue(isArchiveFile(fileEntry("backup.arj")))
+        assertTrue(isArchiveFile(fileEntry("comic.cba")))
+    }
+
+    @Test
     fun `txt file is not archive`() {
         assertFalse(isArchiveFile(fileEntry("readme.txt")))
     }

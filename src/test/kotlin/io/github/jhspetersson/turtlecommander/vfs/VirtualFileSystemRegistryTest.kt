@@ -112,6 +112,12 @@ class VirtualFileSystemRegistryTest {
     }
 
     @Test
+    fun `supports arj extensions`() {
+        assertTrue(VirtualFileSystemRegistry.supportsByExtension("backup.arj"))
+        assertTrue(VirtualFileSystemRegistry.supportsByExtension("comic.cba"))
+    }
+
+    @Test
     fun `does not support unknown extension`() {
         assertFalse(VirtualFileSystemRegistry.supportsByExtension("document.pdf"))
     }
