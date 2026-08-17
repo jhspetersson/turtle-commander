@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.42] - 2026-08-17
+
 ### Added
 
 - Support standalone cpio archives
