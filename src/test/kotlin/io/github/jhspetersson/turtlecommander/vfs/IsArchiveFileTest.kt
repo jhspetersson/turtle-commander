@@ -239,6 +239,11 @@ class IsArchiveFileTest {
     }
 
     @Test
+    fun `cpio file is archive`() {
+        assertTrue(isArchiveFile(fileEntry("initramfs.cpio")))
+    }
+
+    @Test
     fun `txt file is not archive`() {
         assertFalse(isArchiveFile(fileEntry("readme.txt")))
     }

@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Support standalone cpio archives
+
 ## [0.7.41] - 2026-08-16
 
 ### Added

@@ -118,6 +118,11 @@ class VirtualFileSystemRegistryTest {
     }
 
     @Test
+    fun `supports cpio extension`() {
+        assertTrue(VirtualFileSystemRegistry.supportsByExtension("initramfs.cpio"))
+    }
+
+    @Test
     fun `does not support unknown extension`() {
         assertFalse(VirtualFileSystemRegistry.supportsByExtension("document.pdf"))
     }

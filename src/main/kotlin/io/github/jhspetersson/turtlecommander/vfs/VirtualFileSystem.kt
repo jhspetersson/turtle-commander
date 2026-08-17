@@ -603,6 +603,7 @@ object VirtualFileSystemRegistry {
         register(CabFileSystemProvider())
         register(ArFileSystemProvider())
         register(ArjFileSystemProvider())
+        register(CpioFileSystemProvider())
         register(XzFileSystemProvider())
         register(ZstFileSystemProvider())
         register(CrxFileSystemProvider())
