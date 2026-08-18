@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- "Delete files after packing" no longer deletes sources that failed to pack
+
 ## [0.7.42] - 2026-08-17
 
 ### Added

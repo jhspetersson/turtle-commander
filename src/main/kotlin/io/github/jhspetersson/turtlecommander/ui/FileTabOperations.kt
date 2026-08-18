@@ -41,6 +41,7 @@ import kotlinx.coroutines.withContext
 import java.awt.Desktop
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.ConcurrentHashMap
 
 internal fun FileTab.performCopy() {
     val otherTab = getOtherPanelTab()
@@ -592,6 +593,11 @@ internal fun FileTab.performCombineFiles() {
     }
 }
 
+internal fun sourcesSafeToDelete(sourcePaths: List<Path>, failedPaths: Set<Path>): List<Path> {
+    if (failedPaths.isEmpty()) return sourcePaths
+    return sourcePaths.filter { source -> failedPaths.none { failed -> failed.startsWith(source) } }
+}
+
 internal fun FileTab.performPack() {
     val selected = getSelectedEntries()
     if (selected.isEmpty()) return
@@ -641,6 +647,7 @@ internal fun FileTab.performPack() {
                 val totalFiles = countFiles(sourcePaths)
                 indicator.isIndeterminate = false
 
+                val failedPaths = ConcurrentHashMap.newKeySet<Path>()
                 try {
                     val packedCount = when (format) {
                         ArchiveFormat.ZIP -> archiveService.packZip(
@@ -651,6 +658,7 @@ internal fun FileTab.performPack() {
                                 indicator.text2 = name
                             },
                             onError = { path, error ->
+                                failedPaths.add(path)
                                 fileErrorNotification("Failed to pack ${path.fileName}: ${fileErrorMessage(error)}")
                             },
                             isCancelled = { indicator.isCanceled },
@@ -663,6 +671,7 @@ internal fun FileTab.performPack() {
                                 indicator.text2 = name
                             },
                             onError = { path, error ->
+                                failedPaths.add(path)
                                 fileErrorNotification("Failed to pack ${path.fileName}: ${fileErrorMessage(error)}")
                             },
                             isCancelled = { indicator.isCanceled },
@@ -674,21 +683,31 @@ internal fun FileTab.performPack() {
                     }
 
                     if (!indicator.isCanceled && packedCount > 0 && deleteAfterPacking) {
-                        indicator.fraction = 0.0
-                        indicator.text = "Deleting source files..."
+                        val deletablePaths = sourcesSafeToDelete(sourcePaths, failedPaths)
+                        val keptCount = sourcePaths.size - deletablePaths.size
+                        if (keptCount > 0) {
+                            fileErrorNotification(
+                                "Kept $keptCount source ${if (keptCount == 1) "item" else "items"} " +
+                                    "that failed to pack completely",
+                            )
+                        }
+                        if (deletablePaths.isNotEmpty()) {
+                            indicator.fraction = 0.0
+                            indicator.text = "Deleting source files..."
 
-                        fileOps.deleteFilesWithProgress(
-                            paths = sourcePaths,
-                            onProgress = { count, name ->
-                                indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
-                                indicator.text = "Deleting $count / $totalFiles"
-                                indicator.text2 = name
-                            },
-                            onError = { path, error ->
-                                fileErrorNotification("Failed to delete ${path.fileName}: ${fileErrorMessage(error)}")
-                            },
-                            isCancelled = { indicator.isCanceled },
-                        )
+                            fileOps.deleteFilesWithProgress(
+                                paths = deletablePaths,
+                                onProgress = { count, name ->
+                                    indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
+                                    indicator.text = "Deleting $count / $totalFiles"
+                                    indicator.text2 = name
+                                },
+                                onError = { path, error ->
+                                    fileErrorNotification("Failed to delete ${path.fileName}: ${fileErrorMessage(error)}")
+                                },
+                                isCancelled = { indicator.isCanceled },
+                            )
+                        }
                     }
                 } catch (e: Exception) {
                     fileErrorNotification("Packing failed: ${fileErrorMessage(e)}")
