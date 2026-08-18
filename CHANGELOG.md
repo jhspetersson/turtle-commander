@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.43] - 2026-08-18
+
 ### Fixed
 
 - "Delete files after packing" no longer deletes sources that failed to pack
