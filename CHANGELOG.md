@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.44] - 2026-08-19
+
 ### Fixed
 
 - Fix packing unreadable files into a `.tar.gz` archive
