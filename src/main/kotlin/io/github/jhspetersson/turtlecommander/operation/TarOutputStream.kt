@@ -2,6 +2,7 @@ package io.github.jhspetersson.turtlecommander.operation
 
 import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 import java.io.IOException
+import java.io.InputStream
 import java.io.OutputStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -36,32 +37,53 @@ class TarOutputStream(private val out: OutputStream) : AutoCloseable {
                 "File size $actualSize exceeds maximum for ustar tar format ($maxFileSize bytes). Use a different archive format for files larger than ~8 GB."
             )
         }
+        Files.newInputStream(file).use { input ->
+            putFileEntry(name, input, actualSize, modTimeMillis, file.toString())
+        }
+    }
+
+    internal fun putFileEntry(
+        name: String,
+        input: InputStream,
+        declaredSize: Long,
+        modTimeMillis: Long,
+        source: String,
+    ) {
         writeLongNameIfNeeded(name)
         val header = createHeader(
             name = if (name.length > 100) name.substring(0, 100) else name,
-            size = actualSize,
+            size = declaredSize,
             modTime = modTimeMillis / 1000,
             typeFlag = '0', // regular file
         )
         out.write(header)
-        Files.newInputStream(file).use { input ->
-            val buf = ByteArray(8192)
-            var remaining = actualSize
+        val buf = ByteArray(8192)
+        var remaining = declaredSize
+        while (remaining > 0) {
+            val toRead = minOf(buf.size.toLong(), remaining).toInt()
+            val read = input.read(buf, 0, toRead)
+            if (read <= 0) break
+            out.write(buf, 0, read)
+            remaining -= read
+        }
+        val missing = remaining
+        if (missing > 0) {
+            buf.fill(0)
             while (remaining > 0) {
-                val toRead = minOf(buf.size.toLong(), remaining).toInt()
-                val read = input.read(buf, 0, toRead)
-                if (read <= 0) break
-                out.write(buf, 0, read)
-                remaining -= read
-            }
-            if (remaining > 0) {
-                throw IOException("File $file is shorter than declared size $actualSize (missing $remaining bytes)")
+                val toWrite = minOf(buf.size.toLong(), remaining).toInt()
+                out.write(buf, 0, toWrite)
+                remaining -= toWrite
             }
         }
         // Pad to block boundary
-        val remainder = (actualSize % blockSize).toInt()
+        val remainder = (declaredSize % blockSize).toInt()
         if (remainder > 0) {
             out.write(ByteArray(blockSize - remainder))
+        }
+        if (missing > 0) {
+            throw IOException(
+                "File $source is shorter than declared size $declaredSize (missing $missing bytes); the entry was zero-padded to keep the archive readable"
+            )
         }
     }
 

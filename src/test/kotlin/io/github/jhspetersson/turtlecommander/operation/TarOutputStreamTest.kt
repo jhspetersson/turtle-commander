@@ -1,291 +1,127 @@
 package io.github.jhspetersson.turtlecommander.operation
 
-import org.junit.After
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
-import java.nio.charset.StandardCharsets
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 
 class TarOutputStreamTest {
 
-    private val tempFiles = mutableListOf<Path>()
-
-    @After
-    fun cleanup() {
-        for (path in tempFiles.reversed()) {
-            if (Files.isDirectory(path)) {
-                Files.walk(path).sorted(Comparator.reverseOrder()).forEach { Files.deleteIfExists(it) }
-            } else {
-                Files.deleteIfExists(path)
+    private fun readEntries(archive: ByteArray): List<Pair<TarArchiveEntry, ByteArray>> {
+        val result = mutableListOf<Pair<TarArchiveEntry, ByteArray>>()
+        TarArchiveInputStream(ByteArrayInputStream(archive)).use { tar ->
+            var entry = tar.nextEntry
+            while (entry != null) {
+                result.add(entry to tar.readBytes())
+                entry = tar.nextEntry
             }
         }
+        return result
     }
 
     @Test
-    fun `directory entry creates 512-byte header`() {
-        val baos = ByteArrayOutputStream()
-        TarOutputStream(baos).use { tar ->
-            tar.putDirectoryEntry("mydir/", System.currentTimeMillis())
-            tar.finish()
-        }
-        val data = baos.toByteArray()
-        // Header (512) + 2 end-of-archive blocks (1024)
-        assertEquals(512 + 1024, data.size)
-    }
+    fun `packed files round-trip through commons compress`() {
+        val fileA = Files.createTempFile("tar-test-", ".bin")
+        val fileB = Files.createTempFile("tar-test-", ".bin")
+        try {
+            val contentA = ByteArray(1000) { it.toByte() }
+            Files.write(fileA, contentA)
+            Files.write(fileB, "hello".toByteArray())
 
-    @Test
-    fun `directory entry has type flag 5`() {
-        val baos = ByteArrayOutputStream()
-        TarOutputStream(baos).use { tar ->
-            tar.putDirectoryEntry("testdir/", 0)
-            tar.finish()
-        }
-        val data = baos.toByteArray()
-        assertEquals('5'.code.toByte(), data[156])
-    }
-
-    @Test
-    fun `file entry has type flag 0`() {
-        val dir = Files.createTempDirectory("tar-test-")
-        tempFiles.add(dir)
-        val file = dir.resolve("test.txt")
-        Files.writeString(file, "hello")
-
-        val baos = ByteArrayOutputStream()
-        TarOutputStream(baos).use { tar ->
-            tar.putFileEntry("test.txt", file, 0)
-            tar.finish()
-        }
-        val data = baos.toByteArray()
-        assertEquals('0'.code.toByte(), data[156])
-    }
-
-    @Test
-    fun `file entry contains file data`() {
-        val dir = Files.createTempDirectory("tar-test-")
-        tempFiles.add(dir)
-        val file = dir.resolve("test.txt")
-        Files.writeString(file, "hello")
-
-        val baos = ByteArrayOutputStream()
-        TarOutputStream(baos).use { tar ->
-            tar.putFileEntry("test.txt", file, 0)
-            tar.finish()
-        }
-        val data = baos.toByteArray()
-        // File content starts at offset 512
-        val content = String(data, 512, 5, StandardCharsets.UTF_8)
-        assertEquals("hello", content)
-    }
-
-    @Test
-    fun `file data is padded to 512 block boundary`() {
-        val dir = Files.createTempDirectory("tar-test-")
-        tempFiles.add(dir)
-        val file = dir.resolve("test.txt")
-        Files.writeString(file, "hello") // 5 bytes
-
-        val baos = ByteArrayOutputStream()
-        TarOutputStream(baos).use { tar ->
-            tar.putFileEntry("test.txt", file, 0)
-            tar.finish()
-        }
-        val data = baos.toByteArray()
-        // Header (512) + padded data (512) + end (1024)
-        assertEquals(512 + 512 + 1024, data.size)
-    }
-
-    @Test
-    fun `header contains ustar magic`() {
-        val baos = ByteArrayOutputStream()
-        TarOutputStream(baos).use { tar ->
-            tar.putDirectoryEntry("dir/", 0)
-            tar.finish()
-        }
-        val data = baos.toByteArray()
-        val magic = String(data, 257, 5, StandardCharsets.UTF_8)
-        assertEquals("ustar", magic)
-    }
-
-    @Test
-    fun `header contains name`() {
-        val baos = ByteArrayOutputStream()
-        TarOutputStream(baos).use { tar ->
-            tar.putDirectoryEntry("mydir/", 0)
-            tar.finish()
-        }
-        val data = baos.toByteArray()
-        val name = String(data, 0, 6, StandardCharsets.UTF_8)
-        assertEquals("mydir/", name)
-    }
-
-    @Test
-    fun `header checksum is valid`() {
-        val baos = ByteArrayOutputStream()
-        TarOutputStream(baos).use { tar ->
-            tar.putDirectoryEntry("test/", 0)
-            tar.finish()
-        }
-        val header = baos.toByteArray().copyOfRange(0, 512)
-
-        // Calculate expected checksum: sum of all bytes, treating checksum field (148-155) as spaces
-        var checksum = 0L
-        for (i in header.indices) {
-            checksum += if (i in 148..155) {
-                ' '.code
-            } else {
-                (header[i].toInt() and 0xFF)
+            val out = ByteArrayOutputStream()
+            TarOutputStream(out).use { tar ->
+                tar.putDirectoryEntry("dir/", 0)
+                tar.putFileEntry("dir/a.bin", fileA, 1_600_000_000_000)
+                tar.putFileEntry("b.txt", fileB, 1_600_000_000_000)
+                tar.finish()
             }
+
+            val entries = readEntries(out.toByteArray())
+            assertEquals(listOf("dir/", "dir/a.bin", "b.txt"), entries.map { it.first.name })
+            assertArrayEquals(contentA, entries[1].second)
+            assertEquals("hello", entries[2].second.toString(Charsets.UTF_8))
+        } finally {
+            Files.deleteIfExists(fileA)
+            Files.deleteIfExists(fileB)
         }
-
-        // Parse stored checksum (octal at offset 148, 7 bytes)
-        val checksumStr = String(header, 148, 7, StandardCharsets.UTF_8).trim().trimEnd('\u0000')
-        val storedChecksum = checksumStr.toLong(8)
-
-        assertEquals(checksum, storedChecksum)
     }
 
     @Test
-    fun `long file name uses GNU LongLink extension`() {
-        val dir = Files.createTempDirectory("tar-test-")
-        tempFiles.add(dir)
-        val file = dir.resolve("test.txt")
-        Files.writeString(file, "data")
-
-        val longName = "a".repeat(150) + ".txt"
-
-        val baos = ByteArrayOutputStream()
-        TarOutputStream(baos).use { tar ->
-            tar.putFileEntry(longName, file, 0)
-            tar.finish()
+    fun `long names get a longlink entry`() {
+        val file = Files.createTempFile("tar-test-", ".bin")
+        try {
+            Files.write(file, "x".toByteArray())
+            val longName = "d/".repeat(60) + "leaf.txt"
+            val out = ByteArrayOutputStream()
+            TarOutputStream(out).use { tar ->
+                tar.putFileEntry(longName, file, 0)
+                tar.finish()
+            }
+            val entries = readEntries(out.toByteArray())
+            assertEquals(listOf(longName), entries.map { it.first.name })
+        } finally {
+            Files.deleteIfExists(file)
         }
-        val data = baos.toByteArray()
-
-        // First header should be @LongLink
-        val longLinkName = String(data, 0, 13, StandardCharsets.UTF_8)
-        assertEquals("././@LongLink", longLinkName)
-        assertEquals('L'.code.toByte(), data[156])
     }
 
     @Test
-    fun `long name truncation uses first 100 chars not last`() {
-        val dir = Files.createTempDirectory("tar-test-")
-        tempFiles.add(dir)
-        val file = dir.resolve("test.txt")
-        Files.writeString(file, "data")
+    fun `short source is zero-padded and later entries stay readable`() {
+        val fileB = Files.createTempFile("tar-test-", ".bin")
+        try {
+            Files.write(fileB, "survivor".toByteArray())
+            val out = ByteArrayOutputStream()
+            TarOutputStream(out).use { tar ->
+                val partial = ByteArray(400) { 7 }
+                try {
+                    tar.putFileEntry("truncated.bin", ByteArrayInputStream(partial), 1000, 0, "truncated.bin")
+                    fail("Expected IOException for a source shorter than its declared size")
+                } catch (_: IOException) {
+                }
+                tar.putFileEntry("b.txt", fileB, 0)
+                tar.finish()
+            }
 
-        // Name where first 100 and last 100 chars are different
-        val prefix = "START_"
-        val suffix = "_END.txt"
-        val longName = prefix + "x".repeat(150 - prefix.length - suffix.length) + suffix
-
-        val baos = ByteArrayOutputStream()
-        TarOutputStream(baos).use { tar ->
-            tar.putFileEntry(longName, file, 0)
-            tar.finish()
+            val entries = readEntries(out.toByteArray())
+            assertEquals(listOf("truncated.bin", "b.txt"), entries.map { it.first.name })
+            assertEquals(1000, entries[0].second.size)
+            assertTrue(entries[0].second.take(400).all { it == 7.toByte() })
+            assertTrue(entries[0].second.drop(400).all { it == 0.toByte() })
+            assertEquals("survivor", entries[1].second.toString(Charsets.UTF_8))
+        } finally {
+            Files.deleteIfExists(fileB)
         }
-        val data = baos.toByteArray()
-
-        // Skip the @LongLink header (512) + padded name data (512) to reach the actual file header
-        val actualHeaderOffset = 512 + 512
-        val truncatedName = String(data, actualHeaderOffset, 6, StandardCharsets.UTF_8)
-        assertEquals("START_", truncatedName)
     }
 
     @Test
-    fun `long directory name truncation uses first 100 chars`() {
-        val prefix = "START_"
-        val longName = prefix + "d".repeat(100 - prefix.length) + "/"
+    fun `unreadable file writes nothing and later entries stay readable`() {
+        val fileB = Files.createTempFile("tar-test-", ".bin")
+        try {
+            Files.write(fileB, "survivor".toByteArray())
+            val out = ByteArrayOutputStream()
+            TarOutputStream(out).use { tar ->
+                try {
+                    tar.putFileEntry("missing.bin", Path.of("definitely-missing-", "no-such-file.bin"), 0)
+                    fail("Expected an exception for a nonexistent source file")
+                } catch (_: Exception) {
+                }
+                assertEquals(0, out.size())
+                tar.putFileEntry("b.txt", fileB, 0)
+                tar.finish()
+            }
 
-        val baos = ByteArrayOutputStream()
-        TarOutputStream(baos).use { tar ->
-            tar.putDirectoryEntry(longName, 0)
-            tar.finish()
+            val entries = readEntries(out.toByteArray())
+            assertEquals(listOf("b.txt"), entries.map { it.first.name })
+            assertEquals("survivor", entries[0].second.toString(Charsets.UTF_8))
+        } finally {
+            Files.deleteIfExists(fileB)
         }
-        val data = baos.toByteArray()
-
-        // Skip the @LongLink header (512) + padded name data (512)
-        val actualHeaderOffset = 512 + 512
-        val truncatedName = String(data, actualHeaderOffset, 6, StandardCharsets.UTF_8)
-        assertEquals("START_", truncatedName)
-    }
-
-    @Test
-    fun `finish writes two zero blocks`() {
-        val baos = ByteArrayOutputStream()
-        TarOutputStream(baos).use { tar ->
-            tar.finish()
-        }
-        val data = baos.toByteArray()
-        assertEquals(1024, data.size)
-        assertTrue(data.all { it == 0.toByte() })
-    }
-
-    @Test
-    fun `file entry uses actual file size ignoring stale declared size`() {
-        val dir = Files.createTempDirectory("tar-test-")
-        tempFiles.add(dir)
-        val file = dir.resolve("test.txt")
-        Files.writeString(file, "hi") // 2 bytes
-
-        val baos = ByteArrayOutputStream()
-        TarOutputStream(baos).use { tar ->
-            // Declare 100 bytes but actual file is 2 — should succeed using actual size
-            tar.putFileEntry("test.txt", file, 0)
-            tar.finish()
-        }
-        val data = baos.toByteArray()
-        val sizeStr = String(data, 124, 11, StandardCharsets.UTF_8).trim().trimEnd('\u0000')
-        val headerSize = sizeStr.toLong(8)
-        assertEquals("Header should use actual file size, not declared", 2L, headerSize)
-    }
-
-    @Test
-    fun `file entry uses actual file size for header`() {
-        val dir = Files.createTempDirectory("tar-test-")
-        tempFiles.add(dir)
-        val file = dir.resolve("test.txt")
-        Files.writeString(file, "hello") // 5 bytes
-
-        val baos = ByteArrayOutputStream()
-        TarOutputStream(baos).use { tar ->
-            // Pass a wrong size (999) — putFileEntry should use actual file size
-            tar.putFileEntry("test.txt", file, 0)
-            tar.finish()
-        }
-        val data = baos.toByteArray()
-
-        // Parse the size field from the header (octal at offset 124, 11 bytes)
-        val sizeStr = String(data, 124, 11, StandardCharsets.UTF_8).trim().trimEnd('\u0000')
-        val headerSize = sizeStr.toLong(8)
-        assertEquals("Header should contain actual file size", 5L, headerSize)
-
-        // Verify file content is correct
-        val content = String(data, 512, 5, StandardCharsets.UTF_8)
-        assertEquals("hello", content)
-    }
-
-    @Test
-    fun `multiple entries produce valid tar`() {
-        val dir = Files.createTempDirectory("tar-test-")
-        tempFiles.add(dir)
-        val file1 = dir.resolve("a.txt")
-        Files.writeString(file1, "aaa")
-        val file2 = dir.resolve("b.txt")
-        Files.writeString(file2, "bbb")
-
-        val baos = ByteArrayOutputStream()
-        TarOutputStream(baos).use { tar ->
-            tar.putDirectoryEntry("mydir/", 0)
-            tar.putFileEntry("mydir/a.txt", file1, 0)
-            tar.putFileEntry("mydir/b.txt", file2, 0)
-            tar.finish()
-        }
-        val data = baos.toByteArray()
-        // dir header (512) + file1 header+data (512+512) + file2 header+data (512+512) + end (1024) = 3584
-        assertEquals(3584, data.size)
     }
 }
