@@ -1,5 +1,8 @@
 package io.github.jhspetersson.turtlecommander.service
 
+import io.github.jhspetersson.turtlecommander.model.FileEntry
+import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
+import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
 import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -78,6 +81,69 @@ class VfsTempCleanupTest {
         VfsTempCleanup.cleanNow(sandbox, maxAgeMs = 60L * 60 * 1000)
 
         assertTrue("must not touch dirs without the prefix", Files.exists(unrelated))
+    }
+
+    private class FakeVfs(override val archivePath: Path, override val root: Path) : VirtualFileSystem {
+        override suspend fun listFiles(directory: Path): List<FileEntry> = emptyList()
+        override fun isRoot(path: Path): Boolean = path == root
+        override fun getPath(relativePath: String): Path = root.resolve(relativePath)
+        override fun flush() {}
+        override suspend fun renameFile(source: Path, newName: String): Path = source
+        override fun close() {}
+    }
+
+    @Test
+    fun `keeps a stale extraction dir claimed by an open vfs`() {
+        val stale = makeStaleDir("turtle-zip-live", ageMs = 2L * 60 * 60 * 1000)
+        val vfs = FakeVfs(archivePath = sandbox.resolve("outside.zip"), root = stale)
+        OpenVfsRegistry.register(vfs)
+        try {
+            VfsTempCleanup.cleanNow(sandbox, maxAgeMs = 60L * 60 * 1000)
+            assertTrue("live vfs extraction dir must NOT be removed", Files.exists(stale))
+        } finally {
+            OpenVfsRegistry.unregister(vfs)
+        }
+    }
+
+    @Test
+    fun `keeps a stale dir holding the archive file of an open nested vfs`() {
+        val stale = makeStaleDir("turtle-vfs-nested", ageMs = 2L * 60 * 60 * 1000)
+        val vfs = FakeVfs(archivePath = stale.resolve("inner.zip"), root = sandbox.resolve("turtle-zip-elsewhere"))
+        OpenVfsRegistry.register(vfs)
+        try {
+            VfsTempCleanup.cleanNow(sandbox, maxAgeMs = 60L * 60 * 1000)
+            assertTrue("dir backing an open nested archive must NOT be removed", Files.exists(stale))
+        } finally {
+            OpenVfsRegistry.unregister(vfs)
+        }
+    }
+
+    @Test
+    fun `keeps a stale dir registered via protect`() {
+        VfsTempCleanup.resetForTesting()
+        val stale = makeStaleDir("turtle-vfs-edit-live", ageMs = 2L * 60 * 60 * 1000)
+        VfsTempCleanup.protect(stale)
+        try {
+            VfsTempCleanup.cleanNow(sandbox, maxAgeMs = 60L * 60 * 1000)
+            assertTrue("protected editor-extraction dir must NOT be removed", Files.exists(stale))
+        } finally {
+            VfsTempCleanup.resetForTesting()
+        }
+    }
+
+    @Test
+    fun `still removes an unprotected sibling of a live dir`() {
+        val live = makeStaleDir("turtle-zip-live", ageMs = 2L * 60 * 60 * 1000)
+        val dead = makeStaleDir("turtle-zip-dead", ageMs = 2L * 60 * 60 * 1000)
+        val vfs = FakeVfs(archivePath = sandbox.resolve("outside.zip"), root = live)
+        OpenVfsRegistry.register(vfs)
+        try {
+            VfsTempCleanup.cleanNow(sandbox, maxAgeMs = 60L * 60 * 1000)
+            assertTrue(Files.exists(live))
+            assertFalse("stale unclaimed sibling should still be swept", Files.exists(dead))
+        } finally {
+            OpenVfsRegistry.unregister(vfs)
+        }
     }
 
     @Test

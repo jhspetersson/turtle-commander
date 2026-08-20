@@ -2,8 +2,10 @@ package io.github.jhspetersson.turtlecommander.service
 
 import com.intellij.openapi.diagnostic.thisLogger
 import io.github.jhspetersson.turtlecommander.service.VfsTempCleanup.MAX_AGE_MS
+import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -32,6 +34,12 @@ internal object VfsTempCleanup {
 
     private val done = AtomicBoolean(false)
 
+    private val protectedRoots = CopyOnWriteArraySet<Path>()
+
+    fun protect(dir: Path) {
+        protectedRoots.add(dir.normalize())
+    }
+
     fun cleanupOnce() {
         if (!done.compareAndSet(false, true)) return
         runCatching { cleanNow(defaultTempDir(), MAX_AGE_MS) }
@@ -49,6 +57,8 @@ internal object VfsTempCleanup {
             for (path in stream) {
                 val name = path.fileName?.toString() ?: continue
                 if (PREFIXES.none { name.startsWith(it) }) continue
+                if (path.normalize() in protectedRoots) continue
+                if (OpenVfsRegistry.hasLiveContentUnder(path)) continue
                 val mtime = runCatching { Files.getLastModifiedTime(path) }.getOrNull() ?: continue
                 if (mtime.toMillis() > cutoff) continue
                 if (deleteRecursive(path)) removed++
@@ -68,5 +78,6 @@ internal object VfsTempCleanup {
 
     internal fun resetForTesting() {
         done.set(false)
+        protectedRoots.clear()
     }
 }

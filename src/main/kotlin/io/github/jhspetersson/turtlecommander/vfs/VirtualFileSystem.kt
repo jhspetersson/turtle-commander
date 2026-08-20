@@ -94,6 +94,13 @@ object OpenVfsRegistry {
         }
     }
 
+    fun hasLiveContentUnder(dir: Path): Boolean {
+        val normalized = dir.normalize()
+        return instances.any {
+            it.root.normalize().startsWith(normalized) || it.archivePath.normalize().startsWith(normalized)
+        }
+    }
+
     /**
      * Like [materializeIfNeeded] but recursive: ensures every file under [path] holds real
      * bytes. Needed before a same-filesystem `Files.move` relocates a lazy-VFS subtree out

@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Don't remove temporary files and dirs of archives opened a long time ago but still in use
+
 ## [0.7.44] - 2026-08-19
 
 ### Fixed

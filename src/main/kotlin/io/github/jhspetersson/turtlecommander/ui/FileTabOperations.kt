@@ -906,6 +906,7 @@ private suspend fun materializeVfsEntryToTemp(entry: FileEntry, prefix: String):
         // sparse file and the user opens a zero-byte view of their file.
         OpenVfsRegistry.materializeIfNeeded(entry.path)
         val tempDir = Files.createTempDirectory(prefix)
+        VfsTempCleanup.protect(tempDir)
         val tempPath = tempDir.resolve(entry.path.fileName.toString())
         Files.copy(entry.path, tempPath)
         tempPath.toFile().deleteOnExit()
