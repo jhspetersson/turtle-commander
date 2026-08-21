@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [0.7.46] - 2026-08-21
+
+### Fixed
+
+- Improved error handling in Multi-Rename tool
+
 ## [0.7.45] - 2026-08-20
 
 ### Fixed
