@@ -192,6 +192,54 @@ class MultiRenameTemplateTest {
     }
 
     @Test
+    fun `replacement referencing missing group falls back to no-op instead of throwing`() {
+        val out = MultiRenameTemplate.render(
+            listOf(input("foo.txt")),
+            MultiRenameTemplate.Options(
+                nameTemplate = "[N]",
+                extensionTemplate = "[E]",
+                search = "foo",
+                replace = "\$1",
+                regex = true,
+                zone = zone,
+            ),
+        )
+        assertEquals(listOf("foo.txt"), out)
+    }
+
+    @Test
+    fun `replacement with dangling escape falls back to no-op instead of throwing`() {
+        val out = MultiRenameTemplate.render(
+            listOf(input("foo.txt")),
+            MultiRenameTemplate.Options(
+                nameTemplate = "[N]",
+                extensionTemplate = "[E]",
+                search = "foo",
+                replace = "C:\\",
+                regex = true,
+                zone = zone,
+            ),
+        )
+        assertEquals(listOf("foo.txt"), out)
+    }
+
+    @Test
+    fun `replacement with dangling dollar falls back to no-op instead of throwing`() {
+        val out = MultiRenameTemplate.render(
+            listOf(input("foo.txt")),
+            MultiRenameTemplate.Options(
+                nameTemplate = "[N]",
+                extensionTemplate = "[E]",
+                search = "foo",
+                replace = "x\$",
+                regex = true,
+                zone = zone,
+            ),
+        )
+        assertEquals(listOf("foo.txt"), out)
+    }
+
+    @Test
     fun `every-word-upper capitalizes after non-letter separators`() {
         val out = MultiRenameTemplate.render(
             listOf(input("hello_world-foo.bar baz.txt")),

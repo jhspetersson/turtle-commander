@@ -7,7 +7,6 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.Locale
 import java.util.regex.Pattern
-import java.util.regex.PatternSyntaxException
 
 /**
  * Pure template engine for the Multi-Rename tool. Mirrors the subset of Total Commander's
@@ -384,7 +383,9 @@ object MultiRenameTemplate {
             try {
                 val pattern = Pattern.compile(options.search, flags)
                 pattern.matcher(name).replaceAll(options.replace)
-            } catch (_: PatternSyntaxException) {
+            } catch (_: IllegalArgumentException) {
+                name
+            } catch (_: IndexOutOfBoundsException) {
                 name
             }
         } else {
