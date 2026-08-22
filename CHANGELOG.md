@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.47] - 2026-08-22
+
 ### Fixed
 
 - Files with long Unicode names were sometimes missing from `.tar.gz` archives created by the plugin
