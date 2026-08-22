@@ -17,7 +17,7 @@ class TarOutputStreamTest {
 
     private fun readEntries(archive: ByteArray): List<Pair<TarArchiveEntry, ByteArray>> {
         val result = mutableListOf<Pair<TarArchiveEntry, ByteArray>>()
-        TarArchiveInputStream(ByteArrayInputStream(archive)).use { tar ->
+        TarArchiveInputStream(ByteArrayInputStream(archive), "UTF-8").use { tar ->
             var entry = tar.nextEntry
             while (entry != null) {
                 result.add(entry to tar.readBytes())
@@ -67,6 +67,58 @@ class TarOutputStreamTest {
             }
             val entries = readEntries(out.toByteArray())
             assertEquals(listOf(longName), entries.map { it.first.name })
+        } finally {
+            Files.deleteIfExists(file)
+        }
+    }
+
+    @Test
+    fun `name under 100 chars but over 100 utf8 bytes round-trips intact`() {
+        val file = Files.createTempFile("tar-test-", ".bin")
+        try {
+            Files.write(file, "x".toByteArray())
+            val name = "漢".repeat(60) + ".txt"
+            val out = ByteArrayOutputStream()
+            TarOutputStream(out).use { tar ->
+                tar.putFileEntry(name, file, 0)
+                tar.finish()
+            }
+            val entries = readEntries(out.toByteArray())
+            assertEquals(listOf(name), entries.map { it.first.name })
+            assertEquals("x", entries[0].second.toString(Charsets.UTF_8))
+        } finally {
+            Files.deleteIfExists(file)
+        }
+    }
+
+    @Test
+    fun `multibyte directory name over 100 bytes round-trips intact`() {
+        val out = ByteArrayOutputStream()
+        val name = "é".repeat(80) + "/"
+        TarOutputStream(out).use { tar ->
+            tar.putDirectoryEntry(name, 0)
+            tar.finish()
+        }
+        val entries = readEntries(out.toByteArray())
+        assertEquals(listOf(name), entries.map { it.first.name })
+        assertTrue(entries[0].first.isDirectory)
+    }
+
+    @Test
+    fun `exactly 100 byte ascii name stays a plain ustar entry`() {
+        val file = Files.createTempFile("tar-test-", ".bin")
+        try {
+            Files.write(file, "x".toByteArray())
+            val name = "a".repeat(96) + ".txt"
+            val out = ByteArrayOutputStream()
+            TarOutputStream(out).use { tar ->
+                tar.putFileEntry(name, file, 0)
+                tar.finish()
+            }
+            val archive = out.toByteArray()
+            assertEquals("no @LongLink header expected", 4 * 512, archive.size)
+            val entries = readEntries(archive)
+            assertEquals(listOf(name), entries.map { it.first.name })
         } finally {
             Files.deleteIfExists(file)
         }

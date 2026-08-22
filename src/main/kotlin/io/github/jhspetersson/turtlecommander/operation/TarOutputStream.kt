@@ -21,7 +21,7 @@ class TarOutputStream(private val out: OutputStream) : AutoCloseable {
     fun putDirectoryEntry(name: String, modTimeMillis: Long) {
         writeLongNameIfNeeded(name)
         val header = createHeader(
-            name = if (name.length > 100) name.substring(0, 100) else name,
+            name = truncateUtf8(name, 100),
             size = 0,
             modTime = modTimeMillis / 1000,
             typeFlag = '5', // directory
@@ -51,7 +51,7 @@ class TarOutputStream(private val out: OutputStream) : AutoCloseable {
     ) {
         writeLongNameIfNeeded(name)
         val header = createHeader(
-            name = if (name.length > 100) name.substring(0, 100) else name,
+            name = truncateUtf8(name, 100),
             size = declaredSize,
             modTime = modTimeMillis / 1000,
             typeFlag = '0', // regular file
@@ -98,9 +98,9 @@ class TarOutputStream(private val out: OutputStream) : AutoCloseable {
     }
 
     private fun writeLongNameIfNeeded(name: String) {
-        if (name.length <= 100) return
         // GNU @LongLink extension
         val nameBytes = name.toByteArray(StandardCharsets.UTF_8)
+        if (nameBytes.size <= 100) return
         val header = createHeader(
             name = "././@LongLink",
             size = nameBytes.size.toLong(),
@@ -150,6 +150,24 @@ class TarOutputStream(private val out: OutputStream) : AutoCloseable {
         header[155] = ' '.code.toByte()
 
         return header
+    }
+
+    private fun truncateUtf8(s: String, maxBytes: Int): String {
+        var bytes = 0
+        var i = 0
+        while (i < s.length) {
+            val cp = s.codePointAt(i)
+            val cpBytes = when {
+                cp < 0x80 -> 1
+                cp < 0x800 -> 2
+                cp < 0x10000 -> 3
+                else -> 4
+            }
+            if (bytes + cpBytes > maxBytes) return s.substring(0, i)
+            bytes += cpBytes
+            i += Character.charCount(cp)
+        }
+        return s
     }
 
     private fun writeString(buf: ByteArray, offset: Int, s: String, maxLen: Int) {
