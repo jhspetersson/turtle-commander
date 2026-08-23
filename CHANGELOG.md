@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.48] - 2026-08-23
+
 ### Fixed
 
 - Improved temp directory cleanup
