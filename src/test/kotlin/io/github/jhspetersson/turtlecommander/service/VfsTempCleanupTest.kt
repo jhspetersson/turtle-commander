@@ -75,6 +75,18 @@ class VfsTempCleanupTest {
     }
 
     @Test
+    fun `removes stale dirs of formats added after the original sweep list`() {
+        val stale = listOf("turtle-cab-old", "turtle-arj-old", "turtle-jmod-old", "turtle-msi-old",
+            "turtle-squashfs-old", "turtle-diskimage-old", "turtle-cpio-old")
+            .map { makeStaleDir(it, ageMs = 2L * 60 * 60 * 1000) }
+
+        val removed = VfsTempCleanup.cleanNow(sandbox, maxAgeMs = 60L * 60 * 1000)
+
+        stale.forEach { assertFalse("$it should be swept", Files.exists(it)) }
+        assertTrue(removed >= stale.size)
+    }
+
+    @Test
     fun `ignores non-turtle dirs even when stale`() {
         val unrelated = makeStaleDir("unrelated-old", ageMs = 24L * 60 * 60 * 1000)
 
