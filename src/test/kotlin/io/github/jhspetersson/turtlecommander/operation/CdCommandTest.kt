@@ -72,6 +72,16 @@ class CdCommandTest {
         assertEquals(home, CdCommand.resolveTarget("", base, home, isWindows = false))
         assertEquals(home, CdCommand.resolveTarget("~", base, home, isWindows = false))
         assertEquals(Path.of("/home/user/docs"), CdCommand.resolveTarget("~/docs", base, home, isWindows = false))
+        assertEquals(home, CdCommand.resolveTarget("~/", base, home, isWindows = false))
+    }
+
+    @Test
+    fun `tilde with backslash expands to home on windows`() {
+        val base = Path.of("/work/project")
+        assertEquals(Path.of("/home/user/docs"), CdCommand.resolveTarget("""~\docs""", base, home, isWindows = true))
+        assertEquals(home, CdCommand.resolveTarget("""~\""", base, home, isWindows = true))
+        assertEquals(Path.of("/home/user/docs"), CdCommand.resolveTarget("~/docs", base, home, isWindows = true))
+        assertEquals(home, CdCommand.resolveTarget("~", base, home, isWindows = true))
     }
 
     @Test

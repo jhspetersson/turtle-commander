@@ -14,8 +14,7 @@ object CdCommand {
             val normalizedSeparators = if (isWindows) arg else arg.replace('\\', '/')
             when {
                 normalizedSeparators.isEmpty() || normalizedSeparators == "~" -> return home.normalize()
-                normalizedSeparators == "~/" -> return home.normalize()
-                normalizedSeparators.startsWith("~/") ->
+                normalizedSeparators.startsWith("~/") || normalizedSeparators.startsWith("~\\") ->
                     return home.resolve(normalizedSeparators.substring(2)).normalize()
             }
             val path = Path.of(normalizedSeparators)
