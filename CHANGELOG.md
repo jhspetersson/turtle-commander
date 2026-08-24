@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [0.7.49] - 2026-08-24
+
+### Fixed
+
+- Improved path resolving on Windows
+
 ## [0.7.48] - 2026-08-23
 
 ### Fixed
