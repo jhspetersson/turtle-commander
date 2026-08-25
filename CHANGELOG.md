@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Improved Multi-Rename logic for short filenames
+
 ## [0.7.49] - 2026-08-24
 
 ### Fixed

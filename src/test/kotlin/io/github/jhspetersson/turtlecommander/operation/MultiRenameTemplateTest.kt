@@ -56,6 +56,15 @@ class MultiRenameTemplateTest {
     }
 
     @Test
+    fun `substring range end clamps to the name length`() {
+        val out = MultiRenameTemplate.render(
+            listOf(input("Photograph.jpg"), input("ab.jpg")),
+            MultiRenameTemplate.Options(nameTemplate = "[N1-8]", extensionTemplate = "[E]", zone = zone),
+        )
+        assertEquals(listOf("Photogra.jpg", "ab.jpg"), out)
+    }
+
+    @Test
     fun `substring out of range yields empty`() {
         val out = MultiRenameTemplate.render(
             listOf(input("ab.txt")),

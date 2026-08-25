@@ -259,7 +259,11 @@ object MultiRenameTemplate {
             // Open-ended "a-" means "from a to the end of the source".
             if (right.isEmpty()) return source.substring(start)
             val b = right.toIntOrNull() ?: return ""
-            val end = resolveIndex(b, source.length) ?: return ""
+            val end = if (b > source.length) {
+                source.length - 1
+            } else {
+                resolveIndex(b, source.length) ?: return ""
+            }
             if (start > end) return ""
             source.substring(start, (end + 1).coerceAtMost(source.length))
         }
