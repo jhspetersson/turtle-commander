@@ -60,13 +60,9 @@ class ArchiveService {
         onError: (path: Path, error: Exception) -> Unit,
         isCancelled: () -> Boolean,
     ): Int {
-        val env = mutableMapOf<String, String>()
-        if (!appendToExisting && !archiveExists) {
-            env["create"] = "true"
-        }
+        val env = mapOf("create" to "true")
         if (!appendToExisting && archiveExists) {
             withContext(Dispatchers.IO) { Files.delete(archivePath) }
-            env["create"] = "true"
         }
 
         val uri = URI.create("jar:" + archivePath.toUri())
