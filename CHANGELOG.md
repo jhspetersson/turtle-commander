@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.51] - 2026-08-26
+
 ### Fixed
 
 - "Append to existing archive" now doesn't fail when the archive gets deleted or moved while the dialog is open
