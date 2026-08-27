@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.52] - 2026-08-27
+
 ### Added
 
 - "Open in Terminal" + Shift now opens a separate terminal window with Administrator privileges on Windows
