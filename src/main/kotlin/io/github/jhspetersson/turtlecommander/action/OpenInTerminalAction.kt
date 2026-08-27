@@ -4,9 +4,12 @@ import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.components.service
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.vfs.LocalFileSystem
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager
+import java.util.Base64
 
 class OpenInTerminalAction : EdtAction() {
     override fun update(e: AnActionEvent) {
@@ -25,7 +28,7 @@ class OpenInTerminalAction : EdtAction() {
         if (tab.currentVfs != null) return
 
         val dir = if (entry.isDirectory) entry.path else entry.path.parent ?: return
-        openTerminal(project, dir.toString())
+        openTerminal(project, dir.toString(), elevated = isShiftPressed(e))
     }
 }
 
@@ -39,7 +42,7 @@ class OpenTabInTerminalAction : EdtAction() {
         val project = e.project ?: return
         val tab = resolveTab(e) ?: return
         if (tab.currentVfs != null) return
-        openTerminal(project, tab.currentPath.toString())
+        openTerminal(project, tab.currentPath.toString(), elevated = isShiftPressed(e))
     }
 
     private fun resolveTab(e: AnActionEvent): FileTab? {
@@ -52,7 +55,24 @@ class OpenTabInTerminalAction : EdtAction() {
     }
 }
 
-private fun openTerminal(project: Project, workingDir: String) {
+private fun isShiftPressed(e: AnActionEvent): Boolean = e.inputEvent?.isShiftDown == true
+
+private fun openTerminal(project: Project, workingDir: String, elevated: Boolean = false) {
+    if (elevated && SystemInfo.isWindows) {
+        openElevatedTerminal(workingDir)
+        return
+    }
     val vf = LocalFileSystem.getInstance().findFileByPath(workingDir) ?: return
     TerminalToolWindowManager.getInstance(project).openTerminalIn(vf)
+}
+
+private fun openElevatedTerminal(workingDir: String) {
+    val escaped = workingDir.replace("'", "''")
+    val command = "Start-Process cmd -ArgumentList '/K','cd /d \"$escaped\"' -Verb RunAs"
+    val encoded = Base64.getEncoder().encodeToString(command.toByteArray(Charsets.UTF_16LE))
+    runCatching {
+        ProcessBuilder("powershell.exe", "-NoProfile", "-EncodedCommand", encoded).start()
+    }.onFailure {
+        logger<OpenInTerminalAction>().warn("Failed to launch elevated terminal in $workingDir", it)
+    }
 }

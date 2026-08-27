@@ -3,6 +3,7 @@
         <action id="TurtleCommander.OpenInTerminal"
                 class="io.github.jhspetersson.turtlecommander.action.OpenInTerminalAction"
                 text="Open in Terminal"
+                description="Open a terminal in this directory; hold Shift for an elevated terminal (Windows)"
                 icon="org.jetbrains.plugins.terminal.TerminalIcons.Command"/>
         <group id="TurtleCommander.FileContextMenu.OpenInTerminal">
             <reference ref="TurtleCommander.OpenInTerminal"/>
@@ -13,6 +14,7 @@
         <action id="TurtleCommander.OpenTabInTerminal"
                 class="io.github.jhspetersson.turtlecommander.action.OpenTabInTerminalAction"
                 text="Open in Terminal"
+                description="Open a terminal in this tab's directory; hold Shift for an elevated terminal (Windows)"
                 icon="org.jetbrains.plugins.terminal.TerminalIcons.Command"/>
         <group id="TurtleCommander.TabContextMenu.OpenTabInTerminal">
             <separator/>
