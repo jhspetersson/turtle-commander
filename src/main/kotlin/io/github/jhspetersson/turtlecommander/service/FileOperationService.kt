@@ -910,6 +910,8 @@ class FileOperationService(
     @Volatile
     private var cachedRoots: List<String>? = null
     private var rootsPollJob: Job? = null
+    internal var rootsSourceForTesting: (() -> List<String>)? = null
+    internal var rootsPollIntervalMsForTesting: Long? = null
 
     /** Most recent root list produced by the shared poller; null before the first scan. */
     fun currentRoots(): List<String>? = cachedRoots
@@ -941,9 +943,10 @@ class FileOperationService(
 
     private suspend fun pollRoots() {
         while (true) {
+            val sourceOverride = rootsSourceForTesting
             val roots = withContext(Dispatchers.IO) {
                 runCatching {
-                    getRoots().also { list ->
+                    sourceOverride?.invoke() ?: getRoots().also { list ->
                         // Resolve Windows drive labels here so the EDT renderer only ever
                         // hits the cache (getSystemDisplayName is a blocking shell call).
                         list.forEach { DriveLabels.getDisplayText(it) }
@@ -954,10 +957,13 @@ class FileOperationService(
                 cachedRoots = roots
                 val snapshot = rootsListeners.toList()
                 withContext(Dispatchers.EDT) {
-                    for (listener in snapshot) listener(roots)
+                    for (listener in snapshot) {
+                        runCatching { listener(roots) }
+                            .onFailure { thisLogger().warn("Drive-roots listener failed", it) }
+                    }
                 }
             }
-            delay(ROOTS_POLL_INTERVAL_MS)
+            delay(rootsPollIntervalMsForTesting ?: ROOTS_POLL_INTERVAL_MS)
         }
     }
 
