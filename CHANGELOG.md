@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [0.7.53] - 2026-08-28
+
+### Fixed
+
+- Improved drive polling
+
 ## [0.7.52] - 2026-08-27
 
 ### Added
