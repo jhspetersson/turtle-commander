@@ -8,6 +8,7 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
 import io.github.jhspetersson.turtlecommander.ui.installStandardContextMenu
+import io.github.jhspetersson.turtlecommander.util.SizeUnits
 import java.awt.*
 import java.time.Instant
 import java.time.LocalDate
@@ -83,8 +84,8 @@ internal class ColorMatcherEditDialog(
     }
     private val sizeValueSpinner = JSpinner(SpinnerNumberModel(1L, 0L, Long.MAX_VALUE, 1L))
     private val sizeMaxSpinner = JSpinner(SpinnerNumberModel(1L, 0L, Long.MAX_VALUE, 1L))
-    private val sizeUnitCombo = ComboBox(DefaultComboBoxModel(arrayOf("B", "KB", "MB", "GB")))
-    private val sizeMaxUnitCombo = ComboBox(DefaultComboBoxModel(arrayOf("B", "KB", "MB", "GB")))
+    private val sizeUnitCombo = ComboBox(DefaultComboBoxModel(SizeUnits.COMBO_UNITS))
+    private val sizeMaxUnitCombo = ComboBox(DefaultComboBoxModel(SizeUnits.COMBO_UNITS))
     private val sizeMaxLabel = JBLabel("And ≤:")
 
     // Name fields
@@ -412,10 +413,10 @@ internal class ColorMatcherEditDialog(
             is RuleMatcher.Size -> {
                 kindCombo.selectedItem = Kind.SIZE
                 sizeOpCombo.selectedItem = matcher.op
-                val (value, unit) = splitUnit(matcher.bytes)
+                val (value, unit) = SizeUnits.toWholeUnit(matcher.bytes)
                 sizeValueSpinner.value = value
                 sizeUnitCombo.selectedItem = unit
-                val (valueMax, unitMax) = splitUnit(matcher.bytesMax)
+                val (valueMax, unitMax) = SizeUnits.toWholeUnit(matcher.bytesMax)
                 sizeMaxSpinner.value = valueMax
                 sizeMaxUnitCombo.selectedItem = unitMax
             }
@@ -473,26 +474,6 @@ internal class ColorMatcherEditDialog(
         }
     }
 
-    private fun splitUnit(bytes: Long): Pair<Long, String> {
-        if (bytes == 0L) return 0L to "B"
-        val gb = 1024L * 1024 * 1024
-        val mb = 1024L * 1024
-        val kb = 1024L
-        return when {
-            bytes % gb == 0L -> (bytes / gb) to "GB"
-            bytes % mb == 0L -> (bytes / mb) to "MB"
-            bytes % kb == 0L -> (bytes / kb) to "KB"
-            else -> bytes to "B"
-        }
-    }
-
-    private fun toBytes(value: Long, unit: String): Long = when (unit) {
-        "KB" -> value * 1024
-        "MB" -> value * 1024 * 1024
-        "GB" -> value * 1024 * 1024 * 1024
-        else -> value
-    }
-
     override fun doValidate(): ValidationInfo? = when (kindCombo.selectedItem as Kind) {
         Kind.NAME -> validatePattern(nameKindCombo.selectedItem as PatternKind, namePatternField)
         Kind.CONTAINS -> validatePattern(containsKindCombo.selectedItem as PatternKind, containsPatternField)
@@ -506,9 +487,9 @@ internal class ColorMatcherEditDialog(
         result = when (kindCombo.selectedItem as Kind) {
             Kind.SIZE -> {
                 val op = sizeOpCombo.selectedItem as SizeOp
-                val bytes = toBytes((sizeValueSpinner.value as Number).toLong(), sizeUnitCombo.selectedItem as String)
+                val bytes = (sizeValueSpinner.value as Number).toLong() * SizeUnits.multiplier(sizeUnitCombo.selectedItem as String)
                 val bytesMax = if (op == SizeOp.BETWEEN) {
-                    toBytes((sizeMaxSpinner.value as Number).toLong(), sizeMaxUnitCombo.selectedItem as String)
+                    (sizeMaxSpinner.value as Number).toLong() * SizeUnits.multiplier(sizeMaxUnitCombo.selectedItem as String)
                 } else 0L
                 RuleMatcher.Size(op = op, bytes = bytes, bytesMax = bytesMax)
             }

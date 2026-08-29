@@ -1,6 +1,5 @@
 package io.github.jhspetersson.turtlecommander.dialog
 
-import io.github.jhspetersson.turtlecommander.util.formatSize
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
@@ -8,8 +7,10 @@ import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBRadioButton
 import com.intellij.ui.components.JBTextField
-import io.github.jhspetersson.turtlecommander.ui.installStandardContextMenu
 import com.intellij.util.ui.JBUI
+import io.github.jhspetersson.turtlecommander.ui.installStandardContextMenu
+import io.github.jhspetersson.turtlecommander.util.SizeUnits
+import io.github.jhspetersson.turtlecommander.util.formatSize
 import java.awt.Dimension
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
@@ -50,7 +51,7 @@ class SplitFileDialog(
             val selectedText = sizeCombo.editor.item.toString().trim()
             val preset = PRESET_SIZES.find { it.first == selectedText }
             if (preset != null) return preset.second
-            return parseSize(selectedText)
+            return SizeUnits.parseBytesWithSuffix(selectedText) ?: 0L
         }
 
     val numberOfParts: Int get() = (partsSpinner.value as Number).toInt()
@@ -144,23 +145,6 @@ class SplitFileDialog(
             }
         }
         return null
-    }
-
-    private fun parseSize(text: String): Long {
-        val trimmed = text.trim().uppercase()
-        val multipliers = listOf(
-            "TB" to 1L * 1024 * 1024 * 1024 * 1024,
-            "GB" to 1L * 1024 * 1024 * 1024,
-            "MB" to 1L * 1024 * 1024,
-            "KB" to 1024L,
-        )
-        for ((suffix, multiplier) in multipliers) {
-            if (trimmed.endsWith(suffix)) {
-                val num = trimmed.removeSuffix(suffix).trim().toDoubleOrNull() ?: return 0L
-                return (num * multiplier).toLong()
-            }
-        }
-        return trimmed.toLongOrNull() ?: 0L
     }
 
     companion object {

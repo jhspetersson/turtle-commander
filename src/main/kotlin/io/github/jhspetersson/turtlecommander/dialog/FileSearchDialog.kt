@@ -1,10 +1,10 @@
 package io.github.jhspetersson.turtlecommander.dialog
 
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.ValidationInfo
+import com.intellij.openapi.util.SystemInfo
 import com.intellij.ui.TextFieldWithStoredHistory
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
@@ -12,6 +12,7 @@ import com.intellij.util.ui.JBUI
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.ui.installStandardContextMenu
 import io.github.jhspetersson.turtlecommander.util.PermissionFlag
+import io.github.jhspetersson.turtlecommander.util.SizeUnits
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.GridBagConstraints
@@ -84,15 +85,6 @@ class FileSearchDialog(
     companion object {
         private const val CONTENT_HISTORY_KEY = "TurtleCommander.contentSearchHistory"
 
-        fun bytesToUnit(bytes: Long): Pair<String, String> {
-            return when {
-                bytes >= 1024L * 1024 * 1024 -> Pair("%.1f".format(bytes / (1024.0 * 1024 * 1024)), "GB")
-                bytes >= 1024L * 1024 -> Pair("%.1f".format(bytes / (1024.0 * 1024)), "MB")
-                bytes >= 1024L -> Pair("%.1f".format(bytes / 1024.0), "KB")
-                else -> Pair(bytes.toString(), "B")
-            }
-        }
-
         internal fun parseDateRange(text: String): Pair<Long, Long>? {
             if (text.isBlank()) return null
             data class Fmt(val pattern: String, val unit: Int)
@@ -161,14 +153,15 @@ class FileSearchDialog(
     private val sizeModeCombo = ComboBox(DefaultComboBoxModel(arrayOf("More than", "Approximately equal", "Less than", "In between"))).apply {
         initialCriteria?.sizeFilter?.let { selectedIndex = it.mode.ordinal }
     }
+    private val initialSize = initialCriteria?.sizeFilter?.let { SizeUnits.rangeToUnit(it.sizeBytes, it.sizeBytes2) }
     private val sizeField1 = JBTextField(10).apply {
-        initialCriteria?.sizeFilter?.let { text = bytesToUnit(it.sizeBytes).first }
+        initialSize?.let { text = it.first }
     }
     private val sizeField2 = JBTextField(10).apply {
-        initialCriteria?.sizeFilter?.sizeBytes2?.let { text = bytesToUnit(it).first }
+        initialSize?.second?.let { text = it }
     }
-    private val sizeUnitCombo = ComboBox(DefaultComboBoxModel(arrayOf("B", "KB", "MB", "GB"))).apply {
-        selectedItem = initialCriteria?.sizeFilter?.let { bytesToUnit(it.sizeBytes).second } ?: "MB"
+    private val sizeUnitCombo = ComboBox(DefaultComboBoxModel(SizeUnits.COMBO_UNITS)).apply {
+        selectedItem = initialSize?.third ?: "MB"
     }
     private val sizeField2Label = JBLabel("and")
 
@@ -740,16 +733,9 @@ class FileSearchDialog(
 
         val sizeFilter = if (sizeCheckBox.isSelected) {
             val mode = SizeFilterMode.entries[sizeModeCombo.selectedIndex]
-            val multiplier = when (sizeUnitCombo.selectedItem as? String) {
-                "KB" -> 1024L
-                "MB" -> 1024L * 1024
-                "GB" -> 1024L * 1024 * 1024
-                else -> 1L
-            }
-            val size1 = (sizeField1.text.trim().toDoubleOrNull()?.toLong() ?: 0L) * multiplier
-            val size2 = if (mode == SizeFilterMode.IN_BETWEEN) {
-                (sizeField2.text.trim().toDoubleOrNull()?.toLong() ?: 0L) * multiplier
-            } else null
+            val unit = sizeUnitCombo.selectedItem as? String
+            val size1 = SizeUnits.parseBytes(sizeField1.text, unit) ?: 0L
+            val size2 = if (mode == SizeFilterMode.IN_BETWEEN) SizeUnits.parseBytes(sizeField2.text, unit) ?: 0L else null
             SizeFilter(mode, size1, size2)
         } else null
 
