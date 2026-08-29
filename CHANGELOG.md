@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.54] - 2026-08-29
+
 ### Fixed
 
 - Improved calculation of file size units
