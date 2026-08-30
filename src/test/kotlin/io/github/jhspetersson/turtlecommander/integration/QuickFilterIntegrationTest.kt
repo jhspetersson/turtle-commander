@@ -8,11 +8,15 @@ import io.github.jhspetersson.turtlecommander.service.FileManagerStateService.Pa
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
 import io.github.jhspetersson.turtlecommander.ui.FileTab
+import io.github.jhspetersson.turtlecommander.ui.FileTableModel
+import io.github.jhspetersson.turtlecommander.ui.getSelectedEntry
 import io.github.jhspetersson.turtlecommander.ui.ViewMode
 import io.github.jhspetersson.turtlecommander.ui.setViewMode
 import java.awt.GraphicsEnvironment
 import java.nio.file.Files
 import java.nio.file.Path
+import javax.swing.RowSorter
+import javax.swing.SortOrder
 import javax.swing.tree.DefaultMutableTreeNode
 
 /**
@@ -140,5 +144,21 @@ class QuickFilterIntegrationTest : BasePlatformTestCase() {
         val names = treeNames(tab)
         assertTrue("Flat tree should keep alpha.txt", "alpha.txt" in names)
         assertFalse("Flat tree should respect the active filter", "notes.md" in names)
+    }
+
+    fun testFilterKeepsCursorOnSameEntryWhenTableIsSorted() {
+        if (skipIfHeadless()) return
+        val tab = openTab()
+        tab.table.rowSorter.sortKeys = listOf(RowSorter.SortKey(FileTableModel.COL_NAME, SortOrder.DESCENDING))
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        val viewRow = (0 until tab.table.rowCount).first {
+            tab.tableModel.getEntryAt(tab.table.convertRowIndexToModel(it))?.name == "alpha.txt"
+        }
+        tab.table.setRowSelectionInterval(viewRow, viewRow)
+        assertEquals("alpha.txt", tab.getSelectedEntry()?.name)
+
+        tab.setQuickFilterText("*a*")
+
+        assertEquals("alpha.txt", tab.getSelectedEntry()?.name)
     }
 }

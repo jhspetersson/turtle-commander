@@ -1145,7 +1145,10 @@ class FileTab(
         }
 
         val selIdx = findPreservedSelectionIndex(filtered, selectedName)
-        if (selIdx >= 0 && table.rowCount > 0) table.setRowSelectionInterval(selIdx.coerceAtMost(table.rowCount - 1), selIdx.coerceAtMost(table.rowCount - 1))
+        if (selIdx >= 0 && table.rowCount > 0) {
+            val viewRow = table.convertRowIndexToView(selIdx.coerceAtMost(tableModel.rowCount - 1))
+            table.setRowSelectionInterval(viewRow, viewRow)
+        }
         if (selIdx >= 0 && listModel.size() > 0) list.selectedIndex = selIdx.coerceAtMost(listModel.size() - 1)
         if (selIdx >= 0 && thumbnailListModel.size() > 0) thumbnailList.selectedIndex = selIdx.coerceAtMost(thumbnailListModel.size() - 1)
         if (selIdx >= 0 && viewMode == ViewMode.TREE && showAllNestedFiles && tree.rowCount > 0) {

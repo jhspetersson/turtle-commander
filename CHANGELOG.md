@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed cursor positioning when applying a quick filter on a sorted table
+
 ## [0.7.54] - 2026-08-29
 
 ### Fixed
