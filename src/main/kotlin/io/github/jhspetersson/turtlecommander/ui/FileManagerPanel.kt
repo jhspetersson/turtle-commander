@@ -633,7 +633,12 @@ class FileManagerPanel(
         if (tabIndex < 0 || tabIndex == plusIndex) return
         val tab = tabbedPane.getComponentAt(tabIndex) as? FileTab ?: return
         val state = tab.saveTabState()
-        addNewTab(tab.currentPath, tabState = state)
+        if (tab.isInsideArchive) {
+            val archivePath = tab.vfsStack.first().parentPath
+            addNewTab(archivePath.parent ?: archivePath, selectName = archivePath.fileName?.toString(), tabState = state)
+        } else {
+            addNewTab(tab.currentPath, tabState = state)
+        }
         focusActiveTab()
     }
 

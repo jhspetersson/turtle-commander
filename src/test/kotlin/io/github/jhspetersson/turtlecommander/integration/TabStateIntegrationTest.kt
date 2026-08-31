@@ -12,7 +12,12 @@ import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
 import io.github.jhspetersson.turtlecommander.ui.FileTableModel
 import io.github.jhspetersson.turtlecommander.ui.ViewMode
+import io.github.jhspetersson.turtlecommander.ui.attachSharedVfs
+import io.github.jhspetersson.turtlecommander.ui.notifySharedVfsMutated
 import io.github.jhspetersson.turtlecommander.ui.setViewMode
+import io.github.jhspetersson.turtlecommander.vfs.SharedVfsRegistry
+import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
+import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
 import java.awt.GraphicsEnvironment
 import java.nio.file.Files
 import java.nio.file.Path
@@ -1112,5 +1117,82 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
             "tab2 column width should be independent",
             350, tab2.table.columnModel.getColumn(0).width
         )
+    }
+
+    fun testDuplicateTabInsideArchiveOpensContainingDirectory() {
+        if (skipIfHeadless()) return
+        val dir = Files.createDirectory(tempDir.resolve("dupzip"))
+        val archivePath = dir.resolve("stuff.zip")
+        java.util.zip.ZipOutputStream(Files.newOutputStream(archivePath)).use { zos ->
+            zos.putNextEntry(java.util.zip.ZipEntry("inner.txt"))
+            zos.write("data".toByteArray())
+            zos.closeEntry()
+        }
+
+        val panel = createPanel()
+        panel.openDirectoryInNewTab(dir)
+        waitForNavigation()
+
+        val tab = panel.getTabAt(1)!!
+        val vfs = VirtualFileSystemRegistry.create(archivePath)
+        try {
+            tab.vfsStack.add(VfsStackEntry(vfs, archivePath))
+            tab.fileOps.launch { tab.navigateTo(vfs.root) }
+            waitForNavigation()
+            assertTrue("source tab should be inside the archive", tab.isInsideArchive)
+
+            panel.duplicateTab(1)
+            waitForNavigation()
+
+            val dup = panel.getTabAt(2)!!
+            assertFalse("duplicate must not point into the source tab's VFS", dup.isInsideArchive)
+            assertEquals("duplicate should open the directory containing the archive", dir, dup.currentPath)
+        } finally {
+            tab.vfsStack.clear()
+            vfs.close()
+        }
+    }
+
+    fun testTwoTabsShareArchiveVfsAndSeeMutations() {
+        if (skipIfHeadless()) return
+        val dir = Files.createDirectory(tempDir.resolve("sharedzip"))
+        val archivePath = dir.resolve("shared.zip")
+        java.util.zip.ZipOutputStream(Files.newOutputStream(archivePath)).use { zos ->
+            zos.putNextEntry(java.util.zip.ZipEntry("first.txt"))
+            zos.write("data".toByteArray())
+            zos.closeEntry()
+        }
+
+        val panel = createPanel()
+        panel.openDirectoryInNewTab(dir)
+        panel.openDirectoryInNewTab(dir)
+        waitForNavigation()
+
+        val tab1 = panel.getTabAt(1)!!
+        val tab2 = panel.getTabAt(2)!!
+        val vfs1 = SharedVfsRegistry.acquire(archivePath)
+        val vfs2 = SharedVfsRegistry.acquire(archivePath)
+        try {
+            assertSame("both tabs must share one VFS instance", vfs1, vfs2)
+            tab1.attachSharedVfs(vfs1, archivePath)
+            tab2.attachSharedVfs(vfs2, archivePath)
+            tab1.fileOps.launch { tab1.navigateTo(vfs1.root) }
+            tab2.fileOps.launch { tab2.navigateTo(vfs2.root) }
+            waitForNavigation()
+
+            val rowsBefore = tab2.table.rowCount
+            Files.writeString(vfs1.getPath("/added-by-tab1.txt"), "hello")
+            vfs1.flush()
+            tab1.notifySharedVfsMutated()
+            waitForNavigation()
+
+            assertEquals(
+                "tab2 should auto-refresh and show the entry added by tab1",
+                rowsBefore + 1, tab2.table.rowCount
+            )
+        } finally {
+            tab1.closeVfsStack()
+            tab2.closeVfsStack()
+        }
     }
 }

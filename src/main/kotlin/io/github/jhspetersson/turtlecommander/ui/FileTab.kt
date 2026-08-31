@@ -42,6 +42,7 @@ import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
 import io.github.jhspetersson.turtlecommander.util.formatSize
 import io.github.jhspetersson.turtlecommander.util.formatSizeAuto
 import io.github.jhspetersson.turtlecommander.util.wrapAsSubstringGlobIfPlain
+import io.github.jhspetersson.turtlecommander.vfs.SharedVfsRegistry
 import io.github.jhspetersson.turtlecommander.vfs.System7z
 import io.github.jhspetersson.turtlecommander.vfs.System7zUnavailableException
 import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
@@ -1575,6 +1576,7 @@ class FileTab(
                         writeBackNestedArchivesLocked()
                     }
                 }
+                notifySharedVfsMutated()
                 val newPath = if (relativePath.isEmpty()) vfs.root else vfs.root.resolve(relativePath)
                 navigateTo(newPath, requestFocus = requestFocus)
             }
@@ -1700,8 +1702,9 @@ class FileTab(
      */
     internal fun closeVfsStack() {
         for (entry in vfsStack.asReversed()) {
+            detachSharedVfs(entry)
             try {
-                entry.vfs.close()
+                if (!SharedVfsRegistry.release(entry.vfs)) entry.vfs.close()
             } catch (e: Exception) {
                 thisLogger().warn("Failed to close VFS ${entry.vfs.archivePath}: ${e.message}")
             }
@@ -1736,8 +1739,9 @@ class FileTab(
             withContext(NonCancellable + Dispatchers.IO) {
                 vfsWriteMutex.withLock {
                     for (entry in entries) {
+                        detachSharedVfs(entry)
                         try {
-                            entry.vfs.close()
+                            if (!SharedVfsRegistry.release(entry.vfs)) entry.vfs.close()
                         } catch (e: Exception) {
                             thisLogger().warn("Failed to close VFS ${entry.vfs.archivePath}: ${e.message}")
                         }

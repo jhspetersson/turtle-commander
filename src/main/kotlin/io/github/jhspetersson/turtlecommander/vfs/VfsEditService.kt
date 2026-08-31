@@ -22,6 +22,8 @@ class VfsStackEntry(
     var parentPath: Path,
     val tempFile: File? = null,
 ) {
+    var mutationListener: (() -> Unit)? = null
+
     fun cleanupTempFile() {
         tempFile?.let {
             try { it.delete(); it.parentFile?.delete() } catch (_: Exception) {}
@@ -137,6 +139,8 @@ class VfsEditService(
             parentStackEntry.vfs.flush()
             stackEntry.parentPath = if (relPath.isEmpty()) parentStackEntry.vfs.root else parentStackEntry.vfs.root.resolve(relPath)
         }
+
+        stack.firstOrNull()?.let { SharedVfsRegistry.notifyMutated(it.vfs, it.mutationListener) }
 
         entry.onAfterFlush?.invoke(currentPathRel)
     }

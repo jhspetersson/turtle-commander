@@ -157,18 +157,22 @@ class ZipVirtualFileSystem(override val archivePath: Path) : VirtualFileSystem {
         val relativePath = if (oldParent == fileSystem.getPath("/")) "" else fileSystem.getPath("/").relativize(oldParent).toString()
         Files.move(source, target)
         metadataCache = null
-        fileSystem.close()
-        fileSystem = openZipFs()
+        synchronized(this) {
+            fileSystem.close()
+            fileSystem = openZipFs()
+        }
         val newParent = if (relativePath.isEmpty()) fileSystem.getPath("/") else fileSystem.getPath(relativePath)
         newParent.resolve(newName)
     }
 
+    @Synchronized
     override fun flush() {
         metadataCache = null
         fileSystem.close()
         fileSystem = openZipFs()
     }
 
+    @Synchronized
     override fun close() {
         try {
             fileSystem.close()

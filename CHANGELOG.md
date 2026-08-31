@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Tabs opening the same archive now share a single live view
+
+### Fixed
+
+- Fixed duplicating a tab that is browsing an archive
+
 ## [0.7.55] - 2026-08-30
 
 ### Fixed

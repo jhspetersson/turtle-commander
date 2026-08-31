@@ -8,6 +8,7 @@ import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
 import io.github.jhspetersson.turtlecommander.util.withIndicatorProgress
 import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 import io.github.jhspetersson.turtlecommander.vfs.SilentVfsOpenException
+import io.github.jhspetersson.turtlecommander.vfs.SharedVfsRegistry
 import io.github.jhspetersson.turtlecommander.vfs.VfsOpenProgress
 import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
@@ -35,13 +36,13 @@ internal fun FileTab.enterVfs(entry: FileEntry) {
                 try {
                     if (vfsStack.isEmpty()) {
                         val vfs = withContext(Dispatchers.IO) {
-                            VirtualFileSystemRegistry.create(archivePath, openProgress)
+                            SharedVfsRegistry.acquire(archivePath, openProgress)
                         }
                         if (indicator.isCanceled) {
-                            vfs.close()
+                            runCatching { SharedVfsRegistry.release(vfs) }
                             return@withContext
                         }
-                        vfsStack.add(VfsStackEntry(vfs, archivePath))
+                        attachSharedVfs(vfs, archivePath)
                         navigateTo(vfs.root)
                     } else {
                         var tempFile: File? = null
@@ -171,10 +172,13 @@ internal fun FileTab.writeBackNestedArchivesLocked() {
     }
 }
 
-internal suspend fun FileTab.writeBackNestedArchives() = withContext(Dispatchers.IO) {
-    vfsWriteMutex.withLock {
-        writeBackNestedArchivesLocked()
+internal suspend fun FileTab.writeBackNestedArchives() {
+    withContext(Dispatchers.IO) {
+        vfsWriteMutex.withLock {
+            writeBackNestedArchivesLocked()
+        }
     }
+    notifySharedVfsMutated()
 }
 
 internal suspend fun FileTab.refreshAfterVfsChange(selectName: String? = null) {
@@ -188,6 +192,7 @@ internal suspend fun FileTab.refreshAfterVfsChange(selectName: String? = null) {
                 writeBackNestedArchivesLocked()
             }
         }
+        notifySharedVfsMutated()
         val newPath = if (relativePath.isEmpty()) vfs.root else vfs.root.resolve(relativePath)
         navigateTo(newPath, selectName = selectName)
     } else {
@@ -230,4 +235,45 @@ fun FileTab.getDisplayPath(): String {
         sb.append(separator).append(relativePath.removePrefix("/").replace("/", separator))
     }
     return sb.toString()
+}
+
+internal fun FileTab.attachSharedVfs(vfs: VirtualFileSystem, archivePath: Path) {
+    val entry = VfsStackEntry(vfs, archivePath)
+    val listener: () -> Unit = { onSharedVfsMutated() }
+    entry.mutationListener = listener
+    SharedVfsRegistry.addMutationListener(vfs, listener)
+    vfsStack.add(entry)
+}
+
+internal fun FileTab.detachSharedVfs(entry: VfsStackEntry) {
+    entry.mutationListener?.let { SharedVfsRegistry.removeMutationListener(entry.vfs, it) }
+    entry.mutationListener = null
+}
+
+internal fun FileTab.notifySharedVfsMutated() {
+    vfsStack.firstOrNull()?.let { SharedVfsRegistry.notifyMutated(it.vfs, it.mutationListener) }
+}
+
+internal fun FileTab.onSharedVfsMutated() {
+    fileOps.launch {
+        val first = vfsStack.firstOrNull() ?: return@launch
+        val vfs = first.vfs
+        withContext(Dispatchers.IO) {
+            vfsWriteMutex.withLock {
+                val second = vfsStack.getOrNull(1)
+                if (second != null) {
+                    val rel = vfsRelativePath(vfs, second.parentPath)
+                    second.parentPath = if (rel.isEmpty()) vfs.root else vfs.root.resolve(rel)
+                }
+            }
+        }
+        if (vfsStack.size == 1 && currentVfs === vfs) {
+            val rel = vfsRelativePath(vfs, currentPath)
+            val newPath = if (rel.isEmpty()) vfs.root else vfs.root.resolve(rel)
+            val target = withContext(Dispatchers.IO) {
+                if (Files.exists(newPath)) newPath else vfs.root
+            }
+            navigateTo(target, requestFocus = false)
+        }
+    }
 }
