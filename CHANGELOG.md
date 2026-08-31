@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.56] - 2026-08-31
+
 ### Changed
 
 - Tabs opening the same archive now share a single live view
