@@ -75,6 +75,26 @@ class FormatSizeTest {
     }
 
     @Test
+    fun `values that round up to the base promote to the next unit`() {
+        assertEquals("1.0 MiB", formatSize(1024L * 1024 - 5))
+        assertEquals("1.0 MiB", formatSize(1_048_525))
+        assertEquals("1.0 GiB", formatSize(1024L * 1024 * 1024 - 1))
+        assertEquals("1.0 TiB", formatSize(1024L * 1024 * 1024 * 1024 - 1))
+        assertEquals("1.0 MB", formatSize(999_960, FileSizeFormat.AUTO_SI))
+    }
+
+    @Test
+    fun `values just below the rounding threshold keep their unit`() {
+        assertEquals("1023.9 KiB", formatSize(1_048_524))
+        assertEquals("999.9 kB", formatSize(999_940, FileSizeFormat.AUTO_SI))
+    }
+
+    @Test
+    fun `top unit has nothing to promote into`() {
+        assertEquals("1024.0 TiB", formatSize(1024L * 1024 * 1024 * 1024 * 1024))
+    }
+
+    @Test
     fun `auto binary explicit format matches default`() {
         assertEquals(formatSize(1024), formatSize(1024, FileSizeFormat.AUTO_BINARY))
         assertEquals(formatSize(1_500_000), formatSize(1_500_000, FileSizeFormat.AUTO_BINARY))

@@ -107,6 +107,10 @@ private fun autoFormatSize(bytes: Long, base: Double, units: Array<String>): Str
         size /= base
         i++
     }
+    if (i < units.size - 1 && String.format(Locale.ROOT, "%.1f", size).toDouble() >= base) {
+        size /= base
+        i++
+    }
     return String.format(Locale.ROOT, "%.1f %s", size, units[i])
 }
 
