@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.57] - 2026-09-01
+
 ### Fixed
 
 - Fixed sizes just below a unit boundary displaying as e.g. "1024.0 KiB" instead of "1.0 MiB"
