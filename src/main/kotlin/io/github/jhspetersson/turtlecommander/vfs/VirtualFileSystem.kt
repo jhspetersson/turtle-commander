@@ -36,9 +36,11 @@ interface VirtualFileSystem : Closeable {
     /**
      * Lazy-VFS hook: ensure the bytes for [path] are actually present on disk. The default
      * is a no-op because most VFS implementations extract everything up-front in `extract()`
-     * and the temp-dir copies are already real files. [IsoVirtualFileSystem] overrides this
-     * to stream content from the source disc image only when something actually needs it,
-     * so opening a 5 GB ISO doesn't pre-extract 5 GB of files into temp.
+     * and the temp-dir copies are already real files. The lazy implementations
+     * ([IsoVirtualFileSystem], [ZipExtractVirtualFileSystem], [TarVirtualFileSystem],
+     * [PakVirtualFileSystem], [RarVirtualFileSystem]) override it to stream content from
+     * the source archive only when something actually needs it, so opening a 5 GB ISO
+     * doesn't pre-extract 5 GB of files into temp.
      */
     fun materialize(path: Path) {}
 
@@ -372,7 +374,8 @@ internal fun repackAtomically(archivePath: Path, write: (Path) -> Unit) {
 
 /**
  * Create a placeholder file of [size] bytes at [path] for lazily-materialising VFS
- * implementations ([IsoVirtualFileSystem], [ZipExtractVirtualFileSystem]). Opens with
+ * implementations ([IsoVirtualFileSystem], [ZipExtractVirtualFileSystem],
+ * [TarVirtualFileSystem], [PakVirtualFileSystem], [RarVirtualFileSystem]). Opens with
  * [StandardOpenOption.SPARSE] so the OS can keep the allocation sparse where supported
  * (NTFS on Windows when the SPARSE flag is honoured, ext4 / xfs on Linux, APFS on macOS);
  * falls back to a regular allocation otherwise. Either way [Files.size] returns the right
