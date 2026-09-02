@@ -8,6 +8,7 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.ui.Messages
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.service.FileOperationService
+import io.github.jhspetersson.turtlecommander.util.HashComputations
 import io.github.jhspetersson.turtlecommander.util.withIndicatorProgress
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers

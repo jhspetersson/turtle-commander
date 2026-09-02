@@ -1,4 +1,4 @@
-package io.github.jhspetersson.turtlecommander.action
+package io.github.jhspetersson.turtlecommander.util
 import java.security.MessageDigest
 import java.security.NoSuchAlgorithmException
 

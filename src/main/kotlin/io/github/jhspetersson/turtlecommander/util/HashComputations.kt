@@ -1,4 +1,4 @@
-package io.github.jhspetersson.turtlecommander.action
+package io.github.jhspetersson.turtlecommander.util
 
 import com.intellij.openapi.progress.ProgressIndicator
 import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
