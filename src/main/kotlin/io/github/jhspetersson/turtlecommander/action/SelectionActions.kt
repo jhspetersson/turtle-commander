@@ -2,7 +2,9 @@ package io.github.jhspetersson.turtlecommander.action
 
 import com.intellij.openapi.actionSystem.ActionPlaces
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.ui.InputValidatorEx
 import com.intellij.openapi.ui.Messages
+import io.github.jhspetersson.turtlecommander.ui.isValidSelectionMask
 import io.github.jhspetersson.turtlecommander.ui.FileTab
 import io.github.jhspetersson.turtlecommander.ui.hasAnyDisplayedEntries
 import io.github.jhspetersson.turtlecommander.ui.hasAnyDisplayedUnmarked
@@ -105,6 +107,14 @@ class InvertSelectionAction : SelectionAction() {
     }
 }
 
+private val selectionMaskValidator = object : InputValidatorEx {
+    override fun getErrorText(inputString: String): String? {
+        val mask = inputString.trim()
+        if (mask.isEmpty()) return "Mask is empty"
+        return if (isValidSelectionMask(mask)) null else "Invalid mask pattern"
+    }
+}
+
 class SelectByPatternAction : SelectionAction() {
     override fun update(e: AnActionEvent) {
         super.update(e)
@@ -121,7 +131,7 @@ class SelectByPatternAction : SelectionAction() {
             "Select Files",
             Messages.getQuestionIcon(),
             "*.*",
-            null,
+            selectionMaskValidator,
         ) ?: return
         if (mask.isBlank()) return
         tab.selectByMask(mask.trim())
@@ -144,7 +154,7 @@ class UnselectByPatternAction : SelectionAction() {
             "Unselect Files",
             Messages.getQuestionIcon(),
             "*.*",
-            null,
+            selectionMaskValidator,
         ) ?: return
         if (mask.isBlank()) return
         tab.unselectByMask(mask.trim())

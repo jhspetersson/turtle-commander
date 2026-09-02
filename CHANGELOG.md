@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed Select Files / Unselect Files throwing an uncaught exception on an invalid mask
+
 ## [0.7.57] - 2026-09-01
 
 ### Fixed

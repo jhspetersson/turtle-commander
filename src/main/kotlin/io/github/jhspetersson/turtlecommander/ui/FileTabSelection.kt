@@ -324,7 +324,27 @@ internal fun parseSelectionMaskPatterns(mask: String): List<PathMatcher> {
     return mask.split(',', ';')
         .map { it.trim() }
         .filter { it.isNotEmpty() }
-        .map { token -> fs.getPathMatcher("glob:$token") }
+        .mapNotNull { token ->
+            try {
+                fs.getPathMatcher("glob:$token")
+            } catch (_: Exception) {
+                null
+            }
+        }
+}
+
+internal fun isValidSelectionMask(mask: String): Boolean {
+    val tokens = mask.split(',', ';').map { it.trim() }.filter { it.isNotEmpty() }
+    if (tokens.isEmpty()) return false
+    val fs = FileSystems.getDefault()
+    return tokens.all { token ->
+        try {
+            fs.getPathMatcher("glob:$token")
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
 }
 
 private fun matchesMask(name: String, patterns: List<PathMatcher>): Boolean {
