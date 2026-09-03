@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [0.7.59] - 2026-09-03
+
+### Changed
+
+- Extract contents of RAR archives lazily when possible
+
 ## [0.7.58] - 2026-09-02
 
 ### Fixed
