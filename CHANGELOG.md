@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Improved handling of filenames inside archives invalid on Windows
+
 ## [0.7.59] - 2026-09-03
 
 ### Changed

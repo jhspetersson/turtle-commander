@@ -1,6 +1,5 @@
 package io.github.jhspetersson.turtlecommander.ui
 import io.github.jhspetersson.turtlecommander.util.DriveLabels
-import java.nio.file.PathMatcher
 
 import com.intellij.icons.AllIcons
 import com.intellij.ide.BrowserUtil
@@ -41,6 +40,7 @@ import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
 import io.github.jhspetersson.turtlecommander.util.formatSize
 import io.github.jhspetersson.turtlecommander.util.formatSizeAuto
+import io.github.jhspetersson.turtlecommander.util.FileNameGlobMatcher
 import io.github.jhspetersson.turtlecommander.util.wrapAsSubstringGlobIfPlain
 import io.github.jhspetersson.turtlecommander.vfs.SharedVfsRegistry
 import io.github.jhspetersson.turtlecommander.vfs.System7z
@@ -57,7 +57,6 @@ import com.intellij.openapi.diagnostic.thisLogger
 import java.awt.*
 import java.awt.datatransfer.DataFlavor
 import java.awt.event.*
-import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
@@ -139,7 +138,7 @@ class FileTab(
     private data class TabColumnState(val widths: List<Int>, val order: List<Int>)
     private val tabColumnStates = mutableMapOf<String, TabColumnState>()
     private var cachedFilterGlob: String? = null
-    private var cachedFilterMatcher: PathMatcher? = null
+    private var cachedFilterMatcher: FileNameGlobMatcher? = null
     internal var stateService: FileManagerStateService? = null
     private var initialized = false
     internal var pendingTabState: FileManagerStateService.TabState? = null
@@ -1100,7 +1099,7 @@ class FileTab(
                 cached
             } else {
                 val m = try {
-                    FileSystems.getDefault().getPathMatcher("glob:$glob")
+                    FileNameGlobMatcher(glob)
                 } catch (_: Exception) {
                     // Invalid glob: flag the field so the user knows something is wrong,
                     // drop the stale matcher cache, and fall back to showing everything
@@ -1121,7 +1120,7 @@ class FileTab(
                 allEntries
             } else {
                 allEntries.filter { entry ->
-                    entry.isParentLink || matcher.matches(Path.of(entry.name))
+                    entry.isParentLink || matcher.matches(entry.name)
                 }
             }
         }

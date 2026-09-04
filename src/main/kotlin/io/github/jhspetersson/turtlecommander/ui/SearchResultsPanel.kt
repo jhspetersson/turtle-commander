@@ -18,15 +18,14 @@ import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.service.FileOperationService
 import io.github.jhspetersson.turtlecommander.service.FileSearchService
 import io.github.jhspetersson.turtlecommander.util.withIndicatorProgress
+import io.github.jhspetersson.turtlecommander.util.FileNameGlobMatcher
 import io.github.jhspetersson.turtlecommander.util.wrapAsSubstringGlobIfPlain
 import kotlinx.coroutines.*
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.FlowLayout
 import java.awt.event.*
-import java.nio.file.FileSystems
 import java.nio.file.Path
-import java.nio.file.PathMatcher
 import javax.swing.*
 import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.table.TableRowSorter
@@ -58,7 +57,7 @@ class SearchResultsPanel(
         onCommit = { table.requestFocusInWindow() },
     )
     private var cachedFilterGlob: String? = null
-    private var cachedFilterMatcher: PathMatcher? = null
+    private var cachedFilterMatcher: FileNameGlobMatcher? = null
 
     init {
         setupTable()
@@ -220,7 +219,7 @@ class SearchResultsPanel(
             val glob = wrapAsSubstringGlobIfPlain(pattern)
             if (glob != cachedFilterGlob || cachedFilterMatcher == null) {
                 val m = try {
-                    FileSystems.getDefault().getPathMatcher("glob:$glob")
+                    FileNameGlobMatcher(glob)
                 } catch (_: Exception) {
                     // Invalid glob: flag the field so the user knows something is wrong,
                     // drop the stale matcher cache, and fall back to showing everything
@@ -266,7 +265,7 @@ class SearchResultsPanel(
 
     private fun filteredEntries(): List<FileEntry> {
         val matcher = cachedFilterMatcher ?: return resultEntries.toList()
-        return resultEntries.filter { matcher.matches(Path.of(it.name)) }
+        return resultEntries.filter { matcher.matches(it.name) }
     }
 
     private fun createControlPanel(): JPanel {
