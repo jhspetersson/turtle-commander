@@ -4,7 +4,7 @@ junit = "4.13.2"
 opentest4j = "1.3.0"
 commonsCompress = "1.28.0"
 zstdJni = "1.5.7-16"
-isoFileReader = "1.3.0"
+isoFileReader = "1.4.0"
 junrar = "8.1.1"
 cab4j = "0.1.3"
 
