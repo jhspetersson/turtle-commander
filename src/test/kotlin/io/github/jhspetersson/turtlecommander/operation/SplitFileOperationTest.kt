@@ -224,4 +224,110 @@ class SplitFileOperationTest {
 
         assertArrayEquals(data, Files.readAllBytes(combined))
     }
+
+    @Test
+    fun `cancelled split preserves a pre-existing chunk set`() {
+        val data = ByteArray(10000) { it.toByte() }
+        val source = createTempFile(data)
+        val targetDir = createTempDir()
+        val name = source.fileName.toString()
+        val old1 = "old chunk one".toByteArray()
+        val old2 = "old chunk two".toByteArray()
+        val oldCrc = "filename=$name\nsize=26\ncrc32=DEADBEEF\n".toByteArray()
+        Files.write(targetDir.resolve("$name.001"), old1)
+        Files.write(targetDir.resolve("$name.002"), old2)
+        Files.write(targetDir.resolve("$name.crc"), oldCrc)
+        var chunksSeen = 0
+
+        SplitFileOperation.split(source, targetDir, 100, { chunkIndex, _, _, _ ->
+            chunksSeen = chunkIndex
+        }, { chunksSeen >= 3 })
+
+        assertArrayEquals(old1, Files.readAllBytes(targetDir.resolve("$name.001")))
+        assertArrayEquals(old2, Files.readAllBytes(targetDir.resolve("$name.002")))
+        assertArrayEquals(oldCrc, Files.readAllBytes(targetDir.resolve("$name.crc")))
+        val names = Files.list(targetDir).use { s -> s.map { it.fileName.toString() }.sorted().toList() }
+        assertEquals(listOf("$name.001", "$name.002", "$name.crc"), names)
+    }
+
+    @Test
+    fun `successful split replaces a pre-existing chunk set`() {
+        val data = ByteArray(1000) { it.toByte() }
+        val source = createTempFile(data)
+        val targetDir = createTempDir()
+        val name = source.fileName.toString()
+        Files.write(targetDir.resolve("$name.001"), "stale".toByteArray())
+        Files.write(targetDir.resolve("$name.crc"), "stale".toByteArray())
+
+        SplitFileOperation.split(source, targetDir, 400, { _, _, _, _ -> }, { false })
+
+        assertArrayEquals(data.copyOfRange(0, 400), Files.readAllBytes(targetDir.resolve("$name.001")))
+        assertArrayEquals(data.copyOfRange(400, 800), Files.readAllBytes(targetDir.resolve("$name.002")))
+        assertArrayEquals(data.copyOfRange(800, 1000), Files.readAllBytes(targetDir.resolve("$name.003")))
+        val crc = CombineFilesOperation.parseCrcFile(targetDir.resolve("$name.crc"))
+        assertEquals(1000L, crc.size)
+        val names = Files.list(targetDir).use { s -> s.map { it.fileName.toString() }.sorted().toList() }
+        assertEquals(listOf("$name.001", "$name.002", "$name.003", "$name.crc"), names)
+    }
+
+    @Test
+    fun `successful split removes stale higher-numbered chunks of a previous larger set`() {
+        val data = ByteArray(1000) { it.toByte() }
+        val source = createTempFile(data)
+        val targetDir = createTempDir()
+        val name = source.fileName.toString()
+        for (i in 1..10) {
+            Files.write(targetDir.resolve("$name.${i.toString().padStart(3, '0')}"), "stale $i".toByteArray())
+        }
+        Files.write(targetDir.resolve("$name.1000"), "stale wide".toByteArray())
+        Files.write(targetDir.resolve("$name.txt"), "unrelated".toByteArray())
+        Files.write(targetDir.resolve("other.004"), "unrelated".toByteArray())
+
+        SplitFileOperation.split(source, targetDir, 400, { _, _, _, _ -> }, { false })
+
+        val names = Files.list(targetDir).use { s -> s.map { it.fileName.toString() }.sorted().toList() }
+        assertEquals(
+            listOf("$name.001", "$name.002", "$name.003", "$name.crc", "$name.txt", "other.004").sorted(),
+            names,
+        )
+        assertEquals(3, CombineFilesOperation.findChunkFiles(targetDir, name).size)
+    }
+
+    @Test
+    fun `re-split of an empty file over an existing chunk succeeds`() {
+        val source = createTempFile(ByteArray(0))
+        val targetDir = createTempDir()
+        val name = source.fileName.toString()
+        Files.write(targetDir.resolve("$name.001"), "stale".toByteArray())
+
+        SplitFileOperation.split(source, targetDir, 100, { _, _, _, _ -> }, { false })
+
+        assertEquals(0L, Files.size(targetDir.resolve("$name.001")))
+        assertTrue(Files.exists(targetDir.resolve("$name.crc")))
+    }
+
+    @Test
+    fun `existingChunkFiles lists numbered chunks and crc of the base name only`() {
+        val targetDir = createTempDir()
+        val name = "archive.bin"
+        Files.write(targetDir.resolve("$name.001"), byteArrayOf(1))
+        Files.write(targetDir.resolve("$name.0002"), byteArrayOf(2))
+        Files.write(targetDir.resolve("$name.crc"), byteArrayOf(3))
+        Files.write(targetDir.resolve("$name.001.part"), byteArrayOf(4))
+        Files.write(targetDir.resolve("$name.txt"), byteArrayOf(5))
+        Files.write(targetDir.resolve("$name.1"), byteArrayOf(6))
+        Files.write(targetDir.resolve("other.001"), byteArrayOf(7))
+        Files.write(targetDir.resolve(name), byteArrayOf(8))
+
+        val found = SplitFileOperation.existingChunkFiles(targetDir, name).map { it.fileName.toString() }.sorted()
+
+        assertEquals(listOf("$name.0002", "$name.001", "$name.crc").sorted(), found)
+    }
+
+    @Test
+    fun `existingChunkFiles is empty for a missing directory`() {
+        val targetDir = createTempDir().resolve("missing")
+
+        assertTrue(SplitFileOperation.existingChunkFiles(targetDir, "x").isEmpty())
+    }
 }

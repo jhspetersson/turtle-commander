@@ -435,6 +435,18 @@ internal fun FileTab.performSplitFile() {
             fileErrorNotification("Failed to create target directory: ${e.message}")
             return@launch
         }
+        val existing = withContext(Dispatchers.IO) { SplitFileOperation.existingChunkFiles(targetDir, entry.name) }
+        if (existing.isNotEmpty()) {
+            val overwrite = withContext(Dispatchers.EDT) {
+                Messages.showYesNoDialog(
+                    project,
+                    "\"${targetDir}\" already contains ${existing.size} part(s) of \"${entry.name}\". Overwrite them?",
+                    "Split File",
+                    Messages.getQuestionIcon(),
+                ) == Messages.YES
+            }
+            if (!overwrite) return@launch
+        }
         withIndicatorProgress(project, "Splitting ${entry.name}") { indicator ->
             withContext(NonCancellable) {
                 indicator.isIndeterminate = false

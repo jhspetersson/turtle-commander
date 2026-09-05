@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Splitting a file into multiple parts now doesn't overwrite existing chunks when canceled
+
 ## [0.7.60] - 2026-09-04
 
 ### Fixed
