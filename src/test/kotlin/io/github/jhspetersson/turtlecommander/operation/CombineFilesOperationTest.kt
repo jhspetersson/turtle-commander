@@ -309,4 +309,50 @@ class CombineFilesOperationTest {
         assertTrue(Files.exists(target))
         assertArrayEquals(data, Files.readAllBytes(target))
     }
+
+    @Test
+    fun `combine leaves no partial or temp file when a chunk read fails`() {
+        val dir = createTempDir()
+        Files.write(dir.resolve("file.dat.001"), byteArrayOf(1, 2, 3))
+        val chunks = listOf(dir.resolve("file.dat.001"), dir.resolve("file.dat.002"))
+        val target = dir.resolve("file.dat")
+
+        try {
+            CombineFilesOperation.combine(chunks, target, 6L, null, { _, _, _, _ -> }, { false })
+            fail("Expected exception")
+        } catch (e: java.io.IOException) {
+            assertFalse(Files.exists(target))
+            assertEquals(listOf("file.dat.001"), Files.list(dir).use { it.map { p -> p.fileName.toString() }.toList() })
+        }
+    }
+
+    @Test
+    fun `combine keeps existing target intact when verification fails`() {
+        val dir = createTempDir()
+        Files.write(dir.resolve("file.dat.001"), byteArrayOf(1, 2, 3))
+        val chunks = CombineFilesOperation.findChunkFiles(dir, "file.dat")
+        val target = dir.resolve("file.dat")
+        Files.write(target, byteArrayOf(9, 9, 9, 9))
+
+        try {
+            CombineFilesOperation.combine(chunks, target, 3L, 0xDEADBEEFL, { _, _, _, _ -> }, { false })
+            fail("Expected exception")
+        } catch (e: IllegalStateException) {
+            assertArrayEquals(byteArrayOf(9, 9, 9, 9), Files.readAllBytes(target))
+        }
+    }
+
+    @Test
+    fun `combine replaces existing target on success`() {
+        val dir = createTempDir()
+        Files.write(dir.resolve("file.dat.001"), byteArrayOf(1, 2, 3))
+        val chunks = CombineFilesOperation.findChunkFiles(dir, "file.dat")
+        val target = dir.resolve("file.dat")
+        Files.write(target, byteArrayOf(9, 9, 9, 9))
+
+        CombineFilesOperation.combine(chunks, target, null, null, { _, _, _, _ -> }, { false })
+
+        assertArrayEquals(byteArrayOf(1, 2, 3), Files.readAllBytes(target))
+        assertEquals(2, Files.list(dir).use { it.count() })
+    }
 }

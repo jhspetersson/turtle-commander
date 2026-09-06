@@ -4,8 +4,10 @@ import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
+import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import java.util.zip.CRC32
 
 object CombineFilesOperation {
@@ -84,49 +86,55 @@ object CombineFilesOperation {
 
         val crc32 = CRC32()
         var totalBytesWritten = 0L
-
         var cancelled = false
         val buffer = ByteArray(BUFFER_SIZE)
-        BufferedOutputStream(Files.newOutputStream(targetFile), BUFFER_SIZE).use { output ->
-            for ((idx, chunk) in chunkFiles.withIndex()) {
-                if (isCancelled()) { cancelled = true; break }
 
-                OpenVfsRegistry.materializeIfNeeded(chunk)
-                BufferedInputStream(Files.newInputStream(chunk), BUFFER_SIZE).use { input ->
-                    while (true) {
-                        if (isCancelled()) { cancelled = true; return@use }
+        val tmp = Files.createTempFile(targetFile.toAbsolutePath().parent, ".tc-combining-", ".tmp")
+        try {
+            BufferedOutputStream(Files.newOutputStream(tmp), BUFFER_SIZE).use { output ->
+                for ((idx, chunk) in chunkFiles.withIndex()) {
+                    if (isCancelled()) { cancelled = true; break }
 
-                        val bytesRead = input.read(buffer)
-                        if (bytesRead == -1) break
+                    OpenVfsRegistry.materializeIfNeeded(chunk)
+                    BufferedInputStream(Files.newInputStream(chunk), BUFFER_SIZE).use { input ->
+                        while (true) {
+                            if (isCancelled()) { cancelled = true; return@use }
 
-                        output.write(buffer, 0, bytesRead)
-                        crc32.update(buffer, 0, bytesRead)
-                        totalBytesWritten += bytesRead
+                            val bytesRead = input.read(buffer)
+                            if (bytesRead == -1) break
 
-                        onProgress(idx + 1, chunkFiles.size, totalBytesWritten, totalBytes)
+                            output.write(buffer, 0, bytesRead)
+                            crc32.update(buffer, 0, bytesRead)
+                            totalBytesWritten += bytesRead
+
+                            onProgress(idx + 1, chunkFiles.size, totalBytesWritten, totalBytes)
+                        }
                     }
+                    if (cancelled) break
                 }
-                if (cancelled) break
             }
-        }
 
-        if (cancelled) {
-            Files.deleteIfExists(targetFile)
-            return
-        }
+            if (cancelled) return
 
-        if (expectedSize != null && totalBytesWritten != expectedSize) {
-            Files.deleteIfExists(targetFile)
-            throw IllegalStateException(
-                "Size mismatch: expected ${formatSize(expectedSize)} but got ${formatSize(totalBytesWritten)}"
-            )
-        }
+            if (expectedSize != null && totalBytesWritten != expectedSize) {
+                throw IllegalStateException(
+                    "Size mismatch: expected ${formatSize(expectedSize)} but got ${formatSize(totalBytesWritten)}"
+                )
+            }
 
-        if (expectedCrc32 != null && crc32.value != expectedCrc32) {
-            Files.deleteIfExists(targetFile)
-            throw IllegalStateException(
-                "CRC mismatch: expected ${String.format("%08X", expectedCrc32)} but got ${String.format("%08X", crc32.value)}"
-            )
+            if (expectedCrc32 != null && crc32.value != expectedCrc32) {
+                throw IllegalStateException(
+                    "CRC mismatch: expected ${String.format("%08X", expectedCrc32)} but got ${String.format("%08X", crc32.value)}"
+                )
+            }
+
+            try {
+                Files.move(tmp, targetFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+            } catch (e: AtomicMoveNotSupportedException) {
+                Files.move(tmp, targetFile, StandardCopyOption.REPLACE_EXISTING)
+            }
+        } finally {
+            Files.deleteIfExists(tmp)
         }
     }
 
