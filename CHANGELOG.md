@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.62] - 2026-09-06
+
 ### Fixed
 
 - Combining files now correctly handles the case when exception occurs during the process
