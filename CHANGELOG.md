@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [0.7.63] - 2026-09-07
+
+### Fixed
+
+- Improve archive performance with buffering
+
 ## [0.7.62] - 2026-09-06
 
 ### Fixed
