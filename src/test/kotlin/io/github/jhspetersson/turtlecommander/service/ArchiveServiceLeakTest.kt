@@ -4,6 +4,8 @@ import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry
 import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.compress.compressors.zstandard.ZstdCompressorOutputStream
 import org.junit.After
@@ -85,6 +87,27 @@ class ArchiveServiceLeakTest {
             // expected
         }
         assertTrue("raw source stream must be closed when real compressor throws", tracker.closed)
+    }
+
+    @Test
+    fun `countTarCompressed reads the raw stream in bulk for bzip2`() {
+        val svc = ArchiveService()
+        val tar = Files.createTempFile("bulkread-", ".tar.bz2")
+        tempFiles.add(tar)
+        TarArchiveOutputStream(BZip2CompressorOutputStream(Files.newOutputStream(tar))).use { tos ->
+            for (i in 1..20) {
+                val body = ByteArray(4096) { (it + i).toByte() }
+                tos.putArchiveEntry(TarArchiveEntry("file$i.bin").apply { size = body.size.toLong() })
+                tos.write(body)
+                tos.closeArchiveEntry()
+            }
+        }
+        val tracker = object : FilterInputStream(Files.newInputStream(tar)) {
+            var singleByteReads = 0
+            override fun read(): Int { singleByteReads++; return super.read() }
+        }
+        assertEquals(20, svc.countTarCompressed(tracker) { BZip2CompressorInputStream(it) })
+        assertEquals("bzip2 must not read the raw stream one byte at a time", 0, tracker.singleByteReads)
     }
 
     private fun writeCorrupt(suffix: String): Path {

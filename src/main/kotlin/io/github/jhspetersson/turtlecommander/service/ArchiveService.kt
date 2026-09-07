@@ -3,6 +3,7 @@ package io.github.jhspetersson.turtlecommander.service
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import io.github.jhspetersson.turtlecommander.operation.TarOutputStream
+import io.github.jhspetersson.turtlecommander.vfs.CompressedStreams
 import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 import io.github.jhspetersson.turtlecommander.vfs.VfsOpenProgress
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
@@ -266,15 +267,8 @@ class ArchiveService {
     internal fun countTarCompressed(archivePath: Path, wrap: (InputStream) -> InputStream): Int =
         countTarCompressed(Files.newInputStream(archivePath), wrap)
 
-    internal fun countTarCompressed(raw: InputStream, wrap: (InputStream) -> InputStream): Int {
-        val wrapped = try {
-            wrap(raw)
-        } catch (e: Throwable) {
-            runCatching { raw.close() }
-            throw e
-        }
-        return countTarEntries(wrapped)
-    }
+    internal fun countTarCompressed(raw: InputStream, wrap: (InputStream) -> InputStream): Int =
+        countTarEntries(CompressedStreams.wrapInput(raw, wrap))
 
     private fun countTarEntries(raw: InputStream): Int =
         raw.use { input ->

@@ -28,8 +28,8 @@ class GzFileSystemProvider : VirtualFileSystemProvider {
         return if (name.endsWith(".tar.gz") || name.endsWith(".tgz")) {
             TarVirtualFileSystem(
                 archivePath,
-                inputStreamFactory = { GzipCompressorInputStream(Files.newInputStream(it)) },
-                outputStreamFactory = { GzipCompressorOutputStream(Files.newOutputStream(it)) },
+                inputStreamFactory = { CompressedStreams.openInput(it) { raw -> GzipCompressorInputStream(raw) } },
+                outputStreamFactory = { CompressedStreams.openOutput(it) { raw -> GzipCompressorOutputStream(raw) } },
                 openProgress = openProgress,
             )
         } else {
@@ -54,8 +54,8 @@ class Bz2FileSystemProvider : VirtualFileSystemProvider {
         return if (name.endsWith(".tar.bz2") || name.endsWith(".tbz2") || name.endsWith(".tbz")) {
             TarVirtualFileSystem(
                 archivePath,
-                inputStreamFactory = { BZip2CompressorInputStream(Files.newInputStream(it)) },
-                outputStreamFactory = { BZip2CompressorOutputStream(Files.newOutputStream(it)) },
+                inputStreamFactory = { CompressedStreams.openInput(it) { raw -> BZip2CompressorInputStream(raw) } },
+                outputStreamFactory = { CompressedStreams.openOutput(it) { raw -> BZip2CompressorOutputStream(raw) } },
                 openProgress = openProgress,
             )
         } else {
@@ -80,8 +80,8 @@ class XzFileSystemProvider : VirtualFileSystemProvider {
         return if (name.endsWith(".tar.xz") || name.endsWith(".txz")) {
             TarVirtualFileSystem(
                 archivePath,
-                inputStreamFactory = { XZCompressorInputStream(Files.newInputStream(it)) },
-                outputStreamFactory = { XZCompressorOutputStream(Files.newOutputStream(it)) },
+                inputStreamFactory = { CompressedStreams.openInput(it) { raw -> XZCompressorInputStream(raw) } },
+                outputStreamFactory = { CompressedStreams.openOutput(it) { raw -> XZCompressorOutputStream(raw) } },
                 openProgress = openProgress,
             )
         } else {
@@ -106,8 +106,8 @@ class ZstFileSystemProvider : VirtualFileSystemProvider {
         return if (name.endsWith(".tar.zst") || name.endsWith(".tzst")) {
             TarVirtualFileSystem(
                 archivePath,
-                inputStreamFactory = { ZstdCompressorInputStream(Files.newInputStream(it)) },
-                outputStreamFactory = { ZstdCompressorOutputStream(Files.newOutputStream(it)) },
+                inputStreamFactory = { CompressedStreams.openInput(it) { raw -> ZstdCompressorInputStream(raw) } },
+                outputStreamFactory = { CompressedStreams.openOutput(it) { raw -> ZstdCompressorOutputStream(raw) } },
                 openProgress = openProgress,
             )
         } else {
@@ -135,7 +135,7 @@ class CompressedSingleFileVirtualFileSystem(
         else
             originalName
         val destPath = into.resolve(innerName)
-        decompressorFactory(Files.newInputStream(archivePath)).use { stream ->
+        CompressedStreams.openInput(archivePath, decompressorFactory).use { stream ->
             Files.copy(stream, destPath)
         }
     }
