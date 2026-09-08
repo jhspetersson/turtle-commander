@@ -301,6 +301,7 @@ private val ILLEGAL_FILENAME_CHARS = charArrayOf('<', '>', ':', '"', '|', '?', '
  */
 internal fun resolveEntryPath(baseDir: Path, entryName: String): Path? {
     val cleanName = entryName.removeSuffix("/")
+    if (cleanName.isEmpty() || cleanName == ".") return null
     return try {
         val resolved = baseDir.resolve(cleanName)
         if (!resolved.normalize().startsWith(baseDir.normalize())) null else resolved

@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed opening GNU `.a` archives with `/` member
+
 ## [0.7.63] - 2026-09-07
 
 ### Fixed

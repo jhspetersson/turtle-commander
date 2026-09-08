@@ -89,4 +89,32 @@ class ArVirtualFileSystemTest {
             }
         }
     }
+
+    private fun gnuArWithSymbolTable(): Path {
+        fun header(name: String, size: Int): ByteArray =
+            (name.padEnd(16) + "0".padEnd(12) + "0".padEnd(6) + "0".padEnd(6) + "100644".padEnd(8) +
+                size.toString().padEnd(10) + "`\n").toByteArray(Charsets.US_ASCII)
+        fun member(name: String, data: ByteArray): ByteArray =
+            header(name, data.size) + data + (if (data.size % 2 == 1) byteArrayOf('\n'.code.toByte()) else ByteArray(0))
+
+        val symbolTable = byteArrayOf(0, 0, 0, 1, 0, 0, 0, 0) + "main".toByteArray(Charsets.US_ASCII) + byteArrayOf(0)
+        val objectFile = "object bytes".toByteArray()
+        val path = Files.createTempFile("gnu-symtab-", ".a")
+        Files.write(path, "!<arch>\n".toByteArray(Charsets.US_ASCII) + member("/", symbolTable) + member("main.o/", objectFile))
+        return path
+    }
+
+    @Test
+    fun `opens a GNU archive whose first member is the slash symbol table`() = runBlocking {
+        val path = gnuArWithSymbolTable()
+        try {
+            ArVirtualFileSystem(path).use { fs ->
+                val names = fs.listFiles(fs.root).map { it.name }.filter { it != ".." }
+                assertEquals(listOf("main.o"), names)
+                assertArrayEquals("object bytes".toByteArray(), Files.readAllBytes(fs.root.resolve("main.o")))
+            }
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
 }
