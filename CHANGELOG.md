@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.64] - 2026-09-08
+
 ### Fixed
 
 - Fixed opening GNU `.a` archives with `/` member
