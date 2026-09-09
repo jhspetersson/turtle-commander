@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.65] - 2026-09-09
+
 ### Fixed
 
 - Improved saving tab state
