@@ -24,6 +24,7 @@ interface FavoritesChangeListener {
 @State(
     name = "TurtleCommanderFileManager",
     storages = [Storage("turtleCommander.xml")],
+    getStateRequiresEdt = true,
 )
 class FileManagerStateService(
     private val project: Project,

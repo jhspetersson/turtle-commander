@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Improved saving tab state
+
 ## [0.7.64] - 2026-09-08
 
 ### Fixed
