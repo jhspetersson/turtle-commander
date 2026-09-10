@@ -379,4 +379,31 @@ class ZipExtractVirtualFileSystemTest {
         val entries = extractVfs.listFiles(extractVfs.root).filter { !it.isParentLink }
         assertTrue(entries.isEmpty())
     }
+
+    @Test
+    fun `extract strategy repack keeps recorded unix mode of untouched entries`() = runBlocking {
+        val zip = Files.createTempFile("zip-modes-", ".zip")
+        try {
+            ZipArchiveOutputStream(Files.newOutputStream(zip)).use { out ->
+                for ((name, mode) in listOf("script.sh" to 0b111_101_101, "data.txt" to 0b110_100_100)) {
+                    val content = "payload".toByteArray()
+                    val entry = ZipArchiveEntry(name)
+                    entry.unixMode = mode
+                    entry.size = content.size.toLong()
+                    out.putArchiveEntry(entry)
+                    out.write(content)
+                    out.closeArchiveEntry()
+                }
+            }
+            ZipExtractVirtualFileSystem(zip).use { fs ->
+                fs.renameFile(fs.getPath("/data.txt"), "renamed.txt")
+            }
+            org.apache.commons.compress.archivers.zip.ZipFile.builder().setPath(zip).get().use { zf ->
+                assertEquals(0b111_101_101, zf.getEntry("script.sh").unixMode)
+                assertEquals(0b110_100_100, zf.getEntry("renamed.txt").unixMode)
+            }
+        } finally {
+            Files.deleteIfExists(zip)
+        }
+    }
 }

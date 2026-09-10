@@ -418,4 +418,52 @@ class TarVirtualFileSystemTest {
             Files.deleteIfExists(malicious)
         }
     }
+
+    @Test
+    fun `repack keeps recorded mode owner and group of untouched entries`() = runBlocking {
+        val tar = Files.createTempFile("tar-modes-", ".tar")
+        try {
+            TarArchiveOutputStream(Files.newOutputStream(tar)).use { out ->
+                for ((name, mode) in listOf("script.sh" to 0b111_101_101, "data.txt" to 0b110_100_100)) {
+                    val content = "payload".toByteArray()
+                    val entry = TarArchiveEntry(name)
+                    entry.mode = mode
+                    entry.userName = "alice"
+                    entry.groupName = "devs"
+                    entry.userId = 1000
+                    entry.groupId = 2000
+                    entry.size = content.size.toLong()
+                    out.putArchiveEntry(entry)
+                    out.write(content)
+                    out.closeArchiveEntry()
+                }
+            }
+            TarVirtualFileSystem(
+                tar,
+                inputStreamFactory = { Files.newInputStream(it) },
+                outputStreamFactory = { Files.newOutputStream(it) },
+            ).use { fs ->
+                fs.renameFile(fs.root.resolve("data.txt"), "renamed.txt")
+            }
+            val entries = mutableMapOf<String, TarArchiveEntry>()
+            TarArchiveInputStream(Files.newInputStream(tar)).use { input ->
+                var entry = input.nextEntry
+                while (entry != null) {
+                    entries[entry.name] = entry
+                    entry = input.nextEntry
+                }
+            }
+            val script = entries.getValue("script.sh")
+            assertEquals(0b111_101_101, script.mode)
+            assertEquals("alice", script.userName)
+            assertEquals("devs", script.groupName)
+            assertEquals(1000L, script.longUserId)
+            assertEquals(2000L, script.longGroupId)
+            val renamed = entries.getValue("renamed.txt")
+            assertEquals(0b110_100_100, renamed.mode)
+            assertEquals("alice", renamed.userName)
+        } finally {
+            Files.deleteIfExists(tar)
+        }
+    }
 }

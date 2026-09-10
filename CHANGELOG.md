@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Make `zip` and `tar` preserve file modes during repack
+
 ## [0.7.65] - 2026-09-09
 
 ### Fixed

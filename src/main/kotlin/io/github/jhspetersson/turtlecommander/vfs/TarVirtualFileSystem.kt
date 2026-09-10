@@ -79,13 +79,21 @@ class TarVirtualFileSystem(
 
     private val pendingEntries = ConcurrentHashMap<Path, PendingEntry>()
 
+    private class TarEntryMetadata(
+        val mode: Int,
+        val userName: String,
+        val groupName: String,
+        val userId: Long,
+        val groupId: Long,
+    )
+
     /**
-     * Owner / group / permissions recorded in the tar header for each entry, keyed by the
-     * entry's relative name in the temp dir. Tar carries a full Unix mode plus the owner and
-     * group *names*, so all three are surfaced in listings (and to colorization rules) — the
-     * extracted temp-dir copy itself only has the host umask, which would be meaningless.
+     * Mode / owner / group recorded in the tar header for each entry, keyed by the entry's
+     * relative name in the temp dir. Surfaced in listings (and to colorization rules) because
+     * the extracted temp-dir copy itself only has the host umask, and re-applied by [repack]
+     * so editing one file never strips the mode bits or ownership of every other entry.
      */
-    private val entryMetadataByName = mutableMapOf<String, ArchiveEntryMetadata>()
+    private val entryMetadataByName = mutableMapOf<String, TarEntryMetadata>()
 
     init {
         openTempDir()
@@ -109,10 +117,12 @@ class TarVirtualFileSystem(
                         entry = tar.nextEntry
                         continue
                     }
-                    entryMetadataByName[normalizeRelativeName(into, entryPath)] = ArchiveEntryMetadata(
-                        owner = entry.userName.orEmpty(),
-                        group = entry.groupName.orEmpty(),
-                        permissions = formatPosixMode(entry.mode),
+                    entryMetadataByName[normalizeRelativeName(into, entryPath)] = TarEntryMetadata(
+                        mode = entry.mode,
+                        userName = entry.userName.orEmpty(),
+                        groupName = entry.groupName.orEmpty(),
+                        userId = entry.longUserId,
+                        groupId = entry.longGroupId,
                     )
                     try {
                         if (entry.isSymbolicLink) {
@@ -318,6 +328,7 @@ class TarVirtualFileSystem(
                             val target = Files.readSymbolicLink(path)
                             val entry = TarArchiveEntry(relativeName, TarArchiveEntry.LF_SYMLINK)
                             entry.linkName = target.toString().replace('\\', '/')
+                            applyRecordedMetadata(entry, relativeName)
                             tar.putArchiveEntry(entry)
                             tar.closeArchiveEntry()
                         } else {
@@ -325,6 +336,7 @@ class TarVirtualFileSystem(
                             val entry = TarArchiveEntry(path, relativeName)
                             entry.size = if (attrs.isDirectory) 0 else attrs.size()
                             entry.modTime = Date(attrs.lastModifiedTime().toMillis())
+                            applyRecordedMetadata(entry, relativeName)
                             tar.putArchiveEntry(entry)
                             if (!attrs.isDirectory) {
                                 Files.copy(path, tar)
@@ -337,6 +349,7 @@ class TarVirtualFileSystem(
                     for ((relativeName, linkTarget) in unresolvedSymlinks) {
                         val entry = TarArchiveEntry(relativeName, TarArchiveEntry.LF_SYMLINK)
                         entry.linkName = linkTarget
+                        applyRecordedMetadata(entry, relativeName)
                         tar.putArchiveEntry(entry)
                         tar.closeArchiveEntry()
                     }
@@ -345,8 +358,19 @@ class TarVirtualFileSystem(
         }
     }
 
+    private fun applyRecordedMetadata(entry: TarArchiveEntry, relativeName: String) {
+        val recorded = entryMetadataByName[relativeName] ?: return
+        entry.mode = recorded.mode
+        entry.userName = recorded.userName
+        entry.groupName = recorded.groupName
+        entry.setUserId(recorded.userId)
+        entry.setGroupId(recorded.groupId)
+    }
+
     override fun entryMetadata(path: Path): ArchiveEntryMetadata? =
-        entryMetadataByName[normalizeRelativeName(tempDir, path)]
+        entryMetadataByName[normalizeRelativeName(tempDir, path)]?.let {
+            ArchiveEntryMetadata(owner = it.userName, group = it.groupName, permissions = formatPosixMode(it.mode))
+        }
 
     private fun normalizeRelativeName(base: Path, path: Path): String =
         base.relativize(path).toString().replace('\\', '/')

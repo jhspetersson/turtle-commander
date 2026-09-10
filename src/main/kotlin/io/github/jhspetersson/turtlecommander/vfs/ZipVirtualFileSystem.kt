@@ -222,12 +222,13 @@ class ZipExtractVirtualFileSystem(
     private val pendingEntries = ConcurrentHashMap<Path, PendingEntry>()
 
     /**
-     * Unix permission strings parsed from each ZIP entry's external attributes during
-     * [extract], keyed by relative name in the temp dir. Surfaced in listings (and to
-     * colorization rules) because the extracted stub only carries the host umask. ZIP records
-     * no owner/group names, so only [ArchiveEntryMetadata.permissions] is populated.
+     * Unix mode parsed from each ZIP entry's external attributes during [extract], keyed by
+     * relative name in the temp dir. Surfaced in listings (and to colorization rules) because
+     * the extracted stub only carries the host umask, and re-applied by [repack] so editing one
+     * entry never strips the mode bits of every other. ZIP records no owner/group names, so
+     * only [ArchiveEntryMetadata.permissions] is populated.
      */
-    private val entryMetadataByName = ConcurrentHashMap<String, ArchiveEntryMetadata>()
+    private val entryUnixModeByName = ConcurrentHashMap<String, Int>()
 
     /**
      * Kept open for the VFS lifetime so [materialize] can stream individual entries without
@@ -247,7 +248,7 @@ class ZipExtractVirtualFileSystem(
         // bookkeeping of the previous round first.
         closeReader()
         pendingEntries.clear()
-        entryMetadataByName.clear()
+        entryUnixModeByName.clear()
         val zip = ZipFile.builder().setPath(archivePath).get()
         try {
             // Iterating the (already in-memory) central directory twice is cheaper than
@@ -269,8 +270,7 @@ class ZipExtractVirtualFileSystem(
                 val entryPath = resolveEntryPath(into, entry.name) ?: continue
                 val mode = entry.unixMode
                 if (mode != 0) {
-                    entryMetadataByName[into.relativize(entryPath).toString().replace('\\', '/')] =
-                        ArchiveEntryMetadata(permissions = formatPosixMode(mode))
+                    entryUnixModeByName[into.relativize(entryPath).toString().replace('\\', '/')] = mode
                 }
                 try {
                     if (entry.isDirectory) {
@@ -357,11 +357,12 @@ class ZipExtractVirtualFileSystem(
         }
         val oldName = tempDir.relativize(source).toString().replace('\\', '/')
         val newName = tempDir.relativize(target).toString().replace('\\', '/')
-        entryMetadataByName.remove(oldName)?.let { entryMetadataByName[newName] = it }
+        entryUnixModeByName.remove(oldName)?.let { entryUnixModeByName[newName] = it }
     }
 
     override fun entryMetadata(path: Path): ArchiveEntryMetadata? =
-        entryMetadataByName[tempDir.relativize(path).toString().replace('\\', '/')]
+        entryUnixModeByName[tempDir.relativize(path).toString().replace('\\', '/')]
+            ?.let { ArchiveEntryMetadata(permissions = formatPosixMode(it)) }
 
     /**
      * Materialise every still-pending stub before [repack] overwrites the archive they
@@ -393,6 +394,7 @@ class ZipExtractVirtualFileSystem(
                     val entryName = if (attrs.isDirectory) "$relativeName/" else relativeName
                     val entry = ZipArchiveEntry(entryName)
                     entry.time = attrs.lastModifiedTime().toMillis()
+                    entryUnixModeByName[relativeName]?.let { entry.unixMode = it }
                     if (!attrs.isDirectory) {
                         entry.size = attrs.size()
                     }
