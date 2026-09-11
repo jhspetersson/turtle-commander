@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Image cache is now capped in memory, also added a negative cache for failed thumbnails
+
 ## [0.7.66] - 2026-09-10
 
 ### Fixed

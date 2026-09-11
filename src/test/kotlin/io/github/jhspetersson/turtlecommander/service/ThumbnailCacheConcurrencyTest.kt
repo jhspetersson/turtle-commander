@@ -31,13 +31,16 @@ class ThumbnailCacheConcurrencyTest {
         // dedup gate (the `loading` keyset) should still ensure we only spawn one job.
         repeat(10) {
             Thread {
-                cache.requestThumbnail(
-                    fakePath,
-                    FileTime.fromMillis(0),
-                    isStillVisible = { true },
-                    onReady = { callCount.incrementAndGet() },
-                )
-                latch.countDown()
+                try {
+                    cache.requestThumbnail(
+                        fakePath,
+                        FileTime.fromMillis(0),
+                        isStillVisible = { true },
+                        onReady = { callCount.incrementAndGet() },
+                    )
+                } finally {
+                    latch.countDown()
+                }
             }.start()
         }
 

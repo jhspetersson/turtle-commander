@@ -46,14 +46,38 @@ class ThumbnailCache(private val scope: CoroutineScope) {
         dir
     }
 
-    /** In-memory cache: absolute file path -> loaded thumbnail icon */
-    private val memoryCache = ConcurrentHashMap<Path, Icon>()
+    /** In-memory cache: absolute file path -> loaded thumbnail icon, LRU-bounded by retained bitmap bytes */
+    private val memoryCache = BoundedIconCache { memoryBudgetBytes }
+
+    /** Files whose last decode attempt failed, keyed by path with the mtime that was tried */
+    private val undecodable = object : LinkedHashMap<Path, Long>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Path, Long>?): Boolean =
+            size > MAX_UNDECODABLE_ENTRIES
+    }
 
     /** Tracks which files are currently being loaded to avoid duplicate work */
     private val loading = ConcurrentHashMap.newKeySet<Path>()
 
+    internal var memoryBudgetBytes: Long = DEFAULT_MEMORY_BUDGET_BYTES
+
+    internal fun isLoading(path: Path): Boolean = path in loading
+
+    internal fun isKnownUndecodable(path: Path): Boolean =
+        synchronized(undecodable) { undecodable.containsKey(path) }
+
+    private fun isKnownUndecodable(path: Path, stamp: Long): Boolean =
+        synchronized(undecodable) { undecodable[path] == stamp }
+
+    private fun rememberUndecodable(path: Path, stamp: Long) {
+        synchronized(undecodable) { undecodable[path] = stamp }
+    }
+
+    private fun forgetUndecodable(predicate: (Path) -> Boolean) {
+        synchronized(undecodable) { undecodable.keys.removeAll(predicate) }
+    }
+
     fun getCachedThumbnail(path: Path): Icon? {
-        return memoryCache[path]
+        return memoryCache.get(path)
     }
 
     /**
@@ -76,39 +100,40 @@ class ThumbnailCache(private val scope: CoroutineScope) {
      * expensive step, and the whole job participates in the application-scoped CoroutineScope
      * so it cancels cleanly on shutdown.
      */
-    fun requestThumbnail(path: Path, lastModified: FileTime?, isStillVisible: () -> Boolean, onReady: () -> Unit) {
-        if (memoryCache.containsKey(path)) return
-        if (!loading.add(path)) return
+    fun requestThumbnail(path: Path, lastModified: FileTime?, isStillVisible: () -> Boolean, onReady: () -> Unit): Boolean {
+        val stamp = lastModified?.toMillis() ?: 0L
+        if (memoryCache.containsKey(path)) return false
+        if (isKnownUndecodable(path, stamp)) return false
+        if (!loading.add(path)) return false
 
         scope.launch(thumbnailDispatcher) {
             try {
                 if (memoryCache.containsKey(path)) return@launch
                 if (!isStillVisible()) return@launch
                 ensureActive()
-                val icon = loadOrCreateThumbnail(path, lastModified) ?: return@launch
+                val icon = loadOrCreateThumbnail(path, lastModified)
+                if (icon == null) {
+                    rememberUndecodable(path, stamp)
+                    return@launch
+                }
                 ensureActive()
-                memoryCache.putIfAbsent(path, icon)
+                memoryCache.putIfAbsent(path, icon, (icon as? HighQualityImageIcon)?.retainedBytes ?: 0L)
                 withContext(Dispatchers.EDT) { onReady() }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                rememberUndecodable(path, stamp)
                 thisLogger().debug("Failed to create thumbnail for $path: ${e.message}")
             } finally {
                 loading.remove(path)
             }
         }
+        return true
     }
 
     fun evictDirectory(directory: Path) {
-        val evicted = mutableListOf<Path>()
-        memoryCache.keys.removeAll { key ->
-            if (key.startsWith(directory)) {
-                evicted.add(key)
-                true
-            } else {
-                false
-            }
-        }
+        val evicted = memoryCache.removeIf { it.startsWith(directory) }
+        forgetUndecodable { it.startsWith(directory) }
         if (evicted.isNotEmpty()) {
             scope.launch(Dispatchers.IO) {
                 for (sourcePath in evicted) {
@@ -136,6 +161,7 @@ class ThumbnailCache(private val scope: CoroutineScope) {
 
     fun clearCache() {
         memoryCache.clear()
+        forgetUndecodable { true }
         try {
             if (!Files.isDirectory(cacheDir)) return
             Files.list(cacheDir).use { stream ->
@@ -267,10 +293,61 @@ class ThumbnailCache(private val scope: CoroutineScope) {
      * transform turns the larger source bitmap into a sharp render at physical
      * pixel resolution.
      */
+    private class BoundedIconCache(private val budgetBytes: () -> Long) {
+
+        private class Entry(val icon: Icon, val bytes: Long)
+
+        private val entries = LinkedHashMap<Path, Entry>(64, 0.75f, true)
+        private var totalBytes = 0L
+
+        @Synchronized
+        fun get(path: Path): Icon? = entries[path]?.icon
+
+        @Synchronized
+        fun containsKey(path: Path): Boolean = entries.containsKey(path)
+
+        @Synchronized
+        fun putIfAbsent(path: Path, icon: Icon, bytes: Long) {
+            if (entries.containsKey(path)) return
+            entries[path] = Entry(icon, bytes)
+            totalBytes += bytes
+            val budget = budgetBytes()
+            val iterator = entries.entries.iterator()
+            while (totalBytes > budget && entries.size > 1 && iterator.hasNext()) {
+                val eldest = iterator.next()
+                iterator.remove()
+                totalBytes -= eldest.value.bytes
+            }
+        }
+
+        @Synchronized
+        fun removeIf(predicate: (Path) -> Boolean): List<Path> {
+            val removed = mutableListOf<Path>()
+            val iterator = entries.entries.iterator()
+            while (iterator.hasNext()) {
+                val entry = iterator.next()
+                if (predicate(entry.key)) {
+                    iterator.remove()
+                    totalBytes -= entry.value.bytes
+                    removed.add(entry.key)
+                }
+            }
+            return removed
+        }
+
+        @Synchronized
+        fun clear() {
+            entries.clear()
+            totalBytes = 0L
+        }
+    }
+
     private class HighQualityImageIcon(
         private val image: BufferedImage,
         maxLogicalSize: Int,
     ) : Icon {
+
+        val retainedBytes: Long = image.width.toLong() * image.height * 4
 
         private val displayW: Int
         private val displayH: Int
@@ -306,6 +383,8 @@ class ThumbnailCache(private val scope: CoroutineScope) {
     companion object {
         private const val CACHE_DIR_NAME = "turtle-commander-thumbnails"
         private const val MAX_CONCURRENT_LOADS = 4
+        private const val DEFAULT_MEMORY_BUDGET_BYTES = 128L * 1024 * 1024
+        private const val MAX_UNDECODABLE_ENTRIES = 4096
 
         private val IMAGE_EXTENSIONS = setOf(
             "png", "jpg", "jpeg", "gif", "bmp", "webp", "ico", "tif", "tiff",

@@ -1,5 +1,4 @@
 package io.github.jhspetersson.turtlecommander.service
-import java.util.concurrent.ConcurrentHashMap
 import javax.swing.Icon
 
 import kotlinx.coroutines.CoroutineScope
@@ -92,31 +91,32 @@ class ThumbnailCacheEvictTest {
         // Populate memoryCache via reflection since it's private
         val field = ThumbnailCache::class.java.getDeclaredField("memoryCache")
         field.isAccessible = true
-        @Suppress("UNCHECKED_CAST")
-        val cache = field.get(thumbnailCache) as ConcurrentHashMap<Path, Icon>
+        val cache = field.get(thumbnailCache)
+        val put = cache.javaClass.getDeclaredMethod("putIfAbsent", Path::class.java, Icon::class.java, Long::class.javaPrimitiveType)
+        put.isAccessible = true
 
         val dir = Path.of("/test/evict/dir")
         val icon = javax.swing.ImageIcon()
 
         // Add entries under the directory
         for (i in 1..20) {
-            cache[dir.resolve("file$i.png")] = icon
+            put.invoke(cache, dir.resolve("file$i.png"), icon, 0L)
         }
         // Add entries outside the directory
-        cache[Path.of("/other/file.png")] = icon
+        put.invoke(cache, Path.of("/other/file.png"), icon, 0L)
 
         // Should not throw ConcurrentModificationException
         thumbnailCache.evictDirectory(dir)
 
         // Entries under directory should be gone
         for (i in 1..20) {
-            assertNull("Entry under evicted dir should be removed", cache[dir.resolve("file$i.png")])
+            assertNull("Entry under evicted dir should be removed", thumbnailCache.getCachedThumbnail(dir.resolve("file$i.png")))
         }
         // Entry outside directory should remain
-        assertNotNull("Entry outside evicted dir should remain", cache[Path.of("/other/file.png")])
+        assertNotNull("Entry outside evicted dir should remain", thumbnailCache.getCachedThumbnail(Path.of("/other/file.png")))
 
         // Cleanup
-        cache.remove(Path.of("/other/file.png"))
+        thumbnailCache.clearMemoryCache()
         scope.cancel()
     }
 }
