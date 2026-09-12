@@ -182,6 +182,10 @@ private fun FileTab.runTransfer(
 }
 
 internal fun FileTab.performDelete(forcePermanent: Boolean = false) {
+    if (currentVfs?.isReadOnly == true) {
+        fileErrorNotification("Cannot delete inside a read-only archive")
+        return
+    }
     val selected = getSelectedEntries()
     if (selected.isEmpty()) return
 
@@ -289,6 +293,10 @@ private fun FileTab.tryIdeaDelete(selected: List<FileEntry>): Boolean {
 }
 
 internal fun FileTab.performCreateDirectory() {
+    if (currentVfs?.isReadOnly == true) {
+        fileErrorNotification("Cannot create a directory inside a read-only archive")
+        return
+    }
     val dialog = InputDialog(project, "New Directory", "Enter directory name:")
     if (!dialog.showAndGet()) return
     val name = dialog.inputValue
@@ -375,6 +383,10 @@ private fun symlinkErrorMessage(link: Path, hard: Boolean, e: Exception): String
 }
 
 internal fun FileTab.performCreateFile() {
+    if (currentVfs?.isReadOnly == true) {
+        fileErrorNotification("Cannot create a file inside a read-only archive")
+        return
+    }
     val dialog = InputDialog(project, "New File", "Enter file name:")
     if (!dialog.showAndGet()) return
     val name = dialog.inputValue
@@ -769,14 +781,28 @@ internal fun FileTab.performExtract() {
     if (!destPath.isAbsolute) {
         destPath = currentPath.resolve(destPath)
     }
+    if (rejectReadOnlyExtractDestination(destPath)) return
 
     extractArchives(selected.map { it.path }, destPath, dialog.policy)
 }
 
 internal fun FileTab.performExtractHere() {
+    if (rejectReadOnlyExtractDestination(currentPath)) return
     val selected = getSelectedEntries().filter { isArchiveFile(it) }
     if (selected.isEmpty()) return
     extractArchives(selected.map { it.path }, currentPath, OverwritePolicy.ASK)
+}
+
+internal fun FileTab.isInsideReadOnlyArchive(path: Path): Boolean {
+    val target = path.normalize()
+    return listOfNotNull(currentVfs, getOtherPanelTab()?.currentVfs)
+        .any { it.isReadOnly && target.startsWith(it.root.normalize()) }
+}
+
+private fun FileTab.rejectReadOnlyExtractDestination(destination: Path): Boolean {
+    if (!isInsideReadOnlyArchive(destination)) return false
+    fileErrorNotification("Cannot extract into a read-only archive")
+    return true
 }
 
 internal fun FileTab.performExtractToSubdir() {
@@ -792,6 +818,7 @@ internal fun FileTab.performExtractToSubdir() {
     if (!destPath.isAbsolute) {
         destPath = currentPath.resolve(destPath)
     }
+    if (rejectReadOnlyExtractDestination(destPath)) return
 
     extractArchives(selected.map { it.path }, destPath, dialog.policy)
 }

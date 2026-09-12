@@ -38,6 +38,13 @@ abstract class FileManagerAction : EdtAction() {
     }
 }
 
+abstract class WritingFileManagerAction : FileManagerAction() {
+    override fun update(e: AnActionEvent) {
+        val tab = findActiveTab(e)
+        e.presentation.isEnabled = tab != null && tab.hasAnyViewFocus() && tab.currentVfs?.isReadOnly != true
+    }
+}
+
 class OpenEntryAction : FileManagerAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val tab = findActiveTab(e) ?: return
@@ -107,13 +114,13 @@ class MoveFilesAction : FileManagerAction() {
     }
 }
 
-class CreateDirectoryAction : FileManagerAction() {
+class CreateDirectoryAction : WritingFileManagerAction() {
     override fun actionPerformed(e: AnActionEvent) {
         findActiveTab(e)?.performCreateDirectory()
     }
 }
 
-class CreateFileAction : FileManagerAction() {
+class CreateFileAction : WritingFileManagerAction() {
     override fun actionPerformed(e: AnActionEvent) {
         findActiveTab(e)?.performCreateFile()
     }
@@ -125,7 +132,7 @@ class CreateLinkAction : FileManagerAction() {
     }
 }
 
-class DeleteFilesAction : FileManagerAction() {
+class DeleteFilesAction : WritingFileManagerAction() {
     override fun actionPerformed(e: AnActionEvent) {
         // Shift+DELETE (and Shift+F8) forces a permanent delete regardless of the
         // "Delete to Recycle Bin" setting. The input event is only present for keyboard/mouse

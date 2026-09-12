@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- File operations inside read-only archive are now correctly blocked
+
 ## [0.7.67] - 2026-09-11
 
 ### Changed

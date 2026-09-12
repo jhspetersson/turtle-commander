@@ -250,7 +250,7 @@ class ContextMultiRenameAction : EdtAction() {
 class ContextDeleteAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val tab = FileContextMenuState.clickedTab
-        e.presentation.isEnabled = tab != null && tab.getSelectedEntries().isNotEmpty()
+        e.presentation.isEnabled = tab != null && tab.getSelectedEntries().isNotEmpty() && tab.currentVfs?.isReadOnly != true
     }
 
     override fun actionPerformed(e: AnActionEvent) {
@@ -283,7 +283,8 @@ class ExtractFilesAction : EdtAction() {
 class ExtractHereAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry
-        e.presentation.isEnabledAndVisible = entry != null && isArchiveFile(entry)
+        val tab = FileContextMenuState.clickedTab
+        e.presentation.isEnabledAndVisible = entry != null && isArchiveFile(entry) && tab?.currentVfs?.isReadOnly != true
     }
 
     override fun actionPerformed(e: AnActionEvent) {
@@ -294,7 +295,8 @@ class ExtractHereAction : EdtAction() {
 class ExtractToSubdirAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry
-        e.presentation.isEnabledAndVisible = entry != null && isArchiveFile(entry)
+        val tab = FileContextMenuState.clickedTab
+        e.presentation.isEnabledAndVisible = entry != null && isArchiveFile(entry) && tab?.currentVfs?.isReadOnly != true
     }
 
     override fun actionPerformed(e: AnActionEvent) {
