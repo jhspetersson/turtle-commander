@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.68] - 2026-09-12
+
 ### Fixed
 
 - File operations inside read-only archive are now correctly blocked
