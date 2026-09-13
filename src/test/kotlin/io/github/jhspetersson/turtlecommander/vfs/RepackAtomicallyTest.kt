@@ -2,10 +2,12 @@ package io.github.jhspetersson.turtlecommander.vfs
 
 import org.junit.After
 import org.junit.Assert.*
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.attribute.PosixFilePermissions
 
 /**
  * Verifies the atomic-repack guarantee: a repack that fails partway must leave the original
@@ -60,5 +62,28 @@ class RepackAtomicallyTest {
 
         assertEquals("NEW CONTENT", Files.readString(archive))
         assertEquals("no repack temp file should survive a success", 0, repackTempLeftovers())
+    }
+
+    @Test
+    fun `successful repack keeps the archive's POSIX permissions`() {
+        val archive = dir.resolve("archive.bin")
+        Files.writeString(archive, "ORIGINAL")
+        val posix = try {
+            Files.setPosixFilePermissions(archive, PosixFilePermissions.fromString("rw-r--r--"))
+            true
+        } catch (_: UnsupportedOperationException) {
+            false
+        }
+        assumeTrue("POSIX permissions are not supported on this filesystem", posix)
+
+        repackAtomically(archive) { target ->
+            Files.writeString(target, "NEW CONTENT")
+        }
+
+        assertEquals(
+            "the repacked archive must keep the original's mode, not createTempFile's 0600",
+            "rw-r--r--",
+            PosixFilePermissions.toString(Files.getPosixFilePermissions(archive)),
+        )
     }
 }

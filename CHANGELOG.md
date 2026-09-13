@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Repacks try to preserve original archive's file mode
+
 ## [0.7.68] - 2026-09-12
 
 ### Fixed

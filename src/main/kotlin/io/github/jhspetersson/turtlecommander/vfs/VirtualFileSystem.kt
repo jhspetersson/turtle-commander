@@ -353,6 +353,9 @@ internal fun symlinkTargetEscapes(baseDir: Path, linkPath: Path, target: String)
  * into is deleted on close, so the on-disk archive is often the only surviving copy of the data).
  *
  * The temp file is a sibling — same directory, hence same filesystem — so the move can be atomic.
+ * It is created owner-only (`createTempFile` defaults to 0600 on POSIX) and a rename keeps the
+ * inode's mode, so the original archive's permissions are copied onto it before the move; without
+ * that every edit would silently turn a shared archive private.
  */
 internal fun repackAtomically(archivePath: Path, write: (Path) -> Unit) {
     val dir = archivePath.toAbsolutePath().normalize().parent
@@ -360,6 +363,7 @@ internal fun repackAtomically(archivePath: Path, write: (Path) -> Unit) {
     val tmp = Files.createTempFile(dir, "tc-repack-", ".tmp")
     try {
         write(tmp)
+        copyPosixPermissions(archivePath, tmp)
         try {
             Files.move(tmp, archivePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
         } catch (_: AtomicMoveNotSupportedException) {
@@ -371,6 +375,17 @@ internal fun repackAtomically(archivePath: Path, write: (Path) -> Unit) {
         runCatching { Files.deleteIfExists(tmp) }
         throw e
     }
+}
+
+private fun copyPosixPermissions(from: Path, to: Path) {
+    val permissions = try {
+        Files.getPosixFilePermissions(from)
+    } catch (_: UnsupportedOperationException) {
+        return
+    } catch (_: IOException) {
+        return
+    }
+    runCatching { Files.setPosixFilePermissions(to, permissions) }
 }
 
 /**
