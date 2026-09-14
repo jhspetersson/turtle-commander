@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [0.7.70] - 2026-09-14
+
+### Fixed
+
+- Temp directory cleanup no longer sweeps away old but still used temp directories
+
 ## [0.7.69] - 2026-09-13
 
 ### Fixed
