@@ -55,6 +55,7 @@ internal fun FileTab.enterVfs(entry: FileEntry) {
                                 // No-op for any VFS that already extracted everything in extract().
                                 OpenVfsRegistry.materializeIfNeeded(archivePath)
                                 val tempDir = Files.createTempDirectory("turtle-vfs-")
+                                VfsTempCleanup.claim(tempDir)
                                 val tempPath = tempDir.resolve(fileName)
                                 tempFile = tempPath.toFile()
                                 Files.copy(archivePath, tempPath)
@@ -62,7 +63,7 @@ internal fun FileTab.enterVfs(entry: FileEntry) {
                             }
                             if (indicator.isCanceled) {
                                 vfs.close()
-                                tempFile?.delete(); tempFile?.parentFile?.delete()
+                                tempFile?.parentFile?.let { VfsTempCleanup.discard(it.toPath()) }
                                 return@withContext
                             }
                             vfsStack.add(VfsStackEntry(vfs, archivePath, tempFile))
@@ -70,14 +71,10 @@ internal fun FileTab.enterVfs(entry: FileEntry) {
                         } catch (_: SilentVfsOpenException) {
                             // Recognised extension but unrecognised contents (e.g. a .pak that is
                             // neither PAK nor ZIP): fall through to opening it as a normal file.
-                            tempFile?.let {
-                                try { it.delete(); it.parentFile?.delete() } catch (_: Exception) {}
-                            }
+                            tempFile?.parentFile?.let { VfsTempCleanup.discard(it.toPath()) }
                             openFile(entry)
                         } catch (e: Exception) {
-                            tempFile?.let {
-                                try { it.delete(); it.parentFile?.delete() } catch (_: Exception) {}
-                            }
+                            tempFile?.parentFile?.let { VfsTempCleanup.discard(it.toPath()) }
                             fileErrorNotification("Cannot open nested archive: ${fileErrorMessage(e)}", e)
                         }
                     }

@@ -25,9 +25,7 @@ class VfsStackEntry(
     var mutationListener: (() -> Unit)? = null
 
     fun cleanupTempFile() {
-        tempFile?.let {
-            try { it.delete(); it.parentFile?.delete() } catch (_: Exception) {}
-        }
+        tempFile?.parentFile?.let { TempRootLocks.discard(it.toPath()) }
     }
 }
 

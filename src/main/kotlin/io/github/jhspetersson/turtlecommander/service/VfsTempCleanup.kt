@@ -2,9 +2,9 @@ package io.github.jhspetersson.turtlecommander.service
 
 import com.intellij.openapi.diagnostic.thisLogger
 import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
+import io.github.jhspetersson.turtlecommander.vfs.TempRootLocks
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal object VfsTempCleanup {
@@ -13,11 +13,9 @@ internal object VfsTempCleanup {
 
     private val done = AtomicBoolean(false)
 
-    private val protectedRoots = CopyOnWriteArraySet<Path>()
+    fun claim(dir: Path) = TempRootLocks.claim(dir)
 
-    fun protect(dir: Path) {
-        protectedRoots.add(dir.normalize())
-    }
+    fun discard(dir: Path): Boolean = TempRootLocks.discard(dir)
 
     fun cleanupOnce() {
         if (!done.compareAndSet(false, true)) return
@@ -35,27 +33,37 @@ internal object VfsTempCleanup {
             for (path in stream) {
                 val name = path.fileName?.toString() ?: continue
                 if (!name.startsWith(FAMILY_PREFIX)) continue
-                if (path.normalize() in protectedRoots) continue
+                if (name.endsWith(TempRootLocks.LOCK_SUFFIX)) {
+                    if (!Files.exists(TempRootLocks.dirFor(path)) && isStale(path, cutoff)) removeOrphanLock(path)
+                    continue
+                }
+                if (TempRootLocks.isClaimed(path)) continue
                 if (OpenVfsRegistry.hasLiveContentUnder(path)) continue
-                val mtime = runCatching { Files.getLastModifiedTime(path) }.getOrNull() ?: continue
-                if (mtime.toMillis() > cutoff) continue
-                if (deleteRecursive(path)) removed++
+                if (!isStale(path, cutoff)) continue
+                if (sweepRoot(path)) removed++
             }
         }
         return removed
     }
 
-    private fun deleteRecursive(path: Path): Boolean {
-        return Files.exists(path) && runCatching {
-            Files.walk(path).use { stream ->
-                stream.sorted(Comparator.reverseOrder()).forEach { runCatching { Files.deleteIfExists(it) } }
-            }
-            !Files.exists(path)
-        }.getOrDefault(false)
+    private fun isStale(path: Path, cutoff: Long): Boolean {
+        val mtime = runCatching { Files.getLastModifiedTime(path) }.getOrNull() ?: return false
+        return mtime.toMillis() <= cutoff
+    }
+
+    private fun sweepRoot(dir: Path): Boolean {
+        val lockFile = TempRootLocks.lockFileFor(dir)
+        if (!Files.exists(lockFile)) return TempRootLocks.deleteTree(dir)
+        val holder = TempRootLocks.Holder.acquire(lockFile) ?: return false
+        return holder.use { TempRootLocks.deleteTree(dir) }
+    }
+
+    private fun removeOrphanLock(lockFile: Path) {
+        TempRootLocks.Holder.acquire(lockFile)?.close()
     }
 
     internal fun resetForTesting() {
         done.set(false)
-        protectedRoots.clear()
+        TempRootLocks.releaseAll()
     }
 }

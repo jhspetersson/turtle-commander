@@ -490,10 +490,11 @@ abstract class AbstractTempDirVirtualFileSystem(
         // safe direction.
         val signature = archiveSignature()
         val dir = Files.createTempDirectory(tempDirPrefix)
+        TempRootLocks.claim(dir)
         try {
             extract(dir)
         } catch (e: Exception) {
-            dir.toFile().deleteRecursively()
+            TempRootLocks.discard(dir)
             throw e
         }
         tempDir = dir
@@ -602,16 +603,14 @@ abstract class AbstractTempDirVirtualFileSystem(
                 return
             }
         }
-        tempDir.toFile().deleteRecursively()
+        TempRootLocks.discard(tempDir)
         openTempDir()
     }
 
     override fun close() {
         OpenVfsRegistry.unregister(this)
-        try {
-            tempDir.toFile().deleteRecursively()
-        } catch (e: Exception) {
-            thisLogger().debug("Failed to clean up temp dir $tempDir: ${e.message}")
+        if (!TempRootLocks.discard(tempDir)) {
+            thisLogger().debug("Failed to clean up temp dir $tempDir")
         }
     }
 }

@@ -2,8 +2,10 @@ package io.github.jhspetersson.turtlecommander.service
 
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
+import io.github.jhspetersson.turtlecommander.vfs.TempRootLocks
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -11,6 +13,7 @@ import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.FileTime
+import java.util.concurrent.TimeUnit
 
 class VfsTempCleanupTest {
 
@@ -131,16 +134,79 @@ class VfsTempCleanupTest {
     }
 
     @Test
-    fun `keeps a stale dir registered via protect`() {
+    fun `keeps a stale dir claimed in this JVM and sweeps it once released`() {
         VfsTempCleanup.resetForTesting()
         val stale = makeStaleDir("turtle-vfs-edit-live", ageMs = 2L * 60 * 60 * 1000)
-        VfsTempCleanup.protect(stale)
+        val lockFile = TempRootLocks.lockFileFor(stale)
+        VfsTempCleanup.claim(stale)
         try {
+            assertTrue("claim must create the sibling lock file", Files.exists(lockFile))
             VfsTempCleanup.cleanNow(sandbox, maxAgeMs = 60L * 60 * 1000)
-            assertTrue("protected editor-extraction dir must NOT be removed", Files.exists(stale))
+            assertTrue("claimed editor-extraction dir must NOT be removed", Files.exists(stale))
         } finally {
             VfsTempCleanup.resetForTesting()
         }
+        assertFalse("release must delete the lock file", Files.exists(lockFile))
+
+        VfsTempCleanup.cleanNow(sandbox, maxAgeMs = 60L * 60 * 1000)
+        assertFalse("released stale dir should be swept", Files.exists(stale))
+    }
+
+    @Test
+    fun `keeps a stale dir whose lock is held by another process`() {
+        val stale = makeStaleDir("turtle-zip-foreign", ageMs = 2L * 60 * 60 * 1000)
+        val lockFile = TempRootLocks.lockFileFor(stale)
+        val holder = startForeignLockHolder(lockFile)
+        try {
+            assertEquals("locked", holder.inputStream.bufferedReader().readLine())
+
+            VfsTempCleanup.cleanNow(sandbox, maxAgeMs = 60L * 60 * 1000)
+
+            assertTrue("dir locked by a live foreign process must NOT be removed", Files.exists(stale))
+            assertTrue(Files.exists(stale.resolve("payload.txt")))
+        } finally {
+            holder.outputStream.close()
+            if (!holder.waitFor(10, TimeUnit.SECONDS)) holder.destroyForcibly().waitFor()
+        }
+
+        VfsTempCleanup.cleanNow(sandbox, maxAgeMs = 60L * 60 * 1000)
+
+        assertFalse("dir of a dead process should be swept", Files.exists(stale))
+        assertFalse("its lock file should go with it", Files.exists(lockFile))
+    }
+
+    @Test
+    fun `removes a stale dir together with its unheld lock file`() {
+        val stale = makeStaleDir("turtle-tar-crashed", ageMs = 2L * 60 * 60 * 1000)
+        val lockFile = Files.createFile(TempRootLocks.lockFileFor(stale))
+
+        val removed = VfsTempCleanup.cleanNow(sandbox, maxAgeMs = 60L * 60 * 1000)
+
+        assertFalse(Files.exists(stale))
+        assertFalse(Files.exists(lockFile))
+        assertEquals(1, removed)
+    }
+
+    @Test
+    fun `removes a stale orphan lock file but keeps a fresh one`() {
+        val staleLock = Files.createFile(sandbox.resolve("turtle-zip-gone.lock"))
+        val freshLock = Files.createFile(sandbox.resolve("turtle-zip-starting.lock"))
+        Files.setLastModifiedTime(staleLock, FileTime.fromMillis(System.currentTimeMillis() - 2L * 60 * 60 * 1000))
+
+        VfsTempCleanup.cleanNow(sandbox, maxAgeMs = 60L * 60 * 1000)
+
+        assertFalse(Files.exists(staleLock))
+        assertTrue(Files.exists(freshLock))
+    }
+
+    private fun startForeignLockHolder(lockFile: Path): Process {
+        val java = Path.of(System.getProperty("java.home"), "bin", "java").toString()
+        val classPath = System.getProperty("java.class.path").replace('\\', '/')
+        val argFile = sandbox.resolve("holder.args")
+        Files.writeString(argFile, "-cp \"$classPath\"\n")
+        return ProcessBuilder(java, "@$argFile", "io.github.jhspetersson.turtlecommander.service.LockHolderMainKt", lockFile.toString())
+            .redirectErrorStream(true)
+            .start()
     }
 
     @Test
