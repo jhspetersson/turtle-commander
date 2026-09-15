@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Optimized status bar rendering
+
 ## [0.7.70] - 2026-09-14
 
 ### Fixed

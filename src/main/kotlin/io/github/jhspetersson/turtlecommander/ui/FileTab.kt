@@ -663,7 +663,7 @@ class FileTab(
             dragEnabled = true
             transferHandler = FileEntryTransferHandler(this@FileTab)
 
-            selectionModel.addListSelectionListener {
+            selectionModel.addListSelectionListener { e ->
                 if (!insideToggle && !insideRestore && !insideViewSwitch && markedPaths.isNotEmpty()) {
                     restoreTableMarks()
                 }
@@ -671,7 +671,7 @@ class FileTab(
                 // already-selected one, so disarm click-to-rename and drop any pending rename.
                 renameArmedRow = -1
                 renameClickTimer?.stop()
-                updateStatusBar()
+                if (!e.valueIsAdjusting) updateStatusBar()
             }
         }
     }
@@ -771,11 +771,11 @@ class FileTab(
             dragEnabled = true
             transferHandler = FileEntryTransferHandler(this@FileTab)
 
-            addListSelectionListener {
+            addListSelectionListener { e ->
                 if (!insideToggle && !insideRestore && !insideViewSwitch && markedPaths.isNotEmpty()) {
                     restoreListMarks(list, listModel)
                 }
-                updateStatusBar()
+                if (!e.valueIsAdjusting) updateStatusBar()
                 // VERTICAL_WRAP JList doesn't auto-scroll on programmatic selection
                 // changes (e.g. speed-search Up/Down jumps), so force it here.
                 if (SpeedSearchSupply.getSupply(list) != null) {
@@ -843,11 +843,11 @@ class FileTab(
             dragEnabled = true
             transferHandler = FileEntryTransferHandler(this@FileTab)
 
-            addListSelectionListener {
+            addListSelectionListener { e ->
                 if (!insideToggle && !insideRestore && !insideViewSwitch && markedPaths.isNotEmpty()) {
                     restoreListMarks(thumbnailList, thumbnailListModel)
                 }
-                updateStatusBar()
+                if (!e.valueIsAdjusting) updateStatusBar()
                 if (SpeedSearchSupply.getSupply(thumbnailList) != null) {
                     val idx = thumbnailList.selectedIndex
                     if (idx >= 0) thumbnailList.ensureIndexIsVisible(idx)
@@ -1258,13 +1258,19 @@ class FileTab(
     }
 
     internal fun updateStatusBar() {
-        val entries = tableModel.let { model ->
-            (0 until model.rowCount).mapNotNull { model.getEntryAt(it) }
-        }.filter { !it.isParentLink }
-
-        val dirs = entries.count { it.isDirectory }
-        val files = entries.count { !it.isDirectory }
-        val totalSize = entries.filter { !it.isDirectory }.sumOf { it.size }
+        var dirs = 0
+        var files = 0
+        var totalSize = 0L
+        for (row in 0 until tableModel.rowCount) {
+            val entry = tableModel.getEntryAt(row) ?: continue
+            if (entry.isParentLink) continue
+            if (entry.isDirectory) {
+                dirs++
+            } else {
+                files++
+                totalSize += entry.size
+            }
+        }
 
         val sb = StringBuilder()
         sb.append("$dirs dir(s), $files file(s), ${formatSize(totalSize)}")

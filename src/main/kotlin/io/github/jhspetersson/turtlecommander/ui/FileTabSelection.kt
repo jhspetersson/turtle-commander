@@ -19,6 +19,7 @@ import java.nio.file.attribute.BasicFileAttributes
 import javax.swing.DefaultListModel
 import javax.swing.DefaultListSelectionModel
 import javax.swing.JList
+import javax.swing.ListSelectionModel
 import javax.swing.tree.DefaultMutableTreeNode
 
 internal fun FileTab.getSelectedEntry(): FileEntry? {
@@ -181,33 +182,45 @@ private fun <T : JList<FileEntry>> FileTab.toggleListSelection(
     if (moveCursorDown) jList.ensureIndexIsVisible(cursorIndex)
 }
 
+internal inline fun withSelectionAdjusting(selectionModel: ListSelectionModel, block: () -> Unit) {
+    val wasAdjusting = selectionModel.valueIsAdjusting
+    selectionModel.valueIsAdjusting = true
+    try {
+        block()
+    } finally {
+        selectionModel.valueIsAdjusting = wasAdjusting
+    }
+}
+
 internal fun FileTab.applyToggledSelection() {
-    table.clearSelection()
-    for (viewRow in 0 until table.rowCount) {
-        val modelRow = table.convertRowIndexToModel(viewRow)
-        val entry = tableModel.getEntryAt(modelRow) ?: continue
-        if (entry.path in markedPaths) {
-            table.addRowSelectionInterval(viewRow, viewRow)
+    withSelectionAdjusting(table.selectionModel) {
+        table.clearSelection()
+        for (viewRow in 0 until table.rowCount) {
+            val modelRow = table.convertRowIndexToModel(viewRow)
+            val entry = tableModel.getEntryAt(modelRow) ?: continue
+            if (entry.path in markedPaths) {
+                table.addRowSelectionInterval(viewRow, viewRow)
+            }
         }
     }
 }
 
 internal fun FileTab.applyToggledTreeSelection() {
-    tree.clearSelection()
-    for (row in 0 until tree.rowCount) {
-        val node = tree.getPathForRow(row)?.lastPathComponent as? DefaultMutableTreeNode ?: continue
-        val entry = node.userObject as? FileEntry ?: continue
-        if (entry.path in markedPaths) {
-            tree.addSelectionRow(row)
-        }
+    val rows = (0 until tree.rowCount).filter { row ->
+        val node = tree.getPathForRow(row)?.lastPathComponent as? DefaultMutableTreeNode
+        val entry = node?.userObject as? FileEntry
+        entry != null && entry.path in markedPaths
     }
+    if (rows.isEmpty()) tree.clearSelection() else tree.selectionRows = rows.toIntArray()
 }
 
 internal fun <T : JList<FileEntry>> FileTab.applyMarksToList(jList: T, model: DefaultListModel<FileEntry>) {
-    jList.clearSelection()
-    for (i in 0 until model.size()) {
-        val entry = model.getElementAt(i) ?: continue
-        if (entry.path in markedPaths) jList.addSelectionInterval(i, i)
+    withSelectionAdjusting(jList.selectionModel) {
+        jList.clearSelection()
+        for (i in 0 until model.size()) {
+            val entry = model.getElementAt(i) ?: continue
+            if (entry.path in markedPaths) jList.addSelectionInterval(i, i)
+        }
     }
 }
 
