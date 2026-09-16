@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.72] - 2026-09-16
+
 ### Fixed
 
 - Fixed potential slow tab closing
