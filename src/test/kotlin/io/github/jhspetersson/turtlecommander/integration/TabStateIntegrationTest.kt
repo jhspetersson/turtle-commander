@@ -1191,8 +1191,8 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
                 rowsBefore + 1, tab2.table.rowCount
             )
         } finally {
-            tab1.closeVfsStack()
-            tab2.closeVfsStack()
+            tab1.closeVfsStackAsync()
+            tab2.closeVfsStackAsync()
         }
     }
 }

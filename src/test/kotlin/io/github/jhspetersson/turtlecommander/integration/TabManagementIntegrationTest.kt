@@ -15,6 +15,7 @@ import io.github.jhspetersson.turtlecommander.ui.*
 import java.awt.GraphicsEnvironment
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Integration tests for tab management: open, close, multiple tabs, view mode persistence.
@@ -74,7 +75,7 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
         assertNotNull("Should have an active tab", tab)
 
         // Simulate an open archive: a fake VFS on the stack whose close() we can observe.
-        var vfsClosed = false
+        val vfsClosed = AtomicBoolean(false)
         val fakeVfs = object : VirtualFileSystem {
             override val archivePath: Path = projectPath
             override val root: Path = projectPath
@@ -85,14 +86,16 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
             override fun flush() {}
             override suspend fun renameFile(source: Path, newName: String): Path =
                 throw UnsupportedOperationException()
-            override fun close() { vfsClosed = true }
+            override fun close() { vfsClosed.set(true) }
         }
         tab!!.vfsStack.add(VfsStackEntry(fakeVfs, projectPath))
 
         Disposer.dispose(parent)
 
-        assertTrue("Disposing the parent must close the tab's open VFS", vfsClosed)
         assertTrue("VFS stack must be cleared on dispose", tab.vfsStack.isEmpty())
+        PlatformTestUtil.waitWithEventsDispatching(
+            "Disposing the parent must close the tab's open VFS", { vfsClosed.get() }, 10,
+        )
     }
 
     fun testSingleTabAfterInit() {

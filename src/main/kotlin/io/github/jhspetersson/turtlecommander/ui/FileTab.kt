@@ -32,6 +32,7 @@ import io.github.jhspetersson.turtlecommander.operation.CdCommand
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.service.FileOperationService
 import io.github.jhspetersson.turtlecommander.service.ThumbnailCache
+import io.github.jhspetersson.turtlecommander.service.VfsCloseService
 import io.github.jhspetersson.turtlecommander.settings.ColumnConfig
 import io.github.jhspetersson.turtlecommander.settings.ResolvedStyle
 import io.github.jhspetersson.turtlecommander.settings.RuleIcons
@@ -42,14 +43,12 @@ import io.github.jhspetersson.turtlecommander.util.formatSize
 import io.github.jhspetersson.turtlecommander.util.formatSizeAuto
 import io.github.jhspetersson.turtlecommander.util.FileNameGlobMatcher
 import io.github.jhspetersson.turtlecommander.util.wrapAsSubstringGlobIfPlain
-import io.github.jhspetersson.turtlecommander.vfs.SharedVfsRegistry
 import io.github.jhspetersson.turtlecommander.vfs.System7z
 import io.github.jhspetersson.turtlecommander.vfs.System7zUnavailableException
 import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -1696,36 +1695,17 @@ class FileTab(
     override fun dispose() {
         renameClickTimer?.stop()
         stopDriveUpdates()
-        closeVfsStack()
+        closeVfsStackAsync()
     }
 
     /**
-     * Close every open VFS in the stack and delete their temp files **synchronously**. Used from
-     * [dispose]: the Disposable contract requires cleanup to be finished when dispose returns, so
-     * this can't be deferred to a coroutine (whose scope may be cancelling at teardown). For the
-     * mid-life "user left the archive" paths use [closeVfsStackAsync] instead.
-     */
-    internal fun closeVfsStack() {
-        for (entry in vfsStack.asReversed()) {
-            detachSharedVfs(entry)
-            try {
-                if (!SharedVfsRegistry.release(entry.vfs)) entry.vfs.close()
-            } catch (e: Exception) {
-                thisLogger().warn("Failed to close VFS ${entry.vfs.archivePath}: ${e.message}")
-            }
-            entry.cleanupTempFile()
-        }
-        vfsStack.clear()
-    }
-
-    /**
-     * Leave the archive mid-life (drive selection, breadcrumb click): empty the stack synchronously
-     * so the tab immediately reflects "left the archive", then close the handles off the EDT via
-     * [scheduleVfsClose]. Unlike [dispose], the tab keeps living.
+     * Leave the archive (drive selection, breadcrumb click, tab close via [dispose]): empty the
+     * stack synchronously so the tab immediately reflects "left the archive", then close the
+     * handles off the EDT via [scheduleVfsClose].
      */
     internal fun closeVfsStackAsync() {
         if (vfsStack.isEmpty()) return
-        val entries = vfsStack.toList()
+        val entries = vfsStack.asReversed().toList()
         vfsStack.clear()
         scheduleVfsClose(entries)
     }
@@ -1735,26 +1715,15 @@ class FileTab(
      * [vfsWriteMutex]. `close()` recursively deletes a potentially large temp tree — freezing the
      * EDT if done inline — and must not run while an in-flight write-back is flushing/copying
      * through the same stack, which would delete a temp dir mid-copy and raise
-     * `ClosedFileSystemException`/`NoSuchFileException`. [NonCancellable] keeps a scope shutdown
-     * from skipping the cleanup; anything still missed is swept by `VfsTempCleanup` on next start.
+     * `ClosedFileSystemException`/`NoSuchFileException`. The work runs in the application-level
+     * [VfsCloseService] scope rather than the project-scoped [fileOps] one so it still starts when
+     * [dispose] is called during project teardown; anything still missed is swept by
+     * `VfsTempCleanup` on next start.
      */
     internal fun scheduleVfsClose(entries: List<VfsStackEntry>) {
         if (entries.isEmpty()) return
-        fileOps.launch {
-            withContext(NonCancellable + Dispatchers.IO) {
-                vfsWriteMutex.withLock {
-                    for (entry in entries) {
-                        detachSharedVfs(entry)
-                        try {
-                            if (!SharedVfsRegistry.release(entry.vfs)) entry.vfs.close()
-                        } catch (e: Exception) {
-                            thisLogger().warn("Failed to close VFS ${entry.vfs.archivePath}: ${e.message}")
-                        }
-                        entry.cleanupTempFile()
-                    }
-                }
-            }
-        }
+        for (entry in entries) detachSharedVfs(entry)
+        service<VfsCloseService>().closeOffEdt(entries, vfsWriteMutex)
     }
 
     /** True when keyboard focus is inside any of the four view components owned by this tab. */
