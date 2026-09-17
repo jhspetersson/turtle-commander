@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.73] - 2026-09-17
+
 ### Fixed
 
 - Multi-Rename tool now correctly handles patterns with special characters on Windows
