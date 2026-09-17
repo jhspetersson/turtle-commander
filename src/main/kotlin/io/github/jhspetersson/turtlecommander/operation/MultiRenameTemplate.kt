@@ -1,5 +1,6 @@
 package io.github.jhspetersson.turtlecommander.operation
 
+import java.nio.file.InvalidPathException
 import java.nio.file.Path
 import java.nio.file.attribute.FileTime
 import java.time.Instant
@@ -469,11 +470,27 @@ object MultiRenameTemplate {
             val source = sources[i]
             val newName = targetNames[i]
             if (newName == source.fileName?.toString()) continue
-            val target = source.resolveSibling(newName)
+            val target = resolveTarget(source, newName)
+            if (target == null) {
+                conflicts.add(i)
+                continue
+            }
             if (pathKey(target, caseInsensitiveDuplicates) in vacated) continue
             if (existsOnDisk(target)) conflicts.add(i)
         }
         return conflicts
+    }
+
+    internal fun resolveTarget(source: Path, newName: String): Path? {
+        if (newName == "." || newName == "..") return null
+        val target = try {
+            source.resolveSibling(newName)
+        } catch (_: InvalidPathException) {
+            return null
+        }
+        if (target.parent != source.parent) return null
+        if (target.fileName?.toString() != newName) return null
+        return target
     }
 
     private fun pathKey(path: Path, caseInsensitive: Boolean): String {

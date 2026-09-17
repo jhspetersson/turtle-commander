@@ -20,6 +20,7 @@ import com.intellij.psi.PsiManager
 import io.github.jhspetersson.turtlecommander.dialog.*
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.operation.CombineFilesOperation
+import io.github.jhspetersson.turtlecommander.operation.MultiRenameTemplate
 import io.github.jhspetersson.turtlecommander.operation.SplitFileOperation
 import io.github.jhspetersson.turtlecommander.service.ArchiveService
 import io.github.jhspetersson.turtlecommander.service.OverwritePolicy
@@ -39,6 +40,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import java.awt.Desktop
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
@@ -1164,6 +1166,11 @@ private fun FileTab.runMultiRename(pairs: List<Pair<FileEntry, String>>) {
         val temps = mutableListOf<Triple<Path, Path, String>>() // original, tempPath, finalName
         try {
             withContext(Dispatchers.IO) {
+                for ((entry, finalName) in pairs) {
+                    if (MultiRenameTemplate.resolveTarget(entry.path, finalName) == null) {
+                        throw IOException("Invalid file name: $finalName")
+                    }
+                }
                 for ((entry, finalName) in pairs) {
                     val parent = entry.path.parent ?: continue
                     val temp = uniqueTemp(parent, entry.path.fileName.toString())

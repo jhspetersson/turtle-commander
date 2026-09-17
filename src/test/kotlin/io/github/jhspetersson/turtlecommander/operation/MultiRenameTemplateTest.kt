@@ -415,6 +415,43 @@ class MultiRenameTemplateTest {
     }
 
     @Test
+    fun `target name with a path separator is a conflict instead of a move into a subdirectory`() {
+        val base = Path.of("/tmp/work")
+        val sources = listOf(base.resolve("a.txt"), base.resolve("b.txt"), base.resolve("c.txt"))
+        val targets = listOf("sub/a.txt", "../b.txt", "/c.txt")
+        val conflicts = MultiRenameTemplate.detectConflicts(sources, targets, caseInsensitiveDuplicates = false) { false }
+        assertEquals(setOf(0, 1, 2), conflicts)
+    }
+
+    @Test
+    fun `dot and dot-dot target names are conflicts`() {
+        val base = Path.of("/tmp/work")
+        val sources = listOf(base.resolve("a.txt"), base.resolve("b.txt"))
+        val targets = listOf(".", "..")
+        val conflicts = MultiRenameTemplate.detectConflicts(sources, targets, caseInsensitiveDuplicates = false) { false }
+        assertEquals(setOf(0, 1), conflicts)
+    }
+
+    @Test
+    fun `target name the filesystem rejects is a conflict instead of throwing`() {
+        val base = Path.of("/tmp/work")
+        val sources = listOf(base.resolve("a.txt"), base.resolve("b.txt"))
+        val targets = listOf("a\u0000.txt", "ok.txt")
+        val conflicts = MultiRenameTemplate.detectConflicts(sources, targets, caseInsensitiveDuplicates = false) { false }
+        assertEquals(setOf(0), conflicts)
+    }
+
+    @Test
+    fun `Windows-illegal characters in target name are conflicts on Windows`() {
+        org.junit.Assume.assumeTrue(System.getProperty("os.name").startsWith("Windows"))
+        val base = Path.of("C:\\tmp\\work")
+        val sources = listOf("a", "b", "c", "d", "e", "f").map { base.resolve("$it.txt") }
+        val targets = listOf("a?.txt", "b*.txt", "c:d.txt", "d<e>.txt", "e|f.txt", "sub\\f.txt")
+        val conflicts = MultiRenameTemplate.detectConflicts(sources, targets, caseInsensitiveDuplicates = true) { false }
+        assertEquals(setOf(0, 1, 2, 3, 4, 5), conflicts)
+    }
+
+    @Test
     fun `splitBaseExt treats tar gz as single extension gz`() {
         // Simple rule: only the final segment after the last '.' is the extension.
         // Users who want to keep ".tar" in the base get it automatically.
