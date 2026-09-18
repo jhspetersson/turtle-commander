@@ -393,6 +393,15 @@ class FileManagerPanel(
         focusActiveTab()
     }
 
+    fun openArchiveEntryInNewTab(archivePath: Path, entryPath: String, entryIsDirectory: Boolean) {
+        val directory = if (entryIsDirectory) entryPath else entryPath.substringBeforeLast('/', "")
+        val selectName = if (entryIsDirectory) null else entryPath.substringAfterLast('/')
+        addNewTab(archivePath.parent ?: archivePath, archivePath.fileName?.toString()) { tab ->
+            tab.openArchive(archivePath, directory, selectName)
+        }
+        focusActiveTab()
+    }
+
     fun openSearchTab(criteria: FileSearchCriteria): SearchResultsPanel {
         val searchPanel = SearchResultsPanel(project, criteria)
         parentDisposable?.let { Disposer.register(it, searchPanel) }
@@ -435,6 +444,7 @@ class FileManagerPanel(
         selectName: String? = null,
         tabState: FileManagerStateService.TabState? = null,
         insertIndex: Int? = null,
+        afterNavigate: (suspend (FileTab) -> Unit)? = null,
     ) {
         val effectiveTabState = tabState ?: run {
             val active = getActiveTab() ?: return@run null
@@ -471,6 +481,7 @@ class FileManagerPanel(
         val fileOps = project.service<FileOperationService>()
         fileOps.launch {
             fileTab.navigateTo(path, selectName = selectName)
+            afterNavigate?.invoke(fileTab)
         }
     }
 

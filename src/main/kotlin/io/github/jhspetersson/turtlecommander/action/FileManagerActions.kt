@@ -353,24 +353,30 @@ class OpenInTurtleCommanderAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
     override fun update(e: AnActionEvent) {
-        e.presentation.isEnabledAndVisible = e.getData(CommonDataKeys.VIRTUAL_FILE) != null
+        e.presentation.isEnabledAndVisible = openTarget(e) != null
     }
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        val vf = e.getData(CommonDataKeys.VIRTUAL_FILE) ?: return
-        val path = Path.of(vf.path)
+        val target = openTarget(e) ?: return
 
         val toolWindow = ToolWindowManager.getInstance(project).getToolWindow("Turtle Commander") ?: return
         toolWindow.activate {
             val stateService = project.service<FileManagerStateService>()
             val panel = stateService.getActivePanel() ?: return@activate
-            if (vf.isDirectory) {
-                panel.openDirectoryInNewTab(path)
-            } else {
-                val dir = path.parent ?: return@activate
-                panel.openDirectoryInNewTab(dir, path.fileName.toString())
+            when (target) {
+                is OpenTarget.Local -> if (target.isDirectory) {
+                    panel.openDirectoryInNewTab(target.path)
+                } else {
+                    val dir = target.path.parent ?: return@activate
+                    panel.openDirectoryInNewTab(dir, target.path.fileName.toString())
+                }
+                is OpenTarget.ArchiveEntry ->
+                    panel.openArchiveEntryInNewTab(target.archivePath, target.entryPath, target.isDirectory)
             }
         }
     }
+
+    private fun openTarget(e: AnActionEvent): OpenTarget? =
+        e.getData(CommonDataKeys.VIRTUAL_FILE)?.let { OpenTarget.of(it) }
 }

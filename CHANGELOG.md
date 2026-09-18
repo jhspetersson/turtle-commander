@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- JDK runtime images can be browsed
+
+### Changed
+
+- "Open In → Turtle Commander" on a class or resource inside a library jar now opens the jar in the archive browser
+
 ## [0.7.73] - 2026-09-17
 
 ### Fixed

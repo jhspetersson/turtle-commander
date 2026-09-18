@@ -633,6 +633,7 @@ object VirtualFileSystemRegistry {
         register(ZstFileSystemProvider())
         register(CrxFileSystemProvider())
         register(JmodFileSystemProvider())
+        register(JrtFileSystemProvider())
         register(MsiFileSystemProvider())
         register(SquashfsFileSystemProvider())
         register(DiskImageFileSystemProvider())
