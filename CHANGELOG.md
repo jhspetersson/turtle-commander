@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.74] - 2026-09-18
+
 ### Added
 
 - JDK runtime images can be browsed
