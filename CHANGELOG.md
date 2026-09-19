@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.75] - 2026-09-19
+
 ### Fixed
 
 - Improved applying default values in settings UI
