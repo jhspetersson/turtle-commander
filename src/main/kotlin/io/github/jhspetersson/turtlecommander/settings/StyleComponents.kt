@@ -17,6 +17,10 @@ import io.github.jhspetersson.turtlecommander.ui.FAVORITE_PRESET_COLORS
 import java.awt.*
 import javax.swing.*
 
+private const val DEFAULT_SIZE_LABEL = "Default"
+private const val MIN_FONT_SIZE = 8
+private const val MAX_FONT_SIZE = 48
+
 internal class ComponentStyleEditor(
     val label: String,
     style: ComponentStyle,
@@ -55,7 +59,8 @@ internal class ComponentStyleEditor(
             }
         }
     }
-    val sizeSpinner = JSpinner(SpinnerNumberModel(13, 8, 48, 1)).apply {
+    /** Size spinner: [DEFAULT_SIZE_LABEL] (saved as 0, i.e. inherit the component's default size) or an explicit 8..48. */
+    val sizeSpinner = JSpinner(SpinnerListModel(listOf<Any>(DEFAULT_SIZE_LABEL) + (MIN_FONT_SIZE..MAX_FONT_SIZE).toList())).apply {
         preferredSize = Dimension(60, preferredSize.height)
     }
     val styleCombo = ComboBox(DefaultComboBoxModel(arrayOf("Plain", "Bold", "Italic", "Bold Italic")))
@@ -71,8 +76,8 @@ internal class ComponentStyleEditor(
     fun resetFrom(style: ComponentStyle, legacyFamily: String = "", legacySize: Int = 0) {
         val family = style.fontFamily.ifEmpty { legacyFamily }
         fontCombo.fontName = family.takeIf { it.isNotEmpty() }
-        val size = if (style.fontSize > 0) style.fontSize else if (legacySize > 0) legacySize else 13
-        sizeSpinner.value = size
+        val size = if (style.fontSize > 0) style.fontSize else legacySize
+        sizeSpinner.value = if (size > 0) size.coerceIn(MIN_FONT_SIZE, MAX_FONT_SIZE) else DEFAULT_SIZE_LABEL
         styleCombo.selectedIndex = when (style.fontStyle) {
             Font.BOLD -> 1
             Font.ITALIC -> 2
@@ -87,7 +92,7 @@ internal class ComponentStyleEditor(
 
     fun applyTo(style: ComponentStyle) {
         style.fontFamily = if (fontCombo.isNoFontSelected) "" else fontCombo.fontName.orEmpty()
-        style.fontSize = (sizeSpinner.value as? Number)?.toInt() ?: 0
+        style.fontSize = (sizeSpinner.value as? Number)?.toInt() ?: 0 // "Default" -> 0
         style.fontStyle = when (styleCombo.selectedIndex) {
             1 -> Font.BOLD
             2 -> Font.ITALIC
@@ -105,7 +110,7 @@ internal class ComponentStyleEditor(
         applyTo(tmp)
         val expected = ComponentStyle().apply {
             fontFamily = style.fontFamily.ifEmpty { legacyFamily }
-            fontSize = if (style.fontSize > 0) style.fontSize else if (legacySize > 0) legacySize else 13
+            fontSize = if (style.fontSize > 0) style.fontSize else legacySize
             fontStyle = style.fontStyle
             fontColor = style.fontColor
             backgroundColor = style.backgroundColor

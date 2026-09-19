@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Improved applying default values in settings UI
+
 ## [0.7.74] - 2026-09-18
 
 ### Added

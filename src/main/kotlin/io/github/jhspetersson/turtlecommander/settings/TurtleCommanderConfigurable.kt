@@ -827,7 +827,7 @@ class TurtleCommanderConfigurable : Configurable {
 
     private fun effectivePanelSize(settings: TurtleCommanderSettings.State): Int {
         val s = settings.styles.panelStyle.fontSize
-        return if (s > 0) s else if (settings.panelFontSize > 0) settings.panelFontSize else 13
+        return if (s > 0) s else settings.panelFontSize
     }
 
     private fun effectiveTabFamily(settings: TurtleCommanderSettings.State): String =
@@ -835,7 +835,7 @@ class TurtleCommanderConfigurable : Configurable {
 
     private fun effectiveTabSize(settings: TurtleCommanderSettings.State): Int {
         val s = settings.styles.tabStyle.fontSize
-        return if (s > 0) s else if (settings.tabFontSize > 0) settings.tabFontSize else 12
+        return if (s > 0) s else settings.tabFontSize
     }
 
     private fun getSelectedViewMode(): String {
