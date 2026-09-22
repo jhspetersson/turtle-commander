@@ -7,6 +7,7 @@ import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.fileChooser.FileChooserFactory
 import com.intellij.openapi.fileChooser.FileSaverDescriptor
 import com.intellij.openapi.options.Configurable
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBLabel
@@ -27,7 +28,7 @@ import javax.swing.*
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 
-class TurtleCommanderConfigurable : Configurable {
+class TurtleCommanderConfigurable(private val project: Project) : Configurable {
 
     private var highlightingCheckBox: JCheckBox? = null
     private var commandBarCheckBox: JCheckBox? = null
@@ -240,7 +241,7 @@ class TurtleCommanderConfigurable : Configurable {
         columnsEditor = colEditor
 
         // Favorites editor
-        val favEditor = FavoritesEditor()
+        val favEditor = FavoritesEditor(project)
         favoritesEditor = favEditor
 
         // Color rules editor

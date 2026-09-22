@@ -3,7 +3,7 @@ package io.github.jhspetersson.turtlecommander.settings
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
-import com.intellij.openapi.project.ProjectManager
+import com.intellij.openapi.project.Project
 import com.intellij.ui.SimpleColoredComponent
 import com.intellij.ui.components.JBList
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
@@ -11,7 +11,7 @@ import io.github.jhspetersson.turtlecommander.ui.favoriteIcon
 import java.awt.*
 import javax.swing.*
 
-internal class FavoritesEditor {
+internal class FavoritesEditor(private val project: Project) {
     private val listModel = DefaultListModel<FileManagerStateService.FavoriteEntry>()
     private val list: JBList<FileManagerStateService.FavoriteEntry>
     val panel: JPanel
@@ -29,7 +29,7 @@ internal class FavoritesEditor {
                     title = "Add Favorite"
                     description = "Select a directory to add to favorites"
                 }
-                val chosen = FileChooser.chooseFile(descriptor, null, null)
+                val chosen = FileChooser.chooseFile(descriptor, project, null)
                 if (chosen != null) {
                     listModel.addElement(FileManagerStateService.FavoriteEntry(chosen.path))
                 }
@@ -106,8 +106,7 @@ internal class FavoritesEditor {
     }
 
     fun isModified(): Boolean {
-        val currentProject = ProjectManager.getInstance().openProjects.firstOrNull() ?: return false
-        val stateService = currentProject.service<FileManagerStateService>()
+        val stateService = project.service<FileManagerStateService>()
         val saved = stateService.getFavoriteEntries()
         if (listModel.size() != saved.size) return true
         for (i in 0 until listModel.size()) {
@@ -119,8 +118,7 @@ internal class FavoritesEditor {
     }
 
     fun apply() {
-        val currentProject = ProjectManager.getInstance().openProjects.firstOrNull() ?: return
-        val stateService = currentProject.service<FileManagerStateService>()
+        val stateService = project.service<FileManagerStateService>()
         val newEntries = (0 until listModel.size()).map { listModel.getElementAt(it) }
         stateService.setFavoriteEntries(newEntries)
     }
@@ -131,8 +129,7 @@ internal class FavoritesEditor {
     }
 
     private fun loadFavorites() {
-        val currentProject = ProjectManager.getInstance().openProjects.firstOrNull() ?: return
-        val stateService = currentProject.service<FileManagerStateService>()
+        val stateService = project.service<FileManagerStateService>()
         stateService.getFavoriteEntries().forEach {
             listModel.addElement(FileManagerStateService.FavoriteEntry(it.path, it.color, it.icon))
         }

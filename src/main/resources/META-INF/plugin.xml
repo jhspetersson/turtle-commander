@@ -26,7 +26,7 @@
             id="Turtle Commander"
             displayType="BALLOON"
         />
-        <applicationConfigurable
+        <projectConfigurable
             parentId="tools"
             instance="io.github.jhspetersson.turtlecommander.settings.TurtleCommanderConfigurable"
             id="io.github.jhspetersson.turtlecommander.settings"

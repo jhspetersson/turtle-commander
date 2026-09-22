@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Favorites editor in Settings now edits the favorites of the project the dialog was opened from, not the first open project
+
 ## [0.7.75] - 2026-09-19
 
 ### Fixed
