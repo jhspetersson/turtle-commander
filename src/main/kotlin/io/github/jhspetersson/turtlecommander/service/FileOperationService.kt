@@ -523,7 +523,7 @@ class FileOperationService(
         // avoids duplicating the target's content (and cyclic-link loops).
         val linkOpts: Array<CopyOption> =
             if (nofollow) arrayOf(LinkOption.NOFOLLOW_LINKS, StandardCopyOption.COPY_ATTRIBUTES) else emptyArray()
-        if (!target.exists()) {
+        if (!Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
             Files.copy(source, target, *linkOpts)
             return TargetAction.OVERWRITE
         }
@@ -667,7 +667,7 @@ class FileOperationService(
         holder: PolicyHolder,
         onOverwriteConfirm: suspend (Path) -> OverwriteResponse,
     ): TargetAction {
-        if (!target.exists()) {
+        if (!Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
             crossFileSystemMove(source, target)
             return TargetAction.OVERWRITE
         }
