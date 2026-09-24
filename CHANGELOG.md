@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.77] - 2026-09-24
+
 ### Fixed
 
 - Copy/move onto a dangling symlink no longer fails with no overwrite prompt
