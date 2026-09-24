@@ -1,26 +1,19 @@
 package io.github.jhspetersson.turtlecommander.service
-import java.awt.Desktop
-import java.util.concurrent.CopyOnWriteArrayList
 
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
-import io.github.jhspetersson.turtlecommander.model.FileEntry
 import com.intellij.openapi.util.SystemInfo
-import io.github.jhspetersson.turtlecommander.util.DriveLabels
+import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.settings.ColorRuleManager
 import io.github.jhspetersson.turtlecommander.settings.RuleMatcher
 import io.github.jhspetersson.turtlecommander.settings.TextProperty
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
-import io.github.jhspetersson.turtlecommander.util.readFileGroup
-import io.github.jhspetersson.turtlecommander.util.isNamedPipe
-import io.github.jhspetersson.turtlecommander.util.readFileInode
-import io.github.jhspetersson.turtlecommander.util.readFileNlink
-import io.github.jhspetersson.turtlecommander.util.readFileOwner
-import io.github.jhspetersson.turtlecommander.util.readFilePermissions
+import io.github.jhspetersson.turtlecommander.util.*
 import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 import io.github.jhspetersson.turtlecommander.vfs.parentEntry
 import kotlinx.coroutines.*
+import java.awt.Desktop
 import java.io.File
 import java.io.IOException
 import java.nio.file.*
@@ -28,9 +21,11 @@ import java.nio.file.Files.walkFileTree
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.DosFileAttributes
 import java.nio.file.attribute.FileTime
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.io.path.exists
 import kotlin.io.path.isDirectory
 import kotlin.io.path.name
+import kotlin.time.Duration.Companion.milliseconds
 
 @Service(Service.Level.PROJECT)
 class FileOperationService(
@@ -963,7 +958,7 @@ class FileOperationService(
                     }
                 }
             }
-            delay(rootsPollIntervalMsForTesting ?: ROOTS_POLL_INTERVAL_MS)
+            delay((rootsPollIntervalMsForTesting ?: ROOTS_POLL_INTERVAL_MS).milliseconds)
         }
     }
 
