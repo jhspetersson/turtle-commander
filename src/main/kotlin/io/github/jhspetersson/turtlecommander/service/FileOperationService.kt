@@ -423,10 +423,26 @@ class FileOperationService(
 
     private fun targetIsInsideSource(source: Path, target: Path): Boolean =
         try {
-            target.toAbsolutePath().normalize().startsWith(source.toAbsolutePath().normalize())
+            resolveExistingPrefix(target).startsWith(resolveExistingPrefix(source))
         } catch (_: Exception) {
             false
         }
+
+    private fun resolveExistingPrefix(path: Path): Path {
+        val absolute = path.toAbsolutePath().normalize()
+        var existing = absolute
+        val missing = ArrayDeque<Path>()
+        while (!Files.exists(existing, LinkOption.NOFOLLOW_LINKS)) {
+            missing.addFirst(existing.fileName ?: return absolute)
+            existing = existing.parent ?: return absolute
+        }
+        val real = try {
+            existing.toRealPath()
+        } catch (_: Exception) {
+            existing
+        }
+        return missing.fold(real) { acc, name -> acc.resolve(name) }
+    }
 
     suspend fun copyFilesWithProgress(
         sources: List<Path>,

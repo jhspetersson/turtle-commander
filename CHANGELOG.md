@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed copying/moving files through cyclic symlinks
+
 ## [0.7.77] - 2026-09-24
 
 ### Fixed
