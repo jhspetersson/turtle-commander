@@ -456,6 +456,8 @@ class FileOperationService(
         var copiedCount = 0
         val holder = PolicyHolder(initialPolicy)
 
+        OpenVfsRegistry.materializeTreesIfNeeded(sources)
+
         loop@ for (source in sources) {
             if (isCancelled()) break
             val target = destination.resolve(source.name)
@@ -624,6 +626,8 @@ class FileOperationService(
     ): Unit = withContext(Dispatchers.IO) {
         var movedCount = 0
         val holder = PolicyHolder(initialPolicy)
+
+        OpenVfsRegistry.materializeTreesIfNeeded(sources)
 
         loop@ for (source in sources) {
             if (isCancelled()) break
@@ -1041,6 +1045,7 @@ class FileOperationService(
 
     private fun copyDirectoryRecursive(source: Path, target: Path) {
         val failures = mutableListOf<Pair<Path, Exception>>()
+        OpenVfsRegistry.materializeTreeIfNeeded(source)
         walkFileTree(source, object : SimpleFileVisitor<Path>() {
             override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
                 val relativePath = source.relativize(dir).toString()

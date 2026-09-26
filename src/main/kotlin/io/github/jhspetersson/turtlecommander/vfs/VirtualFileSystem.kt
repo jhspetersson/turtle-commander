@@ -45,6 +45,14 @@ interface VirtualFileSystem : Closeable {
     fun materialize(path: Path) {}
 
     /**
+     * Bulk form of [materialize]. The default loops, which suits indexed formats; stream-only
+     * formats override it to fill every stub in one pass over the archive.
+     */
+    fun materializeAll(paths: Collection<Path>) {
+        for (path in paths) materialize(path)
+    }
+
+    /**
      * Owner / group / permission metadata stored in the archive for the entry at [path], or
      * null when this VFS carries none (the temp-dir copy's own stat is meaningless — extraction
      * gives it the host umask, not the archive's recorded mode). Archive implementations that
@@ -109,18 +117,36 @@ object OpenVfsRegistry {
      * of its temp dir wholesale — after the move the stubs are no longer under any VFS root,
      * so per-file interception can never run for them again.
      */
-    fun materializeTreeIfNeeded(path: Path) {
-        val owner = instances.firstOrNull { it.owns(path) } ?: return
-        if (Files.isDirectory(path)) {
-            Files.walkFileTree(path, object : SimpleFileVisitor<Path>() {
-                override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
-                    owner.materialize(file)
-                    return FileVisitResult.CONTINUE
-                }
-            })
-        } else {
-            owner.materialize(path)
+    fun materializeTreeIfNeeded(path: Path) = materializeTreesIfNeeded(listOf(path))
+
+    /** Bulk form of [materializeIfNeeded]: one [VirtualFileSystem.materializeAll] call per owning VFS. */
+    fun materializeAllIfNeeded(paths: Collection<Path>) {
+        if (paths.isEmpty()) return
+        val byOwner = LinkedHashMap<VirtualFileSystem, MutableList<Path>>()
+        for (path in paths) {
+            val owner = instances.firstOrNull { it.owns(path) } ?: continue
+            byOwner.getOrPut(owner) { mutableListOf() }.add(path)
         }
+        for ((owner, group) in byOwner) owner.materializeAll(group)
+    }
+
+    /** Like [materializeAllIfNeeded], but directories contribute every file beneath them. */
+    fun materializeTreesIfNeeded(paths: Collection<Path>) {
+        val files = mutableListOf<Path>()
+        for (path in paths) {
+            if (instances.none { it.owns(path) }) continue
+            if (Files.isDirectory(path)) {
+                Files.walkFileTree(path, object : SimpleFileVisitor<Path>() {
+                    override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                        files.add(file)
+                        return FileVisitResult.CONTINUE
+                    }
+                })
+            } else {
+                files.add(path)
+            }
+        }
+        materializeAllIfNeeded(files)
     }
 }
 

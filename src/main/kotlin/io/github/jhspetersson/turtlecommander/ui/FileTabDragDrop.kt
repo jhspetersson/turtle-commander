@@ -168,10 +168,12 @@ internal class FileEntryTransferable(
     private fun exportFiles(indicator: ProgressIndicator?): List<File> {
         var tempDir: Path? = null
         val progress = ExportProgress(indicator, countExportSteps())
+        OpenVfsRegistry.materializeTreesIfNeeded(
+            entries.filter { it.path.fileSystem == FileSystems.getDefault() }.map { it.path }
+        )
         return entries.map { entry ->
             if (entry.path.fileSystem == FileSystems.getDefault()) {
                 progress.step(entry.name)
-                OpenVfsRegistry.materializeTreeIfNeeded(entry.path)
                 entry.path.toFile()
             } else {
                 val dir = tempDir ?: createDndTempDir().also { tempDir = it }

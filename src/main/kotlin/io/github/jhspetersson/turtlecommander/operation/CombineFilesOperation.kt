@@ -89,6 +89,7 @@ object CombineFilesOperation {
         var cancelled = false
         val buffer = ByteArray(BUFFER_SIZE)
 
+        OpenVfsRegistry.materializeAllIfNeeded(chunkFiles)
         val tmp = Files.createTempFile(targetFile.toAbsolutePath().parent, ".tc-combining-", ".tmp")
         try {
             BufferedOutputStream(Files.newOutputStream(tmp), BUFFER_SIZE).use { output ->

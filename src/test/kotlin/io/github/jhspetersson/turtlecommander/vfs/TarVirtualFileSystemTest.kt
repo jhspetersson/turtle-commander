@@ -184,6 +184,30 @@ class TarVirtualFileSystemTest {
     }
 
     @Test
+    fun `materializeAll fills every stub in a single pass`() = runBlocking {
+        var opens = 0
+        val counting = TarVirtualFileSystem(
+            tarPath,
+            inputStreamFactory = { opens++; Files.newInputStream(it) },
+            outputStreamFactory = { Files.newOutputStream(it) },
+        )
+        counting.use { vfs ->
+            val hello = vfs.root.resolve("mydir/hello.txt")
+            val root = vfs.root.resolve("root.txt")
+            assertEquals(1, opens)
+
+            vfs.materializeAll(listOf(hello, root, vfs.root.resolve("mydir")))
+            assertEquals(2, opens)
+            assertEquals("Hello from tar", Files.readString(hello))
+            assertEquals("Root file", Files.readString(root))
+
+            vfs.materializeAll(listOf(hello, root))
+            vfs.materialize(hello)
+            assertEquals(2, opens)
+        }
+    }
+
+    @Test
     fun `rename repacks the original bytes, not the stub`() = runBlocking {
         // renameFile moves the stub and repacks while everything is still pending — the
         // repacked archive must carry the real bytes for both the renamed entry and its

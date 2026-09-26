@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Optimized read operations for all flavors of `.tar` archives
+
 ## [0.7.78] - 2026-09-25
 
 ### Fixed

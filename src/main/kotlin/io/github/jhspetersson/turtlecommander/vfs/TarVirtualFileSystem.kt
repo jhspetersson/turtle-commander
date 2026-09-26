@@ -45,8 +45,9 @@ class TarFileSystemProvider : VirtualFileSystemProvider {
  * entry headers once and writes only sparse size-correct stubs; real bytes land on a stub
  * when something reads it. Tar has no random-access index, so a single [materialize]
  * re-streams the archive up to the entry (identified by its ordinal, which is immune to
- * duplicate names), and [materializeAllForRepack] fills every remaining stub in one pass
- * before [repack] overwrites the archive. Symlinks and hard links are resolved eagerly at
+ * duplicate names), while [materializeAll] fills any number of stubs in one pass — bulk
+ * consumers (copy/move/extract/pack) go through it, and [repack] uses it to fill every
+ * remaining stub before overwriting the archive. Symlinks and hard links are resolved eagerly at
  * open: they carry no body, and a hard link created against a stub inode would keep
  * pointing at the zeros after the target's atomic replacement.
  */
@@ -199,34 +200,73 @@ class TarVirtualFileSystem(
      * replacing the sparse stub. A no-op if [path] isn't pending — and a deliberate no-op
      * (record dropped) when the stub was overwritten or deleted by an external write.
      * Tar has no index, so this costs one pass over the archive (decompressing it for the
-     * `.tar.gz` family); the open-time saving still wins unless every entry is read.
+     * `.tar.gz` family); anything touching many entries must use [materializeAll] instead.
      */
     @Synchronized
     override fun materialize(path: Path) {
-        val normalized = path.normalize()
-        val pending = pendingEntries[normalized] ?: return
+        val byOrdinal = pendingOrdinals(listOf(path))
+        if (byOrdinal.isEmpty()) return
         try {
-            inputStreamFactory(archivePath).use { raw ->
-                TarArchiveInputStream(raw).use { tar ->
-                    var ordinal = -1
-                    var entry = tar.nextEntry
-                    while (entry != null) {
-                        ordinal++
-                        if (ordinal == pending.ordinal) {
-                            materializeFromCurrentEntry(normalized, tar)
-                            return
-                        }
-                        entry = tar.nextEntry
-                    }
+            streamPending(byOrdinal) { pending, tar -> materializeFromCurrentEntry(pending, tar) }
+        } catch (e: Exception) {
+            thisLogger().warn("Failed to materialize tar entry ${path.normalize()}: ${e.message}")
+            throw e
+        }
+    }
+
+    /**
+     * Fill every pending stub among [paths] in a single pass over the archive. Best-effort:
+     * an entry whose bytes can't be copied — or every entry after the stream dies — stays
+     * pending, so a later per-file [materialize] retries it and surfaces the error to that
+     * file's caller.
+     */
+    @Synchronized
+    override fun materializeAll(paths: Collection<Path>) {
+        val byOrdinal = pendingOrdinals(paths)
+        if (byOrdinal.isEmpty()) return
+        try {
+            streamPending(byOrdinal) { path, tar ->
+                try {
+                    materializeFromCurrentEntry(path, tar)
+                } catch (e: Exception) {
+                    thisLogger().warn("Failed to materialize tar entry $path: ${e.message}")
                 }
             }
-            // Stream ended before the recorded ordinal: the archive shrank underneath us.
-            // Drop the record so a repack omits the stub instead of writing zeros.
-            thisLogger().warn("Tar entry vanished from $archivePath, dropping stub: $normalized")
-            pendingEntries.remove(normalized)
         } catch (e: Exception) {
-            thisLogger().warn("Failed to materialize tar entry $normalized: ${e.message}")
-            throw e
+            thisLogger().warn("Bulk tar materialisation failed for $archivePath: ${e.message}")
+        }
+    }
+
+    private fun pendingOrdinals(paths: Collection<Path>): MutableMap<Int, Path> {
+        val byOrdinal = HashMap<Int, Path>()
+        for (path in paths) {
+            val normalized = path.normalize()
+            val pending = pendingEntries[normalized] ?: continue
+            byOrdinal[pending.ordinal] = normalized
+        }
+        return byOrdinal
+    }
+
+    /**
+     * One pass over the archive, handing each entry whose ordinal is in [byOrdinal] to
+     * [body]. An entry the stream never reaches (the archive shrank underneath us) has its
+     * record dropped so a repack omits the stub instead of writing zeros.
+     */
+    private fun streamPending(byOrdinal: MutableMap<Int, Path>, body: (Path, TarArchiveInputStream) -> Unit) {
+        inputStreamFactory(archivePath).use { raw ->
+            TarArchiveInputStream(raw).use { tar ->
+                var ordinal = -1
+                var entry = tar.nextEntry
+                while (entry != null && byOrdinal.isNotEmpty()) {
+                    ordinal++
+                    byOrdinal.remove(ordinal)?.let { body(it, tar) }
+                    entry = tar.nextEntry
+                }
+            }
+        }
+        for (path in byOrdinal.values) {
+            thisLogger().warn("Tar entry vanished from $archivePath, dropping stub: $path")
+            pendingEntries.remove(path)
         }
     }
 
@@ -274,42 +314,15 @@ class TarVirtualFileSystem(
     }
 
     /**
-     * Fill every still-pending stub in a single pass over the archive before [repack]
-     * overwrites it. Entries whose bytes can't be read (or that the stream no longer
-     * reaches) are dropped from the temp dir — and thus from the repacked archive — the
-     * same outcome the eager extractor produced for unextractable entries.
+     * Fill every still-pending stub before [repack] overwrites the archive; entries that
+     * still couldn't be read are dropped from the temp dir and thus from the repacked archive.
      */
     @Synchronized
     private fun materializeAllForRepack() {
         if (pendingEntries.isEmpty()) return
-        val byOrdinal = HashMap<Int, Path>()
-        for ((path, pending) in pendingEntries) byOrdinal[pending.ordinal] = path
-        try {
-            inputStreamFactory(archivePath).use { raw ->
-                TarArchiveInputStream(raw).use { tar ->
-                    var ordinal = -1
-                    var entry = tar.nextEntry
-                    while (entry != null && byOrdinal.isNotEmpty()) {
-                        ordinal++
-                        val path = byOrdinal.remove(ordinal)
-                        if (path != null) {
-                            try {
-                                materializeFromCurrentEntry(path, tar)
-                            } catch (e: Exception) {
-                                thisLogger().warn("Dropping unreadable tar entry from repack: $path (${e.message})")
-                                runCatching { Files.deleteIfExists(path) }
-                                pendingEntries.remove(path)
-                            }
-                        }
-                        entry = tar.nextEntry
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            thisLogger().warn("Bulk tar materialisation failed for $archivePath: ${e.message}")
-        }
-        for (path in byOrdinal.values) {
-            thisLogger().warn("Dropping unreachable tar entry from repack: $path")
+        materializeAll(pendingEntries.keys.toList())
+        for (path in pendingEntries.keys.toList()) {
+            thisLogger().warn("Dropping unreadable tar entry from repack: $path")
             runCatching { Files.deleteIfExists(path) }
             pendingEntries.remove(path)
         }

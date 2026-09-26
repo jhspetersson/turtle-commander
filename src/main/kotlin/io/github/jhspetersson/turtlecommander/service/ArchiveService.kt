@@ -72,6 +72,7 @@ class ArchiveService {
             // "packed" means. We count files only — directory entries are created implicitly by
             // walkFileTree and are not interesting to the user as progress ticks.
             var successCount = 0
+            OpenVfsRegistry.materializeTreesIfNeeded(sourcePaths)
             FileSystems.newFileSystem(uri, env).use { zipFs ->
                 for (source in sourcePaths) {
                     if (isCancelled()) break
@@ -136,6 +137,7 @@ class ArchiveService {
     ): Int {
         return withContext(Dispatchers.IO) {
             var successCount = 0
+            OpenVfsRegistry.materializeTreesIfNeeded(sourcePaths)
             BufferedOutputStream(Files.newOutputStream(archivePath)).use { fos ->
                 GZIPOutputStream(fos).use { gzos ->
                     TarOutputStream(gzos).use { tarOs ->
@@ -340,6 +342,7 @@ class ArchiveService {
                         return FileVisitResult.CONTINUE
                     }
                 })
+                vfs.materializeAll(entries.filter { !it.isDirectory }.map { it.sourcePath })
                 loop@ for ((sourcePath, relativePath, isDirectory) in entries) {
                     if (isCancelled()) break
                     if (isDirectory) {

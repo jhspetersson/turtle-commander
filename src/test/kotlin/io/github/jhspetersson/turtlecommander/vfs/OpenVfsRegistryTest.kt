@@ -71,6 +71,39 @@ class OpenVfsRegistryTest {
     }
 
     @Test
+    fun `materializeAllIfNeeded batches paths per owning VFS and skips outsiders`() {
+        val vfsA = newVfs("open-vfs-reg-a-")
+        val vfsB = newVfs("open-vfs-reg-b-")
+        val a1 = vfsA.root.resolve("a1.txt").also { Files.createFile(it) }
+        val a2 = vfsA.root.resolve("a2.txt").also { Files.createFile(it) }
+        val b1 = vfsB.root.resolve("b1.txt").also { Files.createFile(it) }
+        val outside = Files.createTempFile("not-in-any-vfs-", ".tmp")
+        try {
+            OpenVfsRegistry.materializeAllIfNeeded(listOf(a1, b1, outside, a2))
+            assertEquals(listOf(listOf(a1, a2)), vfsA.batches)
+            assertEquals(listOf(listOf(b1)), vfsB.batches)
+        } finally {
+            Files.deleteIfExists(outside)
+        }
+    }
+
+    @Test
+    fun `materializeTreesIfNeeded collects files under directories into one batch`() {
+        val vfs = newVfs()
+        val dir = vfs.root.resolve("dir")
+        val nested = dir.resolve("sub/nested.txt")
+        Files.createDirectories(nested.parent)
+        Files.createFile(nested)
+        val top = dir.resolve("top.txt").also { Files.createFile(it) }
+        val loose = vfs.root.resolve("loose.txt").also { Files.createFile(it) }
+
+        OpenVfsRegistry.materializeTreesIfNeeded(listOf(dir, loose))
+
+        assertEquals(1, vfs.batches.size)
+        assertEquals(setOf(nested, top, loose), vfs.batches.single().toSet())
+    }
+
+    @Test
     fun `unregister stops dispatch even when the directory still exists on disk`() {
         val vfs = newVfs()
         val inside = vfs.root.resolve("x.txt").also { Files.createFile(it) }
@@ -101,6 +134,7 @@ class OpenVfsRegistryTest {
     private class RecordingVfs(override val root: Path) : VirtualFileSystem {
         val materializeCount = AtomicInteger(0)
         var lastMaterializedPath: Path? = null
+        val batches = mutableListOf<List<Path>>()
 
         override val archivePath: Path get() = root
         override val isReadOnly: Boolean get() = true
@@ -115,6 +149,10 @@ class OpenVfsRegistryTest {
         override fun materialize(path: Path) {
             materializeCount.incrementAndGet()
             lastMaterializedPath = path
+        }
+
+        override fun materializeAll(paths: Collection<Path>) {
+            batches.add(paths.toList())
         }
     }
 }
