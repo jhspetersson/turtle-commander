@@ -435,7 +435,7 @@ internal fun FileTab.performSplitFile() {
     val dialog = SplitFileDialog(project, entry.name, entry.size, otherPath)
     if (!dialog.showAndGet()) return
 
-    val targetDir = Path.of(dialog.targetDirectory)
+    val targetDir = resolveDestinationPath(dialog.targetDirectory, currentPath)
     val chunkSize = if (dialog.isSplitBySize) {
         dialog.chunkSize
     } else {
@@ -550,7 +550,7 @@ internal fun FileTab.performCombineFiles() {
         } ?: return@launch
         val (targetDirString, finalTargetFileName) = dialogChoice
 
-        val targetDir = Path.of(targetDirString)
+        val targetDir = resolveDestinationPath(targetDirString, currentPath)
         try {
             withContext(Dispatchers.IO) { Files.createDirectories(targetDir) }
         } catch (e: Exception) {
@@ -779,10 +779,7 @@ internal fun FileTab.performExtract() {
     val dialog = ExtractDialog(project, selected, destination.toString())
     if (!dialog.showAndGet()) return
 
-    var destPath = Path.of(dialog.destinationPath)
-    if (!destPath.isAbsolute) {
-        destPath = currentPath.resolve(destPath)
-    }
+    val destPath = resolveDestinationPath(dialog.destinationPath, currentPath)
     if (rejectReadOnlyExtractDestination(destPath)) return
 
     extractArchives(selected.map { it.path }, destPath, dialog.policy)
@@ -816,10 +813,7 @@ internal fun FileTab.performExtractToSubdir() {
     val dialog = ExtractDialog(project, selected, destination.toString())
     if (!dialog.showAndGet()) return
 
-    var destPath = Path.of(dialog.destinationPath)
-    if (!destPath.isAbsolute) {
-        destPath = currentPath.resolve(destPath)
-    }
+    val destPath = resolveDestinationPath(dialog.destinationPath, currentPath)
     if (rejectReadOnlyExtractDestination(destPath)) return
 
     extractArchives(selected.map { it.path }, destPath, dialog.policy)
@@ -1332,4 +1326,9 @@ private suspend fun askOverwriteConfirm(path: Path): OverwriteResponse {
             else -> OverwriteResponse.CANCEL
         }
     }
+}
+
+internal fun resolveDestinationPath(input: String, base: Path): Path {
+    val path = Path.of(input.trim())
+    return if (path.isAbsolute) path else base.resolve(path)
 }

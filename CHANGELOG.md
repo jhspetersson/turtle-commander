@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Improve Split/Combine operations with relative paths
+
 ## [0.7.79] - 2026-09-26
 
 ### Fixed
