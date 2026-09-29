@@ -1,6 +1,7 @@
 package io.github.jhspetersson.turtlecommander.ui
 
 import com.intellij.icons.AllIcons
+import com.intellij.ide.ui.laf.darcula.ui.DarculaTabbedPaneUI
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBTabbedPane
 import com.intellij.util.ui.JBUI
@@ -21,6 +22,53 @@ internal class DriveComboRenderer : DefaultListCellRenderer() {
         val display = DriveLabels.getDisplayText(value as? String ?: "")
         return super.getListCellRendererComponent(list, display, index, isSelected, cellHasFocus)
     }
+}
+
+internal class ReservedTabAreaTabbedPane : JBTabbedPane() {
+    var tabAreaRightReserve: (() -> Int)? = null
+
+    override fun updateUI() {
+        super.updateUI()
+        setUI(ReservedTabAreaUI())
+    }
+
+    private class ReservedTabAreaUI : DarculaTabbedPaneUI() {
+        override fun getTabAreaInsets(tabPlacement: Int): Insets {
+            val insets = super.getTabAreaInsets(tabPlacement)
+            if (tabPlacement != TOP && tabPlacement != BOTTOM) return insets
+            val reserve = (tabPane as? ReservedTabAreaTabbedPane)?.tabAreaRightReserve?.invoke() ?: 0
+            if (reserve <= 0) return insets
+            return Insets(insets.top, insets.left, insets.bottom, insets.right + reserve)
+        }
+    }
+}
+
+internal class TabbedPaneMouseForwarder(
+    private val tabbedPane: JTabbedPane,
+    private val forwardButtons: Boolean,
+) : MouseAdapter() {
+    fun install(vararg components: Component) {
+        for (component in components) {
+            component.addMouseListener(this)
+            component.addMouseMotionListener(this)
+        }
+    }
+
+    private fun forward(e: MouseEvent) {
+        tabbedPane.dispatchEvent(SwingUtilities.convertMouseEvent(e.component, e, tabbedPane))
+    }
+
+    private fun forwardButton(e: MouseEvent) {
+        if (forwardButtons) forward(e)
+    }
+
+    override fun mousePressed(e: MouseEvent) = forwardButton(e)
+    override fun mouseReleased(e: MouseEvent) = forwardButton(e)
+    override fun mouseClicked(e: MouseEvent) = forwardButton(e)
+    override fun mouseDragged(e: MouseEvent) = forwardButton(e)
+    override fun mouseEntered(e: MouseEvent) = forward(e)
+    override fun mouseExited(e: MouseEvent) = forward(e)
+    override fun mouseMoved(e: MouseEvent) = forward(e)
 }
 
 internal class DraggableTabbedPaneWrapper(

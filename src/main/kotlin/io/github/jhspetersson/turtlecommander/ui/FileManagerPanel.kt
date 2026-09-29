@@ -8,7 +8,6 @@ import com.intellij.openapi.actionSystem.ActionPlaces
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
-import com.intellij.ui.components.JBTabbedPane
 import com.intellij.util.ui.JBUI
 import io.github.jhspetersson.turtlecommander.action.TabContextMenuState
 import io.github.jhspetersson.turtlecommander.dialog.FileSearchCriteria
@@ -28,7 +27,7 @@ class FileManagerPanel(
     private val otherPanelPathProvider: () -> Path?,
 ) : JPanel(BorderLayout()) {
 
-    private val tabbedPane = JBTabbedPane()
+    private val tabbedPane = ReservedTabAreaTabbedPane()
     private val defaultTabFont by lazy { tabbedPane.font }
     private val defaultTabBg = UIManager.getColor("TabbedPane.background")
     private val addTabPlaceholder = JPanel()
@@ -184,6 +183,7 @@ class FileManagerPanel(
             add(Box.createHorizontalStrut(12))
             add(nestedFilesButton)
         }
+        tabbedPane.tabAreaRightReserve = { viewTogglePanel.preferredSize.width }
 
         nestedFilesButton.addActionListener {
             getActiveTab()?.setShowAllNestedFiles(nestedFilesButton.isSelected)
@@ -436,6 +436,7 @@ class FileManagerPanel(
         panel.add(label, BorderLayout.CENTER)
         val closeButton = TabCloseButton { closeSearchTab(searchPanel) }
         panel.add(closeButton, BorderLayout.EAST)
+        installHeaderForwarding(panel, label, closeButton)
         return panel
     }
 
@@ -499,33 +500,19 @@ class FileManagerPanel(
         applyTabStyleToHeader(panel, label)
         panel.add(label, BorderLayout.CENTER)
 
-        val forwarder = object : MouseAdapter() {
-            private fun forward(e: MouseEvent) {
-                val converted = SwingUtilities.convertMouseEvent(e.component, e, tabbedPane)
-                tabbedPane.dispatchEvent(converted)
-            }
-            override fun mousePressed(e: MouseEvent) = forward(e)
-            override fun mouseReleased(e: MouseEvent) = forward(e)
-            override fun mouseClicked(e: MouseEvent) = forward(e)
-        }
-        panel.addMouseListener(forwarder)
-        label.addMouseListener(forwarder)
-        val motionForwarder = object : MouseMotionAdapter() {
-            override fun mouseDragged(e: MouseEvent) {
-                val converted = SwingUtilities.convertMouseEvent(e.component, e, tabbedPane)
-                tabbedPane.dispatchEvent(converted)
-            }
-        }
-        panel.addMouseMotionListener(motionForwarder)
-        label.addMouseMotionListener(motionForwarder)
-
         val closeButton = TabCloseButton {
             val idx = tabbedPane.indexOfComponent(fileTab)
             if (idx >= 0) closeTab(idx)
         }
         panel.add(closeButton, BorderLayout.EAST)
+        installHeaderForwarding(panel, label, closeButton)
 
         return panel
+    }
+
+    private fun installHeaderForwarding(panel: JPanel, label: JLabel, closeButton: TabCloseButton) {
+        TabbedPaneMouseForwarder(tabbedPane, forwardButtons = true).install(panel, label)
+        TabbedPaneMouseForwarder(tabbedPane, forwardButtons = false).install(closeButton)
     }
 
     private fun applyTabStyleToHeader(panel: JPanel, label: JLabel) {
