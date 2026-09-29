@@ -188,11 +188,10 @@ class SearchResultsPanel(
     }
 
     private fun moveTableSelection(offset: Int) {
+        if (table.rowCount == 0) return
         val next = (table.selectedRow + offset).coerceIn(0, table.rowCount - 1)
-        if (next >= 0) {
-            table.setRowSelectionInterval(next, next)
-            table.scrollRectToVisible(table.getCellRect(next, 0, true))
-        }
+        table.setRowSelectionInterval(next, next)
+        table.scrollRectToVisible(table.getCellRect(next, 0, true))
     }
 
     fun showQuickFilter() {

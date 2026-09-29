@@ -1162,36 +1162,28 @@ class FileTab(
     internal fun moveSelection(offset: Int) {
         when (viewMode) {
             ViewMode.TABLE -> {
-                val current = table.selectedRow
-                val next = (current + offset).coerceIn(0, table.rowCount - 1)
-                if (next >= 0) {
-                    table.setRowSelectionInterval(next, next)
-                    table.scrollRectToVisible(table.getCellRect(next, 0, true))
-                }
+                if (table.rowCount == 0) return
+                val next = (table.selectedRow + offset).coerceIn(0, table.rowCount - 1)
+                table.setRowSelectionInterval(next, next)
+                table.scrollRectToVisible(table.getCellRect(next, 0, true))
             }
             ViewMode.LIST -> {
-                val current = list.selectedIndex
-                val next = (current + offset).coerceIn(0, listModel.size() - 1)
-                if (next >= 0) {
-                    list.selectedIndex = next
-                    list.ensureIndexIsVisible(next)
-                }
+                if (listModel.size() == 0) return
+                val next = (list.selectedIndex + offset).coerceIn(0, listModel.size() - 1)
+                list.selectedIndex = next
+                list.ensureIndexIsVisible(next)
             }
             ViewMode.THUMBNAIL -> {
-                val current = thumbnailList.selectedIndex
-                val next = (current + offset).coerceIn(0, thumbnailListModel.size() - 1)
-                if (next >= 0) {
-                    thumbnailList.selectedIndex = next
-                    thumbnailList.ensureIndexIsVisible(next)
-                }
+                if (thumbnailListModel.size() == 0) return
+                val next = (thumbnailList.selectedIndex + offset).coerceIn(0, thumbnailListModel.size() - 1)
+                thumbnailList.selectedIndex = next
+                thumbnailList.ensureIndexIsVisible(next)
             }
             ViewMode.TREE -> {
-                val current = tree.leadSelectionRow
-                val next = (current + offset).coerceIn(0, tree.rowCount - 1)
-                if (next >= 0) {
-                    tree.setSelectionRow(next)
-                    tree.scrollRowToVisible(next)
-                }
+                if (tree.rowCount == 0) return
+                val next = (tree.leadSelectionRow + offset).coerceIn(0, tree.rowCount - 1)
+                tree.setSelectionRow(next)
+                tree.scrollRowToVisible(next)
             }
         }
     }
