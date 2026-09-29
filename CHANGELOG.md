@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.81] - 2026-09-29
+
 ### Fixed
 
 - Fixed selecting files on an empty panel
