@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.82] - 2026-10-05
+
 ### Fixed
 
 - Tab headers no more overlap view mode buttons
