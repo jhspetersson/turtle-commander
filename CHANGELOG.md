@@ -7,6 +7,7 @@
 ### Fixed
 
 - Tab headers no more overlap view mode buttons
+- Deleting or moving a Windows junction no longer wipes or drains the directory it points to
 
 ## [0.7.81] - 2026-09-29
 

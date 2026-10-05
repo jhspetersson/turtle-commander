@@ -640,8 +640,7 @@ class FileOperationService(
                 // A symlink to a directory must be moved as the link node itself —
                 // isDirectory() follows the link, and recursing through it would move the
                 // *target's* contents and leave the linked directory drained.
-                val sourceIsLink = Files.isSymbolicLink(source)
-                if (source.isDirectory() && !sourceIsLink) {
+                if (isTraversableDirectory(source)) {
                     // Enumerate every entry under [source] up-front and move them one
                     // by one so each file ticks the progress bar — the historical
                     // single-call Files.move(REPLACE_EXISTING) on a directory only
@@ -731,8 +730,7 @@ class FileOperationService(
                     val entryTarget = target.resolve(entry.name)
                     // Same symlink guard as the top-level loop: recurse only into real
                     // directories, move link nodes as files.
-                    val entryIsLink = Files.isSymbolicLink(entry)
-                    if (entry.isDirectory() && !entryIsLink) {
+                    if (isTraversableDirectory(entry)) {
                         val sub = moveDirectoryWithProgress(
                             entry, entryTarget, movedCount, holder,
                             onProgress, onOverwriteConfirm, onError, isCancelled,
@@ -820,11 +818,18 @@ class FileOperationService(
         for (path in paths) {
             if (isCancelled()) break
             try {
-                if (path.isDirectory()) {
+                if (isTraversableDirectory(path)) {
                     // Collect the file tree first to avoid runBlocking inside walkFileTree callbacks
                     val entries = mutableListOf<Path>()
                     val walkErrors = mutableListOf<Pair<Path, IOException>>()
                     walkFileTree(path, object : SimpleFileVisitor<Path>() {
+                        override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
+                            if (attrs.isOther) {
+                                entries.add(dir)
+                                return FileVisitResult.SKIP_SUBTREE
+                            }
+                            return FileVisitResult.CONTINUE
+                        }
                         override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                             entries.add(file)
                             return FileVisitResult.CONTINUE
@@ -1128,8 +1133,27 @@ class FileOperationService(
         }
     }
 
+    private fun isTraversableDirectory(path: Path): Boolean {
+        val attrs = runCatching {
+            Files.readAttributes(path, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+        }.getOrNull() ?: return false
+        return attrs.isDirectory && !attrs.isOther
+    }
+
     private fun deleteDirectoryRecursive(path: Path) {
+        if (!isTraversableDirectory(path)) {
+            Files.deleteIfExists(path)
+            return
+        }
         walkFileTree(path, object : SimpleFileVisitor<Path>() {
+            override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
+                if (attrs.isOther) {
+                    Files.delete(dir)
+                    return FileVisitResult.SKIP_SUBTREE
+                }
+                return FileVisitResult.CONTINUE
+            }
+
             override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                 Files.delete(file)
                 return FileVisitResult.CONTINUE
