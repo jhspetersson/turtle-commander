@@ -5,7 +5,6 @@ import com.intellij.testFramework.TestActionEvent
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
-import java.awt.GraphicsEnvironment
 import java.awt.datatransfer.DataFlavor
 import java.nio.file.Path
 import java.nio.file.attribute.FileTime
@@ -125,7 +124,6 @@ class CopyAsActionsTest : BasePlatformTestCase() {
     // --- File context: clipboard ---
 
     fun testCopyAsNameCopiesToClipboard() {
-        if (GraphicsEnvironment.isHeadless()) return
         FileContextMenuState.clickedEntry = fileEntry("hello.txt")
         val action = CopyAsNameAction()
         action.actionPerformed(TestActionEvent.createTestEvent(action))
@@ -133,7 +131,6 @@ class CopyAsActionsTest : BasePlatformTestCase() {
     }
 
     fun testCopyAsFullPathCopiesToClipboard() {
-        if (GraphicsEnvironment.isHeadless()) return
         FileContextMenuState.clickedEntry = fileEntry("hello.txt", "/home/user")
         val action = CopyAsFullPathAction()
         action.actionPerformed(TestActionEvent.createTestEvent(action))
@@ -141,7 +138,6 @@ class CopyAsActionsTest : BasePlatformTestCase() {
     }
 
     fun testCopyAsParentPathCopiesToClipboard() {
-        if (GraphicsEnvironment.isHeadless()) return
         FileContextMenuState.clickedEntry = fileEntry("hello.txt", "/home/user")
         val action = CopyAsParentPathAction()
         action.actionPerformed(TestActionEvent.createTestEvent(action))
@@ -245,7 +241,6 @@ class CopyAsActionsTest : BasePlatformTestCase() {
     // --- Search context: clipboard ---
 
     fun testSearchCopyAsNameCopiesToClipboard() {
-        if (GraphicsEnvironment.isHeadless()) return
         SearchContextMenuState.clickedEntry = fileEntry("found.txt")
         val action = SearchCopyAsNameAction()
         action.actionPerformed(TestActionEvent.createTestEvent(action))
@@ -253,7 +248,6 @@ class CopyAsActionsTest : BasePlatformTestCase() {
     }
 
     fun testSearchCopyAsFullPathCopiesToClipboard() {
-        if (GraphicsEnvironment.isHeadless()) return
         SearchContextMenuState.clickedEntry = fileEntry("found.txt", "/search/results")
         val action = SearchCopyAsFullPathAction()
         action.actionPerformed(TestActionEvent.createTestEvent(action))
@@ -261,7 +255,6 @@ class CopyAsActionsTest : BasePlatformTestCase() {
     }
 
     fun testSearchCopyAsParentPathCopiesToClipboard() {
-        if (GraphicsEnvironment.isHeadless()) return
         SearchContextMenuState.clickedEntry = fileEntry("found.txt", "/search/results")
         val action = SearchCopyAsParentPathAction()
         action.actionPerformed(TestActionEvent.createTestEvent(action))
@@ -503,7 +496,6 @@ class CopyAsActionsTest : BasePlatformTestCase() {
     // --- CopyAsCsv / CopyAsJson: clipboard end-to-end ---
 
     fun testCopyAsCsvCopiesToClipboard() {
-        if (GraphicsEnvironment.isHeadless()) return
         FileContextMenuState.clickedEntry = fileEntry("hello.txt", "/home/user")
         val action = CopyAsCsvAction()
         action.actionPerformed(TestActionEvent.createTestEvent(action))
@@ -516,7 +508,6 @@ class CopyAsActionsTest : BasePlatformTestCase() {
     }
 
     fun testCopyAsJsonCopiesToClipboard() {
-        if (GraphicsEnvironment.isHeadless()) return
         FileContextMenuState.clickedEntry = fileEntry("hello.txt", "/home/user")
         val action = CopyAsJsonAction()
         action.actionPerformed(TestActionEvent.createTestEvent(action))
@@ -571,7 +562,6 @@ class CopyAsActionsTest : BasePlatformTestCase() {
     }
 
     fun testSearchCopyAsCsvCopiesMultiSelectionToClipboard() {
-        if (GraphicsEnvironment.isHeadless()) return
         SearchContextMenuState.selectedEntries = listOf(
             fileEntry("a.txt", "/results"),
             fileEntry("b.txt", "/results"),

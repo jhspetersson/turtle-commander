@@ -11,7 +11,6 @@ import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
 import io.github.jhspetersson.turtlecommander.ui.FileManagerToolWindowFactory
 import kotlinx.coroutines.runBlocking
-import java.awt.GraphicsEnvironment
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -33,7 +32,6 @@ class FileManagerToolWindowTest : BasePlatformTestCase() {
     }
 
     fun testToolWindowFactoryCreatesContentViaDirectInvocation() {
-        if (GraphicsEnvironment.isHeadless()) return
 
         val toolWindowManager = ToolWindowManager.getInstance(project)
         val toolWindowId = "Turtle Commander"
@@ -188,7 +186,6 @@ class FileManagerToolWindowTest : BasePlatformTestCase() {
     }
 
     fun testFileManagerPanelCreatesWithTab() {
-        if (GraphicsEnvironment.isHeadless()) return
 
         val projectPath = Path.of(project.basePath!!)
         val stateService = project.service<FileManagerStateService>()

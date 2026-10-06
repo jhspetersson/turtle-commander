@@ -659,7 +659,7 @@ class FileTab(
                 }
             })
 
-            dragEnabled = true
+            dragEnabled = !GraphicsEnvironment.isHeadless()
             transferHandler = FileEntryTransferHandler(this@FileTab)
 
             selectionModel.addListSelectionListener { e ->
@@ -767,7 +767,7 @@ class FileTab(
                 }
             })
 
-            dragEnabled = true
+            dragEnabled = !GraphicsEnvironment.isHeadless()
             transferHandler = FileEntryTransferHandler(this@FileTab)
 
             addListSelectionListener { e ->
@@ -839,7 +839,7 @@ class FileTab(
                 }
             })
 
-            dragEnabled = true
+            dragEnabled = !GraphicsEnvironment.isHeadless()
             transferHandler = FileEntryTransferHandler(this@FileTab)
 
             addListSelectionListener { e ->
@@ -914,7 +914,7 @@ class FileTab(
             isRootVisible = false
             showsRootHandles = true
             background = table.background
-            dragEnabled = true
+            dragEnabled = !GraphicsEnvironment.isHeadless()
             transferHandler = FileEntryTransferHandler(this@FileTab)
 
             selectionModel.selectionMode = TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION

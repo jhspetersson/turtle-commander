@@ -12,7 +12,6 @@ import io.github.jhspetersson.turtlecommander.dialog.NamePatternMode
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.ui.*
-import java.awt.GraphicsEnvironment
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicBoolean
@@ -43,8 +42,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
         }
     }
 
-    private fun skipIfHeadless(): Boolean = GraphicsEnvironment.isHeadless()
-
     private fun createPanel(): FileManagerPanel {
         val panel = FileManagerPanel(
             project = project,
@@ -57,7 +54,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testDisposingParentDisposesTabsAndClosesVfs() {
-        if (skipIfHeadless()) return
         // Tabs must be disposed with the tool window's disposable (project close, plugin
         // unload), not only on manual close — otherwise a tab left inside an archive
         // leaks its filesystem handles and extraction temp directory.
@@ -99,7 +95,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testSingleTabAfterInit() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
 
         assertNotNull("Should have an active tab", panel.getActiveTab())
@@ -108,7 +103,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testOpenDirectoryInNewTab() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
         val homeDir = Path.of(System.getProperty("user.home"))
 
@@ -120,7 +114,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testOpenMultipleTabs() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
         val dir1 = Files.createDirectory(tempDir.resolve("dir1"))
         val dir2 = Files.createDirectory(tempDir.resolve("dir2"))
@@ -136,7 +129,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testCloseTab() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
         val dir = Files.createDirectory(tempDir.resolve("closeme"))
         panel.openDirectoryInNewTab(dir)
@@ -151,7 +143,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testCloseLastTabKeepsOne() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
 
         panel.closeTab(0)
@@ -161,7 +152,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testClosingLastSearchTabLeavesAUsableFileTab() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
 
         // Open a search tab, then close the only file tab (allowed while the search tab exists).
@@ -189,7 +179,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testCloseOtherTabs() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
         panel.openDirectoryInNewTab(Files.createDirectory(tempDir.resolve("a")))
         panel.openDirectoryInNewTab(Files.createDirectory(tempDir.resolve("b")))
@@ -204,7 +193,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testCloseAllTabs() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
         panel.openDirectoryInNewTab(Files.createDirectory(tempDir.resolve("x")))
         panel.openDirectoryInNewTab(Files.createDirectory(tempDir.resolve("y")))
@@ -217,7 +205,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testCloseTabsToTheRight() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
         panel.openDirectoryInNewTab(Files.createDirectory(tempDir.resolve("r1")))
         panel.openDirectoryInNewTab(Files.createDirectory(tempDir.resolve("r2")))
@@ -232,7 +219,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testCloseTabsToTheLeft() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
         panel.openDirectoryInNewTab(Files.createDirectory(tempDir.resolve("l1")))
         panel.openDirectoryInNewTab(Files.createDirectory(tempDir.resolve("l2")))
@@ -249,7 +235,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     // --- View mode persistence ---
 
     fun testViewModeSavedInState() {
-        if (skipIfHeadless()) return
         val dir = Files.createDirectory(tempDir.resolve("vms"))
         val panelState = FileManagerStateService.PanelState().apply {
             tabs.add(FileManagerStateService.TabState(path = dir.toString(), viewMode = "LIST"))
@@ -268,7 +253,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testViewModeRestoredFromState() {
-        if (skipIfHeadless()) return
         val dir = Files.createDirectory(tempDir.resolve("vmr"))
         val panelState = FileManagerStateService.PanelState().apply {
             tabs.add(FileManagerStateService.TabState(path = dir.toString(), viewMode = "THUMBNAIL"))
@@ -287,7 +271,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testMultipleTabsPreserveViewModes() {
-        if (skipIfHeadless()) return
         val dir1 = Files.createDirectory(tempDir.resolve("vm1"))
         val dir2 = Files.createDirectory(tempDir.resolve("vm2"))
         val panelState = FileManagerStateService.PanelState().apply {
@@ -312,7 +295,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     // --- Tab navigation ---
 
     fun testSelectNextTab() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
         panel.openDirectoryInNewTab(Files.createDirectory(tempDir.resolve("next")))
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
@@ -327,7 +309,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testSelectNextTabWraps() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
         panel.openDirectoryInNewTab(Files.createDirectory(tempDir.resolve("wrap")))
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
@@ -340,13 +321,11 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     // --- Reopen closed tab ---
 
     fun testHasClosedTabsInitiallyFalse() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
         assertFalse("Closed-tab stack should start empty", panel.hasClosedTabs())
     }
 
     fun testHasClosedTabsAfterClose() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
         panel.openDirectoryInNewTab(Files.createDirectory(tempDir.resolve("rc1")))
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
@@ -358,7 +337,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testReopenClosedTabRestoresPath() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
         val dir = Files.createDirectory(tempDir.resolve("reopenpath"))
         panel.openDirectoryInNewTab(dir)
@@ -382,7 +360,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testReopenInsertsAtOriginalIndex() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
         val a = Files.createDirectory(tempDir.resolve("oi_a"))
         val b = Files.createDirectory(tempDir.resolve("oi_b"))
@@ -405,7 +382,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testReopenMultipleInLIFOOrder() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
         val a = Files.createDirectory(tempDir.resolve("lifo_a"))
         val b = Files.createDirectory(tempDir.resolve("lifo_b"))
@@ -431,7 +407,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testReopenAfterCloseOthersRestoresRightmostFirst() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
         val a = Files.createDirectory(tempDir.resolve("co_a"))
         val b = Files.createDirectory(tempDir.resolve("co_b"))
@@ -454,7 +429,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testReopenAfterCloseTabsToTheRight() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
         panel.openDirectoryInNewTab(Files.createDirectory(tempDir.resolve("cr_a")))
         val b = Files.createDirectory(tempDir.resolve("cr_b"))
@@ -473,7 +447,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testReopenPreservesViewMode() {
-        if (skipIfHeadless()) return
         val dir = Files.createDirectory(tempDir.resolve("vmreopen"))
         val panelState = FileManagerStateService.PanelState().apply {
             tabs.add(FileManagerStateService.TabState(path = projectPath.toString(), viewMode = "TABLE"))
@@ -498,7 +471,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testReopenWithEmptyStackIsNoop() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
         val before = panel.saveState().tabs.size
 
@@ -511,7 +483,6 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
     // --- Dual panel interaction ---
 
     fun testOtherPanelReference() {
-        if (skipIfHeadless()) return
         val left = createPanel()
         val right = FileManagerPanel(
             project = project,

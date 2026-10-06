@@ -12,7 +12,6 @@ import io.github.jhspetersson.turtlecommander.ui.FileTableModel
 import io.github.jhspetersson.turtlecommander.ui.getSelectedEntry
 import io.github.jhspetersson.turtlecommander.ui.ViewMode
 import io.github.jhspetersson.turtlecommander.ui.setViewMode
-import java.awt.GraphicsEnvironment
 import java.nio.file.Files
 import java.nio.file.Path
 import javax.swing.RowSorter
@@ -51,8 +50,6 @@ class QuickFilterIntegrationTest : BasePlatformTestCase() {
         }
     }
 
-    private fun skipIfHeadless(): Boolean = GraphicsEnvironment.isHeadless()
-
     private fun openTab(): FileTab {
         val panel = FileManagerPanel(
             project = project,
@@ -87,7 +84,6 @@ class QuickFilterIntegrationTest : BasePlatformTestCase() {
         }
 
     fun testFilterAppliesToFlatTreeInTreeView() {
-        if (skipIfHeadless()) return
         val tab = openTab()
         tab.showAllNestedFiles = true
         tab.setViewMode(ViewMode.TREE)
@@ -106,7 +102,6 @@ class QuickFilterIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testFilterRefusedInFullHierarchyTreeView() {
-        if (skipIfHeadless()) return
         val tab = openTab()
         tab.setViewMode(ViewMode.TREE)
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
@@ -118,7 +113,6 @@ class QuickFilterIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testSwitchingToFullTreeDropsActiveFilter() {
-        if (skipIfHeadless()) return
         val tab = openTab()
         tab.setQuickFilterText("*.txt")
         assertTrue(tab.isQuickFilterActive())
@@ -132,7 +126,6 @@ class QuickFilterIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testSwitchingToFlatTreeKeepsActiveFilter() {
-        if (skipIfHeadless()) return
         val tab = openTab()
         tab.showAllNestedFiles = true
         tab.setQuickFilterText("*.txt")
@@ -147,7 +140,6 @@ class QuickFilterIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testFilterKeepsCursorOnSameEntryWhenTableIsSorted() {
-        if (skipIfHeadless()) return
         val tab = openTab()
         tab.table.rowSorter.sortKeys = listOf(RowSorter.SortKey(FileTableModel.COL_NAME, SortOrder.DESCENDING))
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()

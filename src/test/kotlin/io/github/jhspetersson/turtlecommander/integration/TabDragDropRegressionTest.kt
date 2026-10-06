@@ -6,7 +6,6 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
-import java.awt.GraphicsEnvironment
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -43,8 +42,6 @@ class TabDragDropRegressionTest : BasePlatformTestCase() {
         }
     }
 
-    private fun skipIfHeadless(): Boolean = GraphicsEnvironment.isHeadless()
-
     private fun createPanel(): FileManagerPanel {
         val panel = FileManagerPanel(
             project = project,
@@ -68,7 +65,6 @@ class TabDragDropRegressionTest : BasePlatformTestCase() {
     // --- Shrinking regression: border must not accumulate after reorder ---
 
     fun testReorderTabPreservesBorder() {
-        if (skipIfHeadless()) return
         val dir1 = Files.createDirectory(tempDir.resolve("a"))
         val dir2 = Files.createDirectory(tempDir.resolve("b"))
         val panel = createPanelWithTabs(dir1, dir2)
@@ -87,7 +83,6 @@ class TabDragDropRegressionTest : BasePlatformTestCase() {
     }
 
     fun testRepeatedReorderDoesNotAccumulateInsets() {
-        if (skipIfHeadless()) return
         val dir1 = Files.createDirectory(tempDir.resolve("r1"))
         val dir2 = Files.createDirectory(tempDir.resolve("r2"))
         val dir3 = Files.createDirectory(tempDir.resolve("r3"))
@@ -112,7 +107,6 @@ class TabDragDropRegressionTest : BasePlatformTestCase() {
     }
 
     fun testMoveTabToOtherPanelPreservesBorder() {
-        if (skipIfHeadless()) return
         val dir1 = Files.createDirectory(tempDir.resolve("m1"))
         val dir2 = Files.createDirectory(tempDir.resolve("m2"))
         val left = createPanelWithTabs(dir1, dir2)
@@ -136,7 +130,6 @@ class TabDragDropRegressionTest : BasePlatformTestCase() {
     // --- Last position regression: reorder/move to end must work ---
 
     fun testReorderTabToLastPosition() {
-        if (skipIfHeadless()) return
         val dir1 = Files.createDirectory(tempDir.resolve("l1"))
         val dir2 = Files.createDirectory(tempDir.resolve("l2"))
         val dir3 = Files.createDirectory(tempDir.resolve("l3"))
@@ -156,7 +149,6 @@ class TabDragDropRegressionTest : BasePlatformTestCase() {
     }
 
     fun testReorderTabToLastPositionPreservesContent() {
-        if (skipIfHeadless()) return
         val dir1 = Files.createDirectory(tempDir.resolve("c1"))
         val dir2 = Files.createDirectory(tempDir.resolve("c2"))
         val panel = createPanelWithTabs(dir1, dir2)
@@ -176,7 +168,6 @@ class TabDragDropRegressionTest : BasePlatformTestCase() {
     }
 
     fun testMoveTabToLastPositionInOtherPanel() {
-        if (skipIfHeadless()) return
         val dir1 = Files.createDirectory(tempDir.resolve("x1"))
         val dir2 = Files.createDirectory(tempDir.resolve("x2"))
         val left = createPanelWithTabs(dir1, dir2)

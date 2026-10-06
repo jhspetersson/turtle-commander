@@ -8,7 +8,6 @@ import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
 import io.github.jhspetersson.turtlecommander.ui.FileTab
-import java.awt.GraphicsEnvironment
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.zip.ZipEntry
@@ -48,8 +47,6 @@ class OpenArchiveEntryIntegrationTest : BasePlatformTestCase() {
         }
     }
 
-    private fun skipIfHeadless(): Boolean = GraphicsEnvironment.isHeadless()
-
     private fun createPanel(): FileManagerPanel {
         val panel = FileManagerPanel(
             project = project,
@@ -81,7 +78,6 @@ class OpenArchiveEntryIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testFileEntryOpensItsDirectoryInsideArchiveAndSelectsIt() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
 
         panel.openArchiveEntryInNewTab(jarPath, "com/example/Foo.class", false)
@@ -95,7 +91,6 @@ class OpenArchiveEntryIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testDirectoryEntryOpensThatDirectoryInsideArchive() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
 
         panel.openArchiveEntryInNewTab(jarPath, "com", true)
@@ -106,7 +101,6 @@ class OpenArchiveEntryIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testMissingEntryFallsBackToArchiveRoot() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
 
         panel.openArchiveEntryInNewTab(jarPath, "org/missing/Gone.class", false)
@@ -117,7 +111,6 @@ class OpenArchiveEntryIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testJdkClassOpensInsideRuntimeImageAndSelectsIt() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
         val modules = Path.of(System.getProperty("java.home")).resolve("lib").resolve("modules")
 
@@ -133,7 +126,6 @@ class OpenArchiveEntryIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testLeavingArchiveReturnsToDirectoryWithArchiveSelected() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
 
         panel.openArchiveEntryInNewTab(jarPath, "com/example/Foo.class", false)

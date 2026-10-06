@@ -18,7 +18,6 @@ import io.github.jhspetersson.turtlecommander.ui.setViewMode
 import io.github.jhspetersson.turtlecommander.vfs.SharedVfsRegistry
 import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
-import java.awt.GraphicsEnvironment
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -50,8 +49,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
             super.tearDown()
         }
     }
-
-    private fun skipIfHeadless(): Boolean = GraphicsEnvironment.isHeadless()
 
     private fun createPanel(): FileManagerPanel {
         val panel = FileManagerPanel(
@@ -87,7 +84,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     // --- TabState is self-sufficient ---
 
     fun testTabStateCapturesViewMode() {
-        if (skipIfHeadless()) return
         val dir = Files.createDirectory(tempDir.resolve("viewmode"))
         val panel = createPanel()
         panel.openDirectoryInNewTab(dir)
@@ -101,7 +97,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testTabStateCapturesShowAllNestedFiles() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
         val tab = panel.getTabAt(0)!!
         tab.showAllNestedFiles = true
@@ -111,7 +106,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testTabStateRestoresShowAllNestedFiles() {
-        if (skipIfHeadless()) return
         val dir = Files.createDirectory(tempDir.resolve("nested-restore"))
         val panelState = PanelState().apply {
             tabs.add(TabState(path = dir.toString(), showAllNestedFiles = true))
@@ -123,7 +117,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testTabStateCapturesColumnWidths() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
         val tab = panel.getTabAt(0)!!
         val cm = tab.table.columnModel
@@ -136,7 +129,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testTabStateCapturesColumnOrder() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
         val tab = panel.getTabAt(0)!!
         val cm = tab.table.columnModel
@@ -150,7 +142,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testTabStateCapturesSortColumn() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
         val tab = panel.getTabAt(0)!!
         tab.table.rowSorter?.sortKeys = listOf(
@@ -163,7 +154,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testTabStateCapturesPath() {
-        if (skipIfHeadless()) return
         val dir = Files.createDirectory(tempDir.resolve("pathtest"))
         val panel = createPanel()
         panel.openDirectoryInNewTab(dir)
@@ -176,7 +166,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     // --- Multiple tabs with same path can have different states ---
 
     fun testSamePathDifferentViewModes() {
-        if (skipIfHeadless()) return
         val dir = Files.createDirectory(tempDir.resolve("samepath"))
         val panel = createPanel()
         panel.openDirectoryInNewTab(dir)
@@ -193,7 +182,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testSamePathDifferentColumnWidths() {
-        if (skipIfHeadless()) return
         val dir = Files.createDirectory(tempDir.resolve("samecols"))
         val panel = createPanel()
         panel.openDirectoryInNewTab(dir)
@@ -213,7 +201,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testSamePathDifferentSortOrders() {
-        if (skipIfHeadless()) return
         val dir = Files.createDirectory(tempDir.resolve("samesort"))
         val panel = createPanel()
         panel.openDirectoryInNewTab(dir)
@@ -237,7 +224,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     // --- State restore with different per-tab states ---
 
     fun testRestoreTabsWithDifferentViewModes() {
-        if (skipIfHeadless()) return
         val dir = Files.createDirectory(tempDir.resolve("restorevm"))
         val panelState = PanelState().apply {
             tabs.add(TabState(path = dir.toString(), viewMode = "TABLE"))
@@ -250,7 +236,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testRestoreTabsWithDifferentColumnWidths() {
-        if (skipIfHeadless()) return
         val dir = Files.createDirectory(tempDir.resolve("restorecw"))
 
         // First create a panel to discover the actual column count
@@ -279,7 +264,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testRestoreTabsWithDifferentSortOrders() {
-        if (skipIfHeadless()) return
         val dir = Files.createDirectory(tempDir.resolve("restoresort"))
         val panelState = PanelState().apply {
             tabs.add(TabState(path = dir.toString(), sortColumn = 0, sortAscending = true))
@@ -298,7 +282,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     // --- State cleanup on tab close ---
 
     fun testCloseTabRemovesState() {
-        if (skipIfHeadless()) return
         val dir1 = Files.createDirectory(tempDir.resolve("close1"))
         val dir2 = Files.createDirectory(tempDir.resolve("close2"))
         val panel = createPanel()
@@ -317,7 +300,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testCloseAllTabsKeepsOne() {
-        if (skipIfHeadless()) return
         val dir1 = Files.createDirectory(tempDir.resolve("all1"))
         val dir2 = Files.createDirectory(tempDir.resolve("all2"))
         val panel = createPanel()
@@ -333,7 +315,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testCloseOtherTabsKeepsSelected() {
-        if (skipIfHeadless()) return
         val dir1 = Files.createDirectory(tempDir.resolve("other1"))
         val dir2 = Files.createDirectory(tempDir.resolve("other2"))
         val panel = createPanel()
@@ -351,7 +332,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testStateDoesNotGrowAfterOpenClose() {
-        if (skipIfHeadless()) return
         val dir = Files.createDirectory(tempDir.resolve("grow"))
         val panel = createPanel()
 
@@ -376,7 +356,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     // --- Save/restore round-trip ---
 
     fun testSaveRestoreRoundTrip() {
-        if (skipIfHeadless()) return
         val dir1 = Files.createDirectory(tempDir.resolve("rt1"))
         val dir2 = Files.createDirectory(tempDir.resolve("rt2"))
 
@@ -411,7 +390,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testSaveRestorePreservesSelectedTab() {
-        if (skipIfHeadless()) return
         val dir1 = Files.createDirectory(tempDir.resolve("sel1"))
         val dir2 = Files.createDirectory(tempDir.resolve("sel2"))
 
@@ -508,7 +486,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     // --- Column order preserved across visibility changes ---
 
     fun testColumnOrderPreservedWhenHidingColumn() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
         val tab = panel.getTabAt(0)!!
         val cm = tab.table.columnModel
@@ -547,7 +524,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testColumnOrderPreservedWhenShowingColumn() {
-        if (skipIfHeadless()) return
         val settings = TurtleCommanderSettings.getInstance()
 
         // Start with "Ext" column hidden
@@ -601,7 +577,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testColumnWidthsPreservedAcrossVisibilityChange() {
-        if (skipIfHeadless()) return
         val panel = createPanel()
         val tab = panel.getTabAt(0)!!
         val cm = tab.table.columnModel
@@ -651,7 +626,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testMultipleTabsPreserveIndependentOrderAcrossVisibilityChange() {
-        if (skipIfHeadless()) return
         val dir1 = Files.createDirectory(tempDir.resolve("colvis1"))
         val dir2 = Files.createDirectory(tempDir.resolve("colvis2"))
         val panel = createPanel()
@@ -710,7 +684,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testOppositePanelPreservesColumnOrderAcrossVisibilityChange() {
-        if (skipIfHeadless()) return
         val dirL = Files.createDirectory(tempDir.resolve("leftcol"))
         val dirR = Files.createDirectory(tempDir.resolve("rightcol"))
 
@@ -787,7 +760,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testOppositePanelPreservesColumnWidthsAcrossVisibilityChange() {
-        if (skipIfHeadless()) return
         val dirL = Files.createDirectory(tempDir.resolve("lwid"))
         val dirR = Files.createDirectory(tempDir.resolve("rwid"))
 
@@ -869,7 +841,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testOppositePanelMultipleTabsPreserveOrderAcrossVisibilityChange() {
-        if (skipIfHeadless()) return
         val dir1 = Files.createDirectory(tempDir.resolve("omt1"))
         val dir2 = Files.createDirectory(tempDir.resolve("omt2"))
         val dir3 = Files.createDirectory(tempDir.resolve("omt3"))
@@ -974,7 +945,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     // --- Per-tab column widths and view-mode switch behavior ---
 
     fun testNewTabInheritsColumnWidthsFromActiveTableTab() {
-        if (skipIfHeadless()) return
         val dir = Files.createDirectory(tempDir.resolve("inheritwidths"))
         val panel = createPanel()
         panel.openDirectoryInNewTab(dir)
@@ -992,7 +962,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testNewTabIndependentAfterInheritance() {
-        if (skipIfHeadless()) return
         val dir = Files.createDirectory(tempDir.resolve("indepafter"))
         val panel = createPanel()
         panel.openDirectoryInNewTab(dir)
@@ -1016,7 +985,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testSwitchToTableAppliesDefaultWidthsWhenNoSavedState() {
-        if (skipIfHeadless()) return
         // Use a real temp dir in its own tab (not getTabAt(0), which points at the
         // light-fixture project.basePath). The virtual path's listing cache can read as
         // stale and trigger an async refresh navigation that calls saveColumnState mid-test,
@@ -1046,7 +1014,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testSwitchToTablePreservesWidthsWhenSavedState() {
-        if (skipIfHeadless()) return
         // Real temp dir in its own tab, fully settled via waitForNavigation. Using getTabAt(0)
         // (the virtual project.basePath tab) here is flaky: createPanel only pumps the EDT queue
         // once, so tab 0's initial navigateTo may still be in flight with initialized == false.
@@ -1072,7 +1039,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testSwitchToTableFromThumbnailAppliesDefaultWidths() {
-        if (skipIfHeadless()) return
         // Real temp dir in its own tab — see testSwitchToTableAppliesDefaultWidthsWhenNoSavedState
         // for why the virtual project.basePath tab flakes here on macOS CI.
         val dir = Files.createDirectory(tempDir.resolve("defwidths-thumb"))
@@ -1097,7 +1063,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testDuplicateTabIndependentColumnWidthsAfterResize() {
-        if (skipIfHeadless()) return
         val dir = Files.createDirectory(tempDir.resolve("dup"))
         val panel = createPanel()
         panel.openDirectoryInNewTab(dir)
@@ -1120,7 +1085,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testDuplicateTabInsideArchiveOpensContainingDirectory() {
-        if (skipIfHeadless()) return
         val dir = Files.createDirectory(tempDir.resolve("dupzip"))
         val archivePath = dir.resolve("stuff.zip")
         java.util.zip.ZipOutputStream(Files.newOutputStream(archivePath)).use { zos ->
@@ -1154,7 +1118,6 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testTwoTabsShareArchiveVfsAndSeeMutations() {
-        if (skipIfHeadless()) return
         val dir = Files.createDirectory(tempDir.resolve("sharedzip"))
         val archivePath = dir.resolve("shared.zip")
         java.util.zip.ZipOutputStream(Files.newOutputStream(archivePath)).use { zos ->
