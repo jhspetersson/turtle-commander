@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Renaming inside a nested archive is now written back to the parent archive instead of being lost on exit
+
 ## [0.7.82] - 2026-10-05
 
 ### Fixed

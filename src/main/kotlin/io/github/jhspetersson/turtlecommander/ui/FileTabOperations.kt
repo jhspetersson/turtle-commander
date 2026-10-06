@@ -1086,9 +1086,7 @@ internal fun FileTab.performRename(entry: FileEntry, newName: String) {
                     return@launch
                 }
                 vfs.renameFile(entry.path, newName)
-                val relativePath = vfsRelativePath(vfs, currentPath)
-                val newPath = if (relativePath.isEmpty()) vfs.root else vfs.root.resolve(relativePath)
-                navigateTo(newPath, selectName = newName)
+                refreshAfterVfsChange(selectName = newName)
             } else {
                 // Rename via IntelliJ VFS if possible, so open editors track the rename
                 val vFile = LocalFileSystem.getInstance().findFileByNioFile(entry.path)
@@ -1151,7 +1149,7 @@ internal fun FileTab.performMultiRename() {
     runMultiRename(pairs)
 }
 
-private fun FileTab.runMultiRename(pairs: List<Pair<FileEntry, String>>) {
+internal fun FileTab.runMultiRename(pairs: List<Pair<FileEntry, String>>) {
     fileOps.launch {
         // Two-phase rename to survive cyclic swaps like a↔b: first move every source to a
         // uniquely-named temp file, then move each temp to its final target. Without this,
@@ -1178,7 +1176,8 @@ private fun FileTab.runMultiRename(pairs: List<Pair<FileEntry, String>>) {
                 }
             }
             completed.mapNotNull { it.first.parent }.toSet().forEach { fileOps.invalidateListingCache(it) }
-            MultiRenameUndo.lastBatch = completed
+            val insideArchive = currentVfs != null
+            MultiRenameUndo.lastBatch = if (insideArchive) null else completed
             withContext(Dispatchers.EDT) {
                 val tab = this@runMultiRename
                 // Look up the live shortcut for the Undo action so the hint stays correct if
@@ -1188,17 +1187,19 @@ private fun FileTab.runMultiRename(pairs: List<Pair<FileEntry, String>>) {
                 val shortcut = undoAction?.let {
                     KeymapUtil.getFirstKeyboardShortcutText(it)
                 }.orEmpty()
-                val hint = if (shortcut.isNotEmpty()) " Press $shortcut to undo." else ""
+                val hint = if (!insideArchive && shortcut.isNotEmpty()) " Press $shortcut to undo." else ""
                 val content = "Renamed ${completed.size} file(s).$hint"
-                NotificationGroupManager.getInstance()
+                val notification = NotificationGroupManager.getInstance()
                     .getNotificationGroup("Turtle Commander")
                     .createNotification(content, NotificationType.INFORMATION)
-                    .addAction(createSimpleExpiring("Undo") {
+                if (!insideArchive) {
+                    notification.addAction(createSimpleExpiring("Undo") {
                         tab.performMultiRenameUndo()
                     })
-                    .notify(project)
+                }
+                notification.notify(project)
             }
-            navigateTo(currentPath)
+            if (insideArchive) refreshAfterVfsChange() else navigateTo(currentPath)
         } catch (e: Exception) {
             // Best-effort rollback of any temps we've already created.
             withContext(Dispatchers.IO) {
