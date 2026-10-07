@@ -88,7 +88,7 @@ class CpioVirtualFileSystem(
                         }
                         val mtime = entry.lastModifiedDate?.time
                         if (mtime != null && mtime > 0 && Files.exists(entryPath)) {
-                            Files.setLastModifiedTime(entryPath, FileTime.fromMillis(mtime))
+                            setMtimeNoFollow(entryPath, FileTime.fromMillis(mtime))
                         }
                     } catch (e: Exception) {
                         thisLogger().debug("Failed to extract cpio entry: $name", e)

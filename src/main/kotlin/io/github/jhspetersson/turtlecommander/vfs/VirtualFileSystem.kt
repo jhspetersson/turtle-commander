@@ -13,6 +13,7 @@ import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.file.*
+import java.nio.file.attribute.BasicFileAttributeView
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.FileTime
 
@@ -437,6 +438,11 @@ internal fun createSparseStub(path: Path, size: Long) {
         ch.position(size - 1)
         ch.write(ByteBuffer.wrap(byteArrayOf(0)))
     }
+}
+
+internal fun setMtimeNoFollow(path: Path, mtime: FileTime) {
+    Files.getFileAttributeView(path, BasicFileAttributeView::class.java, LinkOption.NOFOLLOW_LINKS)
+        .setTimes(mtime, null, null)
 }
 
 internal fun vfsRelativePath(root: Path, path: Path): String {

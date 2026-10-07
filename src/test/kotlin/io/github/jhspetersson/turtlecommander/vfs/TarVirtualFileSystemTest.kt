@@ -6,10 +6,14 @@ import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
 import org.junit.After
 import org.junit.Assert.*
+import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.nio.file.Path
+import java.nio.file.attribute.FileTime
+import java.util.Date
 
 class TarVirtualFileSystemTest {
 
@@ -490,4 +494,45 @@ class TarVirtualFileSystemTest {
             Files.deleteIfExists(tar)
         }
     }
+
+    @Test
+    fun `symlink mtime is written to the link itself, not to a lazy target stub`() = runBlocking {
+        val linkTar = Files.createTempFile("tar-symlink-mtime-", ".tar")
+        try {
+            TarArchiveOutputStream(Files.newOutputStream(linkTar)).use { tar ->
+                val content = "real bytes".toByteArray()
+                val target = TarArchiveEntry("target.txt")
+                target.size = content.size.toLong()
+                target.modTime = Date(1_600_000_000_000L)
+                tar.putArchiveEntry(target)
+                tar.write(content)
+                tar.closeArchiveEntry()
+                val link = TarArchiveEntry("link.txt", TarArchiveEntry.LF_SYMLINK)
+                link.linkName = "target.txt"
+                link.modTime = Date(1_700_000_000_000L)
+                tar.putArchiveEntry(link)
+                tar.closeArchiveEntry()
+            }
+            val linkVfs = TarVirtualFileSystem(
+                linkTar,
+                inputStreamFactory = { Files.newInputStream(it) },
+                outputStreamFactory = { Files.newOutputStream(it) },
+            )
+            linkVfs.use {
+                val linkPath = it.root.resolve("link.txt")
+                val targetPath = it.root.resolve("target.txt")
+                assumeTrue("symbolic link creation not permitted on this host", Files.isSymbolicLink(linkPath))
+                assertEquals(FileTime.fromMillis(1_600_000_000_000L), Files.getLastModifiedTime(targetPath))
+                assertEquals(
+                    FileTime.fromMillis(1_700_000_000_000L),
+                    Files.getLastModifiedTime(linkPath, LinkOption.NOFOLLOW_LINKS),
+                )
+                it.materialize(targetPath)
+                assertEquals("real bytes", Files.readString(targetPath))
+            }
+        } finally {
+            Files.deleteIfExists(linkTar)
+        }
+    }
+
 }

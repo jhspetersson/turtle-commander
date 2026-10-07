@@ -191,7 +191,7 @@ class TarVirtualFileSystem(
 
     private fun setEntryMtime(path: Path, entry: TarArchiveEntry) {
         if (entry.lastModifiedDate != null) {
-            Files.setLastModifiedTime(path, FileTime.fromMillis(entry.lastModifiedDate.time))
+            setMtimeNoFollow(path, FileTime.fromMillis(entry.lastModifiedDate.time))
         }
     }
 

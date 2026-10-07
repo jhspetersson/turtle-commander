@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- A symlink in a `tar`, `cpio` or `rpm` archive no longer overwrites its target's timestamp
+
 ## [0.7.83] - 2026-10-06
 
 ### Fixed

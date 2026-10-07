@@ -11,8 +11,10 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.nio.file.Path
 
 class CpioVirtualFileSystemTest {
@@ -26,7 +28,7 @@ class CpioVirtualFileSystemTest {
         if (::cpioPath.isInitialized) Files.deleteIfExists(cpioPath)
     }
 
-    private fun writeCpio(entries: List<Triple<String, ByteArray?, Long>>): Path {
+    private fun writeCpio(entries: List<Triple<String, ByteArray?, Long>>, times: Map<String, Long> = emptyMap()): Path {
         val path = Files.createTempFile("test-", ".cpio")
         Files.newOutputStream(path).use { raw ->
             CpioArchiveOutputStream(raw).use { cpio ->
@@ -36,7 +38,7 @@ class CpioVirtualFileSystemTest {
                     entry.size = (data?.size ?: 0).toLong()
                     entry.setUID(1000)
                     entry.setGID(1001)
-                    entry.time = 1_600_000_000
+                    entry.time = times[name] ?: 1_600_000_000
                     cpio.putArchiveEntry(entry)
                     if (data != null) cpio.write(data)
                     cpio.closeArchiveEntry()
@@ -181,6 +183,23 @@ class CpioVirtualFileSystemTest {
         vfs = cpioVfs
         assertEquals("inside", Files.readString(cpioVfs.getPath("/safe.txt")))
         assertTrue(Files.notExists(cpioVfs.getPath("/evil-link")))
+    }
+
+    @Test
+    fun `symlink mtime is written to the link itself, not to its target`() {
+        cpioPath = writeCpio(
+            listOf(
+                Triple("target.txt", "real bytes".toByteArray(), FILE_MODE),
+                Triple("link", "target.txt".toByteArray(), SYMLINK_MODE),
+            ),
+            times = mapOf("link" to 1_700_000_000L),
+        )
+        val cpioVfs = CpioVirtualFileSystem(cpioPath)
+        vfs = cpioVfs
+        val linkPath = cpioVfs.getPath("/link")
+        assumeTrue("symbolic link creation not permitted on this host", Files.isSymbolicLink(linkPath))
+        assertEquals(1_600_000_000_000L, Files.getLastModifiedTime(cpioVfs.getPath("/target.txt")).toMillis())
+        assertEquals(1_700_000_000_000L, Files.getLastModifiedTime(linkPath, LinkOption.NOFOLLOW_LINKS).toMillis())
     }
 
     companion object {
