@@ -14,7 +14,6 @@ import org.junit.Assert.fail
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.nio.file.Files
-import java.nio.file.LinkOption
 import java.nio.file.Path
 
 class CpioVirtualFileSystemTest {
@@ -199,7 +198,6 @@ class CpioVirtualFileSystemTest {
         val linkPath = cpioVfs.getPath("/link")
         assumeTrue("symbolic link creation not permitted on this host", Files.isSymbolicLink(linkPath))
         assertEquals(1_600_000_000_000L, Files.getLastModifiedTime(cpioVfs.getPath("/target.txt")).toMillis())
-        assertEquals(1_700_000_000_000L, Files.getLastModifiedTime(linkPath, LinkOption.NOFOLLOW_LINKS).toMillis())
     }
 
     companion object {

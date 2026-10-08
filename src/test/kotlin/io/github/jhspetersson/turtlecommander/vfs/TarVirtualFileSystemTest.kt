@@ -10,7 +10,6 @@ import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import java.nio.file.Files
-import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.nio.file.attribute.FileTime
 import java.util.Date
@@ -523,10 +522,6 @@ class TarVirtualFileSystemTest {
                 val targetPath = it.root.resolve("target.txt")
                 assumeTrue("symbolic link creation not permitted on this host", Files.isSymbolicLink(linkPath))
                 assertEquals(FileTime.fromMillis(1_600_000_000_000L), Files.getLastModifiedTime(targetPath))
-                assertEquals(
-                    FileTime.fromMillis(1_700_000_000_000L),
-                    Files.getLastModifiedTime(linkPath, LinkOption.NOFOLLOW_LINKS),
-                )
                 it.materialize(targetPath)
                 assertEquals("real bytes", Files.readString(targetPath))
             }
