@@ -425,13 +425,13 @@ private fun copyPosixPermissions(from: Path, to: Path) {
  * value so directory listings show the real size before any bytes have been streamed.
  */
 internal fun createSparseStub(path: Path, size: Long) {
-    Files.createFile(path)
-    if (size <= 0) return
     FileChannel.open(
         path,
+        StandardOpenOption.CREATE_NEW,
         StandardOpenOption.WRITE,
         StandardOpenOption.SPARSE,
     ).use { ch ->
+        if (size <= 0) return
         // Writing a single byte at offset (size - 1) extends the file to `size`; on
         // SPARSE-capable filesystems the gap remains a hole. The byte itself will be
         // overwritten when materialize() streams real content.

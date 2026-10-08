@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Opening large `iso`, `rar`, `pak`, `tar` and some `zip` archives on Windows no longer writes gigabytes of zeros to the temp directory
+
 ## [0.7.84] - 2026-10-07
 
 ### Fixed
