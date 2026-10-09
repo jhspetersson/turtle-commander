@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.86] - 2026-10-09
+
 ### Changed
 
 - Optimized moving files across the same volume
