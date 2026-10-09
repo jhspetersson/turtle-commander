@@ -641,10 +641,9 @@ class FileOperationService(
                 // isDirectory() follows the link, and recursing through it would move the
                 // *target's* contents and leave the linked directory drained.
                 if (isTraversableDirectory(source)) {
-                    // Enumerate every entry under [source] up-front and move them one
-                    // by one so each file ticks the progress bar — the historical
-                    // single-call Files.move(REPLACE_EXISTING) on a directory only
-                    // reported one step regardless of size.
+                    // A fresh same-volume target is one rename; otherwise the tree is
+                    // merged entry by entry so each file ticks the progress bar and
+                    // honours the overwrite policy.
                     val (newCount, cancelled) = moveDirectoryWithProgress(
                         source, target, movedCount, holder,
                         onProgress, onOverwriteConfirm, onError, isCancelled,
@@ -708,6 +707,12 @@ class FileOperationService(
     ): MoveDirResult {
         var movedCount = startCount
         var leftBehind = false
+
+        if (renameDirectoryInPlace(source, target)) {
+            movedCount++
+            onProgress(movedCount, source.name)
+            return MoveDirResult(movedCount, cancelled = false, leftBehind = false)
+        }
 
         try {
             // Same as the copy path: only an actually-created directory counts as work.
@@ -1130,6 +1135,18 @@ class FileOperationService(
                 Files.copy(source, target)
             }
             Files.delete(source)
+        }
+    }
+
+    private fun renameDirectoryInPlace(source: Path, target: Path): Boolean {
+        val local = FileSystems.getDefault()
+        if (source.fileSystem != local || target.fileSystem != local) return false
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) return false
+        return try {
+            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE)
+            true
+        } catch (_: IOException) {
+            false
         }
     }
 

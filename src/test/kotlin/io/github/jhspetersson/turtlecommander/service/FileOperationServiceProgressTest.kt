@@ -12,8 +12,9 @@ import java.nio.file.Path
 /**
  * Progress / cache-invalidation regressions for copy and move.
  *
- *  - Moving a directory should tick progress once per file (matches copy's behaviour),
- *    not once for the entire top-level path.
+ *  - Merging a directory move into an existing tree should tick progress once per file
+ *    (matches copy's behaviour); a fresh target is a single rename and ticks once, see
+ *    SameVolumeDirectoryMoveTest.
  *  - Copying into an existing destination should invalidate every directory the copy
  *    actually wrote into, not just the top-level destination, so sibling tabs viewing
  *    a sub-directory don't serve stale entries.
@@ -45,35 +46,6 @@ class FileOperationServiceProgressTest {
         Files.writeString(sub.resolve("b.txt"), "b")
         Files.writeString(sub.resolve("c.txt"), "c")
         return src
-    }
-
-    @Test
-    fun `moving a directory ticks progress for every file`() = runBlocking {
-        val service = newService()
-        val src = makeTreeWithThreeFiles("move-progress-src-")
-        val destParent = Files.createTempDirectory("move-progress-dst-")
-        tempPaths.add(destParent)
-
-        val progressNames = mutableListOf<String>()
-        service.moveFilesWithProgress(
-            sources = listOf(src),
-            destination = destParent,
-            initialPolicy = OverwritePolicy.OVERWRITE_ALL,
-            onProgress = { _, name -> progressNames.add(name) },
-            onOverwriteConfirm = { OverwriteResponse.OVERWRITE_ALL },
-            onError = { _, _ -> },
-            isCancelled = { false },
-        )
-
-        // Each of the three real files (plus the directories that were created) should
-        // contribute its own progress tick — same shape as copyFilesWithProgress.
-        assertTrue(
-            "expected per-file progress, got: $progressNames",
-            progressNames.count { it.endsWith(".txt") } == 3,
-        )
-        assertTrue("a.txt should appear in progress", progressNames.contains("a.txt"))
-        assertTrue("b.txt should appear in progress", progressNames.contains("b.txt"))
-        assertTrue("c.txt should appear in progress", progressNames.contains("c.txt"))
     }
 
     @Test
@@ -261,13 +233,13 @@ class FileOperationServiceProgressTest {
     }
 
     @Test
-    fun `moving across filesystems still ticks progress per file`() = runBlocking {
-        // Cross-FS moves go through the copy-then-delete path; this guarantees the
-        // per-file accounting introduced by the fix doesn't double-count.
+    fun `merging a directory move into an existing tree keeps the counter monotonic`() = runBlocking {
         val service = newService()
-        val src = makeTreeWithThreeFiles("move-xfs-src-")
-        val destParent = Files.createTempDirectory("move-xfs-dst-")
+        val src = makeTreeWithThreeFiles("move-merge-count-src-")
+        val destParent = Files.createTempDirectory("move-merge-count-dst-")
         tempPaths.add(destParent)
+        val destTop = Files.createDirectory(destParent.resolve(src.fileName.toString()))
+        Files.createDirectory(destTop.resolve("sub"))
 
         val ticks = mutableListOf<Int>()
         service.moveFilesWithProgress(
@@ -280,9 +252,9 @@ class FileOperationServiceProgressTest {
             isCancelled = { false },
         )
 
-        // Counter must increase monotonically and end at the total number of
-        // entries moved (3 files + 2 directories = 5).
-        assertEquals("progress counter must end at 5", 5, ticks.lastOrNull())
+        // Counter must increase monotonically and end at the number of files moved;
+        // the two pre-existing directories are not work.
+        assertEquals("progress counter must end at 3", 3, ticks.lastOrNull())
         assertEquals("progress must be monotonically increasing", ticks.sorted(), ticks)
     }
 
