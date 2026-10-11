@@ -57,6 +57,7 @@ class FileManagerPanel(
     private data class ClosedTabEntry(val state: FileManagerStateService.TabState, val index: Int)
     private val closedTabs: ArrayDeque<ClosedTabEntry> = ArrayDeque()
     private val closedTabsLimit = 32
+    private val directoryChangeListeners = mutableListOf<() -> Unit>()
 
     init {
         appendPlusTab()
@@ -68,6 +69,7 @@ class FileManagerPanel(
             }
             syncViewToggle()
             getActiveTab()?.revalidateIfStale()
+            fireDirectoryChanged()
         }
 
         tabbedPane.addMouseListener(object : MouseAdapter() {
@@ -324,7 +326,7 @@ class FileManagerPanel(
         // Update the tab's callbacks to point to the new panel context
         fileTab.updatePanelCallbacks(
             otherPanelPathProvider = { target.otherPanel?.getActiveTab()?.realFilesystemPath },
-            onDirectoryChanged = { tab -> target.updateTabTitle(tab); target.syncViewToggle() },
+            onDirectoryChanged = { tab -> target.directoryChanged(tab) },
             onRefreshOtherPanel = { target.otherPanel?.refreshActiveTab(requestFocus = false) },
         )
     }
@@ -457,7 +459,7 @@ class FileManagerPanel(
             project = project,
             initialPath = path,
             otherPanelPathProvider = { otherPanel?.getActiveTab()?.realFilesystemPath ?: otherPanelPathProvider() },
-            onDirectoryChanged = { tab -> updateTabTitle(tab); syncViewToggle() },
+            onDirectoryChanged = { tab -> directoryChanged(tab) },
             onRefreshOtherPanel = { otherPanel?.refreshActiveTab(requestFocus = false) },
         )
         parentDisposable?.let { Disposer.register(it, fileTab) }
@@ -527,6 +529,20 @@ class FileManagerPanel(
             panel.isOpaque = true
             panel.background = bg
         }
+    }
+
+    fun addDirectoryChangeListener(listener: () -> Unit) {
+        directoryChangeListeners.add(listener)
+    }
+
+    private fun directoryChanged(tab: FileTab) {
+        updateTabTitle(tab)
+        syncViewToggle()
+        fireDirectoryChanged()
+    }
+
+    private fun fireDirectoryChanged() {
+        for (listener in directoryChangeListeners) listener()
     }
 
     private fun updateTabTitle(tab: FileTab) {

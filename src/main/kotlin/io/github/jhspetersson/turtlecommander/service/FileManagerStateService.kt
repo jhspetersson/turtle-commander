@@ -60,7 +60,8 @@ class FileManagerStateService(
 
     /** Show the bottom command line, targeting whichever panel is currently active. */
     fun activateCommandInput() {
-        commandInputBar?.activate(getActivePanel())
+        val focused = leftPanel?.takeIf { it.hasFocusInPanel() } ?: rightPanel?.takeIf { it.hasFocusInPanel() }
+        commandInputBar?.activate(focused)
     }
 
     /** Command-line history, oldest first. */

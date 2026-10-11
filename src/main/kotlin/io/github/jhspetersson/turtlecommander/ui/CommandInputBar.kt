@@ -1,7 +1,5 @@
 package io.github.jhspetersson.turtlecommander.ui
 
-import com.intellij.execution.ExecutionException
-import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.process.CapturingProcessAdapter
 import com.intellij.execution.process.OSProcessHandler
 import com.intellij.notification.NotificationGroupManager
@@ -16,6 +14,7 @@ import com.intellij.ui.TextFieldWithHistory
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
 import io.github.jhspetersson.turtlecommander.operation.CdCommand
+import io.github.jhspetersson.turtlecommander.operation.ShellCommand
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import java.awt.BorderLayout
 import java.awt.event.KeyAdapter
@@ -49,6 +48,9 @@ class CommandInputBar(
     private val editor: JTextField = field.textEditor
     private var activePanel: FileManagerPanel = leftPanel
     private val stateService = project.service<FileManagerStateService>()
+
+    val targetPanel: FileManagerPanel get() = activePanel
+    val promptDirectory: String get() = promptLabel.toolTipText ?: ""
 
     // Command-history navigation. [historyIndex] is -1 when not browsing; otherwise an index into
     // the history list (its size == "back to the unsent draft"). [draft] preserves what the user
@@ -99,15 +101,21 @@ class CommandInputBar(
                 if (!suppressHistoryReset) historyIndex = -1
             }
         })
+
+        for (panel in listOf(leftPanel, rightPanel)) {
+            panel.addDirectoryChangeListener {
+                if (isVisible && panel === activePanel) updatePrompt()
+            }
+        }
     }
 
     fun activate(panel: FileManagerPanel?) {
+        if (panel != null) activePanel = panel
         if (!isVisible) {
-            activePanel = panel ?: activePanel
             isVisible = true
-            updatePrompt()
             revalidate()
         }
+        updatePrompt()
         syncHistory()
         historyIndex = -1
         editor.requestFocusInWindow()
@@ -196,15 +204,10 @@ class CommandInputBar(
     private fun runCommand(command: String, workingDir: Path) {
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
-                val cmdLine = when {
-                    SystemInfo.isWindows && command.lowercase() in BARE_SHELLS ->
-                        GeneralCommandLine("cmd.exe", "/c", "start", "", command)
-                    SystemInfo.isWindows ->
-                        GeneralCommandLine("cmd.exe", "/c", command)
-                    else ->
-                        GeneralCommandLine("/bin/sh", "-c", command)
-                }.withWorkDirectory(workingDir.toFile())
-                val handler = OSProcessHandler(cmdLine)
+                val invocation = ShellCommand.build(command, workingDir, SystemInfo.isWindows)
+                val builder = ProcessBuilder(listOf(invocation.exePath) + invocation.args)
+                invocation.workingDirectory?.let { builder.directory(it.toFile()) }
+                val handler = OSProcessHandler(builder.start(), command)
                 val capture = CapturingProcessAdapter()
                 handler.addProcessListener(capture)
                 handler.startNotify()
@@ -220,8 +223,6 @@ class CommandInputBar(
                         if (detail.isNotEmpty()) append("\n").append(detail)
                     })
                 }
-            } catch (e: ExecutionException) {
-                notifyErrorLater("Failed to run \"$command\": ${e.message}")
             } catch (e: Exception) {
                 notifyErrorLater("Failed to run \"$command\": ${e.message}")
             }
@@ -250,14 +251,5 @@ class CommandInputBar(
     private companion object {
         /** Refresh the panels (without waiting for completion) once a command runs this long. */
         const val LONG_RUN_REFRESH_MS = 10_000L
-
-        /** Bare interactive shells (no arguments) that we launch via `start` so they get a window. */
-        val BARE_SHELLS = setOf(
-            "cmd", "cmd.exe",
-            "powershell", "powershell.exe",
-            "pwsh", "pwsh.exe",
-            "bash", "bash.exe",
-            "wsl", "wsl.exe",
-        )
     }
 }
