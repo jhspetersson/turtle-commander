@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.87] - 2026-10-11
+
 ### Fixed
 
 - Improved custom command execution
