@@ -739,33 +739,36 @@ internal fun FileTab.performPack() {
                     fileErrorNotification("Packing failed: ${fileErrorMessage(e)}")
                 }
 
-                val archiveFileName = finalArchivePath.fileName.toString()
-                val archiveParent = finalArchivePath.parent
-                // The archive is created (or updated) inside archiveParent; neither
-                // refreshAfterVfsChange nor onRefreshOtherPanel invalidates the
-                // listing cache for that directory.
-                if (archiveParent != null) fileOps.invalidateListingCache(archiveParent)
-                if (archiveParent != null && archiveParent == currentPath) {
-                    refreshAfterVfsChange(selectName = archiveFileName)
-                    withContext(Dispatchers.EDT) {
-                        onRefreshOtherPanel()
-                    }
+                refreshPanelsAfterPack(finalArchivePath)
+            }
+        }
+    }
+}
+
+internal suspend fun FileTab.refreshPanelsAfterPack(archivePath: Path) {
+    val archiveFileName = archivePath.fileName.toString()
+    val archiveParent = archivePath.parent
+    if (archiveParent != null) fileOps.invalidateListingCache(archiveParent)
+    if (archiveParent != null && archiveParent == currentPath) {
+        refreshAfterVfsChange(selectName = archiveFileName)
+        withContext(Dispatchers.EDT) {
+            onRefreshOtherPanel()
+        }
+    } else {
+        refreshAfterVfsChange()
+        val otherPath = otherPanelPathProvider()
+        if (archiveParent != null && otherPath != null && archiveParent == otherPath) {
+            withContext(Dispatchers.EDT) {
+                val otherPanel = stateService?.panelOf(this@refreshPanelsAfterPack)?.otherPanel
+                if (otherPanel != null) {
+                    otherPanel.refreshActiveTab(archiveFileName, requestFocus = false)
                 } else {
-                    refreshAfterVfsChange()
-                    val otherPath = otherPanelPathProvider()
-                    if (archiveParent != null && otherPath != null && archiveParent == otherPath) {
-                        withContext(Dispatchers.EDT) {
-                            val svc = stateService ?: return@withContext
-                            val activePanel = svc.getActivePanel()
-                            val otherPanel = if (activePanel == svc.leftPanel) svc.rightPanel else svc.leftPanel
-                            otherPanel?.refreshActiveTab(archiveFileName, requestFocus = false)
-                        }
-                    } else {
-                        withContext(Dispatchers.EDT) {
-                            onRefreshOtherPanel()
-                        }
-                    }
+                    onRefreshOtherPanel()
                 }
+            }
+        } else {
+            withContext(Dispatchers.EDT) {
+                onRefreshOtherPanel()
             }
         }
     }
