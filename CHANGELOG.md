@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.88] - 2026-10-12
+
 ### Fixed
 
 - Shift+F1 (Pack) and Shift+F2 (Extract) now work from the keyboard, not only from the context menu
