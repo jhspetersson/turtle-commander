@@ -531,6 +531,8 @@ class FileManagerPanel(
         }
     }
 
+    fun containsTab(tab: FileTab): Boolean = tabbedPane.indexOfComponent(tab) >= 0
+
     fun addDirectoryChangeListener(listener: () -> Unit) {
         directoryChangeListeners.add(listener)
     }

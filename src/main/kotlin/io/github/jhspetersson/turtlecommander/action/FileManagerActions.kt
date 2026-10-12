@@ -167,22 +167,13 @@ class ExecuteCommandAction : EdtAction() {
 
 class GoToFirstAction : FileManagerAction() {
     override fun actionPerformed(e: AnActionEvent) {
-        val tab = findActiveTab(e) ?: return
-        if (tab.table.rowCount > 0) {
-            tab.table.setRowSelectionInterval(0, 0)
-            tab.table.scrollRectToVisible(tab.table.getCellRect(0, 0, true))
-        }
+        findActiveTab(e)?.selectFirst()
     }
 }
 
 class GoToLastAction : FileManagerAction() {
     override fun actionPerformed(e: AnActionEvent) {
-        val tab = findActiveTab(e) ?: return
-        val last = tab.table.rowCount - 1
-        if (last >= 0) {
-            tab.table.setRowSelectionInterval(last, last)
-            tab.table.scrollRectToVisible(tab.table.getCellRect(last, 0, true))
-        }
+        findActiveTab(e)?.selectLast()
     }
 }
 
@@ -222,7 +213,7 @@ class SearchFilesAction : FileManagerAction() {
         if (!dialog.showAndGet()) return
         val criteria = dialog.getCriteria()
         val stateService = project.service<FileManagerStateService>()
-        stateService.getActivePanel()?.openSearchTab(criteria)
+        (stateService.panelOf(tab) ?: stateService.getActivePanel())?.openSearchTab(criteria)
     }
 }
 

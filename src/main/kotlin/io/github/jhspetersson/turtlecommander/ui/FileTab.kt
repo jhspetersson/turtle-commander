@@ -1188,6 +1188,39 @@ class FileTab(
         }
     }
 
+    internal fun selectFirst() = selectEdge(first = true)
+
+    internal fun selectLast() = selectEdge(first = false)
+
+    private fun selectEdge(first: Boolean) {
+        when (viewMode) {
+            ViewMode.TABLE -> {
+                if (table.rowCount == 0) return
+                val row = if (first) 0 else table.rowCount - 1
+                table.setRowSelectionInterval(row, row)
+                table.scrollRectToVisible(table.getCellRect(row, 0, true))
+            }
+            ViewMode.LIST -> {
+                if (listModel.size() == 0) return
+                val index = if (first) 0 else listModel.size() - 1
+                list.selectedIndex = index
+                list.ensureIndexIsVisible(index)
+            }
+            ViewMode.THUMBNAIL -> {
+                if (thumbnailListModel.size() == 0) return
+                val index = if (first) 0 else thumbnailListModel.size() - 1
+                thumbnailList.selectedIndex = index
+                thumbnailList.ensureIndexIsVisible(index)
+            }
+            ViewMode.TREE -> {
+                if (tree.rowCount == 0) return
+                val row = if (first) 0 else tree.rowCount - 1
+                tree.setSelectionRow(row)
+                tree.scrollRowToVisible(row)
+            }
+        }
+    }
+
     internal var tableSpeedSearch: TableSpeedSearch? = null
     internal var listSpeedSearch: ListSpeedSearch<FileEntry>? = null
     internal var thumbnailSpeedSearch: ListSpeedSearch<FileEntry>? = null

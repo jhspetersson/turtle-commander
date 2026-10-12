@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Shift+F1 (Pack) and Shift+F2 (Extract) now work from the keyboard, not only from the context menu
+- Alt+F7 search results open in the panel the search was started from
+- "Open in New Tab" from the context menu opens the tab in the right-clicked panel
+- Home and End work in list, thumbnail and tree views
+
 ## [0.7.87] - 2026-10-11
 
 ### Fixed

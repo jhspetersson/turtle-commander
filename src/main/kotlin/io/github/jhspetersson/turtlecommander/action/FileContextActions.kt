@@ -50,6 +50,12 @@ internal fun resolveFileContextTab(e: AnActionEvent): FileTab? =
         findActiveTab(e)?.takeIf { it.hasAnyViewFocus() }
     }
 
+internal fun resolveFileContextEntry(e: AnActionEvent): FileEntry? =
+    resolveFileContextEntry(resolveFileContextTab(e), e.place == FILE_CONTEXT_PLACE)
+
+internal fun resolveFileContextEntry(tab: FileTab?, isMenu: Boolean): FileEntry? =
+    if (isMenu) FileContextMenuState.clickedEntry else tab?.getSelectedEntry()
+
 object FileCopyBuffer {
     var entries: List<FileEntry> = emptyList()
         set(value) {
@@ -73,12 +79,14 @@ class ContextSearchInDirectoryAction : EdtAction() {
 
     override fun actionPerformed(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry ?: return
+        val tab = FileContextMenuState.clickedTab
         val project = e.project ?: return
         val dialog = FileSearchDialog(project, entry.path)
         if (!dialog.showAndGet()) return
         val criteria = dialog.getCriteria()
         val stateService = project.service<FileManagerStateService>()
-        stateService.getActivePanel()?.openSearchTab(criteria)
+        val panel = tab?.let { stateService.panelOf(it) } ?: stateService.getActivePanel()
+        panel?.openSearchTab(criteria)
     }
 }
 
@@ -90,9 +98,11 @@ class OpenInNewTabAction : EdtAction() {
 
     override fun actionPerformed(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry ?: return
+        val tab = FileContextMenuState.clickedTab
         val project = e.project ?: return
         val stateService = project.service<FileManagerStateService>()
-        stateService.getActivePanel()?.openDirectoryInNewTab(entry.path)
+        val panel = tab?.let { stateService.panelOf(it) } ?: stateService.getActivePanel()
+        panel?.openDirectoryInNewTab(entry.path)
     }
 }
 
@@ -260,23 +270,23 @@ class ContextDeleteAction : EdtAction() {
 
 class PackFilesAction : EdtAction() {
     override fun update(e: AnActionEvent) {
-        val tab = FileContextMenuState.clickedTab
+        val tab = resolveFileContextTab(e)
         e.presentation.isEnabled = tab != null && tab.getSelectedEntries().isNotEmpty()
     }
 
     override fun actionPerformed(e: AnActionEvent) {
-        FileContextMenuState.clickedTab?.performPack()
+        resolveFileContextTab(e)?.performPack()
     }
 }
 
 class ExtractFilesAction : EdtAction() {
     override fun update(e: AnActionEvent) {
-        val entry = FileContextMenuState.clickedEntry
+        val entry = resolveFileContextEntry(e)
         e.presentation.isEnabledAndVisible = entry != null && isArchiveFile(entry)
     }
 
     override fun actionPerformed(e: AnActionEvent) {
-        FileContextMenuState.clickedTab?.performExtract()
+        resolveFileContextTab(e)?.performExtract()
     }
 }
 
