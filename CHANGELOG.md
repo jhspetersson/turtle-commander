@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.89] - 2026-10-13
+
 ### Fixed
 
 - After packing into the other panel's directory, that panel is refreshed and the new archive selected even when focus has moved elsewhere
