@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Repacking errors propagate to the user instead of being silently ignored
+
 ## [0.7.89] - 2026-10-13
 
 ### Fixed
