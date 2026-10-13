@@ -9,6 +9,7 @@ import org.junit.Assert.*
 import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.FileTime
@@ -652,5 +653,59 @@ class TarVirtualFileSystemTest {
                 assertEquals(0L, stream.filter { it.fileName.toString().startsWith("tc-repack-") }.count())
             }
         }
+    }
+
+    @Test
+    fun `stream failure during repack keeps the stubs and the original archive`() {
+        var failNextOpen = false
+        val flaky = TarVirtualFileSystem(
+            tarPath,
+            inputStreamFactory = { path ->
+                if (failNextOpen) throw IOException("simulated read failure")
+                Files.newInputStream(path)
+            },
+            outputStreamFactory = { Files.newOutputStream(it) },
+        )
+        flaky.use { vfs ->
+            val original = Files.readAllBytes(tarPath)
+            failNextOpen = true
+            val thrown = runCatching {
+                runBlocking { vfs.renameFile(vfs.root.resolve("root.txt"), "renamed.txt") }
+            }.exceptionOrNull()
+
+            assertNotNull("a materialisation failure must abort the repack", thrown)
+            assertTrue("message must explain the repack failure: ${thrown!!.message}", thrown.message!!.contains("simulated read failure"))
+            assertArrayEquals("the original archive must be untouched", original, Files.readAllBytes(tarPath))
+            assertTrue("the stub must survive the failed repack", Files.exists(vfs.root.resolve("mydir/hello.txt")))
+            assertTrue(Files.exists(vfs.root.resolve("renamed.txt")))
+
+            failNextOpen = false
+            vfs.flush()
+        }
+        TarArchiveInputStream(Files.newInputStream(tarPath)).use { tar ->
+            val contents = mutableMapOf<String, String>()
+            var entry = tar.nextEntry
+            while (entry != null) {
+                if (!entry.isDirectory) contents[entry.name] = tar.readAllBytes().decodeToString()
+                entry = tar.nextEntry
+            }
+            assertEquals(mapOf("mydir/hello.txt" to "Hello from tar", "renamed.txt" to "Root file"), contents)
+        }
+    }
+
+    @Test
+    fun `truncated tar aborts the repack instead of writing zero-filled stubs`() {
+        val truncated = Files.readAllBytes(tarPath).copyOf(512 * 3)
+        Files.write(tarPath, truncated)
+
+        val thrown = runCatching {
+            runBlocking { vfs.renameFile(vfs.root.resolve("root.txt"), "renamed.txt") }
+        }.exceptionOrNull()
+
+        assertNotNull("an entry missing from the archive must abort the repack", thrown)
+        assertTrue("message must name the entry: ${thrown!!.message}", thrown.message!!.contains("renamed.txt"))
+        assertArrayEquals("the archive must not be rewritten", truncated, Files.readAllBytes(tarPath))
+        assertEquals("Hello from tar", Files.readString(vfs.root.resolve("mydir/hello.txt")))
+        assertTrue(Files.exists(vfs.root.resolve("renamed.txt")))
     }
 }

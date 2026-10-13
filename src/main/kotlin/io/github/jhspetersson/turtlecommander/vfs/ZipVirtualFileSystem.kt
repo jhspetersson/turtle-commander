@@ -8,6 +8,7 @@ import kotlinx.coroutines.withContext
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream
 import org.apache.commons.compress.archivers.zip.ZipFile
+import java.io.IOException
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.FileSystem
 import java.nio.file.FileSystems
@@ -366,9 +367,7 @@ class ZipExtractVirtualFileSystem(
 
     /**
      * Materialise every still-pending stub before [repack] overwrites the archive they
-     * stream from. An entry whose bytes can't be read is dropped from the temp dir (and
-     * thus from the repacked archive) — the same outcome the eager extractor produced
-     * when an entry failed to extract — rather than repacking a zero-filled stub.
+     * stream from. Any entry that cannot be read aborts the repack (see ARCHITECTURE.md §5.1).
      */
     @Synchronized
     private fun materializeAllForRepack() {
@@ -376,9 +375,8 @@ class ZipExtractVirtualFileSystem(
             try {
                 materialize(path)
             } catch (e: Exception) {
-                thisLogger().warn("Dropping unreadable zip entry from repack: $path (${e.message})")
-                runCatching { Files.deleteIfExists(path) }
-                pendingEntries.remove(path)
+                val name = tempDir.relativize(path).toString().replace('\\', '/')
+                throw IOException("Cannot repack ${archivePath.fileName}: entry '$name' could not be read: ${e.message ?: e.javaClass.simpleName}", e)
             }
         }
     }

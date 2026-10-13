@@ -237,4 +237,27 @@ class PakVirtualFileSystemTest {
         assertTrue(VirtualFileSystemRegistry.supportsByExtension("game.pak"))
         assertTrue(VirtualFileSystemRegistry.supportsByExtension("baseq3.pk3"))
     }
+
+    @Test
+    fun `truncated pak aborts the repack instead of dropping its entries`() {
+        pakPath = writePak(
+            linkedMapOf(
+                "keep.txt" to "keep me around".toByteArray(),
+                "edit.txt" to "old".toByteArray(),
+            ),
+        )
+        val pakVfs = PakVirtualFileSystem(pakPath)
+        vfs = pakVfs
+        val truncated = Files.readAllBytes(pakPath).copyOf(12 + 4)
+        Files.write(pakPath, truncated)
+
+        Files.write(pakVfs.getPath("/edit.txt"), "a longer replacement".toByteArray())
+        val thrown = runCatching { pakVfs.flush() }.exceptionOrNull()
+
+        assertNotNull("a materialisation failure must abort the repack", thrown)
+        assertTrue("message must name the entry: ${thrown!!.message}", thrown.message!!.contains("keep.txt"))
+        assertArrayEquals("the archive must not be rewritten", truncated, Files.readAllBytes(pakPath))
+        assertTrue("the stub must survive the failed repack", Files.exists(pakVfs.getPath("/keep.txt")))
+        assertEquals("a longer replacement", Files.readString(pakVfs.getPath("/edit.txt")))
+    }
 }

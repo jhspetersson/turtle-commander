@@ -5,6 +5,7 @@ import io.github.jhspetersson.turtlecommander.util.formatPosixMode
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
+import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.file.Files
@@ -203,7 +204,7 @@ class TarVirtualFileSystem(
         val byOrdinal = pendingOrdinals(listOf(path))
         if (byOrdinal.isEmpty()) return
         try {
-            streamPending(byOrdinal) { pending, tar -> materializeFromCurrentEntry(pending, tar) }
+            dropVanished(streamPending(byOrdinal) { pending, tar -> materializeFromCurrentEntry(pending, tar) })
         } catch (e: Exception) {
             thisLogger().warn("Failed to materialize tar entry ${path.normalize()}: ${e.message}")
             throw e
@@ -221,13 +222,14 @@ class TarVirtualFileSystem(
         val byOrdinal = pendingOrdinals(paths)
         if (byOrdinal.isEmpty()) return
         try {
-            streamPending(byOrdinal) { path, tar ->
+            val unreached = streamPending(byOrdinal) { path, tar ->
                 try {
                     materializeFromCurrentEntry(path, tar)
                 } catch (e: Exception) {
                     thisLogger().warn("Failed to materialize tar entry $path: ${e.message}")
                 }
             }
+            dropVanished(unreached)
         } catch (e: Exception) {
             thisLogger().warn("Bulk tar materialisation failed for $archivePath: ${e.message}")
         }
@@ -245,10 +247,10 @@ class TarVirtualFileSystem(
 
     /**
      * One pass over the archive, handing each entry whose ordinal is in [byOrdinal] to
-     * [body]. An entry the stream never reaches (the archive shrank underneath us) has its
-     * record dropped so a repack omits the stub instead of writing zeros.
+     * [body]. Returns the entries the stream never reached (the archive shrank underneath
+     * us); the caller decides whether to drop their records or abort.
      */
-    private fun streamPending(byOrdinal: MutableMap<Int, Path>, body: (Path, TarArchiveInputStream) -> Unit) {
+    private fun streamPending(byOrdinal: MutableMap<Int, Path>, body: (Path, TarArchiveInputStream) -> Unit): List<Path> {
         inputStreamFactory(archivePath).use { raw ->
             TarArchiveInputStream(raw).use { tar ->
                 var ordinal = -1
@@ -260,7 +262,11 @@ class TarVirtualFileSystem(
                 }
             }
         }
-        for (path in byOrdinal.values) {
+        return byOrdinal.values.toList()
+    }
+
+    private fun dropVanished(paths: List<Path>) {
+        for (path in paths) {
             thisLogger().warn("Tar entry vanished from $archivePath, dropping stub: $path")
             pendingEntries.remove(path)
         }
@@ -310,17 +316,35 @@ class TarVirtualFileSystem(
     }
 
     /**
-     * Fill every still-pending stub before [repack] overwrites the archive; entries that
-     * still couldn't be read are dropped from the temp dir and thus from the repacked archive.
+     * Fill every still-pending stub before [repack] overwrites the archive they stream from.
+     * Any entry that cannot be read aborts the repack (see ARCHITECTURE.md §5.1).
      */
     @Synchronized
     private fun materializeAllForRepack() {
-        if (pendingEntries.isEmpty()) return
-        materializeAll(pendingEntries.keys.toList())
-        for (path in pendingEntries.keys.toList()) {
-            thisLogger().warn("Dropping unreadable tar entry from repack: $path")
-            runCatching { Files.deleteIfExists(path) }
-            pendingEntries.remove(path)
+        val byOrdinal = pendingOrdinals(pendingEntries.keys)
+        if (byOrdinal.isEmpty()) return
+        var current: Path? = null
+        val unreached = try {
+            streamPending(byOrdinal) { path, tar ->
+                current = path
+                materializeFromCurrentEntry(path, tar)
+                current = null
+            }
+        } catch (e: Exception) {
+            throw IOException(repackReadFailure(current, e), e)
+        }
+        if (unreached.isNotEmpty()) {
+            val names = unreached.joinToString(", ") { "'${normalizeRelativeName(tempDir, it)}'" }
+            throw IOException("Cannot repack ${archivePath.fileName}: ${unreached.size} entries are no longer in the archive: $names")
+        }
+    }
+
+    private fun repackReadFailure(entry: Path?, cause: Exception): String {
+        val detail = cause.message ?: cause.javaClass.simpleName
+        return if (entry == null) {
+            "Cannot repack ${archivePath.fileName}: reading it failed: $detail"
+        } else {
+            "Cannot repack ${archivePath.fileName}: entry '${normalizeRelativeName(tempDir, entry)}' could not be read: $detail"
         }
     }
 

@@ -14,6 +14,7 @@ import org.junit.Before
 import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.Random
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -405,5 +406,33 @@ class ZipExtractVirtualFileSystemTest {
         } finally {
             Files.deleteIfExists(zip)
         }
+    }
+
+    @Test
+    fun `truncated zip aborts the repack instead of dropping its entries`() {
+        zipPath = Files.createTempFile("zip-extract-test-", ".zip")
+        val payload = ByteArray(64 * 1024).also { Random(7).nextBytes(it) }
+        ZipOutputStream(Files.newOutputStream(zipPath)).use { zos ->
+            zos.putNextEntry(ZipEntry("blob.bin"))
+            zos.write(payload)
+            zos.closeEntry()
+            zos.putNextEntry(ZipEntry("renamed.txt"))
+            zos.write("small".toByteArray())
+            zos.closeEntry()
+        }
+        val extractVfs = ZipExtractVirtualFileSystem(zipPath)
+        vfs = extractVfs
+        val truncated = Files.readAllBytes(zipPath).copyOf(8 * 1024)
+        Files.write(zipPath, truncated)
+
+        val thrown = runCatching {
+            runBlocking { extractVfs.renameFile(extractVfs.getPath("/renamed.txt"), "after.txt") }
+        }.exceptionOrNull()
+
+        assertNotNull("a materialisation failure must abort the repack", thrown)
+        assertTrue("message must name the entry: ${thrown!!.message}", thrown.message!!.contains("blob.bin"))
+        assertArrayEquals("the archive must not be rewritten", truncated, Files.readAllBytes(zipPath))
+        assertTrue("the stub must survive the failed repack", Files.exists(extractVfs.getPath("/blob.bin")))
+        assertTrue(Files.exists(extractVfs.getPath("/after.txt")))
     }
 }

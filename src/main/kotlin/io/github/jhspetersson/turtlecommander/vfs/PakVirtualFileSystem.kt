@@ -1,6 +1,7 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
 import com.intellij.openapi.diagnostic.thisLogger
+import java.io.EOFException
 import java.io.IOException
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
@@ -161,6 +162,7 @@ class PakVirtualFileSystem(
                     out.write(buffer, 0, read)
                     remaining -= read
                 }
+                if (remaining > 0) throw EOFException("archive ends $remaining bytes short of the entry")
             }
             Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
         } finally {
@@ -186,32 +188,21 @@ class PakVirtualFileSystem(
 
     /**
      * Fill every still-pending stub (one shared archive handle) before [repack] overwrites
-     * the archive they read from. Entries whose bytes can't be read are dropped from the
-     * temp dir — and thus from the repacked archive — instead of repacking zero-filled
-     * stubs.
+     * the archive they read from. Any entry that cannot be read aborts the repack (see
+     * ARCHITECTURE.md §5.1).
      */
     @Synchronized
     private fun materializeAllForRepack() {
         if (pendingEntries.isEmpty()) return
-        try {
-            RandomAccessFile(archivePath.toFile(), "r").use { raf ->
-                for ((path, pending) in pendingEntries.entries.toList()) {
-                    try {
-                        materializeFromRaf(path, pending, raf)
-                    } catch (e: Exception) {
-                        thisLogger().warn("Dropping unreadable pak entry from repack: $path (${e.message})")
-                        runCatching { Files.deleteIfExists(path) }
-                        pendingEntries.remove(path)
-                    }
+        RandomAccessFile(archivePath.toFile(), "r").use { raf ->
+            for ((path, pending) in pendingEntries.entries.toList()) {
+                try {
+                    materializeFromRaf(path, pending, raf)
+                } catch (e: Exception) {
+                    val name = tempDir.relativize(path).toString().replace('\\', '/')
+                    throw IOException("Cannot repack ${archivePath.fileName}: entry '$name' could not be read: ${e.message ?: e.javaClass.simpleName}", e)
                 }
             }
-        } catch (e: Exception) {
-            thisLogger().warn("Bulk pak materialisation failed for $archivePath: ${e.message}")
-        }
-        for (path in pendingEntries.keys.toList()) {
-            thisLogger().warn("Dropping unreachable pak entry from repack: $path")
-            runCatching { Files.deleteIfExists(path) }
-            pendingEntries.remove(path)
         }
     }
 
