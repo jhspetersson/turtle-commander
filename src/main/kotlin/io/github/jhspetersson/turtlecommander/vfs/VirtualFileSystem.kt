@@ -361,14 +361,78 @@ internal fun resolveEntryPath(baseDir: Path, entryName: String): Path? {
  * way the OS dereferences it, so a legitimate in-tree link such as `bin/sh -> ../usr/bin/sh` is
  * still allowed.
  */
-internal fun symlinkTargetEscapes(baseDir: Path, linkPath: Path, target: String): Boolean {
+internal fun symlinkTargetEscapes(baseDir: Path, linkPath: Path, target: String): Boolean =
+    resolveConfinedSymlinkTarget(baseDir, linkPath, target) == null
+
+internal fun resolveConfinedSymlinkTarget(baseDir: Path, linkPath: Path, target: String): Path? {
     return try {
-        val base = baseDir.normalize()
-        val parent = (linkPath.parent ?: base).normalize()
-        !parent.resolve(Path.of(target)).normalize().startsWith(base)
+        val base = baseDir.toAbsolutePath().normalize()
+        val parent = (linkPath.parent ?: base).toAbsolutePath().normalize()
+        val confinedParent = walkConfined(base, base, base.relativize(parent), 0) ?: return null
+        walkConfined(base, confinedParent, Path.of(target), 0)
     } catch (_: Exception) {
-        // Unparseable target (illegal chars, cross-scheme, …) — refuse it, the safe default.
-        true
+        null
+    }
+}
+
+private const val MAX_SYMLINK_HOPS = 40
+
+private fun walkConfined(base: Path, from: Path, target: Path, hops: Int): Path? {
+    if (hops > MAX_SYMLINK_HOPS) return null
+    var current = from
+    var remaining = target
+    if (target.root != null) {
+        if (!target.isAbsolute || !target.startsWith(base)) return null
+        current = base
+        remaining = base.relativize(target)
+    }
+    for (component in remaining) {
+        when (component.toString()) {
+            "", "." -> {}
+            ".." -> current = current.parent ?: return null
+            else -> {
+                current = current.resolve(component)
+                if (Files.isSymbolicLink(current)) {
+                    val linkTarget = Files.readSymbolicLink(current)
+                    current = walkConfined(base, current.parent, linkTarget, hops + 1) ?: return null
+                }
+            }
+        }
+        if (!current.startsWith(base)) return null
+    }
+    return current
+}
+
+internal class PendingSymlink(linkPath: Path, val target: String, val mtime: FileTime?) {
+    val linkPath: Path = linkPath.normalize()
+}
+
+internal fun createConfinedSymlinks(
+    baseDir: Path,
+    links: List<PendingSymlink>,
+    onEscaped: (PendingSymlink) -> Unit,
+    onFailed: (PendingSymlink) -> Unit,
+) {
+    val created = mutableListOf<PendingSymlink>()
+    for (link in links) {
+        if (symlinkTargetEscapes(baseDir, link.linkPath, link.target)) {
+            onEscaped(link)
+            continue
+        }
+        try {
+            link.linkPath.parent?.let { Files.createDirectories(it) }
+            Files.createSymbolicLink(link.linkPath, Path.of(link.target))
+            link.mtime?.let { setMtimeNoFollow(link.linkPath, it) }
+            created += link
+        } catch (_: Exception) {
+            onFailed(link)
+        }
+    }
+    for (link in created) {
+        if (symlinkTargetEscapes(baseDir, link.linkPath, link.target)) {
+            Files.deleteIfExists(link.linkPath)
+            onEscaped(link)
+        }
     }
 }
 

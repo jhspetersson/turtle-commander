@@ -185,6 +185,30 @@ class CpioVirtualFileSystemTest {
     }
 
     @Test
+    fun `symlink chain through an in-tree link cannot escape the extraction root`() = runBlocking {
+        val marker = "turtle-zipslip-${java.util.UUID.randomUUID()}.txt"
+        cpioPath = writeCpio(
+            listOf(
+                Triple("sub", null, DIR_MODE),
+                Triple("sub/inner", "..".toByteArray(), SYMLINK_MODE),
+                Triple("outer", "sub/inner/..".toByteArray(), SYMLINK_MODE),
+                Triple("outer/$marker", "pwned".toByteArray(), FILE_MODE),
+            ),
+        )
+        val cpioVfs = CpioVirtualFileSystem(cpioPath)
+        vfs = cpioVfs
+        val escaped = cpioVfs.root.toAbsolutePath().parent.resolve(marker)
+        try {
+            assertFalse("nothing must be written above the extraction root", Files.exists(escaped))
+            val outer = cpioVfs.root.resolve("outer")
+            assertFalse("the escaping link must not exist on disk", Files.isSymbolicLink(outer))
+            assertEquals("pwned", Files.readString(outer.resolve(marker)))
+        } finally {
+            Files.deleteIfExists(escaped)
+        }
+    }
+
+    @Test
     fun `symlink mtime is written to the link itself, not to its target`() {
         cpioPath = writeCpio(
             listOf(

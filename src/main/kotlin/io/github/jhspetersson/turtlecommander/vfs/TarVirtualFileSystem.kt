@@ -105,6 +105,7 @@ class TarVirtualFileSystem(
         unresolvedSymlinks.clear()
         pendingEntries.clear()
         entryMetadataByName.clear()
+        val pendingSymlinks = mutableListOf<PendingSymlink>()
         inputStreamFactory(archivePath).use { raw ->
             TarArchiveInputStream(raw).use { tar ->
                 var ordinal = -1
@@ -127,24 +128,11 @@ class TarVirtualFileSystem(
                     )
                     try {
                         if (entry.isSymbolicLink) {
-                            val linkTarget = entry.linkName
-                            if (symlinkTargetEscapes(into, entryPath, linkTarget)) {
-                                // Refuse a link that would point outside the extraction root —
-                                // creating it on disk would let a later child entry (or a copy-out)
-                                // write through it into the host filesystem.
-                                thisLogger().warn("Skipping tar symlink escaping the archive root: ${entry.name} -> $linkTarget")
-                            } else {
-                                entryPath.parent?.let { Files.createDirectories(it) }
-                                try {
-                                    Files.createSymbolicLink(entryPath, Path.of(linkTarget))
-                                } catch (_: Exception) {
-                                    // Symlink creation may fail (e.g. Windows without privileges).
-                                    // Record it so repack can still re-emit the original entry and
-                                    // users don't silently lose symlinks when they edit a tar.
-                                    unresolvedSymlinks[normalizeRelativeName(into, entryPath)] = linkTarget
-                                }
-                                setEntryMtime(entryPath, entry)
-                            }
+                            pendingSymlinks += PendingSymlink(
+                                entryPath,
+                                entry.linkName,
+                                entry.lastModifiedDate?.let { FileTime.fromMillis(it.time) },
+                            )
                         } else if (entry.isDirectory) {
                             Files.createDirectories(entryPath)
                             setEntryMtime(entryPath, entry)
@@ -187,6 +175,14 @@ class TarVirtualFileSystem(
                 }
             }
         }
+        createConfinedSymlinks(
+            into,
+            pendingSymlinks,
+            onEscaped = {
+                thisLogger().warn("Skipping tar symlink escaping the archive root: ${normalizeRelativeName(into, it.linkPath)} -> ${it.target}")
+            },
+            onFailed = { unresolvedSymlinks[normalizeRelativeName(into, it.linkPath)] = it.target },
+        )
     }
 
     private fun setEntryMtime(path: Path, entry: TarArchiveEntry) {

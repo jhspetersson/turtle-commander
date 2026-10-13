@@ -47,6 +47,7 @@ class CpioVirtualFileSystem(
         if (!sniffIsCpio()) throw SilentVfsOpenException()
         entryMetadata.clear()
         unresolvedSymlinks.clear()
+        val pendingSymlinks = mutableListOf<PendingSymlink>()
         Files.newInputStream(archivePath).buffered().use { raw ->
             CpioArchiveInputStream(raw).use { cpio ->
                 var entry = cpio.nextEntry
@@ -70,16 +71,11 @@ class CpioVirtualFileSystem(
                             entry.isDirectory -> Files.createDirectories(entryPath)
                             entry.isSymbolicLink -> {
                                 val target = cpio.readBytes().toString(Charsets.UTF_8)
-                                if (symlinkTargetEscapes(into, entryPath, target)) {
-                                    thisLogger().warn("Skipping cpio symlink escaping the archive root: $name -> $target")
-                                } else {
-                                    entryPath.parent?.let { Files.createDirectories(it) }
-                                    try {
-                                        Files.createSymbolicLink(entryPath, Path.of(target))
-                                    } catch (_: Exception) {
-                                        unresolvedSymlinks[relativeName] = target
-                                    }
-                                }
+                                pendingSymlinks += PendingSymlink(
+                                    entryPath,
+                                    target,
+                                    entry.lastModifiedDate?.time?.takeIf { it > 0 }?.let { FileTime.fromMillis(it) },
+                                )
                             }
                             else -> {
                                 Files.createDirectories(entryPath.parent)
@@ -97,6 +93,14 @@ class CpioVirtualFileSystem(
                 }
             }
         }
+        createConfinedSymlinks(
+            into,
+            pendingSymlinks,
+            onEscaped = {
+                thisLogger().warn("Skipping cpio symlink escaping the archive root: ${normalizeRelativeName(into, it.linkPath)} -> ${it.target}")
+            },
+            onFailed = { unresolvedSymlinks[normalizeRelativeName(into, it.linkPath)] = it.target },
+        )
     }
 
     override fun onRenamed(source: Path, target: Path) {

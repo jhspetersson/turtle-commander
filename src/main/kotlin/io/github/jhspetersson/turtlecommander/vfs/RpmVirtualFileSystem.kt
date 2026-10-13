@@ -61,6 +61,7 @@ class RpmVirtualFileSystem(
 
     override fun extract(into: Path) {
         val progress = takeOpenProgress()
+        val pendingSymlinks = mutableListOf<PendingSymlink>()
         BufferedInputStream(Files.newInputStream(archivePath)).use { raw ->
             val data = DataInputStream(raw)
             skipLead(data)
@@ -89,22 +90,12 @@ class RpmVirtualFileSystem(
                         when {
                             entry.isDirectory -> Files.createDirectories(entryPath)
                             entry.isSymbolicLink -> {
-                                // cpio stores the link target as the entry body.
                                 val target = cpio.readBytes().toString(Charsets.UTF_8)
-                                if (symlinkTargetEscapes(into, entryPath, target)) {
-                                    // Refuse a link pointing outside the extraction root — see
-                                    // TarVirtualFileSystem for the symlink-then-child escape.
-                                    thisLogger().warn("Skipping rpm symlink escaping the archive root: $name -> $target")
-                                } else {
-                                    entryPath.parent?.let { Files.createDirectories(it) }
-                                    try {
-                                        Files.createSymbolicLink(entryPath, Path.of(target))
-                                    } catch (_: Exception) {
-                                        // Windows without SeCreateSymbolicLinkPrivilege, or weird targets.
-                                        // Materialize as a plain text file so the contents aren't lost.
-                                        Files.writeString(entryPath, target)
-                                    }
-                                }
+                                pendingSymlinks += PendingSymlink(
+                                    entryPath,
+                                    target,
+                                    entry.lastModifiedDate?.time?.takeIf { it > 0 }?.let { FileTime.fromMillis(it) },
+                                )
                             }
                             else -> {
                                 Files.createDirectories(entryPath.parent)
@@ -112,7 +103,7 @@ class RpmVirtualFileSystem(
                             }
                         }
                         val mtime = entry.lastModifiedDate?.time
-                        if (mtime != null && mtime > 0) {
+                        if (mtime != null && mtime > 0 && !entry.isSymbolicLink) {
                             setMtimeNoFollow(entryPath, FileTime.fromMillis(mtime))
                         }
                     } catch (e: Exception) {
@@ -122,6 +113,14 @@ class RpmVirtualFileSystem(
                 }
             }
         }
+        createConfinedSymlinks(
+            into,
+            pendingSymlinks,
+            onEscaped = {
+                thisLogger().warn("Skipping rpm symlink escaping the archive root: ${into.relativize(it.linkPath)} -> ${it.target}")
+            },
+            onFailed = { runCatching { Files.writeString(it.linkPath, it.target) } },
+        )
     }
 
     private fun skipLead(data: DataInputStream) {

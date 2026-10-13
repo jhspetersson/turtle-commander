@@ -530,4 +530,81 @@ class TarVirtualFileSystemTest {
         }
     }
 
+    @Test
+    fun `symlink chain through an in-tree link cannot escape the extraction root`() {
+        val marker = "turtle-zipslip-${java.util.UUID.randomUUID()}.txt"
+        val malicious = Files.createTempFile("tar-chain-escape-", ".tar")
+        var escaped: Path? = null
+        try {
+            TarArchiveOutputStream(Files.newOutputStream(malicious)).use { tar ->
+                tar.putArchiveEntry(TarArchiveEntry("sub/"))
+                tar.closeArchiveEntry()
+                val inner = TarArchiveEntry("sub/inner", TarArchiveEntry.LF_SYMLINK)
+                inner.linkName = ".."
+                tar.putArchiveEntry(inner)
+                tar.closeArchiveEntry()
+                val outer = TarArchiveEntry("outer", TarArchiveEntry.LF_SYMLINK)
+                outer.linkName = "sub/inner/.."
+                tar.putArchiveEntry(outer)
+                tar.closeArchiveEntry()
+                val content = "pwned".toByteArray()
+                val child = TarArchiveEntry("outer/$marker")
+                child.size = content.size.toLong()
+                tar.putArchiveEntry(child)
+                tar.write(content)
+                tar.closeArchiveEntry()
+            }
+
+            TarVirtualFileSystem(
+                malicious,
+                inputStreamFactory = { Files.newInputStream(it) },
+                outputStreamFactory = { Files.newOutputStream(it) },
+            ).use { fs ->
+                escaped = fs.root.toAbsolutePath().parent.resolve(marker)
+                assertFalse("nothing must be written above the extraction root", Files.exists(escaped!!))
+                val outer = fs.root.resolve("outer")
+                assertFalse("the escaping link must not exist on disk", Files.isSymbolicLink(outer))
+                assertTrue("child entry must be contained", Files.isRegularFile(outer.resolve(marker)))
+                assumeTrue(
+                    "symbolic link creation not permitted on this host",
+                    Files.isSymbolicLink(fs.root.resolve("sub").resolve("inner")),
+                )
+            }
+        } finally {
+            escaped?.let { Files.deleteIfExists(it) }
+            Files.deleteIfExists(malicious)
+        }
+    }
+
+    @Test
+    fun `entries are never written through a link created by the same archive`() {
+        val real = Files.createTempFile("tar-link-first-", ".tar")
+        try {
+            TarArchiveOutputStream(Files.newOutputStream(real)).use { tar ->
+                tar.putArchiveEntry(TarArchiveEntry("target/"))
+                tar.closeArchiveEntry()
+                val link = TarArchiveEntry("alias", TarArchiveEntry.LF_SYMLINK)
+                link.linkName = "target"
+                tar.putArchiveEntry(link)
+                tar.closeArchiveEntry()
+                val content = "x".toByteArray()
+                val child = TarArchiveEntry("alias/file.txt")
+                child.size = content.size.toLong()
+                tar.putArchiveEntry(child)
+                tar.write(content)
+                tar.closeArchiveEntry()
+            }
+            TarVirtualFileSystem(
+                real,
+                inputStreamFactory = { Files.newInputStream(it) },
+                outputStreamFactory = { Files.newOutputStream(it) },
+            ).use { fs ->
+                assertTrue(Files.isRegularFile(fs.root.resolve("alias").resolve("file.txt")))
+                assertFalse(Files.exists(fs.root.resolve("target").resolve("file.txt")))
+                assertFalse(Files.isSymbolicLink(fs.root.resolve("alias")))
+            }
+        } finally {
+            Files.deleteIfExists(real)
+        }
+    }
 }
