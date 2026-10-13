@@ -636,13 +636,10 @@ internal fun FileTab.performPack() {
     }
     val defaultArchivePath = destination.resolve(archiveName).toString()
 
-    val packDialog = PackDialog(project, selected, defaultArchivePath)
+    val packDialog = PackDialog(project, selected, defaultArchivePath, currentPath)
     if (!packDialog.showAndGet()) return
 
-    var archivePath = Path.of(packDialog.archivePath)
-    if (archivePath.parent == null) {
-        archivePath = currentPath.resolve(archivePath)
-    }
+    val archivePath = resolveDestinationPath(packDialog.archivePath, currentPath)
     val format = packDialog.archiveFormat
     val deleteAfterPacking = packDialog.deleteAfterPacking
     val sourcePaths = selected.map { it.path }
@@ -779,7 +776,7 @@ internal fun FileTab.performExtract() {
     if (selected.isEmpty()) return
     val destination = otherPanelPathProvider() ?: currentPath
 
-    val dialog = ExtractDialog(project, selected, destination.toString())
+    val dialog = ExtractDialog(project, selected, destination.toString(), currentPath)
     if (!dialog.showAndGet()) return
 
     val destPath = resolveDestinationPath(dialog.destinationPath, currentPath)
@@ -813,7 +810,7 @@ internal fun FileTab.performExtractToSubdir() {
     val subdir = archiveBaseName(selected.first().name)
     val destination = currentPath.resolve(subdir)
 
-    val dialog = ExtractDialog(project, selected, destination.toString())
+    val dialog = ExtractDialog(project, selected, destination.toString(), currentPath)
     if (!dialog.showAndGet()) return
 
     val destPath = resolveDestinationPath(dialog.destinationPath, currentPath)

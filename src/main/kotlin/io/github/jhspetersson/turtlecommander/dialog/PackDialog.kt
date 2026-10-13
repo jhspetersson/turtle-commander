@@ -4,11 +4,13 @@ import io.github.jhspetersson.turtlecommander.model.FileEntry
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
 import io.github.jhspetersson.turtlecommander.ui.installStandardContextMenu
 import java.awt.BorderLayout
 import java.awt.Dimension
+import java.nio.file.Path
 import javax.swing.BorderFactory
 import javax.swing.BoxLayout
 import javax.swing.DefaultComboBoxModel
@@ -29,6 +31,7 @@ class PackDialog(
     project: Project,
     private val sources: List<FileEntry>,
     defaultArchivePath: String,
+    private val basePath: Path,
 ) : DialogWrapper(project) {
 
     val archivePath: String get() {
@@ -118,4 +121,7 @@ class PackDialog(
     }
 
     override fun getPreferredFocusedComponent() = archiveField
+
+    public override fun doValidate(): ValidationInfo? =
+        validatePackArchivePath(archiveField.text, basePath)?.let { ValidationInfo(it, archiveField) }
 }
