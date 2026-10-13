@@ -6,6 +6,7 @@
 
 ### Changed
 
+- If extraction of any file fails, archive is opened in read-only mode
 - Delayed overwriting of the original archive until the repacking is complete
 
 ### Fixed

@@ -115,7 +115,7 @@ class PakVirtualFileSystem(
                         stubMtime = Files.getLastModifiedTime(entryPath),
                     )
                 } catch (e: Exception) {
-                    thisLogger().debug("Failed to stub pak entry: ${entry.name}", e)
+                    reportUnextractable(entry.name, e)
                 }
             }
         }

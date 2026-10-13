@@ -260,4 +260,20 @@ class PakVirtualFileSystemTest {
         assertTrue("the stub must survive the failed repack", Files.exists(pakVfs.getPath("/keep.txt")))
         assertEquals("a longer replacement", Files.readString(pakVfs.getPath("/edit.txt")))
     }
+
+    @Test
+    fun `entry that cannot be extracted makes the archive read-only instead of vanishing on repack`() {
+        pakPath = writePak(linkedMapOf("a" to "file".toByteArray(), "a/b" to "shadowed".toByteArray()))
+        val pakVfs = PakVirtualFileSystem(pakPath)
+        vfs = pakVfs
+        val original = Files.readAllBytes(pakPath)
+
+        assertEquals(listOf("a/b"), pakVfs.unextractableEntries)
+        assertTrue(pakVfs.isReadOnly)
+        val renameFailure = runCatching { runBlocking { pakVfs.renameFile(pakVfs.getPath("/a"), "c") } }.exceptionOrNull()
+        assertTrue("rename must be refused: $renameFailure", renameFailure is UnsupportedOperationException)
+        Files.writeString(pakVfs.getPath("/a"), "edited")
+        pakVfs.flush()
+        assertArrayEquals("a read-only archive must never be repacked", original, Files.readAllBytes(pakPath))
+    }
 }

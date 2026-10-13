@@ -6,6 +6,7 @@ import org.apache.commons.compress.archivers.cpio.CpioArchiveInputStream
 import org.apache.commons.compress.archivers.cpio.CpioArchiveOutputStream
 import org.apache.commons.compress.archivers.cpio.CpioConstants
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -228,5 +229,26 @@ class CpioVirtualFileSystemTest {
         private val FILE_MODE = (CpioConstants.C_ISREG or 0x1A4).toLong()
         private val DIR_MODE = (CpioConstants.C_ISDIR or 0x1ED).toLong()
         private val SYMLINK_MODE = (CpioConstants.C_ISLNK or 0x1FF).toLong()
+    }
+
+    @Test
+    fun `entry that cannot be extracted makes the archive read-only instead of vanishing on repack`() {
+        cpioPath = writeCpio(
+            listOf(
+                Triple("a", "file".toByteArray(), FILE_MODE),
+                Triple("a/b", "shadowed".toByteArray(), FILE_MODE),
+            ),
+        )
+        val cpioVfs = CpioVirtualFileSystem(cpioPath)
+        vfs = cpioVfs
+        val original = Files.readAllBytes(cpioPath)
+
+        assertEquals(listOf("a/b"), cpioVfs.unextractableEntries)
+        assertTrue(cpioVfs.isReadOnly)
+        val renameFailure = runCatching { runBlocking { cpioVfs.renameFile(cpioVfs.getPath("/a"), "c") } }.exceptionOrNull()
+        assertTrue("rename must be refused: $renameFailure", renameFailure is UnsupportedOperationException)
+        Files.writeString(cpioVfs.getPath("/a"), "edited")
+        cpioVfs.flush()
+        assertArrayEquals("a read-only archive must never be repacked", original, Files.readAllBytes(cpioPath))
     }
 }

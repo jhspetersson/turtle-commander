@@ -44,6 +44,15 @@ internal suspend fun FileTab.openArchive(archivePath: Path, directory: String, s
     openVfs(entry, directory, selectName)
 }
 
+private fun FileTab.notifyUnextractableEntries(vfs: VirtualFileSystem, fileName: String) {
+    val entries = vfs.unextractableEntries
+    if (entries.isEmpty()) return
+    val shown = entries.take(3).joinToString(", ")
+    val more = if (entries.size > 3) " and ${entries.size - 3} more" else ""
+    val noun = if (entries.size == 1) "entry" else "entries"
+    fileErrorNotification("Opened $fileName read-only: ${entries.size} $noun could not be extracted ($shown$more)")
+}
+
 internal suspend fun FileTab.openVfs(entry: FileEntry, directory: String = "", selectName: String? = null) {
     val archivePath = entry.path
     val fileName = archivePath.fileName?.toString() ?: "archive"
@@ -65,6 +74,7 @@ internal suspend fun FileTab.openVfs(entry: FileEntry, directory: String = "", s
                         return@withContext
                     }
                     attachSharedVfs(vfs, archivePath)
+                    notifyUnextractableEntries(vfs, fileName)
                     navigateTo(vfsDirectory(vfs, directory), selectName)
                 } else {
                     var tempFile: File? = null
@@ -89,6 +99,7 @@ internal suspend fun FileTab.openVfs(entry: FileEntry, directory: String = "", s
                             return@withContext
                         }
                         vfsStack.add(VfsStackEntry(vfs, archivePath, tempFile))
+                        notifyUnextractableEntries(vfs, fileName)
                         navigateTo(vfsDirectory(vfs, directory), selectName)
                     } catch (_: SilentVfsOpenException) {
                         // Recognised extension but unrecognised contents (e.g. a .pak that is

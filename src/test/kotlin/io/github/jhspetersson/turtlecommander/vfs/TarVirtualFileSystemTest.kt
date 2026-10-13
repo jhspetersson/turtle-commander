@@ -708,4 +708,37 @@ class TarVirtualFileSystemTest {
         assertEquals("Hello from tar", Files.readString(vfs.root.resolve("mydir/hello.txt")))
         assertTrue(Files.exists(vfs.root.resolve("renamed.txt")))
     }
+
+    @Test
+    fun `entry that cannot be extracted makes the archive read-only instead of vanishing on repack`() {
+        val shadowed = Files.createTempFile("shadowed-", ".tar")
+        try {
+            TarArchiveOutputStream(Files.newOutputStream(shadowed)).use { out ->
+                for ((name, content) in listOf("a" to "file", "a/b" to "shadowed")) {
+                    val bytes = content.toByteArray()
+                    val entry = TarArchiveEntry(name)
+                    entry.size = bytes.size.toLong()
+                    out.putArchiveEntry(entry)
+                    out.write(bytes)
+                    out.closeArchiveEntry()
+                }
+            }
+            val original = Files.readAllBytes(shadowed)
+            TarVirtualFileSystem(
+                shadowed,
+                inputStreamFactory = { Files.newInputStream(it) },
+                outputStreamFactory = { Files.newOutputStream(it) },
+            ).use { tarVfs ->
+                assertEquals(listOf("a/b"), tarVfs.unextractableEntries)
+                assertTrue(tarVfs.isReadOnly)
+                val renameFailure = runCatching { runBlocking { tarVfs.renameFile(tarVfs.root.resolve("a"), "c") } }.exceptionOrNull()
+                assertTrue("rename must be refused: $renameFailure", renameFailure is UnsupportedOperationException)
+                Files.writeString(tarVfs.root.resolve("a"), "edited")
+                tarVfs.flush()
+                assertArrayEquals("a read-only archive must never be repacked", original, Files.readAllBytes(shadowed))
+            }
+        } finally {
+            Files.deleteIfExists(shadowed)
+        }
+    }
 }

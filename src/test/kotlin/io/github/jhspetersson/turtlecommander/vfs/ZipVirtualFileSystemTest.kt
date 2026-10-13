@@ -436,4 +436,20 @@ class ZipExtractVirtualFileSystemTest {
         assertTrue("the stub must survive the failed repack", Files.exists(extractVfs.getPath("/blob.bin")))
         assertEquals("small", Files.readString(extractVfs.getPath("/after.txt")))
     }
+
+    @Test
+    fun `entry that cannot be extracted makes the archive read-only instead of vanishing on repack`() {
+        createZip("a" to "file", "a/b" to "shadowed")
+        val extractVfs = ZipExtractVirtualFileSystem(zipPath)
+        vfs = extractVfs
+        val original = Files.readAllBytes(zipPath)
+
+        assertEquals(listOf("a/b"), extractVfs.unextractableEntries)
+        assertTrue(extractVfs.isReadOnly)
+        val renameFailure = runCatching { runBlocking { extractVfs.renameFile(extractVfs.getPath("/a"), "c") } }.exceptionOrNull()
+        assertTrue("rename must be refused: $renameFailure", renameFailure is UnsupportedOperationException)
+        Files.writeString(extractVfs.getPath("/a"), "edited")
+        extractVfs.flush()
+        assertArrayEquals("a read-only archive must never be repacked", original, Files.readAllBytes(zipPath))
+    }
 }

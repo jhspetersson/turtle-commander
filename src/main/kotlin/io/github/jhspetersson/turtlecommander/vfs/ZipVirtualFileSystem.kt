@@ -292,7 +292,7 @@ class ZipExtractVirtualFileSystem(
                         )
                     }
                 } catch (e: Exception) {
-                    thisLogger().debug("Failed to stub zip entry: ${entry.name}", e)
+                    reportUnextractable(entry.name, e)
                 }
             }
         } catch (e: Exception) {

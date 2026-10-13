@@ -170,7 +170,7 @@ class TarVirtualFileSystem(
                             )
                         }
                     } catch (e: Exception) {
-                        thisLogger().debug("Failed to stub tar entry: ${entry.name}", e)
+                        reportUnextractable(entry.name, e)
                     }
                     entry = tar.nextEntry
                 }

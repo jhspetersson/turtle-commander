@@ -87,7 +87,7 @@ class CpioVirtualFileSystem(
                             setMtimeNoFollow(entryPath, FileTime.fromMillis(mtime))
                         }
                     } catch (e: Exception) {
-                        thisLogger().debug("Failed to extract cpio entry: $name", e)
+                        reportUnextractable(name, e)
                     }
                     entry = cpio.nextEntry
                 }

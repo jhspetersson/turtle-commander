@@ -21,6 +21,7 @@ interface VirtualFileSystem : Closeable {
     val archivePath: Path
     val root: Path
     val isReadOnly: Boolean get() = false
+    val unextractableEntries: List<String> get() = emptyList()
     suspend fun listFiles(directory: Path): List<FileEntry>
     fun isRoot(path: Path): Boolean
     fun getPath(relativePath: String): Path
@@ -566,6 +567,18 @@ abstract class AbstractTempDirVirtualFileSystem(
      */
     protected abstract fun extract(into: Path)
 
+    private val unextractable = linkedMapOf<String, String>()
+
+    override val unextractableEntries: List<String> get() = unextractable.keys.toList()
+
+    override val isReadOnly: Boolean get() = unextractable.isNotEmpty()
+
+    protected fun reportUnextractable(name: String, cause: Exception) {
+        val detail = cause.message ?: cause.javaClass.simpleName
+        thisLogger().warn("Opening $archivePath read-only: entry '$name' could not be extracted: $detail")
+        unextractable[name] = detail
+    }
+
     /**
      * Repack [from] (the temp dir) back into [archivePath]. Default no-op suits read-only
      * formats; the base [flush] only invokes this when [isReadOnly] is `false`.
@@ -591,6 +604,7 @@ abstract class AbstractTempDirVirtualFileSystem(
         val signature = archiveSignature()
         val dir = Files.createTempDirectory(tempDirPrefix)
         TempRootLocks.claim(dir)
+        unextractable.clear()
         try {
             extract(dir)
         } catch (e: Exception) {
