@@ -674,7 +674,7 @@ internal fun FileTab.performPack() {
                 try {
                     val packedCount = when (format) {
                         ArchiveFormat.ZIP -> archiveService.packZip(
-                            finalArchivePath, sourcePaths, appendToExisting, archiveExists,
+                            finalArchivePath, sourcePaths, appendToExisting,
                             onProgress = { count, name ->
                                 indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
                                 indicator.text = "Packing $count / $totalFiles"
@@ -699,10 +699,6 @@ internal fun FileTab.performPack() {
                             },
                             isCancelled = { indicator.isCanceled },
                         )
-                    }
-
-                    if (packedCount == 0 && !appendToExisting) {
-                        withContext(Dispatchers.IO) { Files.deleteIfExists(finalArchivePath) }
                     }
 
                     if (!indicator.isCanceled && packedCount > 0 && deleteAfterPacking) {

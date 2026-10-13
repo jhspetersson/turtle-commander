@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Delayed overwriting of the original archive until the repacking is complete
+
 ### Fixed
 
 - Repacking errors propagate to the user instead of being silently ignored

@@ -454,17 +454,21 @@ internal fun repackAtomically(archivePath: Path, write: (Path) -> Unit) {
     val tmp = Files.createTempFile(dir, "tc-repack-", ".tmp")
     try {
         write(tmp)
-        copyPosixPermissions(archivePath, tmp)
-        try {
-            Files.move(tmp, archivePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
-        } catch (_: AtomicMoveNotSupportedException) {
-            // Rare (e.g. some network filesystems): a non-atomic replace is still far safer than
-            // truncating the original before the new archive bytes exist.
-            Files.move(tmp, archivePath, StandardCopyOption.REPLACE_EXISTING)
-        }
+        replaceAtomically(tmp, archivePath)
     } catch (e: Throwable) {
         runCatching { Files.deleteIfExists(tmp) }
         throw e
+    }
+}
+
+internal fun replaceAtomically(staged: Path, archivePath: Path) {
+    copyPosixPermissions(archivePath, staged)
+    try {
+        Files.move(staged, archivePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+    } catch (_: AtomicMoveNotSupportedException) {
+        // Rare (e.g. some network filesystems): a non-atomic replace is still far safer than
+        // truncating the original before the new archive bytes exist.
+        Files.move(staged, archivePath, StandardCopyOption.REPLACE_EXISTING)
     }
 }
 

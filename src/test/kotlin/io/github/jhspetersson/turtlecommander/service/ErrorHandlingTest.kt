@@ -156,7 +156,7 @@ class PackZipErrorHandlingTest {
 
         val service = ArchiveService()
         val count = service.packZip(
-            archivePath, listOf(dir), appendToExisting = false, archiveExists = false,
+            archivePath, listOf(dir), appendToExisting = false,
             onProgress = { _, _ -> },
             onError = { _, _ -> fail("should not error") },
             isCancelled = { false },
@@ -179,7 +179,7 @@ class PackZipErrorHandlingTest {
         val errors = mutableListOf<Path>()
         val service = ArchiveService()
         val count = service.packZip(
-            archivePath, listOf(nonexistent), appendToExisting = false, archiveExists = false,
+            archivePath, listOf(nonexistent), appendToExisting = false,
             onProgress = { _, _ -> },
             onError = { path, _ -> errors.add(path) },
             isCancelled = { false },
@@ -203,7 +203,7 @@ class PackZipErrorHandlingTest {
         val errors = mutableListOf<Path>()
         val service = ArchiveService()
         val count = service.packZip(
-            archivePath, listOf(good, nonexistent), appendToExisting = false, archiveExists = false,
+            archivePath, listOf(good, nonexistent), appendToExisting = false,
             onProgress = { _, _ -> },
             onError = { path, _ -> errors.add(path) },
             isCancelled = { false },
@@ -227,7 +227,7 @@ class PackZipErrorHandlingTest {
         val progressCounts = mutableListOf<Int>()
         val service = ArchiveService()
         service.packZip(
-            archivePath, listOf(dir), appendToExisting = false, archiveExists = false,
+            archivePath, listOf(dir), appendToExisting = false,
             onProgress = { count, _ -> progressCounts.add(count) },
             onError = { _, _ -> },
             isCancelled = { false },
@@ -256,7 +256,7 @@ class PackZipErrorHandlingTest {
         var lastProgressCount = -1
         val service = ArchiveService()
         val returned = service.packZip(
-            archivePath, listOf(dir), appendToExisting = false, archiveExists = false,
+            archivePath, listOf(dir), appendToExisting = false,
             onProgress = { count, _ -> lastProgressCount = count },
             onError = { _, _ -> fail("should not error") },
             isCancelled = { false },
@@ -279,7 +279,7 @@ class PackZipErrorHandlingTest {
 
         val service = ArchiveService()
         val count = service.packZip(
-            archivePath, listOf(dir), appendToExisting = false, archiveExists = false,
+            archivePath, listOf(dir), appendToExisting = false,
             onProgress = { _, _ -> },
             onError = { _, _ -> },
             isCancelled = { true }, // cancel immediately

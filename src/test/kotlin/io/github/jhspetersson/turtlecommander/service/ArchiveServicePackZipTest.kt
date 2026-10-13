@@ -32,10 +32,10 @@ class ArchiveServicePackZipTest {
     private fun zipEntryNames(zip: Path): Set<String> =
         ZipFile(zip.toFile()).use { it.entries().asSequence().map(ZipEntry::getName).toSet() }
 
-    private fun pack(archive: Path, sources: List<Path>, append: Boolean, exists: Boolean): Int =
+    private fun pack(archive: Path, sources: List<Path>, append: Boolean): Int =
         runBlocking {
             ArchiveService().packZip(
-                archive, sources, append, exists,
+                archive, sources, append,
                 onProgress = { _, _ -> },
                 onError = { path, error -> throw AssertionError("pack failed for $path", error) },
                 isCancelled = { false },
@@ -48,7 +48,7 @@ class ArchiveServicePackZipTest {
         val archive = tempFile("pack-", ".zip")
         Files.delete(archive)
 
-        val packed = pack(archive, listOf(source), append = true, exists = true)
+        val packed = pack(archive, listOf(source), append = true)
 
         assertEquals(1, packed)
         assertTrue(Files.exists(archive))
@@ -65,7 +65,7 @@ class ArchiveServicePackZipTest {
             zos.closeEntry()
         }
 
-        val packed = pack(archive, listOf(source), append = true, exists = true)
+        val packed = pack(archive, listOf(source), append = true)
 
         assertEquals(1, packed)
         assertEquals(setOf("old.txt", source.fileName.toString()), zipEntryNames(archive))
@@ -81,7 +81,7 @@ class ArchiveServicePackZipTest {
             zos.closeEntry()
         }
 
-        val packed = pack(archive, listOf(source), append = false, exists = true)
+        val packed = pack(archive, listOf(source), append = false)
 
         assertEquals(1, packed)
         assertEquals(setOf(source.fileName.toString()), zipEntryNames(archive))

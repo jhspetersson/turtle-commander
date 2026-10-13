@@ -7,6 +7,7 @@ import io.github.jhspetersson.turtlecommander.vfs.CompressedStreams
 import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 import io.github.jhspetersson.turtlecommander.vfs.VfsOpenProgress
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
+import io.github.jhspetersson.turtlecommander.vfs.replaceAtomically
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.commons.compress.archivers.ar.ArArchiveInputStream
@@ -56,24 +57,20 @@ class ArchiveService {
         archivePath: Path,
         sourcePaths: List<Path>,
         appendToExisting: Boolean,
-        archiveExists: Boolean,
         onProgress: (packedCount: Int, fileName: String) -> Unit,
         onError: (path: Path, error: Exception) -> Unit,
         isCancelled: () -> Boolean,
-    ): Int {
-        val env = mapOf("create" to "true")
-        if (!appendToExisting && archiveExists) {
-            withContext(Dispatchers.IO) { Files.delete(archivePath) }
-        }
-
-        val uri = URI.create("jar:" + archivePath.toUri())
-        return withContext(Dispatchers.IO) {
+    ): Int = withContext(Dispatchers.IO) {
+        OpenVfsRegistry.materializeTreesIfNeeded(sourcePaths)
+        packStaged(archivePath, isCancelled) { staged ->
+            if (appendToExisting && Files.exists(archivePath)) {
+                Files.copy(archivePath, staged)
+            }
             // Single counter: the progress UI and the method's return value must agree on what
             // "packed" means. We count files only — directory entries are created implicitly by
             // walkFileTree and are not interesting to the user as progress ticks.
             var successCount = 0
-            OpenVfsRegistry.materializeTreesIfNeeded(sourcePaths)
-            FileSystems.newFileSystem(uri, env).use { zipFs ->
+            FileSystems.newFileSystem(URI.create("jar:" + staged.toUri()), mapOf("create" to "true")).use { zipFs ->
                 for (source in sourcePaths) {
                     if (isCancelled()) break
                     if (source.toFile().isDirectory) {
@@ -134,11 +131,11 @@ class ArchiveService {
         onProgress: (packedCount: Int, fileName: String) -> Unit,
         onError: (path: Path, error: Exception) -> Unit,
         isCancelled: () -> Boolean,
-    ): Int {
-        return withContext(Dispatchers.IO) {
+    ): Int = withContext(Dispatchers.IO) {
+        OpenVfsRegistry.materializeTreesIfNeeded(sourcePaths)
+        packStaged(archivePath, isCancelled) { staged ->
             var successCount = 0
-            OpenVfsRegistry.materializeTreesIfNeeded(sourcePaths)
-            BufferedOutputStream(Files.newOutputStream(archivePath)).use { fos ->
+            BufferedOutputStream(Files.newOutputStream(staged)).use { fos ->
                 GZIPOutputStream(fos).use { gzos ->
                     TarOutputStream(gzos).use { tarOs ->
                         for (source in sourcePaths) {
@@ -190,6 +187,22 @@ class ArchiveService {
                 }
             }
             successCount
+        }
+    }
+
+    private fun packStaged(archivePath: Path, isCancelled: () -> Boolean, write: (Path) -> Int): Int {
+        val dir = archivePath.toAbsolutePath().normalize().parent
+            ?: throw IOException("Cannot pack into an archive with no parent directory: $archivePath")
+        val staged = Files.createTempFile(dir, "tc-pack-", ".tmp")
+        try {
+            Files.delete(staged)
+            val packed = write(staged)
+            if (packed > 0 && !isCancelled()) {
+                replaceAtomically(staged, archivePath)
+            }
+            return packed
+        } finally {
+            runCatching { Files.deleteIfExists(staged) }
         }
     }
 
