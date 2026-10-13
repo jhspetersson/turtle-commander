@@ -7,6 +7,7 @@ import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.nio.file.Files
@@ -168,6 +169,30 @@ class ArchiveServicePackStagingTest {
             }
         }
         assertEquals(mapOf("a.txt" to "alpha", "b.txt" to "beta"), contents)
+        assertEquals(emptyList<String>(), leftovers())
+    }
+
+    private fun zipfsSpoolFiles(): List<String> = Files.list(dir).use { stream ->
+        stream.map { it.fileName.toString() }.filter { it.startsWith("zipfstmp") }.toList()
+    }
+
+    @Test
+    fun `zip entry content is spooled to disk instead of held in memory until close`() {
+        val archive = dir.resolve("spool.zip")
+        val sources = listOf(source("a.bin", "a".repeat(4096)), source("b.bin", "b".repeat(4096)))
+        var spooledWhilePacking = false
+
+        runBlocking {
+            ArchiveService().packZip(
+                archive, sources, false,
+                onProgress = { count, _ -> if (count == 1) spooledWhilePacking = zipfsSpoolFiles().isNotEmpty() },
+                onError = { path, error -> throw AssertionError("pack failed for $path", error) },
+                isCancelled = { false },
+            )
+        }
+
+        assertTrue("entry bytes must live in a jar-filesystem temp file while packing", spooledWhilePacking)
+        assertEquals(emptyList<String>(), zipfsSpoolFiles())
         assertEquals(emptyList<String>(), leftovers())
     }
 }
