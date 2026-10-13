@@ -94,6 +94,7 @@ class ArVirtualFileSystem(
         repackAtomically(archivePath) { target ->
             Files.newOutputStream(target).use { raw ->
                 ArArchiveOutputStream(raw).use { ar ->
+                    ar.setLongFileMode(ArArchiveOutputStream.LONGFILE_BSD)
                     forEachArchiveEntry(from) { path, relativeName ->
                         val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
                         if (attrs.isDirectory) return@forEachArchiveEntry // AR format is flat, skip directories

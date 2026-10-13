@@ -1,4 +1,5 @@
 package io.github.jhspetersson.turtlecommander.vfs
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -487,6 +488,35 @@ class VfsProviderTest {
             // The path must point to a regular file — directories are not archives.
             val subDir = Files.createDirectory(dir.resolve("nested.zip"))
             assertFalse("directories should never be treated as archives", zipProvider.supports(subDir))
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `forEachArchiveEntry propagates a visitor failure naming the entry and stops`() {
+        val dir = Files.createTempDirectory("vfs-test-")
+        try {
+            Files.createFile(dir.resolve("a.txt"))
+            Files.createFile(dir.resolve("b.txt"))
+            Files.createFile(dir.resolve("c.txt"))
+
+            val visited = mutableListOf<String>()
+            val cause = IllegalStateException("unreadable")
+            val thrown = try {
+                forEachArchiveEntry(dir) { _, relativeName ->
+                    visited.add(relativeName)
+                    if (relativeName == "b.txt") throw cause
+                }
+                null
+            } catch (e: IOException) {
+                e
+            }
+
+            assertNotNull("the failure must propagate", thrown)
+            assertTrue("message must name the entry: ${thrown!!.message}", thrown.message!!.contains("b.txt"))
+            assertSame(cause, thrown.cause)
+            assertEquals(listOf("a.txt", "b.txt"), visited)
         } finally {
             dir.toFile().deleteRecursively()
         }

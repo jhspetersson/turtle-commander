@@ -117,4 +117,18 @@ class ArVirtualFileSystemTest {
             Files.deleteIfExists(path)
         }
     }
+
+    @Test
+    fun `member names longer than 16 characters survive repack`() = runBlocking {
+        val longName = "a-much-longer-member-name.txt"
+        vfs.renameFile(vfs.root.resolve("hello.txt"), longName)
+
+        Files.newInputStream(arPath).use { raw ->
+            ArArchiveInputStream(raw).use { ar ->
+                val entries = generateSequence { ar.nextEntry }.map { it.name to ar.readAllBytes().decodeToString() }.toList()
+                assertEquals(setOf(longName, "second.bin"), entries.map { it.first }.toSet())
+                assertEquals("Hello from ar", entries.first { it.first == longName }.second)
+            }
+        }
+    }
 }

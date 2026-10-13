@@ -314,7 +314,7 @@ internal inline fun forEachArchiveEntry(
         try {
             visitor(path, relativeName)
         } catch (e: Exception) {
-            LOG.warn("Failed to repack entry: $relativeName", e)
+            throw IOException("Failed to repack entry '$relativeName': ${e.message ?: e.javaClass.simpleName}", e)
         }
     }
 }

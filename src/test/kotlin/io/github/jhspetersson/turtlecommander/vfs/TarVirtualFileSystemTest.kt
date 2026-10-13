@@ -607,4 +607,50 @@ class TarVirtualFileSystemTest {
             Files.deleteIfExists(real)
         }
     }
+
+    private fun makeUnreadableOrSkip(file: Path): AutoCloseable {
+        try {
+            val previous = Files.getPosixFilePermissions(file)
+            Files.setPosixFilePermissions(file, emptySet())
+            val restore = AutoCloseable { Files.setPosixFilePermissions(file, previous) }
+            if (runCatching { Files.newInputStream(file).use { it.read() } }.isSuccess) {
+                restore.close()
+                assumeTrue("file stays readable without permissions (running as root?)", false)
+            }
+            return restore
+        } catch (_: UnsupportedOperationException) {
+        }
+        val channel = java.nio.channels.FileChannel.open(file, java.nio.file.StandardOpenOption.READ, java.nio.file.StandardOpenOption.WRITE)
+        val lock = channel.lock()
+        val release = AutoCloseable {
+            lock.release()
+            channel.close()
+        }
+        if (runCatching { Files.newInputStream(file).use { it.read() } }.isSuccess) {
+            release.close()
+            assumeTrue("cannot make a file unreadable on this host", false)
+        }
+        return release
+    }
+
+    @Test
+    fun `unreadable entry aborts the repack and leaves the original archive intact`() {
+        val hello = vfs.root.resolve("mydir").resolve("hello.txt")
+        vfs.materialize(hello)
+        assertEquals("Hello from tar", Files.readString(hello))
+        val original = Files.readAllBytes(tarPath)
+
+        makeUnreadableOrSkip(hello).use {
+            val thrown = runCatching {
+                runBlocking { vfs.renameFile(vfs.root.resolve("root.txt"), "renamed.txt") }
+            }.exceptionOrNull()
+
+            assertNotNull("the repack failure must propagate instead of being swallowed", thrown)
+            assertTrue("message must name the entry: ${thrown!!.message}", thrown.message!!.contains("mydir/hello.txt"))
+            assertArrayEquals("the original archive must be untouched", original, Files.readAllBytes(tarPath))
+            Files.list(tarPath.parent).use { stream ->
+                assertEquals(0L, stream.filter { it.fileName.toString().startsWith("tc-repack-") }.count())
+            }
+        }
+    }
 }
