@@ -422,6 +422,7 @@ class ZipExtractVirtualFileSystemTest {
         }
         val extractVfs = ZipExtractVirtualFileSystem(zipPath)
         vfs = extractVfs
+        extractVfs.materialize(extractVfs.getPath("/renamed.txt"))
         val truncated = Files.readAllBytes(zipPath).copyOf(8 * 1024)
         Files.write(zipPath, truncated)
 
@@ -433,6 +434,6 @@ class ZipExtractVirtualFileSystemTest {
         assertTrue("message must name the entry: ${thrown!!.message}", thrown.message!!.contains("blob.bin"))
         assertArrayEquals("the archive must not be rewritten", truncated, Files.readAllBytes(zipPath))
         assertTrue("the stub must survive the failed repack", Files.exists(extractVfs.getPath("/blob.bin")))
-        assertTrue(Files.exists(extractVfs.getPath("/after.txt")))
+        assertEquals("small", Files.readString(extractVfs.getPath("/after.txt")))
     }
 }
