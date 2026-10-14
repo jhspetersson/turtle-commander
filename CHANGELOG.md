@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Multi-stream gz/bz2/xz were truncated after the first member
+
 ## [0.7.90] - 2026-10-14
 
 ### Changed
