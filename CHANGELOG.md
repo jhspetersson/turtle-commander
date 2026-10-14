@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.90] - 2026-10-14
+
 ### Changed
 
 - If extraction of any file fails, archive is opened in read-only mode
