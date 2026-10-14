@@ -1,5 +1,8 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
+import org.apache.commons.compress.compressors.xz.XZCompressorInputStream
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.InputStream
@@ -10,6 +13,12 @@ import java.nio.file.Path
 internal object CompressedStreams {
 
     private const val BUFFER_SIZE = 64 * 1024
+
+    fun gzipInput(raw: InputStream): InputStream = GzipCompressorInputStream(raw, true)
+
+    fun bzip2Input(raw: InputStream): InputStream = BZip2CompressorInputStream(raw, true)
+
+    fun xzInput(raw: InputStream): InputStream = XZCompressorInputStream(raw, true)
 
     fun openInput(path: Path, wrap: (InputStream) -> InputStream): InputStream =
         wrapInput(Files.newInputStream(path), wrap)

@@ -1,10 +1,7 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
-import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream
-import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream
-import org.apache.commons.compress.compressors.xz.XZCompressorInputStream
 import org.apache.commons.compress.compressors.xz.XZCompressorOutputStream
 import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream
 import org.apache.commons.compress.compressors.zstandard.ZstdCompressorOutputStream
@@ -28,12 +25,12 @@ class GzFileSystemProvider : VirtualFileSystemProvider {
         return if (name.endsWith(".tar.gz") || name.endsWith(".tgz")) {
             TarVirtualFileSystem(
                 archivePath,
-                inputStreamFactory = { CompressedStreams.openInput(it) { raw -> GzipCompressorInputStream(raw) } },
+                inputStreamFactory = { CompressedStreams.openInput(it) { raw -> CompressedStreams.gzipInput(raw) } },
                 outputStreamFactory = { CompressedStreams.openOutput(it) { raw -> GzipCompressorOutputStream(raw) } },
                 openProgress = openProgress,
             )
         } else {
-            CompressedSingleFileVirtualFileSystem(archivePath, ".gz") { GzipCompressorInputStream(it) }
+            CompressedSingleFileVirtualFileSystem(archivePath, ".gz") { CompressedStreams.gzipInput(it) }
         }
     }
 }
@@ -54,12 +51,12 @@ class Bz2FileSystemProvider : VirtualFileSystemProvider {
         return if (name.endsWith(".tar.bz2") || name.endsWith(".tbz2") || name.endsWith(".tbz")) {
             TarVirtualFileSystem(
                 archivePath,
-                inputStreamFactory = { CompressedStreams.openInput(it) { raw -> BZip2CompressorInputStream(raw) } },
+                inputStreamFactory = { CompressedStreams.openInput(it) { raw -> CompressedStreams.bzip2Input(raw) } },
                 outputStreamFactory = { CompressedStreams.openOutput(it) { raw -> BZip2CompressorOutputStream(raw) } },
                 openProgress = openProgress,
             )
         } else {
-            CompressedSingleFileVirtualFileSystem(archivePath, ".bz2") { BZip2CompressorInputStream(it) }
+            CompressedSingleFileVirtualFileSystem(archivePath, ".bz2") { CompressedStreams.bzip2Input(it) }
         }
     }
 }
@@ -80,12 +77,12 @@ class XzFileSystemProvider : VirtualFileSystemProvider {
         return if (name.endsWith(".tar.xz") || name.endsWith(".txz")) {
             TarVirtualFileSystem(
                 archivePath,
-                inputStreamFactory = { CompressedStreams.openInput(it) { raw -> XZCompressorInputStream(raw) } },
+                inputStreamFactory = { CompressedStreams.openInput(it) { raw -> CompressedStreams.xzInput(raw) } },
                 outputStreamFactory = { CompressedStreams.openOutput(it) { raw -> XZCompressorOutputStream(raw) } },
                 openProgress = openProgress,
             )
         } else {
-            CompressedSingleFileVirtualFileSystem(archivePath, ".xz") { XZCompressorInputStream(it) }
+            CompressedSingleFileVirtualFileSystem(archivePath, ".xz") { CompressedStreams.xzInput(it) }
         }
     }
 }

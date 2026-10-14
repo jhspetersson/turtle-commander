@@ -65,10 +65,11 @@ class RpmVirtualFileSystemTest {
      * [compressor] is null the tag is omitted entirely so we can exercise the
      * legacy gzip-default code path.
      */
-    private fun buildRpm(compressor: String?, files: List<CpioFile>, payloadCompressor: String = compressor ?: "gzip"): Path {
+    private fun buildRpm(compressor: String?, files: List<CpioFile>, payloadCompressor: String = compressor ?: "gzip"): Path =
+        buildRpmWithPayload(compressor, compress(buildCpio(files), payloadCompressor))
+
+    private fun buildRpmWithPayload(compressor: String?, payload: ByteArray): Path {
         val path = Files.createTempFile("test-rpm-", ".rpm")
-        val cpio = buildCpio(files)
-        val payload = compress(cpio, payloadCompressor)
 
         Files.newOutputStream(path).use { os ->
             val dos = DataOutputStream(os)
@@ -220,5 +221,18 @@ class RpmVirtualFileSystemTest {
                 messages.any { "Unsupported RPM payload compressor" in it },
             )
         }
+    }
+
+    @Test
+    fun `rpm payload split across two gzip members extracts every entry`() = runBlocking {
+        val cpio = buildCpio(sampleFiles())
+        val cut = cpio.size / 2
+        val payload = compress(cpio.copyOfRange(0, cut), "gzip") + compress(cpio.copyOfRange(cut, cpio.size), "gzip")
+        rpmPath = buildRpmWithPayload(compressor = "gzip", payload = payload)
+        val rpmVfs = RpmVirtualFileSystem(rpmPath)
+        vfs = rpmVfs
+
+        assertEquals("verbose=true\n", Files.readString(rpmVfs.getPath("/etc/hello.conf")))
+        assertTrue(Files.readString(rpmVfs.getPath("/usr/bin/hello")).startsWith("#!/bin/sh"))
     }
 }

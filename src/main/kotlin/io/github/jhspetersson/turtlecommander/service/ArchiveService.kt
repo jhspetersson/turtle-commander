@@ -14,9 +14,6 @@ import org.apache.commons.compress.archivers.ar.ArArchiveInputStream
 import org.apache.commons.compress.archivers.sevenz.SevenZFile
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.archivers.zip.ZipFile
-import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
-import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
-import org.apache.commons.compress.compressors.xz.XZCompressorInputStream
 import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream
 import java.io.BufferedOutputStream
 import java.io.IOException
@@ -241,11 +238,11 @@ class ArchiveService {
                 name.endsWith(".jmod") -> countZipEntries(archivePath)
             name.endsWith(".7z") || name.endsWith(".cb7") -> countSevenZEntries(archivePath)
             name.endsWith(".tar.gz") || name.endsWith(".tgz") ->
-                countTarCompressed(archivePath) { GzipCompressorInputStream(it) }
+                countTarCompressed(archivePath) { CompressedStreams.gzipInput(it) }
             name.endsWith(".tar.bz2") || name.endsWith(".tbz2") || name.endsWith(".tbz") ->
-                countTarCompressed(archivePath) { BZip2CompressorInputStream(it) }
+                countTarCompressed(archivePath) { CompressedStreams.bzip2Input(it) }
             name.endsWith(".tar.xz") || name.endsWith(".txz") ->
-                countTarCompressed(archivePath) { XZCompressorInputStream(it) }
+                countTarCompressed(archivePath) { CompressedStreams.xzInput(it) }
             name.endsWith(".tar.zst") || name.endsWith(".tzst") ->
                 countTarCompressed(archivePath) { ZstdCompressorInputStream(it) }
             name.endsWith(".tar") || name.endsWith(".cbt") ->

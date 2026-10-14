@@ -2,10 +2,7 @@ package io.github.jhspetersson.turtlecommander.vfs
 
 import com.intellij.openapi.diagnostic.thisLogger
 import org.apache.commons.compress.archivers.cpio.CpioArchiveInputStream
-import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
-import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.compress.compressors.lzma.LZMACompressorInputStream
-import org.apache.commons.compress.compressors.xz.XZCompressorInputStream
 import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream
 import java.io.BufferedInputStream
 import java.io.DataInputStream
@@ -202,9 +199,9 @@ class RpmVirtualFileSystem(
 
     private fun wrapCompressor(raw: InputStream, name: String): InputStream {
         return when (name.lowercase()) {
-            "gzip" -> GzipCompressorInputStream(raw)
-            "bzip2" -> BZip2CompressorInputStream(raw)
-            "xz" -> XZCompressorInputStream(raw)
+            "gzip" -> CompressedStreams.gzipInput(raw)
+            "bzip2" -> CompressedStreams.bzip2Input(raw)
+            "xz" -> CompressedStreams.xzInput(raw)
             "lzma" -> LZMACompressorInputStream(raw)
             "zstd" -> ZstdCompressorInputStream(raw)
             else -> throw IOException("Unsupported RPM payload compressor: $name")
