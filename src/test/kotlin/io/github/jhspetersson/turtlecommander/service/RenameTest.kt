@@ -268,6 +268,53 @@ class ZipRenameTest {
         assertNotNull(entries.find { it.name == "a.txt" })
         assertNotNull(entries.find { it.name == "b.txt" })
     }
+
+    private fun persistedEntryNames(): List<String> {
+        val names = mutableListOf<String>()
+        java.util.zip.ZipFile(zipPath.toFile()).use { zip ->
+            val entries = zip.entries()
+            while (entries.hasMoreElements()) names.add(entries.nextElement().name)
+        }
+        return names.sorted()
+    }
+
+    @Test
+    fun `rename directory moves its children and removes the original`() = runBlocking {
+        createZip("dir/" to null, "dir/a.txt" to "aaa", "dir/sub/b.txt" to "bbb", "other.txt" to "ooo")
+
+        val result = vfs.renameFile(vfs.getPath("/dir"), "moved")
+
+        assertEquals("/moved", result.toString())
+        assertEquals("aaa", Files.readString(vfs.getPath("/moved/a.txt")))
+        assertEquals("bbb", Files.readString(vfs.getPath("/moved/sub/b.txt")))
+        assertFalse(Files.exists(vfs.getPath("/dir")))
+        assertEquals("ooo", Files.readString(vfs.getPath("/other.txt")))
+        assertEquals(listOf("moved/", "moved/a.txt", "moved/sub/", "moved/sub/b.txt", "other.txt"), persistedEntryNames())
+    }
+
+    @Test
+    fun `rename directory without its own entry moves its children`() = runBlocking {
+        createZip("dir/a.txt" to "aaa", "dir/b.txt" to "bbb")
+
+        vfs.renameFile(vfs.getPath("/dir"), "moved")
+
+        assertEquals("aaa", Files.readString(vfs.getPath("/moved/a.txt")))
+        assertEquals("bbb", Files.readString(vfs.getPath("/moved/b.txt")))
+        assertFalse(Files.exists(vfs.getPath("/dir")))
+        assertEquals(listOf("moved/", "moved/a.txt", "moved/b.txt"), persistedEntryNames())
+    }
+
+    @Test
+    fun `rename nested directory keeps its parent and siblings`() = runBlocking {
+        createZip("top/inner/x.txt" to "xxx", "top/keep.txt" to "kkk")
+
+        val result = vfs.renameFile(vfs.getPath("/top/inner"), "renamed")
+
+        assertEquals("/top/renamed", result.toString())
+        assertEquals("xxx", Files.readString(vfs.getPath("/top/renamed/x.txt")))
+        assertEquals("kkk", Files.readString(vfs.getPath("/top/keep.txt")))
+        assertFalse(Files.exists(vfs.getPath("/top/inner")))
+    }
 }
 
 // ─── TAR rename ─────────────────────────────────────────────────────────────

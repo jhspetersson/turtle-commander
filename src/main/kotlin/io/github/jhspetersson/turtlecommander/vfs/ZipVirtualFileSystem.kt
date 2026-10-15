@@ -156,14 +156,24 @@ class ZipVirtualFileSystem(override val archivePath: Path) : VirtualFileSystem {
             throw FileAlreadyExistsException("Cannot rename to \"$newName\": entry already exists in archive")
         }
         val relativePath = if (oldParent == fileSystem.getPath("/")) "" else fileSystem.getPath("/").relativize(oldParent).toString()
-        Files.move(source, target)
+        if (Files.isDirectory(source)) moveTree(source, target) else Files.move(source, target)
         metadataCache = null
         synchronized(this) {
             fileSystem.close()
             fileSystem = openZipFs()
         }
-        val newParent = if (relativePath.isEmpty()) fileSystem.getPath("/") else fileSystem.getPath(relativePath)
+        val newParent = if (relativePath.isEmpty()) fileSystem.getPath("/") else fileSystem.getPath("/", relativePath)
         newParent.resolve(newName)
+    }
+
+    private fun moveTree(source: Path, target: Path) {
+        Files.createDirectories(target)
+        val children = Files.newDirectoryStream(source).use { it.toList() }
+        for (child in children) {
+            val destination = target.resolve(child.fileName.toString())
+            if (Files.isDirectory(child)) moveTree(child, destination) else Files.move(child, destination)
+        }
+        Files.deleteIfExists(source)
     }
 
     @Synchronized

@@ -8,6 +8,7 @@
 
 - Multi-stream gz/bz2/xz were truncated after the first member
 - Fixed reading hard links for cpio and RPM
+- Renaming directories inside zip files now works correctly
 
 ## [0.7.90] - 2026-10-14
 
