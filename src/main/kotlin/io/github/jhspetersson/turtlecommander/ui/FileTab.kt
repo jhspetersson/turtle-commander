@@ -179,7 +179,10 @@ class FileTab(
 
     /** The real filesystem path: the directory containing the archive when inside VFS, otherwise currentPath. */
     val realFilesystemPath: Path
-        get() = if (vfsStack.isNotEmpty()) vfsStack.first().parentPath else currentPath
+        get() = vfsStack.firstOrNull()?.parentPath?.let { it.parent ?: it } ?: currentPath
+
+    val destinationBasePath: Path
+        get() = realFilesystemPath
 
 
 

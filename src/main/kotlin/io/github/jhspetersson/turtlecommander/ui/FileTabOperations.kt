@@ -41,7 +41,9 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import java.awt.Desktop
 import java.io.IOException
+import java.nio.file.FileSystems
 import java.nio.file.Files
+import java.nio.file.InvalidPathException
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
 
@@ -431,11 +433,11 @@ internal fun FileTab.performSplitFile() {
     val entry = getSelectedEntry() ?: return
     if (entry.isDirectory || entry.isParentLink) return
 
-    val otherPath = otherPanelPathProvider()?.toString() ?: currentPath.toString()
+    val otherPath = otherPanelPathProvider()?.toString() ?: destinationBasePath.toString()
     val dialog = SplitFileDialog(project, entry.name, entry.size, otherPath)
     if (!dialog.showAndGet()) return
 
-    val targetDir = resolveDestinationPath(dialog.targetDirectory, currentPath)
+    val targetDir = resolveDestinationPath(dialog.targetDirectory, destinationBasePath)
     val chunkSize = if (dialog.isSplitBySize) {
         dialog.chunkSize
     } else {
@@ -515,7 +517,7 @@ internal fun FileTab.performCombineFiles() {
 
     val directory = entry.path.parent ?: return
     val baseFileName = CombineFilesOperation.resolveBaseFileName(entry.path) ?: return
-    val otherPath = otherPanelPathProvider()?.toString() ?: currentPath.toString()
+    val otherPath = otherPanelPathProvider()?.toString() ?: destinationBasePath.toString()
 
     fileOps.launch {
         // The chunk scan probes Files.exists per index and stats every chunk for its size —
@@ -550,7 +552,7 @@ internal fun FileTab.performCombineFiles() {
         } ?: return@launch
         val (targetDirString, finalTargetFileName) = dialogChoice
 
-        val targetDir = resolveDestinationPath(targetDirString, currentPath)
+        val targetDir = resolveDestinationPath(targetDirString, destinationBasePath)
         try {
             withContext(Dispatchers.IO) { Files.createDirectories(targetDir) }
         } catch (e: Exception) {
@@ -627,7 +629,7 @@ internal fun sourcesSafeToDelete(sourcePaths: List<Path>, failedPaths: Set<Path>
 internal fun FileTab.performPack() {
     val selected = getSelectedEntries()
     if (selected.isEmpty()) return
-    val destination = otherPanelPathProvider() ?: currentPath
+    val destination = otherPanelPathProvider() ?: destinationBasePath
 
     val archiveName = if (selected.size == 1) {
         selected[0].name + ".zip"
@@ -636,10 +638,10 @@ internal fun FileTab.performPack() {
     }
     val defaultArchivePath = destination.resolve(archiveName).toString()
 
-    val packDialog = PackDialog(project, selected, defaultArchivePath, currentPath)
+    val packDialog = PackDialog(project, selected, defaultArchivePath, destinationBasePath)
     if (!packDialog.showAndGet()) return
 
-    val archivePath = resolveDestinationPath(packDialog.archivePath, currentPath)
+    val archivePath = resolveDestinationPath(packDialog.archivePath, destinationBasePath)
     val format = packDialog.archiveFormat
     val deleteAfterPacking = packDialog.deleteAfterPacking
     val sourcePaths = selected.map { it.path }
@@ -770,12 +772,12 @@ internal suspend fun FileTab.refreshPanelsAfterPack(archivePath: Path) {
 internal fun FileTab.performExtract() {
     val selected = getSelectedEntries().filter { isArchiveFile(it) }
     if (selected.isEmpty()) return
-    val destination = otherPanelPathProvider() ?: currentPath
+    val destination = otherPanelPathProvider() ?: destinationBasePath
 
-    val dialog = ExtractDialog(project, selected, destination.toString(), currentPath)
+    val dialog = ExtractDialog(project, selected, destination.toString(), destinationBasePath)
     if (!dialog.showAndGet()) return
 
-    val destPath = resolveDestinationPath(dialog.destinationPath, currentPath)
+    val destPath = resolveDestinationPath(dialog.destinationPath, destinationBasePath)
     if (rejectReadOnlyExtractDestination(destPath)) return
 
     extractArchives(selected.map { it.path }, destPath, dialog.policy)
@@ -804,12 +806,12 @@ internal fun FileTab.performExtractToSubdir() {
     val selected = getSelectedEntries().filter { isArchiveFile(it) }
     if (selected.isEmpty()) return
     val subdir = archiveBaseName(selected.first().name)
-    val destination = currentPath.resolve(subdir)
+    val destination = (if (currentPath.fileSystem == FileSystems.getDefault()) currentPath else destinationBasePath).resolve(subdir)
 
-    val dialog = ExtractDialog(project, selected, destination.toString(), currentPath)
+    val dialog = ExtractDialog(project, selected, destination.toString(), destinationBasePath)
     if (!dialog.showAndGet()) return
 
-    val destPath = resolveDestinationPath(dialog.destinationPath, currentPath)
+    val destPath = resolveDestinationPath(dialog.destinationPath, destinationBasePath)
     if (rejectReadOnlyExtractDestination(destPath)) return
 
     extractArchives(selected.map { it.path }, destPath, dialog.policy)
@@ -1327,5 +1329,9 @@ private suspend fun askOverwriteConfirm(path: Path): OverwriteResponse {
 
 internal fun resolveDestinationPath(input: String, base: Path): Path {
     val path = Path.of(input.trim())
-    return if (path.isAbsolute) path else base.resolve(path)
+    if (path.isAbsolute) return path
+    if (base.fileSystem != FileSystems.getDefault()) {
+        throw InvalidPathException(input, "relative paths cannot be resolved inside an archive, enter a full path")
+    }
+    return base.resolve(path)
 }
