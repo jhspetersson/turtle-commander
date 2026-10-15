@@ -28,7 +28,7 @@ class RpmVirtualFileSystemTest {
         if (::rpmPath.isInitialized) Files.deleteIfExists(rpmPath)
     }
 
-    private data class CpioFile(val name: String, val content: ByteArray, val mode: Long = 0x81A4L) // 0100644
+    private data class CpioFile(val name: String, val content: ByteArray, val mode: Long = 0x81A4L, val inode: Long = 0, val links: Long = 1) // 0100644
 
     /** Builds a cpio archive (newc format, what RPM uses) from [files]. */
     private fun buildCpio(files: List<CpioFile>): ByteArray {
@@ -37,6 +37,8 @@ class RpmVirtualFileSystemTest {
             for (f in files) {
                 val entry = CpioArchiveEntry(CpioConstants.FORMAT_NEW, "./${f.name}", f.content.size.toLong())
                 entry.mode = f.mode
+                entry.inode = f.inode
+                entry.numberOfLinks = f.links
                 cpio.putArchiveEntry(entry)
                 cpio.write(f.content)
                 cpio.closeArchiveEntry()
@@ -234,5 +236,22 @@ class RpmVirtualFileSystemTest {
 
         assertEquals("verbose=true\n", Files.readString(rpmVfs.getPath("/etc/hello.conf")))
         assertTrue(Files.readString(rpmVfs.getPath("/usr/bin/hello")).startsWith("#!/bin/sh"))
+    }
+
+    @Test
+    fun `rpm hard links share the content of the data-bearing entry`() = runBlocking {
+        val files = listOf(
+            CpioFile("usr/bin/tool", ByteArray(0), inode = 7, links = 2),
+            CpioFile("usr/bin/alias", "#!/bin/sh\necho tool\n".toByteArray(), inode = 7, links = 2),
+        )
+        rpmPath = buildRpm(compressor = "gzip", files = files)
+        val rpmVfs = RpmVirtualFileSystem(rpmPath)
+        vfs = rpmVfs
+
+        val tool = rpmVfs.getPath("/usr/bin/tool")
+        val alias = rpmVfs.getPath("/usr/bin/alias")
+        assertEquals("#!/bin/sh\necho tool\n", Files.readString(alias))
+        assertEquals("#!/bin/sh\necho tool\n", Files.readString(tool))
+        assertTrue(Files.isSameFile(tool, alias))
     }
 }

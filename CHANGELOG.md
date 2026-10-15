@@ -7,6 +7,7 @@
 ### Fixed
 
 - Multi-stream gz/bz2/xz were truncated after the first member
+- Fixed reading hard links for cpio and RPM
 
 ## [0.7.90] - 2026-10-14
 

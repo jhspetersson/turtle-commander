@@ -48,6 +48,7 @@ class CpioVirtualFileSystem(
         entryMetadata.clear()
         unresolvedSymlinks.clear()
         val pendingSymlinks = mutableListOf<PendingSymlink>()
+        val hardLinks = CpioHardLinks()
         Files.newInputStream(archivePath).buffered().use { raw ->
             CpioArchiveInputStream(raw).use { cpio ->
                 var entry = cpio.nextEntry
@@ -79,7 +80,7 @@ class CpioVirtualFileSystem(
                             }
                             else -> {
                                 Files.createDirectories(entryPath.parent)
-                                Files.copy(cpio, entryPath)
+                                hardLinks.extractRegularFile(entry, entryPath) { Files.copy(cpio, entryPath) }
                             }
                         }
                         val mtime = entry.lastModifiedDate?.time

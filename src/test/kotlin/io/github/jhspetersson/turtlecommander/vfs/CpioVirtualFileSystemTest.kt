@@ -251,4 +251,82 @@ class CpioVirtualFileSystemTest {
         cpioVfs.flush()
         assertArrayEquals("a read-only archive must never be repacked", original, Files.readAllBytes(cpioPath))
     }
+
+    private fun writeHardLinkCpio(dataOnLastLink: Boolean): Path {
+        val path = Files.createTempFile("test-hardlink-", ".cpio")
+        val body = "shared body".toByteArray()
+        val names = listOf("bin/one", "bin/two")
+        Files.newOutputStream(path).use { raw ->
+            CpioArchiveOutputStream(raw).use { cpio ->
+                names.forEachIndexed { index, name ->
+                    val carriesData = if (dataOnLastLink) index == names.lastIndex else index == 0
+                    val entry = CpioArchiveEntry(name)
+                    entry.mode = FILE_MODE
+                    entry.inode = 42
+                    entry.numberOfLinks = names.size.toLong()
+                    entry.size = if (carriesData) body.size.toLong() else 0L
+                    entry.time = 1_600_000_000
+                    cpio.putArchiveEntry(entry)
+                    if (carriesData) cpio.write(body)
+                    cpio.closeArchiveEntry()
+                }
+                val other = CpioArchiveEntry("bin/other")
+                other.mode = FILE_MODE
+                other.size = 5
+                cpio.putArchiveEntry(other)
+                cpio.write("other".toByteArray())
+                cpio.closeArchiveEntry()
+            }
+        }
+        return path
+    }
+
+    private fun assertHardLinksShareContent(dataOnLastLink: Boolean) {
+        cpioPath = writeHardLinkCpio(dataOnLastLink)
+        val cpioVfs = CpioVirtualFileSystem(cpioPath)
+        vfs = cpioVfs
+
+        val one = cpioVfs.getPath("/bin/one")
+        val two = cpioVfs.getPath("/bin/two")
+        assertEquals("shared body", Files.readString(one))
+        assertEquals("shared body", Files.readString(two))
+        assertTrue(Files.isSameFile(one, two))
+        assertEquals("other", Files.readString(cpioVfs.getPath("/bin/other")))
+    }
+
+    @Test
+    fun `hard link whose data rides on the last entry is extracted with that data`() {
+        assertHardLinksShareContent(dataOnLastLink = true)
+    }
+
+    @Test
+    fun `hard link whose data rides on the first entry is extracted with that data`() {
+        assertHardLinksShareContent(dataOnLastLink = false)
+    }
+
+    @Test
+    fun `hard-linked entries keep their content across a repack`() {
+        cpioPath = writeHardLinkCpio(dataOnLastLink = true)
+        val cpioVfs = CpioVirtualFileSystem(cpioPath)
+        vfs = cpioVfs
+
+        Files.writeString(cpioVfs.getPath("/bin/other"), "changed")
+        cpioVfs.flush()
+
+        val sizes = mutableMapOf<String, Long>()
+        Files.newInputStream(cpioPath).use { raw ->
+            CpioArchiveInputStream(raw).use { cpio ->
+                var entry = cpio.nextEntry
+                while (entry != null) {
+                    sizes[entry.name] = entry.size
+                    entry = cpio.nextEntry
+                }
+            }
+        }
+        assertEquals("shared body".length.toLong(), sizes["bin/one"])
+        assertEquals("shared body".length.toLong(), sizes["bin/two"])
+        assertEquals("shared body", Files.readString(cpioVfs.getPath("/bin/one")))
+        assertEquals("shared body", Files.readString(cpioVfs.getPath("/bin/two")))
+        assertEquals("changed", Files.readString(cpioVfs.getPath("/bin/other")))
+    }
 }

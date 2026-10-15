@@ -59,6 +59,7 @@ class RpmVirtualFileSystem(
     override fun extract(into: Path) {
         val progress = takeOpenProgress()
         val pendingSymlinks = mutableListOf<PendingSymlink>()
+        val hardLinks = CpioHardLinks()
         BufferedInputStream(Files.newInputStream(archivePath)).use { raw ->
             val data = DataInputStream(raw)
             skipLead(data)
@@ -96,7 +97,7 @@ class RpmVirtualFileSystem(
                             }
                             else -> {
                                 Files.createDirectories(entryPath.parent)
-                                Files.copy(cpio, entryPath)
+                                hardLinks.extractRegularFile(entry, entryPath) { Files.copy(cpio, entryPath) }
                             }
                         }
                         val mtime = entry.lastModifiedDate?.time
