@@ -376,12 +376,12 @@ class ArchiveService {
                                 ) { policy = it }
                                 when (action) {
                                     ExtractAction.OVERWRITE ->
-                                        Files.copy(sourcePath, targetFile, StandardCopyOption.REPLACE_EXISTING)
+                                        copyPreservingAttributes(sourcePath, targetFile, replaceExisting = true)
                                     ExtractAction.SKIP -> { /* nothing */ }
                                     ExtractAction.CANCEL -> break@loop
                                 }
                             } else {
-                                Files.copy(sourcePath, targetFile)
+                                copyPreservingAttributes(sourcePath, targetFile, replaceExisting = false)
                             }
                         } catch (e: Exception) {
                             onError(targetFile, e)

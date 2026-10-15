@@ -534,15 +534,13 @@ class FileOperationService(
         OpenVfsRegistry.materializeIfNeeded(source)
         // For a symlink, copy the link node itself rather than following it to its target —
         // avoids duplicating the target's content (and cyclic-link loops).
-        val linkOpts: Array<CopyOption> =
-            if (nofollow) arrayOf(LinkOption.NOFOLLOW_LINKS, StandardCopyOption.COPY_ATTRIBUTES) else emptyArray()
         if (!Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
-            Files.copy(source, target, *linkOpts)
+            copyPreservingAttributes(source, target, replaceExisting = false, nofollow = nofollow)
             return TargetAction.OVERWRITE
         }
         return when (val action = resolveOverwriteAction(source, target, holder, onOverwriteConfirm)) {
             TargetAction.OVERWRITE -> {
-                Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING, *linkOpts)
+                copyPreservingAttributes(source, target, replaceExisting = true, nofollow = nofollow)
                 action
             }
             TargetAction.SKIP, TargetAction.CANCEL -> action
@@ -1074,7 +1072,7 @@ class FileOperationService(
                 try {
                     OpenVfsRegistry.materializeIfNeeded(file)
                     val relativePath = source.relativize(file).toString()
-                    Files.copy(file, target.resolve(relativePath), StandardCopyOption.REPLACE_EXISTING)
+                    copyPreservingAttributes(file, target.resolve(relativePath), replaceExisting = true)
                 } catch (e: IOException) {
                     failures.add(file to e)
                     thisLogger().warn("Failed to copy $file: ${e.message}")
@@ -1113,7 +1111,7 @@ class FileOperationService(
             // isDirectory() on a dir link would otherwise route it through the recursive
             // copy+delete below, duplicating the target's content and then deleting it.
             if (replaceExisting) Files.deleteIfExists(target)
-            Files.copy(source, target, LinkOption.NOFOLLOW_LINKS)
+            copyPreservingAttributes(source, target, replaceExisting = false, nofollow = true)
             Files.delete(source)
             return
         }
@@ -1129,11 +1127,7 @@ class FileOperationService(
             deleteDirectoryRecursive(source)
         } else {
             OpenVfsRegistry.materializeIfNeeded(source)
-            if (replaceExisting) {
-                Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING)
-            } else {
-                Files.copy(source, target)
-            }
+            copyPreservingAttributes(source, target, replaceExisting)
             Files.delete(source)
         }
     }
@@ -1196,3 +1190,11 @@ class FileOperationService(
     }
 }
 
+internal fun copyPreservingAttributes(source: Path, target: Path, replaceExisting: Boolean, nofollow: Boolean = false) {
+    val options = buildList<CopyOption> {
+        add(StandardCopyOption.COPY_ATTRIBUTES)
+        if (replaceExisting) add(StandardCopyOption.REPLACE_EXISTING)
+        if (nofollow) add(LinkOption.NOFOLLOW_LINKS)
+    }
+    Files.copy(source, target, *options.toTypedArray())
+}
