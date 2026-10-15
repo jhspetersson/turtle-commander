@@ -9,6 +9,7 @@ import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream
 import org.apache.commons.compress.archivers.zip.ZipFile
 import java.io.IOException
+import java.nio.charset.Charset
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.FileSystem
 import java.nio.file.FileSystems
@@ -249,6 +250,8 @@ class ZipExtractVirtualFileSystem(
      */
     private var zipReader: ZipFile? = null
 
+    private var nameCharset: Charset = Charsets.UTF_8
+
     init {
         openTempDir()
     }
@@ -260,7 +263,7 @@ class ZipExtractVirtualFileSystem(
         closeReader()
         pendingEntries.clear()
         entryUnixModeByName.clear()
-        val zip = ZipFile.builder().setPath(archivePath).get()
+        val zip = openReader()
         try {
             // Iterating the (already in-memory) central directory twice is cheaper than
             // zip.entries.toList() just to know the total for the progress fraction —
@@ -397,6 +400,8 @@ class ZipExtractVirtualFileSystem(
         closeReader()
         repackAtomically(archivePath) { target ->
             ZipArchiveOutputStream(Files.newOutputStream(target)).use { zip ->
+                zip.setEncoding(nameCharset.name())
+                zip.setFallbackToUTF8(true)
                 forEachArchiveEntry(from) { path, relativeName ->
                     val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
                     val entryName = if (attrs.isDirectory) "$relativeName/" else relativeName
@@ -414,6 +419,17 @@ class ZipExtractVirtualFileSystem(
                 }
             }
         }
+    }
+
+    private fun openReader(): ZipFile {
+        val utf8 = ZipFile.builder().setPath(archivePath).get()
+        if (!ZipNameCharset.needsFallback(utf8)) {
+            nameCharset = Charsets.UTF_8
+            return utf8
+        }
+        utf8.close()
+        nameCharset = ZipNameCharset.fallback()
+        return ZipFile.builder().setPath(archivePath).setCharset(nameCharset).get()
     }
 
     private fun closeReader() {

@@ -452,4 +452,84 @@ class ZipExtractVirtualFileSystemTest {
         extractVfs.flush()
         assertArrayEquals("a read-only archive must never be repacked", original, Files.readAllBytes(zipPath))
     }
+
+    private fun createLegacyNameZip(vararg entries: Pair<String, String>, utf8Flagged: Set<String> = emptySet()) {
+        zipPath = Files.createTempFile("zip-legacy-names-", ".zip")
+        ZipArchiveOutputStream(Files.newOutputStream(zipPath)).use { zip ->
+            zip.setEncoding(ZipNameCharset.fallback().name())
+            zip.setUseLanguageEncodingFlag(true)
+            zip.setFallbackToUTF8(true)
+            for ((name, content) in entries) {
+                val entry = ZipArchiveEntry(name)
+                if (name in utf8Flagged) entry.generalPurposeBit.useUTF8ForNames(true)
+                zip.putArchiveEntry(entry)
+                zip.write(content.toByteArray())
+                zip.closeArchiveEntry()
+            }
+        }
+    }
+
+    private fun persistedEntries(charset: java.nio.charset.Charset): List<Triple<String, ByteArray, Boolean>> =
+        org.apache.commons.compress.archivers.zip.ZipFile.builder().setPath(zipPath).setCharset(charset).get().use { zip ->
+            val result = mutableListOf<Triple<String, ByteArray, Boolean>>()
+            val entries = zip.entries
+            while (entries.hasMoreElements()) {
+                val entry = entries.nextElement()
+                result.add(Triple(entry.name, entry.rawName, entry.generalPurposeBit.usesUTF8ForNames()))
+            }
+            result.sortedBy { it.first }
+        }
+
+    @Test
+    fun `names in a legacy charset are decoded instead of collapsing to question marks`() = runBlocking {
+        createLegacyNameZip("café.txt" to "acute", "cafè.txt" to "grave", "plain.txt" to "plain")
+        val extractVfs = ZipExtractVirtualFileSystem(zipPath)
+        vfs = extractVfs
+
+        val names = extractVfs.listFiles(extractVfs.root).filter { !it.isParentLink }.map { it.name }.sorted()
+        assertEquals(listOf("cafè.txt", "café.txt", "plain.txt"), names)
+        val acute = extractVfs.getPath("/café.txt")
+        val grave = extractVfs.getPath("/cafè.txt")
+        extractVfs.materializeAll(listOf(acute, grave))
+        assertEquals("acute", Files.readString(acute))
+        assertEquals("grave", Files.readString(grave))
+        assertFalse(extractVfs.isReadOnly)
+        assertTrue(extractVfs.unextractableEntries.isEmpty())
+    }
+
+    @Test
+    fun `utf-8 flagged entries keep their names next to legacy ones`() = runBlocking {
+        createLegacyNameZip("café.txt" to "acute", "日本.txt" to "nihon", utf8Flagged = setOf("日本.txt"))
+        val extractVfs = ZipExtractVirtualFileSystem(zipPath)
+        vfs = extractVfs
+
+        val names = extractVfs.listFiles(extractVfs.root).filter { !it.isParentLink }.map { it.name }.sorted()
+        assertEquals(listOf("café.txt", "日本.txt"), names)
+    }
+
+    @Test
+    fun `repack writes legacy names back with their original bytes and new names as utf-8`() = runBlocking {
+        createLegacyNameZip("café.txt" to "acute", "plain.txt" to "plain")
+        val fallback = ZipNameCharset.fallback()
+        val originalRaw = "café.txt".toByteArray(fallback)
+        val extractVfs = ZipExtractVirtualFileSystem(zipPath)
+        vfs = extractVfs
+
+        Files.writeString(extractVfs.getPath("/plain.txt"), "edited")
+        Files.writeString(extractVfs.getPath("/日本.txt"), "nihon")
+        extractVfs.flush()
+
+        val persisted = persistedEntries(fallback)
+        assertEquals(listOf("café.txt", "plain.txt", "日本.txt"), persisted.map { it.first })
+        val legacy = persisted.first { it.first == "café.txt" }
+        assertArrayEquals(originalRaw, legacy.second)
+        assertFalse(legacy.third)
+        val added = persisted.first { it.first == "日本.txt" }
+        assertTrue(added.third)
+        assertArrayEquals("日本.txt".toByteArray(Charsets.UTF_8), added.second)
+        val reopened = listOf(extractVfs.getPath("/café.txt"), extractVfs.getPath("/plain.txt"))
+        extractVfs.materializeAll(reopened)
+        assertEquals("acute", Files.readString(reopened[0]))
+        assertEquals("edited", Files.readString(reopened[1]))
+    }
 }

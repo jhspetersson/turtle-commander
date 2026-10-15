@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Support ANSI-encoded filenames for zip archives
+
 ### Fixed
 
 - Multi-stream gz/bz2/xz were truncated after the first member
