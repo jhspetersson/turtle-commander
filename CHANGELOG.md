@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Errors during editing files inside archives are now reported to the user instead of being silently ignored
+
 ### Fixed
 
 - Attempts to pack into a read-only archive are handled correctly
