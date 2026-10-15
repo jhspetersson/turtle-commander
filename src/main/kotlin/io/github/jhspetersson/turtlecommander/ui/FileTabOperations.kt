@@ -1007,6 +1007,15 @@ private fun FileTab.openVfsFileEditable(entry: FileEntry) {
                     val newPath = if (relPath.isEmpty()) innerVfs.root else innerVfs.root.resolve(relPath)
                     fileOps.launch { navigateTo(newPath) }
                 },
+                onWriteBackFailed = { failed, cause ->
+                    val archive = stackRef.firstOrNull()?.vfs?.archivePath?.fileName?.toString() ?: "the archive"
+                    val reason = cause.message ?: cause.javaClass.simpleName
+                    fileErrorNotification(
+                        "Changes to \"${entry.name}\" were not written back to $archive: $reason. " +
+                            "The edited copy is kept at ${failed.tempFilePath}; fix the problem and save again.",
+                        cause,
+                    )
+                },
             ))
 
             withContext(Dispatchers.EDT) {

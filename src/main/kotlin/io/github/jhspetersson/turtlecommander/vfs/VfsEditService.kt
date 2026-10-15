@@ -50,6 +50,7 @@ class VfsEditEntry(
     val vfsWriteMutex: Mutex? = null,
     val onBeforeFlush: (() -> String)? = null,
     val onAfterFlush: ((String) -> Unit)? = null,
+    val onWriteBackFailed: ((VfsEditEntry, Exception) -> Unit)? = null,
 )
 
 @Service(Service.Level.PROJECT)
@@ -87,12 +88,10 @@ class VfsEditService(
             // Keep the entry tracked on success: the same file can be saved again, and each save
             // must be written back. (Previously it was removed here, so only the *first* save ever
             // reached the archive — every later save silently no-op'd.) It is cleaned up in
-            // [dispose]; a failed write-back is dropped below.
+            // [dispose].
         } catch (e: Exception) {
-            thisLogger().warn("VFS edit write-back failed: ${e.message}")
-            // Drop a failed edit so a permanently broken entry (e.g. the archive was closed
-            // underneath it) doesn't keep retrying — and failing — on every subsequent save.
-            activeEdits.remove(normalizeKey(entry.tempFilePath))
+            thisLogger().warn("VFS edit write-back failed for ${entry.tempFilePath}: ${e.message}")
+            entry.onWriteBackFailed?.invoke(entry, e)
         }
     }
 

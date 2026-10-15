@@ -91,46 +91,47 @@ class VfsEditServiceActiveEditsTest {
         assertNull(activeEdits[key])
     }
 
-    /**
-     * Verifies that a write-back failure does not leave the edit entry stuck in activeEdits.
-     * Regression: a previous version only removed the entry on success, so a single IOException
-     * would block every subsequent save to the same file until the IDE restart.
-     */
     @Test
-    fun `writeBack releases tracking entry even when copy fails`() {
+    fun `failed write-back is reported, stays tracked and succeeds once the cause is fixed`() {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         val service = VfsEditService(scope)
         val tempDir = Files.createTempDirectory("vfs-edit-failure-test-")
         try {
             val tempFile = tempDir.resolve("edited.txt")
             Files.writeString(tempFile, "new content")
-
-            // vfsFilePath points into a directory that doesn't exist: Files.copy will throw
-            // and writeBack must still clean up the tracking entry.
             val vfsTarget = tempDir.resolve("does/not/exist/edited.txt")
+            val failures = java.util.concurrent.CopyOnWriteArrayList<Exception>()
+            val successes = java.util.concurrent.atomic.AtomicInteger()
 
             val entry = VfsEditEntry(
                 vfsFilePath = vfsTarget,
                 tempFilePath = tempFile,
                 vfsStack = mutableListOf(),
+                onAfterFlush = { successes.incrementAndGet() },
+                onWriteBackFailed = { failed, cause -> assertSame(vfsTarget, failed.vfsFilePath); failures.add(cause) },
             )
-
             service.trackEdit(entry)
-
             val key = tempFile.toString().replace('\\', '/')
-            assertTrue("entry should be tracked", service.isTrackedForTest(key))
 
             service.onFileSaved(tempFile.toString())
-
-            // Wait for the background write-back to finish (it will fail internally).
             runBlocking {
                 withTimeout(5_000.milliseconds) {
-                    while (service.isTrackedForTest(key)) {
-                        delay(20.milliseconds)
-                    }
+                    while (failures.isEmpty()) delay(20.milliseconds)
                 }
             }
-            assertFalse("entry must be released after failure", service.isTrackedForTest(key))
+            assertTrue("entry must stay tracked after a failure so the next save retries", service.isTrackedForTest(key))
+            assertEquals(0, successes.get())
+
+            Files.createDirectories(vfsTarget.parent)
+            service.onFileSaved(tempFile.toString())
+            runBlocking {
+                withTimeout(5_000.milliseconds) {
+                    while (successes.get() == 0) delay(20.milliseconds)
+                }
+            }
+            assertEquals("new content", Files.readString(vfsTarget))
+            assertEquals(1, failures.size)
+            assertTrue(service.isTrackedForTest(key))
         } finally {
             service.dispose()
             tempDir.toFile().deleteRecursively()
