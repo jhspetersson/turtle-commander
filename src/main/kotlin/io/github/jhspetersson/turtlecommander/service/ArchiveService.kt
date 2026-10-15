@@ -77,6 +77,7 @@ class ArchiveService {
                                 val relativePath = (source.parent ?: source).relativize(dir).toString().replace("\\", "/")
                                 val zipDir = zipFs.getPath(relativePath)
                                 try { Files.createDirectories(zipDir) } catch (_: FileAlreadyExistsException) {}
+                                Files.setLastModifiedTime(zipDir, attrs.lastModifiedTime())
                                 // Report the directory name for UX but do not tick the counter —
                                 // otherwise the final count exceeds the number of files actually
                                 // written, which is what the method returns.
@@ -90,7 +91,7 @@ class ArchiveService {
                                     OpenVfsRegistry.materializeIfNeeded(file)
                                     val relativePath = (source.parent ?: source).relativize(file).toString().replace("\\", "/")
                                     val zipEntry = zipFs.getPath(relativePath)
-                                    Files.copy(file, zipEntry, StandardCopyOption.REPLACE_EXISTING)
+                                    copyPreservingAttributes(file, zipEntry, replaceExisting = true)
                                     successCount++
                                     onProgress(successCount, file.fileName.toString())
                                 } catch (e: Exception) {
@@ -109,7 +110,7 @@ class ArchiveService {
                         try {
                             OpenVfsRegistry.materializeIfNeeded(source)
                             val zipEntry = zipFs.getPath(source.fileName.toString())
-                            Files.copy(source, zipEntry, StandardCopyOption.REPLACE_EXISTING)
+                            copyPreservingAttributes(source, zipEntry, replaceExisting = true)
                             successCount++
                             onProgress(successCount, source.fileName.toString())
                         } catch (e: Exception) {
