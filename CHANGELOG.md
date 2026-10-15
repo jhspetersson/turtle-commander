@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.91] - 2026-10-15
+
 ### Added
 
 - Support ANSI-encoded filenames for zip archives
