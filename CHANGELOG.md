@@ -7,6 +7,7 @@
 ### Fixed
 
 - Attempts to pack into a read-only archive are handled correctly
+- Preserve mtime during archive operations
 
 ## [0.7.91] - 2026-10-15
 
