@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.92] - 2026-10-16
+
 ### Changed
 
 - Errors during editing files inside archives are now reported to the user instead of being silently ignored
