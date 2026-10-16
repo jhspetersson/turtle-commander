@@ -144,7 +144,7 @@ class ArchiveService {
                                         if (isCancelled()) return FileVisitResult.TERMINATE
                                         val relativePath = (source.parent ?: source).relativize(dir).toString().replace("\\", "/")
                                         if (relativePath.isNotEmpty()) {
-                                            tarOs.putDirectoryEntry("$relativePath/", attrs.lastModifiedTime().toMillis())
+                                            tarOs.putDirectoryEntry("$relativePath/", attrs.lastModifiedTime().toMillis(), TarOutputStream.modeOf(dir, attrs))
                                         }
                                         onProgress(successCount, dir.fileName.toString())
                                         return FileVisitResult.CONTINUE
@@ -154,7 +154,7 @@ class ArchiveService {
                                         if (isCancelled()) return FileVisitResult.TERMINATE
                                         try {
                                             val relativePath = (source.parent ?: source).relativize(file).toString().replace("\\", "/")
-                                            tarOs.putFileEntry(relativePath, file, attrs.lastModifiedTime().toMillis())
+                                            putTarEntry(tarOs, relativePath, file, attrs)
                                             successCount++
                                             onProgress(successCount, file.fileName.toString())
                                         } catch (e: Exception) {
@@ -171,8 +171,8 @@ class ArchiveService {
                                 })
                             } else {
                                 try {
-                                    val attrs = Files.readAttributes(source, BasicFileAttributes::class.java)
-                                    tarOs.putFileEntry(source.fileName.toString(), source, attrs.lastModifiedTime().toMillis())
+                                    val attrs = Files.readAttributes(source, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+                                    putTarEntry(tarOs, source.fileName.toString(), source, attrs)
                                     successCount++
                                     onProgress(successCount, source.fileName.toString())
                                 } catch (e: Exception) {
@@ -185,6 +185,15 @@ class ArchiveService {
                 }
             }
             successCount
+        }
+    }
+
+    private fun putTarEntry(tarOs: TarOutputStream, name: String, file: Path, attrs: BasicFileAttributes) {
+        val modTime = attrs.lastModifiedTime().toMillis()
+        if (attrs.isSymbolicLink) {
+            tarOs.putSymlinkEntry(name, Files.readSymbolicLink(file).toString().replace('\\', '/'), modTime)
+        } else {
+            tarOs.putFileEntry(name, file, modTime, TarOutputStream.modeOf(file, attrs))
         }
     }
 

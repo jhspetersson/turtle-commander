@@ -6,7 +6,10 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.nio.file.Path
+import java.nio.file.attribute.BasicFileAttributes
+import java.nio.file.attribute.PosixFilePermission
 
 /**
  * Minimal tar archive writer supporting POSIX ustar format.
@@ -18,18 +21,33 @@ class TarOutputStream(private val out: OutputStream) : AutoCloseable {
     // Maximum file size representable in an 11-digit octal field (ustar format)
     private val maxFileSize = 0x1FFFFFFFFL // 8,589,934,591 bytes (~8 GB)
 
-    fun putDirectoryEntry(name: String, modTimeMillis: Long) {
+    fun putDirectoryEntry(name: String, modTimeMillis: Long, mode: Int = DEFAULT_DIRECTORY_MODE) {
         writeLongNameIfNeeded(name)
         val header = createHeader(
             name = truncateUtf8(name, 100),
             size = 0,
             modTime = modTimeMillis / 1000,
             typeFlag = '5', // directory
+            mode = mode,
         )
         out.write(header)
     }
 
-    fun putFileEntry(name: String, file: Path, modTimeMillis: Long) {
+    fun putSymlinkEntry(name: String, target: String, modTimeMillis: Long, mode: Int = SYMLINK_MODE) {
+        writeLongNameIfNeeded(name)
+        writeGnuLongIfNeeded(target, 'K')
+        val header = createHeader(
+            name = truncateUtf8(name, 100),
+            size = 0,
+            modTime = modTimeMillis / 1000,
+            typeFlag = '2',
+            mode = mode,
+            linkName = truncateUtf8(target, 100),
+        )
+        out.write(header)
+    }
+
+    fun putFileEntry(name: String, file: Path, modTimeMillis: Long, mode: Int = DEFAULT_FILE_MODE) {
         OpenVfsRegistry.materializeIfNeeded(file)
         val actualSize = Files.size(file)
         if (actualSize > maxFileSize) {
@@ -38,7 +56,7 @@ class TarOutputStream(private val out: OutputStream) : AutoCloseable {
             )
         }
         Files.newInputStream(file).use { input ->
-            putFileEntry(name, input, actualSize, modTimeMillis, file.toString())
+            putFileEntry(name, input, actualSize, modTimeMillis, file.toString(), mode)
         }
     }
 
@@ -48,6 +66,7 @@ class TarOutputStream(private val out: OutputStream) : AutoCloseable {
         declaredSize: Long,
         modTimeMillis: Long,
         source: String,
+        mode: Int = DEFAULT_FILE_MODE,
     ) {
         writeLongNameIfNeeded(name)
         val header = createHeader(
@@ -55,6 +74,7 @@ class TarOutputStream(private val out: OutputStream) : AutoCloseable {
             size = declaredSize,
             modTime = modTimeMillis / 1000,
             typeFlag = '0', // regular file
+            mode = mode,
         )
         out.write(header)
         val buf = ByteArray(8192)
@@ -97,15 +117,18 @@ class TarOutputStream(private val out: OutputStream) : AutoCloseable {
         out.close()
     }
 
-    private fun writeLongNameIfNeeded(name: String) {
-        // GNU @LongLink extension
-        val nameBytes = name.toByteArray(StandardCharsets.UTF_8)
+    private fun writeLongNameIfNeeded(name: String) = writeGnuLongIfNeeded(name, 'L')
+
+    private fun writeGnuLongIfNeeded(value: String, typeFlag: Char) {
+        // GNU @LongLink extension: 'L' carries a long entry name, 'K' a long link target
+        val nameBytes = value.toByteArray(StandardCharsets.UTF_8)
         if (nameBytes.size <= 100) return
         val header = createHeader(
             name = "././@LongLink",
             size = nameBytes.size.toLong(),
             modTime = 0,
-            typeFlag = 'L', // GNU long name
+            typeFlag = typeFlag,
+            mode = DEFAULT_FILE_MODE,
         )
         out.write(header)
         out.write(nameBytes)
@@ -115,13 +138,13 @@ class TarOutputStream(private val out: OutputStream) : AutoCloseable {
         }
     }
 
-    private fun createHeader(name: String, size: Long, modTime: Long, typeFlag: Char): ByteArray {
+    private fun createHeader(name: String, size: Long, modTime: Long, typeFlag: Char, mode: Int, linkName: String = ""): ByteArray {
         val header = ByteArray(blockSize)
 
         // Name (0-99)
         writeString(header, 0, name, 100)
         // Mode (100-107)
-        writeOctal(header, 100, if (typeFlag == '5') 0b111_101_101L else 0b110_100_100L, 8)
+        writeOctal(header, 100, mode.toLong(), 8)
         // UID (108-115)
         writeOctal(header, 108, 0, 8)
         // GID (116-123)
@@ -134,6 +157,8 @@ class TarOutputStream(private val out: OutputStream) : AutoCloseable {
         for (i in 148 until 156) header[i] = ' '.code.toByte()
         // Type flag (156)
         header[156] = typeFlag.code.toByte()
+        // Link name (157-256)
+        writeString(header, 157, linkName, 100)
         // Magic (257-262)
         writeString(header, 257, "ustar", 6)
         header[262] = 0
@@ -183,5 +208,29 @@ class TarOutputStream(private val out: OutputStream) : AutoCloseable {
         val len = minOf(bytes.size - start, fieldLen - 1)
         System.arraycopy(bytes, start, buf, offset, len)
         buf[offset + len] = 0
+    }
+
+    companion object {
+        const val DEFAULT_FILE_MODE = 420
+        const val DEFAULT_DIRECTORY_MODE = 493
+        const val SYMLINK_MODE = 511
+
+        private val permissionBits = mapOf(
+            PosixFilePermission.OWNER_READ to 256,
+            PosixFilePermission.OWNER_WRITE to 128,
+            PosixFilePermission.OWNER_EXECUTE to 64,
+            PosixFilePermission.GROUP_READ to 32,
+            PosixFilePermission.GROUP_WRITE to 16,
+            PosixFilePermission.GROUP_EXECUTE to 8,
+            PosixFilePermission.OTHERS_READ to 4,
+            PosixFilePermission.OTHERS_WRITE to 2,
+            PosixFilePermission.OTHERS_EXECUTE to 1,
+        )
+
+        fun modeOf(path: Path, attrs: BasicFileAttributes): Int {
+            val permissions = runCatching { Files.getPosixFilePermissions(path, LinkOption.NOFOLLOW_LINKS) }.getOrNull()
+                ?: return if (attrs.isDirectory) DEFAULT_DIRECTORY_MODE else DEFAULT_FILE_MODE
+            return permissions.sumOf { permissionBits.getValue(it) }
+        }
     }
 }

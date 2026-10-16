@@ -7,6 +7,7 @@
 ### Fixed
 
 - Fixed deleting temporary files after opening read-only archives
+- Fixed tar archiver ignoring original file permissions
 
 ## [0.7.92] - 2026-10-16
 

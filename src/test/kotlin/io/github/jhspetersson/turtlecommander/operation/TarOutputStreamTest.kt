@@ -6,12 +6,16 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
+import org.junit.Assume.assumeFalse
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.attribute.BasicFileAttributes
+import java.nio.file.attribute.PosixFilePermissions
 
 class TarOutputStreamTest {
 
@@ -174,6 +178,93 @@ class TarOutputStreamTest {
             assertEquals("survivor", entries[0].second.toString(Charsets.UTF_8))
         } finally {
             Files.deleteIfExists(fileB)
+        }
+    }
+
+    @Test
+    fun `file entry carries the given mode`() {
+        val out = ByteArrayOutputStream()
+        TarOutputStream(out).use { tar ->
+            tar.putFileEntry("run.sh", ByteArrayInputStream("#!/bin/sh".toByteArray()), 9, 0, "run.sh", 493)
+            tar.finish()
+        }
+
+        val entry = readEntries(out.toByteArray()).single().first
+        assertEquals(493, entry.mode)
+        assertTrue(entry.isFile)
+    }
+
+    @Test
+    fun `directory entry carries the given mode`() {
+        val out = ByteArrayOutputStream()
+        TarOutputStream(out).use { tar ->
+            tar.putDirectoryEntry("private/", 0, 448)
+            tar.finish()
+        }
+
+        val entry = readEntries(out.toByteArray()).single().first
+        assertEquals(448, entry.mode)
+        assertTrue(entry.isDirectory)
+    }
+
+    @Test
+    fun `symlink entry round-trips with its target and keeps later entries readable`() {
+        val out = ByteArrayOutputStream()
+        TarOutputStream(out).use { tar ->
+            tar.putSymlinkEntry("dir/link", "../target.txt", 1_600_000_000_000)
+            tar.putFileEntry("after.txt", ByteArrayInputStream("after".toByteArray()), 5, 0, "after.txt", 420)
+            tar.finish()
+        }
+
+        val entries = readEntries(out.toByteArray())
+        assertEquals(listOf("dir/link", "after.txt"), entries.map { it.first.name })
+        val link = entries[0].first
+        assertTrue(link.isSymbolicLink)
+        assertEquals("../target.txt", link.linkName)
+        assertEquals(0L, link.size)
+        assertEquals(1_600_000_000L, link.lastModifiedTime.toMillis() / 1000)
+        assertEquals("after", entries[1].second.toString(Charsets.UTF_8))
+    }
+
+    @Test
+    fun `long symlink target gets a longlink entry`() {
+        val target = "t".repeat(150) + "/file.txt"
+        val out = ByteArrayOutputStream()
+        TarOutputStream(out).use { tar ->
+            tar.putSymlinkEntry("link", target, 0)
+            tar.finish()
+        }
+
+        val link = readEntries(out.toByteArray()).single().first
+        assertTrue(link.isSymbolicLink)
+        assertEquals(target, link.linkName)
+    }
+
+    @Test
+    fun `modeOf reads posix permissions`() {
+        val file = Files.createTempFile("tar-mode-", ".txt")
+        try {
+            assumeTrue(Files.getFileStore(file).supportsFileAttributeView("posix"))
+            Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rwxr-x---"))
+
+            assertEquals(488, TarOutputStream.modeOf(file, Files.readAttributes(file, BasicFileAttributes::class.java)))
+        } finally {
+            Files.deleteIfExists(file)
+        }
+    }
+
+    @Test
+    fun `modeOf falls back to defaults without posix permissions`() {
+        val dir = Files.createTempDirectory("tar-mode-")
+        val file = Files.createTempFile(dir, "f", ".txt")
+        try {
+            assumeFalse(Files.getFileStore(file).supportsFileAttributeView("posix"))
+
+            assertEquals(420, TarOutputStream.modeOf(file, Files.readAttributes(file, BasicFileAttributes::class.java)))
+            assertEquals(493, TarOutputStream.modeOf(dir, Files.readAttributes(dir, BasicFileAttributes::class.java)))
+        } finally {
+            Files.deleteIfExists(file)
+            Files.deleteIfExists(dir)
         }
     }
 }
