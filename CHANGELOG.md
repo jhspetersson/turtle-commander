@@ -8,6 +8,7 @@
 
 - Fixed deleting temporary files after opening read-only archives
 - Fixed tar archiver ignoring original file permissions
+- Fixed search in the root directory that is a symlink 
 
 ## [0.7.92] - 2026-10-16
 
