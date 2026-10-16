@@ -81,8 +81,9 @@ class FileSearchService(
         }
 
         var scannedCount = 0
+        val start = resolveWalkRoot(criteria.rootPath)
 
-        Files.walkFileTree(criteria.rootPath, object : FileVisitor<Path> {
+        Files.walkFileTree(start, object : FileVisitor<Path> {
             override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
                 if (isCancelled()) return FileVisitResult.TERMINATE
                 waitWhilePaused(isCancelled)
@@ -90,7 +91,7 @@ class FileSearchService(
                 if (scannedCount % 50 == 0) {
                     onProgress(scannedCount, dir.toString())
                 }
-                if (dir != criteria.rootPath) {
+                if (dir != start) {
                     checkAndReport(dir, attrs, nameMatcher, onResult)
                 }
                 return FileVisitResult.CONTINUE

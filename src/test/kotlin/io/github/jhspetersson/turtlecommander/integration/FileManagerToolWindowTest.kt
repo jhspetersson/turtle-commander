@@ -175,6 +175,24 @@ class FileManagerToolWindowTest : BasePlatformTestCase() {
         assertEquals("only the three files", 3, real.size)
     }
 
+    fun testListAllNestedFilesThroughSymlinkedRoot() {
+        val real = Files.createDirectory(tempDir.resolve("real"))
+        Files.writeString(real.resolve("top.txt"), "x")
+        Files.writeString(Files.createDirectory(real.resolve("sub")).resolve("deep.txt"), "x")
+        val link = tempDir.resolve("link")
+        val created = runCatching { Files.createSymbolicLink(link, real) }
+        if (created.isFailure) {
+            System.err.println("skipping: symlinks not creatable here: ${created.exceptionOrNull()?.message}")
+            return
+        }
+
+        val fileOps = project.service<FileOperationService>()
+        val entries = runBlocking { fileOps.listAllNestedFiles(link) }
+
+        val names = entries.filter { !it.isParentLink }.map { it.name }.toSet()
+        assertEquals("walks through the symlinked root", setOf("top.txt", "deep.txt"), names)
+    }
+
     fun testListAllNestedFilesIncludesParentEntry() {
         val sub = Files.createDirectory(tempDir.resolve("withparent"))
         Files.writeString(sub.resolve("a.txt"), "x")

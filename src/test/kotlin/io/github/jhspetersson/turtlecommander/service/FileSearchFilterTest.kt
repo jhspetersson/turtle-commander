@@ -10,6 +10,7 @@ import io.github.jhspetersson.turtlecommander.dialog.SizeFilterMode
 
 import org.junit.After
 import org.junit.Assert.*
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
@@ -40,6 +41,29 @@ class FileSearchFilterTest {
             onProgress = { _, _ -> },
         )
         return results
+    }
+
+    @Test
+    fun `search through a symlinked root finds the files beneath it`() {
+        val dir = createTempDir()
+        val real = Files.createDirectories(dir.resolve("real"))
+        Files.writeString(real.resolve("top.txt"), "x")
+        Files.writeString(Files.createDirectories(real.resolve("sub")).resolve("deep.txt"), "x")
+        val link = dir.resolve("link")
+        val created = runCatching { Files.createSymbolicLink(link, real) }
+        assumeTrue("symlinks not creatable here: ${created.exceptionOrNull()?.message}", created.isSuccess)
+
+        val results = search(FileSearchCriteria(
+            rootPath = link,
+            namePattern = "*.txt",
+            namePatternMode = NamePatternMode.GLOB,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+        ))
+
+        assertEquals(setOf("top.txt", "deep.txt"), results.map { it.name }.toSet())
+        assertTrue(results.all { Files.isRegularFile(it.path) })
     }
 
     @Test

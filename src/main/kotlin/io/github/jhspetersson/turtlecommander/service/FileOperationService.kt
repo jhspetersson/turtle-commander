@@ -133,7 +133,7 @@ class FileOperationService(
 
         val needs = entryReadNeeds()
         val files = mutableListOf<FileEntry>()
-        val start = try { resolveReparsePoint(directory) } catch (_: Exception) { directory }
+        val start = resolveWalkRoot(directory)
         try {
             walkFileTree(start, object : SimpleFileVisitor<Path>() {
                 override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
@@ -1188,6 +1188,13 @@ class FileOperationService(
             }
         })
     }
+}
+
+internal fun resolveWalkRoot(path: Path): Path {
+    val attrs = runCatching { Files.readAttributes(path, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS) }.getOrNull()
+        ?: return path
+    if (attrs.isDirectory && !attrs.isOther) return path
+    return runCatching { path.toRealPath() }.getOrDefault(path)
 }
 
 internal fun copyPreservingAttributes(source: Path, target: Path, replaceExisting: Boolean, nofollow: Boolean = false) {
