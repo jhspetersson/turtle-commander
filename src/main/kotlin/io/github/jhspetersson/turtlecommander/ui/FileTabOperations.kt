@@ -438,13 +438,20 @@ internal fun FileTab.performSplitFile() {
     if (!dialog.showAndGet()) return
 
     val targetDir = resolveDestinationPath(dialog.targetDirectory, destinationBasePath)
-    val chunkSize = if (dialog.isSplitBySize) {
-        dialog.chunkSize
-    } else {
-        (entry.size + dialog.numberOfParts - 1) / dialog.numberOfParts
-    }
 
     fileOps.launch {
+        val chunkSize = try {
+            withContext(Dispatchers.IO) {
+                if (dialog.isSplitBySize) {
+                    dialog.chunkSize
+                } else {
+                    SplitFileOperation.chunkSizeForParts(Files.size(entry.path), dialog.numberOfParts)
+                }
+            }
+        } catch (e: Exception) {
+            fileErrorNotification("Failed to split ${entry.name}: ${e.message}")
+            return@launch
+        }
         try {
             withContext(Dispatchers.IO) { Files.createDirectories(targetDir) }
         } catch (e: Exception) {
@@ -467,7 +474,7 @@ internal fun FileTab.performSplitFile() {
             withContext(NonCancellable) {
                 indicator.isIndeterminate = false
                 try {
-                    withContext(Dispatchers.IO) {
+                    val totalChunks = withContext(Dispatchers.IO) {
                         SplitFileOperation.split(
                             sourceFile = entry.path,
                             targetDirectory = targetDir,
@@ -482,7 +489,6 @@ internal fun FileTab.performSplitFile() {
                     }
 
                     if (!indicator.isCanceled) {
-                        val totalChunks = if (entry.size == 0L) 1 else ((entry.size + chunkSize - 1) / chunkSize).toInt()
                         NotificationGroupManager.getInstance()
                             .getNotificationGroup("Turtle Commander")
                             .createNotification(

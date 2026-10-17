@@ -7,6 +7,7 @@
 ### Fixed
 
 - Fixed potential OOM on very large `.cab` files
+- Fixed corner cases in split/combine operations
 
 ## [0.7.93] - 2026-10-17
 

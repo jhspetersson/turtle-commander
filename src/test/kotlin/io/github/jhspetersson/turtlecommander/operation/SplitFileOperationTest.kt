@@ -3,6 +3,8 @@ package io.github.jhspetersson.turtlecommander.operation
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Test
+import java.io.IOException
+import java.io.RandomAccessFile
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -287,10 +289,128 @@ class SplitFileOperationTest {
 
         val names = Files.list(targetDir).use { s -> s.map { it.fileName.toString() }.sorted().toList() }
         assertEquals(
-            listOf("$name.001", "$name.002", "$name.003", "$name.crc", "$name.txt", "other.004").sorted(),
+            listOf("$name.001", "$name.002", "$name.003", "$name.crc", "$name.1000", "$name.txt", "other.004").sorted(),
             names,
         )
         assertEquals(3, CombineFilesOperation.findChunkFiles(targetDir, name).size)
+    }
+
+    @Test
+    fun `successful split leaves unrelated numeric siblings alone`() {
+        val targetDir = createTempDir()
+        val source = targetDir.resolve("report")
+        Files.write(source, ByteArray(10))
+        Files.write(targetDir.resolve("report.2024"), "annual".toByteArray())
+        Files.write(targetDir.resolve("report.007"), "gap".toByteArray())
+        Files.write(targetDir.resolve("report.001"), "old".toByteArray())
+
+        SplitFileOperation.split(source, targetDir, 100, { _, _, _, _ -> }, { false })
+
+        assertEquals("annual", Files.readString(targetDir.resolve("report.2024")))
+        assertEquals("gap", Files.readString(targetDir.resolve("report.007")))
+        assertEquals(10L, Files.size(targetDir.resolve("report.001")))
+    }
+
+    @Test
+    fun `successful split removes every chunk of the previous set recorded in the crc file`() {
+        val targetDir = createTempDir()
+        val source = targetDir.resolve("data.bin")
+        Files.write(source, ByteArray(1000))
+        for (i in listOf(1, 2, 3, 5)) {
+            Files.write(targetDir.resolve("data.bin.${i.toString().padStart(3, '0')}"), "old $i".toByteArray())
+        }
+        Files.writeString(targetDir.resolve("data.bin.crc"), "filename=data.bin\nsize=5000\ncrc32=00000000\nparts=5\n")
+
+        SplitFileOperation.split(source, targetDir, 400, { _, _, _, _ -> }, { false })
+
+        val names = Files.list(targetDir).use { s -> s.map { it.fileName.toString() }.sorted().toList() }
+        assertEquals(listOf("data.bin", "data.bin.001", "data.bin.002", "data.bin.003", "data.bin.crc"), names)
+    }
+
+    @Test
+    fun `crc file records the part count`() {
+        val source = createTempFile(ByteArray(1000))
+        val targetDir = createTempDir()
+        val name = source.fileName.toString()
+
+        SplitFileOperation.split(source, targetDir, 400, { _, _, _, _ -> }, { false })
+
+        assertEquals(3, SplitFileOperation.readRecordedParts(targetDir.resolve("$name.crc")))
+        assertEquals(1000L, CombineFilesOperation.parseCrcFile(targetDir.resolve("$name.crc")).size)
+    }
+
+    @Test
+    fun `existingChunkFiles follows the recorded set past a gap and ignores unrelated numeric siblings`() {
+        val targetDir = createTempDir()
+        Files.write(targetDir.resolve("report.001"), byteArrayOf(1))
+        Files.write(targetDir.resolve("report.002"), byteArrayOf(2))
+        Files.write(targetDir.resolve("report.004"), byteArrayOf(4))
+        Files.write(targetDir.resolve("report.2024"), byteArrayOf(9))
+        Files.writeString(targetDir.resolve("report.crc"), "filename=report\nsize=4\ncrc32=00000000\nparts=4\n")
+
+        val found = SplitFileOperation.existingChunkFiles(targetDir, "report").map { it.fileName.toString() }.sorted()
+
+        assertEquals(listOf("report.001", "report.002", "report.004", "report.crc"), found)
+    }
+
+    @Test
+    fun `split fails when the source shrinks mid-split and leaves nothing behind`() {
+        val targetDir = createTempDir()
+        val source = targetDir.resolve("big.bin")
+        Files.write(source, ByteArray(2 * 1024 * 1024))
+        var truncated = false
+        var polls = 0
+        try {
+            SplitFileOperation.split(
+                sourceFile = source,
+                targetDirectory = targetDir,
+                chunkSize = 16 * 1024,
+                onProgress = { chunkIndex, _, _, _ ->
+                    if (!truncated && chunkIndex == 2) {
+                        truncated = true
+                        RandomAccessFile(source.toFile(), "rw").use { it.setLength(96 * 1024) }
+                    }
+                },
+                isCancelled = { polls++ > 10_000 },
+            )
+            fail("Expected the shrunken source to abort the split")
+        } catch (_: IOException) {
+        }
+        assertTrue(truncated)
+        assertTrue("split must stop on its own, not through the cancellation guard", polls <= 10_000)
+        val names = Files.list(targetDir).use { s -> s.map { it.fileName.toString() }.toList() }
+        assertEquals(listOf("big.bin"), names)
+    }
+
+    @Test
+    fun `split rejects a non-positive chunk size before touching the target directory`() {
+        val source = createTempFile(ByteArray(100))
+        val targetDir = createTempDir().resolve("out")
+        for (chunkSize in listOf(0L, -1L)) {
+            try {
+                SplitFileOperation.split(source, targetDir, chunkSize, { _, _, _, _ -> }, { false })
+                fail("Expected chunk size $chunkSize to be rejected")
+            } catch (_: IllegalArgumentException) {
+            }
+        }
+        assertTrue(Files.notExists(targetDir))
+    }
+
+    @Test
+    fun `chunkSizeForParts never yields zero`() {
+        assertEquals(1L, SplitFileOperation.chunkSizeForParts(0, 2))
+        assertEquals(50L, SplitFileOperation.chunkSizeForParts(100, 2))
+        assertEquals(51L, SplitFileOperation.chunkSizeForParts(101, 2))
+        assertEquals(1L, SplitFileOperation.chunkSizeForParts(1, 9999))
+    }
+
+    @Test
+    fun `split returns the number of chunks written`() {
+        val source = createTempFile(ByteArray(1000))
+        val targetDir = createTempDir()
+        assertEquals(3, SplitFileOperation.split(source, targetDir, 400, { _, _, _, _ -> }, { false }))
+        assertEquals(1, SplitFileOperation.split(createTempFile(ByteArray(0)), createTempDir(), 400, { _, _, _, _ -> }, { false }))
+        assertEquals(0, SplitFileOperation.split(source, createTempDir(), 400, { _, _, _, _ -> }, { true }))
     }
 
     @Test

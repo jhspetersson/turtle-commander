@@ -3,6 +3,7 @@ package io.github.jhspetersson.turtlecommander.operation
 import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
@@ -16,7 +17,8 @@ object SplitFileOperation {
         chunkSize: Long,
         onProgress: (chunkIndex: Int, totalChunks: Int, bytesWritten: Long, totalBytes: Long) -> Unit,
         isCancelled: () -> Boolean,
-    ) {
+    ): Int {
+        require(chunkSize > 0) { "Chunk size must be positive, got $chunkSize" }
         val fileSize = Files.size(sourceFile)
         val fileName = sourceFile.fileName.toString()
         val totalChunks = if (fileSize == 0L) 1 else ((fileSize + chunkSize - 1) / chunkSize).toInt()
@@ -53,12 +55,16 @@ object SplitFileOperation {
 
                     BufferedOutputStream(Files.newOutputStream(tempPath), BUFFER_SIZE).use { output ->
                         val buffer = ByteArray(BUFFER_SIZE)
-                        while (chunkBytesWritten < chunkSize) {
+                        while (chunkBytesWritten < chunkSize && totalBytesRead < fileSize) {
                             if (isCancelled()) { cancelled = true; return@use }
 
-                            val toRead = minOf(BUFFER_SIZE.toLong(), chunkSize - chunkBytesWritten).toInt()
+                            val toRead = minOf(BUFFER_SIZE.toLong(), chunkSize - chunkBytesWritten, fileSize - totalBytesRead).toInt()
                             val bytesRead = input.read(buffer, 0, toRead)
-                            if (bytesRead == -1) break
+                            if (bytesRead == -1) {
+                                throw IOException(
+                                    "Source file shrank during split: expected $fileSize bytes but only $totalBytesRead were readable",
+                                )
+                            }
 
                             output.write(buffer, 0, bytesRead)
                             crc32.update(buffer, 0, bytesRead)
@@ -73,7 +79,7 @@ object SplitFileOperation {
 
             if (cancelled) {
                 deleteTempFiles(pendingChunks)
-                return
+                return 0
             }
 
             for ((tempPath, chunkPath) in pendingChunks) {
@@ -91,15 +97,38 @@ object SplitFileOperation {
             }
         }
 
-        writeCrcFile(targetDirectory, fileName, fileSize, crc32.value)
+        writeCrcFile(targetDirectory, fileName, fileSize, crc32.value, pendingChunks.size)
+        return pendingChunks.size
+    }
+
+    fun chunkSizeForParts(fileSize: Long, parts: Int): Long {
+        require(parts > 0) { "Part count must be positive, got $parts" }
+        return maxOf(1L, (fileSize + parts - 1) / parts)
     }
 
     fun existingChunkFiles(targetDirectory: Path, fileName: String): List<Path> {
         if (!Files.isDirectory(targetDirectory)) return emptyList()
-        val pattern = Regex("^" + Regex.escape(fileName) + "\\.(\\d{3,6}|crc)$")
-        return Files.list(targetDirectory).use { stream ->
-            stream.filter { pattern.matches(it.fileName.toString()) && Files.isRegularFile(it) }.toList()
-        }
+        val found = LinkedHashSet<Path>()
+        val crcPath = targetDirectory.resolve("$fileName.crc")
+        if (Files.isRegularFile(crcPath)) found.add(crcPath)
+        found.addAll(recordedChunkFiles(targetDirectory, fileName, crcPath))
+        found.addAll(CombineFilesOperation.findChunkFiles(targetDirectory, fileName))
+        return found.toList()
+    }
+
+    fun readRecordedParts(crcPath: Path): Int? {
+        if (!Files.isRegularFile(crcPath)) return null
+        val lines = runCatching { Files.readAllLines(crcPath) }.getOrNull() ?: return null
+        val value = lines.firstOrNull { it.startsWith("parts=") }?.substringAfter('=')?.trim() ?: return null
+        return value.toIntOrNull()?.takeIf { it > 0 }
+    }
+
+    private fun recordedChunkFiles(targetDirectory: Path, fileName: String, crcPath: Path): List<Path> {
+        val parts = readRecordedParts(crcPath) ?: return emptyList()
+        val width = extensionWidth(parts)
+        return (1..parts)
+            .map { chunkPath(targetDirectory, fileName, it, width) }
+            .filter { Files.isRegularFile(it) }
     }
 
     private fun chunkPath(targetDirectory: Path, fileName: String, index: Int, extensionWidth: Int): Path {
@@ -118,9 +147,9 @@ object SplitFileOperation {
         }
     }
 
-    private fun writeCrcFile(targetDirectory: Path, fileName: String, fileSize: Long, crc32Value: Long) {
+    private fun writeCrcFile(targetDirectory: Path, fileName: String, fileSize: Long, crc32Value: Long, parts: Int) {
         val crcHex = String.format("%08X", crc32Value)
-        val crcContent = "filename=$fileName\nsize=$fileSize\ncrc32=$crcHex\n"
+        val crcContent = "filename=$fileName\nsize=$fileSize\ncrc32=$crcHex\nparts=$parts\n"
         val crcPath = targetDirectory.resolve("$fileName.crc")
         Files.writeString(crcPath, crcContent)
     }
