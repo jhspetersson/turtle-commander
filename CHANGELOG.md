@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.93] - 2026-10-17
+
 ### Fixed
 
 - Fixed deleting temporary files after opening read-only archives
