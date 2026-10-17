@@ -231,6 +231,7 @@ private fun parseColor(hex: String): Color? {
 @State(
     name = "TurtleCommanderSettings",
     storages = [Storage("turtleCommanderSettings.xml")],
+    getStateRequiresEdt = true,
 )
 class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings.State> {
 
