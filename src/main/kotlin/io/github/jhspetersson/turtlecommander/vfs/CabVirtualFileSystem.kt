@@ -1,6 +1,7 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
 import de.morihofi.cab4j.extract.CabExtractor
+import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.file.Files
@@ -22,10 +23,14 @@ class CabFileSystemProvider : VirtualFileSystemProvider {
         CabVirtualFileSystem(archivePath, openProgress)
 }
 
-class CabVirtualFileSystem(
+class CabVirtualFileSystem internal constructor(
     override val archivePath: Path,
-    openProgress: VfsOpenProgress? = null,
+    openProgress: VfsOpenProgress?,
+    private val readArchive: (Path) -> ByteBuffer,
 ) : AbstractTempDirVirtualFileSystem("turtle-cab-", openProgress) {
+
+    constructor(archivePath: Path, openProgress: VfsOpenProgress? = null) :
+        this(archivePath, openProgress, ::readWholeFile)
 
     override val isReadOnly: Boolean get() = true
 
@@ -44,11 +49,14 @@ class CabVirtualFileSystem(
         } catch (e: Exception) {
             reset(into)
             sevenZipFallback(into, progress, e)
+        } catch (e: OutOfMemoryError) {
+            reset(into)
+            sevenZipFallback(into, progress, e)
         }
     }
 
     private fun cab4jExtract(into: Path, progress: VfsOpenProgress) {
-        val entries = CabExtractor.extractWithAttributes(ByteBuffer.wrap(Files.readAllBytes(archivePath)))
+        val entries = CabExtractor.extractWithAttributes(readArchive(archivePath))
         val total = entries.size
         var index = 0
         for ((rawName, fileData) in entries) {
@@ -73,7 +81,7 @@ class CabVirtualFileSystem(
         }
     }
 
-    private fun sevenZipFallback(into: Path, progress: VfsOpenProgress, cause: Exception) {
+    private fun sevenZipFallback(into: Path, progress: VfsOpenProgress, cause: Throwable) {
         if (System7z.findBinary() == null) {
             throw System7zUnavailableException(
                 "This CAB archive couldn't be read in-process. ${System7z.INSTALL_HINT}",
@@ -99,5 +107,22 @@ class CabVirtualFileSystem(
 
     companion object {
         private val CAB_SIGNATURE = byteArrayOf(0x4D, 0x53, 0x43, 0x46)
+        private const val MAX_ARRAY_SIZE = Int.MAX_VALUE - 8L
+
+        internal fun exceedsInProcessLimit(size: Long, heapHeadroom: Long = heapHeadroom()): Boolean =
+            size > MAX_ARRAY_SIZE || size > heapHeadroom
+
+        internal fun readWholeFile(path: Path, heapHeadroom: Long = heapHeadroom()): ByteBuffer {
+            val size = Files.size(path)
+            if (exceedsInProcessLimit(size, heapHeadroom)) {
+                throw IOException("Cabinet of $size bytes is too large to decode in-process")
+            }
+            return ByteBuffer.wrap(Files.readAllBytes(path))
+        }
+
+        private fun heapHeadroom(): Long {
+            val runtime = Runtime.getRuntime()
+            return runtime.maxMemory() - (runtime.totalMemory() - runtime.freeMemory())
+        }
     }
 }

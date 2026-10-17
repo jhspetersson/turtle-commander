@@ -607,7 +607,7 @@ abstract class AbstractTempDirVirtualFileSystem(
         unextractable.clear()
         try {
             extract(dir)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             TempRootLocks.discard(dir)
             throw e
         }

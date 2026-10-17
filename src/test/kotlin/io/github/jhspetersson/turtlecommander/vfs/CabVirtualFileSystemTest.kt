@@ -6,10 +6,14 @@ import de.morihofi.cab4j.structures.CfFolder
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
+import java.io.IOException
 import java.nio.channels.FileChannel
 import java.nio.file.Files
 import java.nio.file.Path
@@ -102,5 +106,38 @@ class CabVirtualFileSystemTest {
         assertEquals("inside", Files.readString(cabVfs.getPath("/safe.txt")))
         assertTrue(Files.notExists(cabVfs.root.parent.resolve("escape.txt")))
         assertTrue(Files.notExists(cabVfs.root.parent.parent.resolve("escape.txt")))
+    }
+
+    @Test
+    fun `out of memory in the in-process reader falls through to the 7-Zip fallback`() {
+        cabPath = writeCab(CfFolder.COMPRESS_TYPE.TCOMP_TYPE_NONE)
+        val oom = OutOfMemoryError("Java heap space")
+        try {
+            val cabVfs = CabVirtualFileSystem(cabPath, null) { throw oom }
+            vfs = cabVfs
+            assertNotNull(System7z.findBinary())
+            assertEquals("Hello, CAB!", Files.readString(cabVfs.getPath("/hello.txt")))
+        } catch (e: System7zUnavailableException) {
+            assertNull(System7z.findBinary())
+            assertSame(oom, e.cause)
+        }
+    }
+
+    @Test
+    fun `cabinet larger than the heap headroom or the array limit exceeds the in-process limit`() {
+        assertTrue(CabVirtualFileSystem.exceedsInProcessLimit(size = 100, heapHeadroom = 50))
+        assertTrue(CabVirtualFileSystem.exceedsInProcessLimit(size = Int.MAX_VALUE.toLong(), heapHeadroom = Long.MAX_VALUE))
+        assertFalse(CabVirtualFileSystem.exceedsInProcessLimit(size = 100, heapHeadroom = 1000))
+    }
+
+    @Test
+    fun `oversized cabinet is refused before being read into memory`() {
+        cabPath = writeCab(CfFolder.COMPRESS_TYPE.TCOMP_TYPE_NONE)
+        try {
+            CabVirtualFileSystem.readWholeFile(cabPath, heapHeadroom = 1)
+            fail("Expected the oversized cabinet to be refused")
+        } catch (_: IOException) {
+        }
+        assertEquals(Files.size(cabPath), CabVirtualFileSystem.readWholeFile(cabPath, heapHeadroom = Long.MAX_VALUE).remaining().toLong())
     }
 }
