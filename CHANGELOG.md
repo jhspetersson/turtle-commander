@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.94] - 2026-10-18
+
 ### Fixed
 
 - Fixed potential OOM on very large `.cab` files
