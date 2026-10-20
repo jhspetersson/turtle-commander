@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.95] - 2026-10-20
+
 ### Added
 
 - Support thumbnails inside archives
