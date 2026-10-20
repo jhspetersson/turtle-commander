@@ -217,6 +217,8 @@ class TarVirtualFileSystem(
      * pending, so a later per-file [materialize] retries it and surfaces the error to that
      * file's caller.
      */
+    override val prefersBulkMaterialization: Boolean get() = true
+
     @Synchronized
     override fun materializeAll(paths: Collection<Path>) {
         val byOrdinal = pendingOrdinals(paths)

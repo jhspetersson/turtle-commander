@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- Support thumbnails inside archives
+
+### Fixed
+
+- Optimized content search inside `.tar.gz` archives
+
 ## [0.7.94] - 2026-10-18
 
 ### Fixed

@@ -13,6 +13,7 @@ import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -21,12 +22,14 @@ import java.awt.Graphics
 import java.awt.Graphics2D
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
+import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.FileTime
 import java.util.concurrent.ConcurrentHashMap
 import javax.imageio.ImageIO
 import javax.imageio.ImageReadParam
+import javax.imageio.stream.ImageInputStream
 import javax.swing.Icon
 
 @Service(Service.Level.APP)
@@ -57,6 +60,8 @@ class ThumbnailCache(private val scope: CoroutineScope) {
 
     /** Tracks which files are currently being loaded to avoid duplicate work */
     private val loading = ConcurrentHashMap.newKeySet<Path>()
+
+    private val bulkPrefetches = ConcurrentHashMap<Path, Job>()
 
     internal var memoryBudgetBytes: Long = DEFAULT_MEMORY_BUDGET_BYTES
 
@@ -172,7 +177,7 @@ class ThumbnailCache(private val scope: CoroutineScope) {
         } catch (_: Exception) {}
     }
 
-    private fun loadOrCreateThumbnail(path: Path, lastModified: FileTime?): Icon? {
+    private suspend fun loadOrCreateThumbnail(path: Path, lastModified: FileTime?): Icon? {
         val size = currentSize()
         val cachePath = getCachePath(path, size.cacheSize)
         val modMillis = lastModified?.toMillis() ?: 0L
@@ -205,48 +210,81 @@ class ThumbnailCache(private val scope: CoroutineScope) {
         return HighQualityImageIcon(thumb, size.displaySize)
     }
 
-    private fun readSubsampledThumbnail(path: Path, targetSize: Int): BufferedImage? {
+    private suspend fun materializeSiblingsInBulk(path: Path) {
+        val owner = OpenVfsRegistry.ownerOf(path) ?: return
+        if (!owner.prefersBulkMaterialization) return
+        val dir = path.parent ?: return
+        bulkPrefetches.computeIfAbsent(dir) {
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val images = Files.list(dir).use { s ->
+                        s.filter { Files.isRegularFile(it) && isImageFile(it.fileName.toString()) }.toList()
+                    }
+                    OpenVfsRegistry.materializeAllIfNeeded(images)
+                } catch (e: Exception) {
+                    thisLogger().debug("Bulk thumbnail materialisation failed for $dir: ${e.message}")
+                } finally {
+                    bulkPrefetches.remove(dir)
+                }
+            }
+        }.join()
+    }
+
+    private suspend fun readSubsampledThumbnail(path: Path, targetSize: Int): BufferedImage? {
+        materializeSiblingsInBulk(path)
         // ImageIO.createImageInputStream goes through java.io.FileInputStream — a sparse-stub
         // file in a lazy VFS would yield zero bytes and no readable thumbnail. Materialise
         // the bytes first; no-op for files outside any VFS or in fully-extracted VFSs.
         OpenVfsRegistry.materializeIfNeeded(path)
-        val stream = try {
-            ImageIO.createImageInputStream(path.toFile())
+        if (path.fileSystem == FileSystems.getDefault()) {
+            val stream = try {
+                ImageIO.createImageInputStream(path.toFile())
+            } catch (_: Exception) {
+                return null
+            } ?: return null
+            return stream.use { readSubsampled(it, targetSize) }
+        }
+        val input = try {
+            Files.newInputStream(path)
         } catch (_: Exception) {
             return null
-        } ?: return null
+        }
+        return input.use { raw ->
+            val stream = ImageIO.createImageInputStream(raw) ?: return null
+            stream.use { readSubsampled(it, targetSize) }
+        }
+    }
 
-        return stream.use { imageStream ->
-            val readers = ImageIO.getImageReaders(imageStream)
-            if (!readers.hasNext()) return null
-            val reader = readers.next()
-            try {
-                reader.input = imageStream
-                val width = reader.getWidth(0)
-                val height = reader.getHeight(0)
-                val maxDim = maxOf(width, height)
+    private fun readSubsampled(imageStream: ImageInputStream, targetSize: Int): BufferedImage? {
+        val readers = ImageIO.getImageReaders(imageStream)
+        if (!readers.hasNext()) return null
+        val reader = readers.next()
+        try {
+            reader.input = imageStream
+            val width = reader.getWidth(0)
+            val height = reader.getHeight(0)
+            val maxDim = maxOf(width, height)
 
-                val param: ImageReadParam = reader.defaultReadParam
-                // Two-step downscale: subsample to ~2× the target so the bicubic
-                // pass in createScaledThumbnail has enough source data to produce
-                // a sharp result. Subsampling alone is a nearest-neighbour pick
-                // and produces visible aliasing on photographic content.
-                val subsampleTarget = targetSize * 2
-                if (maxDim > subsampleTarget) {
-                    val subsample = maxOf(1, maxDim / subsampleTarget)
-                    param.setSourceSubsampling(subsample, subsample, 0, 0)
-                }
-
-                val subsampled = reader.read(0, param)
-
-                if (subsampled.width <= targetSize && subsampled.height <= targetSize) {
-                    subsampled
-                } else {
-                    createScaledThumbnail(subsampled, targetSize)
-                }
-            } finally {
-                reader.dispose()
+            val param: ImageReadParam = reader.defaultReadParam
+            // Two-step downscale: subsample to ~2× the target so the bicubic
+            // pass in createScaledThumbnail has enough source data to produce
+            // a sharp result. Subsampling alone is a nearest-neighbour pick
+            // and produces visible aliasing on photographic content.
+            val subsampleTarget = targetSize * 2
+            if (maxDim > subsampleTarget) {
+                val subsample = maxOf(1, maxDim / subsampleTarget)
+                param.setSourceSubsampling(subsample, subsample, 0, 0)
             }
+
+            val subsampled = reader.read(0, param)
+
+            return if (subsampled.width <= targetSize && subsampled.height <= targetSize) {
+                subsampled
+            } else {
+                createScaledThumbnail(subsampled, targetSize)
+            }
+        } finally {
+            reader.dispose()
         }
     }
 
@@ -276,7 +314,7 @@ class ThumbnailCache(private val scope: CoroutineScope) {
             // The cache size is part of the filename so different size presets coexist
             // on disk without colliding, and entries from the old hardcoded 64px layout
             // (which had no size segment) are naturally bypassed.
-            val bytes = sourcePath.toAbsolutePath().toString().toByteArray()
+            val bytes = OpenVfsRegistry.stableIdentity(sourcePath).toByteArray()
             val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
             val hash = digest.take(16).joinToString("") { "%02x".format(it) }
             val name = sourcePath.fileName?.toString() ?: return null

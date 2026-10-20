@@ -379,8 +379,7 @@ internal class FileThumbnailCellRenderer(private val tab: FileTab) : ListCellRen
         cellHasFocus: Boolean,
     ): Component {
         val entry = value ?: return panel
-        val thumbnail = if (!entry.isDirectory && !entry.isParentLink && !tab.isInsideArchive
-            && ThumbnailCache.isImageFile(entry.name)) {
+        val thumbnail = if (!entry.isDirectory && !entry.isParentLink && ThumbnailCache.isImageFile(entry.name)) {
             val thumbnailCache = ThumbnailCache.getInstance()
             val cached = thumbnailCache.getCachedThumbnail(entry.path)
             if (cached == null) {

@@ -28,6 +28,7 @@ import java.nio.charset.MalformedInputException
 import java.nio.file.FileSystems
 import java.nio.file.FileVisitResult
 import java.nio.file.FileVisitor
+import java.nio.file.SimpleFileVisitor
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
@@ -82,6 +83,7 @@ class FileSearchService(
 
         var scannedCount = 0
         val start = resolveWalkRoot(criteria.rootPath)
+        prefetchArchiveContent(start, nameMatcher, isCancelled)
 
         Files.walkFileTree(start, object : FileVisitor<Path> {
             override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
@@ -122,17 +124,38 @@ class FileSearchService(
         onProgress(scannedCount, "")
     }
 
-    private fun checkAndReport(
+    private class MetadataMatch(val owner: String, val group: String)
+
+    private fun prefetchArchiveContent(start: Path, nameMatcher: ((String) -> Boolean)?, isCancelled: () -> Boolean) {
+        if (criteria.contentPattern == null || criteria.resultKind == ResultKind.DIRS) return
+        if (!OpenVfsRegistry.isInsideVfs(start)) return
+        val candidates = mutableListOf<Path>()
+        Files.walkFileTree(start, object : SimpleFileVisitor<Path>() {
+            override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                if (isCancelled()) return FileVisitResult.TERMINATE
+                waitWhilePaused(isCancelled)
+                if (!attrs.isDirectory && !isBinaryByName(file) && matchMetadata(file, attrs, nameMatcher) != null) {
+                    candidates.add(file)
+                }
+                return FileVisitResult.CONTINUE
+            }
+
+            override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult = FileVisitResult.CONTINUE
+        })
+        if (isCancelled()) return
+        OpenVfsRegistry.materializeAllIfNeeded(candidates)
+    }
+
+    private fun matchMetadata(
         path: Path,
         attrs: BasicFileAttributes,
         nameMatcher: ((String) -> Boolean)?,
-        onResult: (FileEntry) -> Unit,
-    ) {
-        val name = path.fileName?.toString() ?: return
+    ): MetadataMatch? {
+        val name = path.fileName?.toString() ?: return null
 
         when (criteria.resultKind) {
-            ResultKind.FILES -> if (attrs.isDirectory) return
-            ResultKind.DIRS -> if (!attrs.isDirectory) return
+            ResultKind.FILES -> if (attrs.isDirectory) return null
+            ResultKind.DIRS -> if (!attrs.isDirectory) return null
             ResultKind.ALL -> Unit
         }
 
@@ -140,40 +163,55 @@ class FileSearchService(
         // (isSymbolicLink true). A link is broken when following it can't find the target.
         val isLink = attrs.isSymbolicLink
         when (criteria.symlinkFilter) {
-            SymlinkSearchFilter.ONLY -> if (!isLink) return
-            SymlinkSearchFilter.EXCLUDE -> if (isLink) return
+            SymlinkSearchFilter.ONLY -> if (!isLink) return null
+            SymlinkSearchFilter.EXCLUDE -> if (isLink) return null
             SymlinkSearchFilter.ANY -> Unit
         }
 
-        if (nameMatcher != null && !nameMatcher(name)) return
+        if (nameMatcher != null && !nameMatcher(name)) return null
 
         if (criteria.sizeFilter != null) {
-            if (attrs.isDirectory) return
-            if (!matchesSize(attrs.size(), criteria.sizeFilter)) return
+            if (attrs.isDirectory) return null
+            if (!matchesSize(attrs.size(), criteria.sizeFilter)) return null
         }
 
         if (criteria.creationDateFilter != null) {
-            if (!matchesDate(attrs.creationTime().toMillis(), criteria.creationDateFilter)) return
+            if (!matchesDate(attrs.creationTime().toMillis(), criteria.creationDateFilter)) return null
         }
 
         if (criteria.modificationDateFilter != null) {
-            if (!matchesDate(attrs.lastModifiedTime().toMillis(), criteria.modificationDateFilter)) return
+            if (!matchesDate(attrs.lastModifiedTime().toMillis(), criteria.modificationDateFilter)) return null
         }
 
         val owner = if (criteria.ownerPattern != null) ownerReader(path) else ""
         val group = if (criteria.groupPattern != null && !isWindows) groupReader(path) else ""
 
         if (criteria.ownerPattern != null) {
-            if (!owner.contains(criteria.ownerPattern, ignoreCase = true)) return
+            if (!owner.contains(criteria.ownerPattern, ignoreCase = true)) return null
         }
         if (criteria.groupPattern != null) {
-            if (!group.contains(criteria.groupPattern, ignoreCase = true)) return
+            if (!group.contains(criteria.groupPattern, ignoreCase = true)) return null
         }
 
         if (criteria.permissionsFilter != null) {
             val flags = permissionsFlagReader(path)
-            if (!matchesPermissions(flags, criteria.permissionsFilter)) return
+            if (!matchesPermissions(flags, criteria.permissionsFilter)) return null
         }
+
+        return MetadataMatch(owner, group)
+    }
+
+    private fun checkAndReport(
+        path: Path,
+        attrs: BasicFileAttributes,
+        nameMatcher: ((String) -> Boolean)?,
+        onResult: (FileEntry) -> Unit,
+    ) {
+        val name = path.fileName?.toString() ?: return
+        val match = matchMetadata(path, attrs, nameMatcher) ?: return
+        val owner = match.owner
+        val group = match.group
+        val isLink = attrs.isSymbolicLink
 
         if (criteria.contentPattern != null) {
             if (attrs.isDirectory) return
@@ -234,20 +272,21 @@ class FileSearchService(
         }
     }
 
+    // Skip files the IDE classifies as binary up front: cheaper and more accurate than
+    // inferring it from a UTF-8 decode failure (which both over-skips valid non-UTF-8 text
+    // and needlessly scans UTF-8-clean binaries). Guarded so headless callers without the
+    // platform application fall back to the decode-based heuristic in matchesContent.
+    private fun isBinaryByName(path: Path): Boolean = runCatching {
+        val name = path.fileName?.toString() ?: return@runCatching false
+        FileTypeManager.getInstance().getFileTypeByFileName(name).isBinary
+    }.getOrDefault(false)
+
     private fun matchesContent(path: Path, pattern: String, caseSensitive: Boolean): Boolean {
-        // Stream the bytes from the source VFS if [path] points at a lazy-VFS stub
-        // (currently only .iso entries); harmless no-op for regular files and the other
-        // VFS implementations that extract eagerly.
+        // Stream the bytes from the source VFS if [path] points at a lazy-VFS stub;
+        // harmless no-op for regular files and the other VFS implementations that extract
+        // eagerly.
         OpenVfsRegistry.materializeIfNeeded(path)
-        // Skip files the IDE classifies as binary up front: cheaper and more accurate than
-        // inferring it from a UTF-8 decode failure (which both over-skips valid non-UTF-8 text
-        // and needlessly scans UTF-8-clean binaries). Guarded so headless callers without the
-        // platform application fall back to the decode-based heuristic below.
-        val binary = runCatching {
-            val name = path.fileName?.toString() ?: return@runCatching false
-            FileTypeManager.getInstance().getFileTypeByFileName(name).isBinary
-        }.getOrDefault(false)
-        if (binary) return false
+        if (isBinaryByName(path)) return false
         try {
             val reader: BufferedReader = Files.newBufferedReader(path, Charsets.UTF_8)
             reader.use { br ->

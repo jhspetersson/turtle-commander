@@ -54,6 +54,8 @@ interface VirtualFileSystem : Closeable {
         for (path in paths) materialize(path)
     }
 
+    val prefersBulkMaterialization: Boolean get() = false
+
     /**
      * Owner / group / permission metadata stored in the archive for the entry at [path], or
      * null when this VFS carries none (the temp-dir copy's own stat is meaningless — extraction
@@ -104,6 +106,24 @@ object OpenVfsRegistry {
                 return
             }
         }
+    }
+
+    fun ownerOf(path: Path): VirtualFileSystem? = instances.firstOrNull { it.owns(path) }
+
+    fun isInsideVfs(path: Path): Boolean = ownerOf(path) != null
+
+    fun stableIdentity(path: Path): String {
+        val owner = ownerOf(path)
+        if (owner != null) {
+            val relative = owner.root.normalize().relativize(path.normalize()).toString().replace('\\', '/')
+            return stableIdentity(owner.archivePath) + "!/" + relative
+        }
+        if (path.fileSystem != FileSystems.getDefault()) {
+            val container = runCatching { Path.of(path.fileSystem.toString()) }.getOrNull()
+            val prefix = if (container != null) stableIdentity(container) else path.fileSystem.toString()
+            return prefix + "!" + path.toString()
+        }
+        return path.toAbsolutePath().toString()
     }
 
     fun hasLiveContentUnder(dir: Path): Boolean {
