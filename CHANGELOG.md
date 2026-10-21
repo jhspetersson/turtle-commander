@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.96] - 2026-10-21
+
 ### Fixed
 
 - Optimized nested archives handling
