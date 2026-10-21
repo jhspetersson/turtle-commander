@@ -28,6 +28,7 @@ import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettingsLi
 import java.awt.*
 import java.awt.event.InputEvent
 import java.awt.event.KeyEvent
+import java.beans.PropertyChangeListener
 import java.nio.file.Path
 import javax.swing.*
 
@@ -100,6 +101,11 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
 
         applyLayout()
         stateService.registerPanels(leftPanel, rightPanel, currentSplitter)
+        val focusTracker = PropertyChangeListener { e -> stateService.noteFocusOwner(e.newValue as? Component) }
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().addPropertyChangeListener("permanentFocusOwner", focusTracker)
+        Disposer.register(toolWindow.disposable) {
+            KeyboardFocusManager.getCurrentKeyboardFocusManager().removePropertyChangeListener("permanentFocusOwner", focusTracker)
+        }
         stateService.setSwapSinglePanelCallback {
             singleShowsLeft = !singleShowsLeft
             if (currentLayout() == PanelLayout.SINGLE) applyLayout()

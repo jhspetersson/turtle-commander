@@ -6,8 +6,11 @@ import com.intellij.ide.plugins.cl.PluginAwareClassLoader
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.components.service
+import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.options.SearchableConfigurable
+import com.intellij.openapi.options.advanced.AdvancedSettings
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
@@ -29,13 +32,15 @@ class OpenKeymapSettingsAction : AnAction(), DumbAware {
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        ShowSettingsUtil.getInstance().showSettingsDialog(
-            project,
-            { it is SearchableConfigurable && it.id == "preferences.keymap" },
-            { configurable ->
-                scheduleTreeNavigation(configurable, 0)
-            },
-        )
+        showSettingsRestoringPanelFocus(project) {
+            ShowSettingsUtil.getInstance().showSettingsDialog(
+                project,
+                { it is SearchableConfigurable && it.id == "preferences.keymap" },
+                { configurable ->
+                    scheduleTreeNavigation(configurable, 0)
+                },
+            )
+        }
     }
 
     private var cachedComponent: Component? = null
@@ -137,18 +142,35 @@ class OpenPluginSettingsAction : AnAction(), DumbAware {
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        ShowSettingsUtil.getInstance().showSettingsDialog(
-            project,
-            "Turtle Commander",
-        )
+        showSettingsRestoringPanelFocus(project) {
+            ShowSettingsUtil.getInstance().showSettingsDialog(
+                project,
+                "Turtle Commander",
+            )
+        }
     }
+}
+
+private const val NON_MODAL_SETTINGS_KEY = "ide.ui.non.modal.settings.window"
+
+internal fun settingsOpenInEditorTab(): Boolean =
+    System.getProperty(NON_MODAL_SETTINGS_KEY)?.toBoolean()
+        ?: runCatching { AdvancedSettings.getBoolean(NON_MODAL_SETTINGS_KEY) }.getOrDefault(false)
+
+private fun showSettingsRestoringPanelFocus(project: Project, show: () -> Unit) {
+    if (settingsOpenInEditorTab()) show() else project.service<FileManagerStateService>().restoringPanelFocus(show)
 }
 
 class AboutAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
     override fun actionPerformed(e: AnActionEvent) {
-        AboutDialog(e.project).show()
+        val project = e.project
+        if (project == null) {
+            AboutDialog(null).show()
+            return
+        }
+        project.service<FileManagerStateService>().restoringPanelFocus { AboutDialog(project).show() }
     }
 }
 

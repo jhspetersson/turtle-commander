@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Return focus to the last active panel after opening settings or About dialog
+
 ## [0.7.96] - 2026-10-21
 
 ### Fixed

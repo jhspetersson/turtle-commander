@@ -15,6 +15,10 @@ import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.ui.CommandInputBar
 import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
 import io.github.jhspetersson.turtlecommander.ui.FileTab
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
+import java.awt.Component
+import javax.swing.SwingUtilities
 
 interface FavoritesChangeListener {
     fun favoritesChanged()
@@ -44,6 +48,7 @@ class FileManagerStateService(
         leftPanel = left
         rightPanel = right
         splitter = split
+        lastActivePanel = null
     }
 
     fun updateSplitter(split: OnePixelSplitter?) {
@@ -52,6 +57,29 @@ class FileManagerStateService(
 
     fun setSwapSinglePanelCallback(cb: (() -> Unit)?) {
         swapSinglePanelCallback = cb
+    }
+
+    var lastActivePanel: FileManagerPanel? = null
+        private set
+
+    fun noteFocusOwner(component: Component?) {
+        if (component == null) return
+        listOfNotNull(leftPanel, rightPanel)
+            .firstOrNull { SwingUtilities.isDescendingFrom(component, it) }
+            ?.let { lastActivePanel = it }
+    }
+
+    internal var focusPanel: (FileManagerPanel) -> Unit = { it.focusActiveTab() }
+
+    fun <T> restoringPanelFocus(block: () -> T): T {
+        val panel = lastActivePanel
+        try {
+            return block()
+        } finally {
+            if (panel != null) {
+                ApplicationManager.getApplication().invokeLater({ focusPanel(panel) }, ModalityState.nonModal(), project.disposed)
+            }
+        }
     }
 
     fun registerCommandInputBar(bar: CommandInputBar) {
