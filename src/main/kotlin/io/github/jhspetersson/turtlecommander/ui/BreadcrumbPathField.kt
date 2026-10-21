@@ -129,8 +129,8 @@ class BreadcrumbPathField : JPanel() {
     }
 
     private fun switchToEditMode() {
-        isEditMode = true
         editField.text = text
+        isEditMode = true
         cardLayout.show(this, EDITOR)
         editField.requestFocusInWindow()
         editField.selectAll()
