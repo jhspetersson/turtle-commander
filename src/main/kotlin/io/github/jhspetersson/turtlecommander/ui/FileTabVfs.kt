@@ -14,13 +14,13 @@ import io.github.jhspetersson.turtlecommander.vfs.VfsOpenProgress
 import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
+import io.github.jhspetersson.turtlecommander.vfs.writeBackNestedStack
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.StandardCopyOption
 
 internal fun FileTab.enterVfs(entry: FileEntry) {
     fileOps.launch { openVfs(entry) }
@@ -195,16 +195,7 @@ internal fun FileTab.handleVfsBreadcrumbClick(segmentPath: String) {
  * do so under the same lock without re-entering the mutex.
  */
 internal fun FileTab.writeBackNestedArchivesLocked() {
-    for (i in vfsStack.indices.reversed()) {
-        val entry = vfsStack[i]
-        if (entry.tempFile == null || i == 0) continue
-        val parentEntry = vfsStack[i - 1]
-        Files.copy(entry.tempFile.toPath(), entry.parentPath, StandardCopyOption.REPLACE_EXISTING)
-        val relPath = vfsRelativePath(parentEntry.vfs, entry.parentPath)
-        parentEntry.vfs.flush()
-        val newParentPath = if (relPath.isEmpty()) parentEntry.vfs.root else parentEntry.vfs.root.resolve(relPath)
-        entry.parentPath = newParentPath
-    }
+    writeBackNestedStack(vfsStack)
 }
 
 internal suspend fun FileTab.writeBackNestedArchives() {

@@ -15,6 +15,7 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.nio.file.attribute.FileTime
 import java.util.concurrent.ConcurrentHashMap
 
 class VfsStackEntry(
@@ -24,8 +25,34 @@ class VfsStackEntry(
 ) {
     var mutationListener: (() -> Unit)? = null
 
+    private var writtenBackSignature: Pair<Long, FileTime>? = tempFile?.let { fileSignature(it.toPath()) }
+
+    internal fun tempFileChangedSinceWriteBack(): Boolean =
+        tempFile != null && fileSignature(tempFile.toPath()) != writtenBackSignature
+
+    internal fun markWrittenBack() {
+        writtenBackSignature = tempFile?.let { fileSignature(it.toPath()) }
+    }
+
     fun cleanupTempFile() {
         tempFile?.parentFile?.let { TempRootLocks.discard(it.toPath()) }
+    }
+}
+
+private fun fileSignature(path: Path): Pair<Long, FileTime>? = runCatching {
+    Files.size(path) to Files.getLastModifiedTime(path)
+}.getOrNull()
+
+fun writeBackNestedStack(stack: List<VfsStackEntry>) {
+    for (i in stack.indices.reversed()) {
+        val entry = stack[i]
+        if (entry.tempFile == null || i == 0 || !entry.tempFileChangedSinceWriteBack()) continue
+        val parentEntry = stack[i - 1]
+        Files.copy(entry.tempFile.toPath(), entry.parentPath, StandardCopyOption.REPLACE_EXISTING)
+        val relPath = vfsRelativePath(parentEntry.vfs.root, entry.parentPath)
+        parentEntry.vfs.flush()
+        entry.parentPath = if (relPath.isEmpty()) parentEntry.vfs.root else parentEntry.vfs.root.resolve(relPath)
+        entry.markWrittenBack()
     }
 }
 
@@ -127,23 +154,11 @@ class VfsEditService(
         }
 
         // Write-back through the VFS stack (innermost to outermost)
-        for (i in stack.indices.reversed()) {
-            val stackEntry = stack[i]
-            if (stackEntry.tempFile == null || i == 0) continue
-            val parentStackEntry = stack[i - 1]
-            Files.copy(stackEntry.tempFile.toPath(), stackEntry.parentPath, StandardCopyOption.REPLACE_EXISTING)
-            val relPath = vfsRelativePath(parentStackEntry.vfs, stackEntry.parentPath)
-            parentStackEntry.vfs.flush()
-            stackEntry.parentPath = if (relPath.isEmpty()) parentStackEntry.vfs.root else parentStackEntry.vfs.root.resolve(relPath)
-        }
+        writeBackNestedStack(stack)
 
         stack.firstOrNull()?.let { SharedVfsRegistry.notifyMutated(it.vfs, it.mutationListener) }
 
         entry.onAfterFlush?.invoke(currentPathRel)
-    }
-
-    private fun vfsRelativePath(vfs: VirtualFileSystem, path: Path): String {
-        return vfsRelativePath(vfs.root, path)
     }
 
     override fun dispose() {
