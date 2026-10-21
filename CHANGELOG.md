@@ -7,6 +7,7 @@
 ### Fixed
 
 - Optimized nested archives handling
+- Fixed editing breadcrumbs
 
 ## [0.7.95] - 2026-10-20
 
