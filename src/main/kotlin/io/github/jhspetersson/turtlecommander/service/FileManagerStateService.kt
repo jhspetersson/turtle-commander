@@ -18,6 +18,7 @@ import io.github.jhspetersson.turtlecommander.ui.FileTab
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import java.awt.Component
+import java.nio.file.Path
 import javax.swing.SwingUtilities
 
 interface FavoritesChangeListener {
@@ -295,6 +296,13 @@ class FileManagerStateService(
     fun getFavoriteEntries(): List<FavoriteEntry> {
         migrateFavoritesIfNeeded()
         return myState.favoriteEntries.toList()
+    }
+
+    fun favoriteFor(path: Path): FavoriteEntry? {
+        val target = path.normalize()
+        return getFavoriteEntries().firstOrNull { entry ->
+            runCatching { Path.of(entry.path).normalize() }.getOrNull() == target
+        }
     }
 
     fun setFavoriteEntries(entries: List<FavoriteEntry>) {

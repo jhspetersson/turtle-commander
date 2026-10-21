@@ -11,6 +11,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.util.ui.JBUI
 import io.github.jhspetersson.turtlecommander.action.TabContextMenuState
 import io.github.jhspetersson.turtlecommander.dialog.FileSearchCriteria
+import io.github.jhspetersson.turtlecommander.service.FavoritesChangeListener
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.service.FileOperationService
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
@@ -339,6 +340,14 @@ class FileManagerPanel(
 
     fun restoreState(panelState: FileManagerStateService.PanelState, stateService: FileManagerStateService) {
         this.stateService = stateService
+        parentDisposable?.let { disposable ->
+            project.messageBus.connect(disposable).subscribe(
+                FileManagerStateService.FAVORITES_TOPIC,
+                object : FavoritesChangeListener {
+                    override fun favoritesChanged() = refreshTabIcons()
+                },
+            )
+        }
         panelState.migrateIfNeeded()
         // Only parse-check the saved paths here — this runs on the EDT during tool-window
         // creation, and stat'ing each path (the historical existence filter) can block for
@@ -499,6 +508,7 @@ class FileManagerPanel(
         panel.isOpaque = false
 
         val label = JLabel(title)
+        label.icon = favoriteIconFor(fileTab.currentPath)
         applyTabStyleToHeader(panel, label)
         panel.add(label, BorderLayout.CENTER)
 
@@ -533,6 +543,24 @@ class FileManagerPanel(
 
     fun containsTab(tab: FileTab): Boolean = tabbedPane.indexOfComponent(tab) >= 0
 
+    internal fun tabIcon(tab: FileTab): Icon? = headerLabel(tab)?.icon
+
+    private fun headerLabel(tab: FileTab): JLabel? {
+        val index = tabbedPane.indexOfComponent(tab)
+        if (index < 0) return null
+        return (tabbedPane.getTabComponentAt(index) as? JPanel)?.getComponent(0) as? JLabel
+    }
+
+    private fun favoriteIconFor(path: Path): Icon? =
+        stateService?.favoriteFor(path)?.let { favoriteIcon(it.color, it.icon) }
+
+    private fun refreshTabIcons() {
+        for (i in 0 until tabbedPane.tabCount) {
+            val tab = tabbedPane.getComponentAt(i) as? FileTab ?: continue
+            headerLabel(tab)?.icon = favoriteIconFor(tab.currentPath)
+        }
+    }
+
     fun addDirectoryChangeListener(listener: () -> Unit) {
         directoryChangeListeners.add(listener)
     }
@@ -558,6 +586,7 @@ class FileManagerPanel(
             val label = tabComponent.getComponent(0)
             if (label is JLabel) {
                 label.text = title
+                label.icon = favoriteIconFor(tab.currentPath)
             }
         }
     }

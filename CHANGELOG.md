@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Tabs from favorites receive a custom icon if the favorite has one
+
 ### Fixed
 
 - Return focus to the last active panel after opening settings or About dialog
