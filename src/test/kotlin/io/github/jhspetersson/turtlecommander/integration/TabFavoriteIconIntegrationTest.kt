@@ -18,6 +18,7 @@ class TabFavoriteIconIntegrationTest : BasePlatformTestCase() {
 
     private lateinit var tempDir: Path
     private lateinit var favDir: Path
+    private lateinit var deepDir: Path
     private lateinit var plainDir: Path
     private lateinit var panel: FileManagerPanel
     private lateinit var stateService: FileManagerStateService
@@ -26,8 +27,10 @@ class TabFavoriteIconIntegrationTest : BasePlatformTestCase() {
     override fun setUp() {
         super.setUp()
         TurtleCommanderSettings.getInstance().state.defaultViewMode = "TABLE"
+        TurtleCommanderSettings.getInstance().state.favoriteIconInSubdirectories = true
         tempDir = Files.createTempDirectory("turtle-test-tab-icon-")
         favDir = Files.createDirectories(tempDir.resolve("fav"))
+        deepDir = Files.createDirectories(favDir.resolve("a").resolve("b"))
         plainDir = Files.createDirectories(tempDir.resolve("plain"))
         stateService = project.service()
         stateService.setFavoriteEntries(emptyList())
@@ -40,6 +43,7 @@ class TabFavoriteIconIntegrationTest : BasePlatformTestCase() {
 
     override fun tearDown() {
         try {
+            TurtleCommanderSettings.getInstance().state.favoriteIconInSubdirectories = true
             stateService.setFavoriteEntries(emptyList())
             Disposer.dispose(parentDisposable)
             PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
@@ -124,6 +128,58 @@ class TabFavoriteIconIntegrationTest : BasePlatformTestCase() {
         assertSame(RuleIcons.resolve("star"), panel.tabIcon(tab))
 
         navigate(tab, plainDir)
+        assertNull(panel.tabIcon(tab))
+    }
+
+    fun testSubdirectoryOfAFavoriteKeepsTheIconByDefault() {
+        stateService.setFavoriteEntries(listOf(FavoriteEntry(favDir.toString(), "", "star")))
+
+        val tab = openTabAt(deepDir)
+
+        assertSame(RuleIcons.resolve("star"), panel.tabIcon(tab))
+    }
+
+    fun testSubdirectoryOfAFavoriteHasNoIconWhenTheOptionIsOff() {
+        TurtleCommanderSettings.getInstance().state.favoriteIconInSubdirectories = false
+        stateService.setFavoriteEntries(listOf(FavoriteEntry(favDir.toString(), "", "star")))
+
+        val tab = openTabAt(deepDir)
+
+        assertNull(panel.tabIcon(tab))
+        navigate(tab, favDir)
+        assertSame(RuleIcons.resolve("star"), panel.tabIcon(tab))
+    }
+
+    fun testNearestFavoriteWinsForNestedFavorites() {
+        stateService.setFavoriteEntries(
+            listOf(
+                FavoriteEntry(favDir.toString(), "", "star"),
+                FavoriteEntry(favDir.resolve("a").toString(), "", "check"),
+            ),
+        )
+
+        val tab = openTabAt(deepDir)
+
+        assertSame(RuleIcons.resolve("check"), panel.tabIcon(tab))
+    }
+
+    fun testTogglingTheOptionRefreshesOpenTabs() {
+        stateService.setFavoriteEntries(listOf(FavoriteEntry(favDir.toString(), "", "star")))
+        val tab = openTabAt(deepDir)
+        assertSame(RuleIcons.resolve("star"), panel.tabIcon(tab))
+
+        TurtleCommanderSettings.getInstance().state.favoriteIconInSubdirectories = false
+        panel.refreshTabIcons()
+
+        assertNull(panel.tabIcon(tab))
+    }
+
+    fun testSiblingWithTheFavoriteNameAsPrefixDoesNotMatch() {
+        val sibling = Files.createDirectories(tempDir.resolve("favorite"))
+        stateService.setFavoriteEntries(listOf(FavoriteEntry(favDir.toString(), "", "star")))
+
+        val tab = openTabAt(sibling)
+
         assertNull(panel.tabIcon(tab))
     }
 

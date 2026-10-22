@@ -298,11 +298,21 @@ class FileManagerStateService(
         return myState.favoriteEntries.toList()
     }
 
-    fun favoriteFor(path: Path): FavoriteEntry? {
+    fun favoriteFor(path: Path, includeAncestors: Boolean = false): FavoriteEntry? {
         val target = path.normalize()
-        return getFavoriteEntries().firstOrNull { entry ->
-            runCatching { Path.of(entry.path).normalize() }.getOrNull() == target
+        var best: FavoriteEntry? = null
+        var bestDepth = -1
+        for (entry in getFavoriteEntries()) {
+            val favoritePath = runCatching { Path.of(entry.path).normalize() }.getOrNull() ?: continue
+            if (favoritePath == target) return entry
+            if (!includeAncestors || !target.startsWith(favoritePath)) continue
+            val depth = favoritePath.nameCount
+            if (depth > bestDepth) {
+                best = entry
+                bestDepth = depth
+            }
         }
+        return best
     }
 
     fun setFavoriteEntries(entries: List<FavoriteEntry>) {

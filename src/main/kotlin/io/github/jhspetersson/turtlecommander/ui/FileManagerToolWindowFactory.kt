@@ -236,6 +236,8 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
                     ThumbnailCache.getInstance().clearMemoryCache()
                     leftPanel.applyThumbnailSettings()
                     rightPanel.applyThumbnailSettings()
+                    leftPanel.refreshTabIcons()
+                    rightPanel.refreshTabIcons()
                     leftPanel.reSort()
                     rightPanel.reSort()
                     applyLayout()

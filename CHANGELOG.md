@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Option (on by default) to keep the favorite icon on a tab navigated into subdirectories of the favorite
+
 ## [0.7.97] - 2026-10-22
 
 ### Added

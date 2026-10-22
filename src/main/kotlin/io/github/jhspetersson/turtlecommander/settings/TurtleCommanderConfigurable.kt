@@ -41,6 +41,7 @@ class TurtleCommanderConfigurable(private val project: Project) : Configurable {
     private var naturalNameSortCheckBox: JCheckBox? = null
     private var calculateDirectorySizeCheckBox: JCheckBox? = null
     private var openDirectoriesWithSingleClickCheckBox: JCheckBox? = null
+    private var favoriteIconInSubdirectoriesCheckBox: JCheckBox? = null
     private var defaultViewModeCombo: ComboBox<String>? = null
     private var panelLayoutCombo: ComboBox<String>? = null
     private var thumbnailSizeCombo: ComboBox<ThumbnailSize>? = null
@@ -75,6 +76,7 @@ class TurtleCommanderConfigurable(private val project: Project) : Configurable {
         naturalNameSortCheckBox = JCheckBox("Natural sort order for file names (file2 before file10)", settings.naturalNameSort)
         calculateDirectorySizeCheckBox = JCheckBox("Calculate directory size on selection", settings.calculateDirectorySize)
         openDirectoriesWithSingleClickCheckBox = JCheckBox("Open directories with a single click", settings.openDirectoriesWithSingleClick)
+        favoriteIconInSubdirectoriesCheckBox = JCheckBox("Keep the favorite icon on a tab inside subdirectories of the favorite", settings.favoriteIconInSubdirectories)
 
         val viewModeItems = arrayOf("Table", "List", "Thumbnail", "Tree")
         defaultViewModeCombo = ComboBox(DefaultComboBoxModel(viewModeItems)).apply {
@@ -235,6 +237,7 @@ class TurtleCommanderConfigurable(private val project: Project) : Configurable {
         naturalNameSortCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         calculateDirectorySizeCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
         openDirectoriesWithSingleClickCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
+        favoriteIconInSubdirectoriesCheckBox!!.alignmentX = JComponent.LEFT_ALIGNMENT
 
         // Columns editor
         val colEditor = ColumnsEditor(TurtleCommanderSettings.getInstance().getEffectiveColumns())
@@ -267,6 +270,7 @@ class TurtleCommanderConfigurable(private val project: Project) : Configurable {
             add(naturalNameSortCheckBox)
             add(calculateDirectorySizeCheckBox)
             add(openDirectoriesWithSingleClickCheckBox)
+            add(favoriteIconInSubdirectoriesCheckBox)
             add(Box.createVerticalStrut(8))
             add(overwritePolicyRow)
             add(viewModeRow)
@@ -682,6 +686,7 @@ class TurtleCommanderConfigurable(private val project: Project) : Configurable {
             || naturalNameSortCheckBox?.isSelected != settings.naturalNameSort
             || calculateDirectorySizeCheckBox?.isSelected != settings.calculateDirectorySize
             || openDirectoriesWithSingleClickCheckBox?.isSelected != settings.openDirectoriesWithSingleClick
+            || favoriteIconInSubdirectoriesCheckBox?.isSelected != settings.favoriteIconInSubdirectories
             || getSelectedViewMode() != settings.defaultViewMode
             || getSelectedPanelLayout() != settings.panelLayout
             || getSelectedThumbnailSize() != settings.thumbnailSize
@@ -717,6 +722,7 @@ class TurtleCommanderConfigurable(private val project: Project) : Configurable {
         settings.naturalNameSort = naturalNameSortCheckBox?.isSelected ?: settings.naturalNameSort
         settings.calculateDirectorySize = calculateDirectorySizeCheckBox?.isSelected ?: settings.calculateDirectorySize
         settings.openDirectoriesWithSingleClick = openDirectoriesWithSingleClickCheckBox?.isSelected ?: settings.openDirectoriesWithSingleClick
+        settings.favoriteIconInSubdirectories = favoriteIconInSubdirectoriesCheckBox?.isSelected ?: settings.favoriteIconInSubdirectories
         settings.defaultViewMode = getSelectedViewMode()
         settings.panelLayout = getSelectedPanelLayout()
         settings.thumbnailSize = getSelectedThumbnailSize()
@@ -762,6 +768,7 @@ class TurtleCommanderConfigurable(private val project: Project) : Configurable {
         naturalNameSortCheckBox?.isSelected = settings.naturalNameSort
         calculateDirectorySizeCheckBox?.isSelected = settings.calculateDirectorySize
         openDirectoriesWithSingleClickCheckBox?.isSelected = settings.openDirectoriesWithSingleClick
+        favoriteIconInSubdirectoriesCheckBox?.isSelected = settings.favoriteIconInSubdirectories
         defaultViewModeCombo?.selectedItem = when (settings.defaultViewMode) {
             "LIST" -> "List"
             "THUMBNAIL" -> "Thumbnail"
@@ -808,6 +815,7 @@ class TurtleCommanderConfigurable(private val project: Project) : Configurable {
         naturalNameSortCheckBox = null
         calculateDirectorySizeCheckBox = null
         openDirectoriesWithSingleClickCheckBox = null
+        favoriteIconInSubdirectoriesCheckBox = null
         defaultViewModeCombo = null
         panelLayoutCombo = null
         thumbnailSizeCombo = null

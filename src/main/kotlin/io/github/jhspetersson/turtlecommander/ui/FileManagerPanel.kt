@@ -551,10 +551,12 @@ class FileManagerPanel(
         return (tabbedPane.getTabComponentAt(index) as? JPanel)?.getComponent(0) as? JLabel
     }
 
-    private fun favoriteIconFor(path: Path): Icon? =
-        stateService?.favoriteFor(path)?.let { favoriteIcon(it.color, it.icon) }
+    private fun favoriteIconFor(path: Path): Icon? {
+        val includeAncestors = TurtleCommanderSettings.getInstance().state.favoriteIconInSubdirectories
+        return stateService?.favoriteFor(path, includeAncestors)?.let { favoriteIcon(it.color, it.icon) }
+    }
 
-    private fun refreshTabIcons() {
+    fun refreshTabIcons() {
         for (i in 0 until tabbedPane.tabCount) {
             val tab = tabbedPane.getComponentAt(i) as? FileTab ?: continue
             headerLabel(tab)?.icon = favoriteIconFor(tab.currentPath)
