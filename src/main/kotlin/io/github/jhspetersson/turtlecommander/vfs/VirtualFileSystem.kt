@@ -717,9 +717,13 @@ abstract class AbstractTempDirVirtualFileSystem(
         repack(tempDir)
         // The archive now matches the temp dir again; without this a following flush()
         // would see the renamed entry as a change and repack (and re-extract) a second time.
+        markClean()
+        target
+    }
+
+    private fun markClean() {
         cleanFingerprint = computeFingerprint()
         cleanArchiveSignature = archiveSignature()
-        target
     }
 
     override fun flush() {
@@ -728,14 +732,15 @@ abstract class AbstractTempDirVirtualFileSystem(
         val dirty = !isReadOnly && computeFingerprint() != cleanFingerprint
         if (dirty) {
             repack(tempDir)
-        } else {
-            val signature = archiveSignature()
-            if (signature != null && signature == cleanArchiveSignature) {
-                // Nothing to pick up in either direction: the temp dir is untouched and
-                // the archive on disk is still the one we extracted from. Keep the temp
-                // dir (and any lazily-materialised content) instead of re-extracting.
-                return
-            }
+            markClean()
+            return
+        }
+        val signature = archiveSignature()
+        if (signature != null && signature == cleanArchiveSignature) {
+            // Nothing to pick up in either direction: the temp dir is untouched and
+            // the archive on disk is still the one we extracted from. Keep the temp
+            // dir (and any lazily-materialised content) instead of re-extracting.
+            return
         }
         TempRootLocks.discard(tempDir)
         openTempDir()

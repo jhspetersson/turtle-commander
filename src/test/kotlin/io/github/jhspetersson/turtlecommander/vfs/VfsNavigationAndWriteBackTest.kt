@@ -1436,7 +1436,7 @@ class SharedVfsStackEntryTest {
     }
 
     @Test
-    fun `tar root changes after flush but relative path reconstruction works`() = runBlocking {
+    fun `tar repack flush keeps the root and the edited content stays readable`() = runBlocking {
         val tarPath = Files.createTempFile("test-tar-root-", ".tar")
         tempFiles.add(tarPath)
         TarArchiveOutputStream(Files.newOutputStream(tarPath)).use { tar ->
@@ -1464,10 +1464,8 @@ class SharedVfsStackEntryTest {
         Files.writeString(vfs.root.resolve("subdir/file.txt"), "edited")
         vfs.flush()
 
-        // Root should have changed (new temp dir)
-        assertNotEquals("Tar root should change after flush", oldRoot, vfs.root)
+        assertEquals("a repack flush keeps the temp dir", oldRoot, vfs.root)
 
-        // But relative path can be used to reconstruct valid path
         val newSubdirPath = vfs.root.resolve(relPath)
         assertTrue("Reconstructed subdir should exist", Files.exists(newSubdirPath))
 
@@ -1479,8 +1477,16 @@ class SharedVfsStackEntryTest {
         val entries = vfs.listFiles(newSubdirPath)
         val file = entries.find { it.name == "file.txt" }
         assertNotNull(file)
-        vfs.materialize(file!!.path)
-        assertEquals("edited", Files.readString(file.path))
+        assertEquals("edited", Files.readString(file!!.path))
+
+        val verifyVfs = TarVirtualFileSystem(tarPath,
+            inputStreamFactory = { Files.newInputStream(it) },
+            outputStreamFactory = { Files.newOutputStream(it) })
+        vfsList.add(verifyVfs)
+        val repacked = verifyVfs.listFiles(verifyVfs.root.resolve("subdir")).find { it.name == "file.txt" }
+        assertNotNull(repacked)
+        verifyVfs.materialize(repacked!!.path)
+        assertEquals("the archive on disk was repacked", "edited", Files.readString(repacked.path))
     }
 
     @Test
@@ -1697,7 +1703,7 @@ class SharedVfsStackEntryTest {
     @Test
     fun `before-flush callback captures valid relative path for tar VFS`() = runBlocking {
         // The key bug: capturing relative path AFTER flush fails for tar/7z
-        // because root changes to a new temp dir. Must capture BEFORE flush.
+        // whenever the flush re-extracts into a new temp dir. Must capture BEFORE flush.
         val tarPath = Files.createTempFile("test-callback-", ".tar")
         tempFiles.add(tarPath)
         TarArchiveOutputStream(Files.newOutputStream(tarPath)).use { tar ->
@@ -1725,13 +1731,32 @@ class SharedVfsStackEntryTest {
         val relPathBefore = vfsRelativePath(vfs, currentPath)
         assertEquals("subdir", relPathBefore)
 
-        // Edit and flush — root changes
+        // Edit and flush — a repack keeps the temp dir
         Files.writeString(vfs.root.resolve("subdir/file.txt"), "edited")
         val oldRoot = vfs.root
         vfs.flush()
-        assertNotEquals("Root should change after flush", oldRoot, vfs.root)
+        assertEquals("A repack flush keeps the root", oldRoot, vfs.root)
+        assertEquals("subdir", vfsRelativePath(vfs, currentPath))
 
-        // After flush, trying to get relative path from currentPath FAILS
+        // An archive rewritten on disk re-extracts into a new temp dir — root changes
+        TarArchiveOutputStream(Files.newOutputStream(tarPath)).use { tar ->
+            tar.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX)
+            val dirEntry = TarArchiveEntry("subdir/")
+            tar.putArchiveEntry(dirEntry)
+            tar.closeArchiveEntry()
+            for ((name, text) in listOf("subdir/file.txt" to "external", "subdir/other.txt" to "added outside")) {
+                val entry = TarArchiveEntry(name)
+                val bytes = text.toByteArray()
+                entry.size = bytes.size.toLong()
+                tar.putArchiveEntry(entry)
+                tar.write(bytes)
+                tar.closeArchiveEntry()
+            }
+        }
+        vfs.flush()
+        assertNotEquals("Root should change after an external archive change", oldRoot, vfs.root)
+
+        // After that flush, trying to get relative path from currentPath FAILS
         val relPathAfter = vfsRelativePath(vfs, currentPath)
         // This returns the full old path string because old root doesn't match new root
         assertNotEquals("subdir", relPathAfter)

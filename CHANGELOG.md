@@ -8,6 +8,10 @@
 
 - Option (on by default) to keep the favorite icon on a tab navigated into subdirectories of the favorite
 
+### Fixed
+
+- Editing, copying, deleting or renaming inside an extracted archive no longer re-extracts the whole archive after repacking it
+
 ## [0.7.97] - 2026-10-22
 
 ### Added
