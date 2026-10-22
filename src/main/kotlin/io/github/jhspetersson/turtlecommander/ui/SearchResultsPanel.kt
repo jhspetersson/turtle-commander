@@ -7,7 +7,6 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
-import com.intellij.ui.TableSpeedSearch
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
 import io.github.jhspetersson.turtlecommander.action.SearchContextMenuState
@@ -140,9 +139,7 @@ class SearchResultsPanel(
                 }
             })
 
-            TableSpeedSearch.installOn(this) { value ->
-                (value as? FileEntry)?.name ?: value?.toString().orEmpty()
-            }
+            installFileTableSpeedSearch(this, tableModel)
 
             getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(
                 KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "openSelected"

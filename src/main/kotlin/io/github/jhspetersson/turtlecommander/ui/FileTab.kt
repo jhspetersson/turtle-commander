@@ -1232,11 +1232,9 @@ class FileTab(
     private fun installSpeedSearch() {
         // IntelliJ-style speed search: typing in a focused view opens a small search
         // popup, matched substrings in filenames are highlighted, and Up/Down jump
-        // between matches. Esc cancels. Converter returns the display name of each
-        // entry so non-visible columns (size/date) don't pollute matches.
-        tableSpeedSearch = TableSpeedSearch.installOn(table) { value ->
-            (value as? FileEntry)?.name ?: value?.toString().orEmpty()
-        }
+        // between matches. Esc cancels. Converters return only the entry name, and the
+        // table converter answers only for the Name column (see FileTableSpeedSearch.kt).
+        tableSpeedSearch = installFileTableSpeedSearch(table, tableModel)
         listSpeedSearch = ListSpeedSearch.installOn(list) { entry -> entry.name }
         thumbnailSpeedSearch = ListSpeedSearch.installOn(thumbnailList) { entry -> entry.name }
         treeSpeedSearch = TreeSpeedSearch.installOn(tree, true) { path ->

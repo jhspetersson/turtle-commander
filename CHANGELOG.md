@@ -11,6 +11,7 @@
 ### Fixed
 
 - Editing, copying, deleting or renaming inside an extracted archive no longer re-extracts the whole archive after repacking it
+- Speed search in the table view matches only file names (with extension), no longer sizes, dates or owners
 
 ## [0.7.97] - 2026-10-22
 
