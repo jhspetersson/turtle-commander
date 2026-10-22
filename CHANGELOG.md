@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.97] - 2026-10-22
+
 ### Added
 
 - Tabs from favorites receive a custom icon if the favorite has one
