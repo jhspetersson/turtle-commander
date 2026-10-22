@@ -59,6 +59,7 @@ import java.awt.event.*
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import javax.swing.*
 import javax.swing.event.*
 import javax.swing.table.TableColumn
@@ -1394,7 +1395,10 @@ class FileTab(
         }
     }
 
+    private val navigationGeneration = AtomicInteger()
+
     suspend fun navigateTo(path: Path, selectName: String? = null, requestFocus: Boolean = true) {
+        val generation = navigationGeneration.incrementAndGet()
         val vfs = currentVfs
         val entries = try {
             when {
@@ -1404,6 +1408,7 @@ class FileTab(
                 else -> fileOps.listFiles(path)
             }
         } catch (e: Exception) {
+            if (generation != navigationGeneration.get()) return
             // On the real filesystem, if the target no longer exists (e.g. the other panel
             // deleted an ancestor), fall back to the nearest surviving ancestor instead of
             // leaving the user stranded on a dead path.
@@ -1429,6 +1434,7 @@ class FileTab(
             return
         }
         withContext(Dispatchers.EDT) {
+            if (generation != navigationGeneration.get()) return@withContext
             // Save cursor position and column state for the current directory
             val selectedRow = table.selectedRow
             if (selectedRow >= 0) {
