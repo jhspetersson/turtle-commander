@@ -30,12 +30,16 @@ class CabVirtualFileSystemTest {
         if (::cabPath.isInitialized) Files.deleteIfExists(cabPath)
     }
 
-    private fun writeCab(compression: CfFolder.COMPRESS_TYPE): Path {
+    private val defaultEntries = mapOf(
+        "hello.txt" to "Hello, CAB!".toByteArray(),
+        "sub\\nested.txt" to "nested content".toByteArray(),
+        "empty.txt" to ByteArray(0),
+    )
+
+    private fun writeCab(compression: CfFolder.COMPRESS_TYPE, entries: Map<String, ByteArray> = defaultEntries): Path {
         val path = Files.createTempFile("test-", ".cab")
         val archive = CabArchive()
-        archive.addFile("hello.txt", "Hello, CAB!".toByteArray())
-        archive.addFile("sub\\nested.txt", "nested content".toByteArray())
-        archive.addFile("empty.txt", ByteArray(0))
+        for ((name, data) in entries) archive.addFile(name, data)
         val generator = CabGenerator(archive)
         generator.setCompressionType(compression)
         FileChannel.open(path, StandardOpenOption.WRITE).use { generator.writeCabinet(it) }
@@ -110,7 +114,7 @@ class CabVirtualFileSystemTest {
 
     @Test
     fun `out of memory in the in-process reader falls through to the 7-Zip fallback`() {
-        cabPath = writeCab(CfFolder.COMPRESS_TYPE.TCOMP_TYPE_NONE)
+        cabPath = writeCab(CfFolder.COMPRESS_TYPE.TCOMP_TYPE_NONE, mapOf("hello.txt" to "Hello, CAB!".toByteArray()))
         val oom = OutOfMemoryError("Java heap space")
         try {
             val cabVfs = CabVirtualFileSystem(cabPath, null) { throw oom }
