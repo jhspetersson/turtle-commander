@@ -5,8 +5,18 @@
 
     <depends>com.intellij.modules.platform</depends>
     <depends optional="true" config-file="terminal-integration.xml">org.jetbrains.plugins.terminal</depends>
+    <depends optional="true" config-file="vcs-integration.xml">com.intellij.modules.vcs</depends>
+    <depends optional="true" config-file="git-integration.xml">Git4Idea</depends>
+    <depends optional="true" config-file="images-integration.xml">com.intellij.platform.images</depends>
+
+    <extensionPoints>
+        <extensionPoint qualifiedName="io.github.jhspetersson.turtlecommander.openTargetResolver"
+                        interface="io.github.jhspetersson.turtlecommander.action.OpenTargetResolver"
+                        dynamic="true"/>
+    </extensionPoints>
 
     <extensions defaultExtensionNs="com.intellij">
+        <postStartupActivity implementation="io.github.jhspetersson.turtlecommander.action.OpenInTurtleCommanderMenuInstaller"/>
         <toolWindow
             factoryClass="io.github.jhspetersson.turtlecommander.ui.FileManagerToolWindowFactory"
             id="Turtle Commander"
@@ -713,6 +723,8 @@
                 icon="/icons/turtleCommander.svg"
                 description="Open file or directory in Turtle Commander">
             <add-to-group group-id="RevealGroup" anchor="last"/>
+            <add-to-group group-id="UsageView.Popup" anchor="last"/>
+            <add-to-group group-id="FindInFiles.Results.ContextMenu" anchor="last"/>
         </action>
         <action id="TurtleCommander.OpenKeymapSettings"
                 class="io.github.jhspetersson.turtlecommander.action.OpenKeymapSettingsAction"

@@ -370,4 +370,6 @@ class OpenInTurtleCommanderAction : AnAction(), DumbAware {
 
     private fun openTarget(e: AnActionEvent): OpenTarget? =
         e.getData(CommonDataKeys.VIRTUAL_FILE)?.let { OpenTarget.of(it) }
+            ?: e.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY)?.firstOrNull()?.let { OpenTarget.of(it) }
+            ?: OpenTargetResolver.EP.extensionList.firstNotNullOfOrNull { it.resolve(e) }
 }

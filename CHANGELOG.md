@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Add "Open in Turtle Commander" action to the different menus across the IDE
+
 ## [0.7.98] - 2026-10-23
 
 ### Added

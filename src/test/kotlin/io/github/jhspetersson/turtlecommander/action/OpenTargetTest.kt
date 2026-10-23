@@ -113,6 +113,30 @@ class OpenTargetTest : BasePlatformTestCase() {
         assertFalse(updated(LightVirtualFile("Scratch.kt", "")).presentation.isEnabledAndVisible)
     }
 
+    fun testActionEnabledForVirtualFileArrayOnly() {
+        val file = Files.writeString(tempDir.resolve("array.txt"), "x")
+        val vf = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(file)!!
+        val action = OpenInTurtleCommanderAction()
+        val context = SimpleDataContext.getSimpleContext(CommonDataKeys.VIRTUAL_FILE_ARRAY, arrayOf(vf))
+        val event = TestActionEvent.createTestEvent(action, context)
+        action.update(event)
+        assertTrue(event.presentation.isEnabledAndVisible)
+    }
+
+    fun testExistingPathMapsToLocalTarget() {
+        val file = Files.writeString(tempDir.resolve("path.txt"), "x")
+        assertEquals(OpenTarget.Local(file.toAbsolutePath(), false), OpenTarget.ofPath(file))
+    }
+
+    fun testExistingDirectoryPathMapsToLocalDirectory() {
+        assertEquals(OpenTarget.Local(tempDir.toAbsolutePath(), true), OpenTarget.ofPath(tempDir))
+    }
+
+    fun testMissingPathFallsBackToNearestExistingDirectory() {
+        val missing = tempDir.resolve("gone").resolve("deeper").resolve("file.txt")
+        assertEquals(OpenTarget.Local(tempDir.toAbsolutePath(), true), OpenTarget.ofPath(missing))
+    }
+
     private fun updated(file: VirtualFile): AnActionEvent {
         val action = OpenInTurtleCommanderAction()
         val context = SimpleDataContext.getSimpleContext(CommonDataKeys.VIRTUAL_FILE, file)

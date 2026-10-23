@@ -4,6 +4,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.newvfs.ArchiveFileSystem
 import io.github.jhspetersson.turtlecommander.vfs.JrtFileSystemProvider
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
+import java.nio.file.Files
 import java.nio.file.InvalidPathException
 import java.nio.file.Path
 
@@ -24,6 +25,14 @@ sealed class OpenTarget {
             val root = fs.getRootByEntry(file) ?: return null
             val entryPath = file.path.removePrefix(root.path).trim('/')
             return ArchiveEntry(archivePath, entryPath, file.isDirectory)
+        }
+
+        fun ofPath(path: Path): OpenTarget? {
+            val absolute = path.toAbsolutePath()
+            if (Files.exists(absolute)) return Local(absolute, Files.isDirectory(absolute))
+            return generateSequence(absolute.parent) { it.parent }
+                .firstOrNull { Files.isDirectory(it) }
+                ?.let { Local(it, true) }
         }
 
         internal fun archiveBackingFile(localPath: Path, isDirectory: Boolean): Path? = if (isDirectory) {
