@@ -1,0 +1,7 @@
+<idea-plugin>
+    <actions>
+        <reference ref="TurtleCommander.OpenInTurtleCommander">
+            <add-to-group group-id="Git.Stage.Tree.Menu" anchor="last"/>
+        </reference>
+    </actions>
+</idea-plugin>

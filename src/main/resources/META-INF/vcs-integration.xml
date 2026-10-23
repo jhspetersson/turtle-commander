@@ -1,0 +1,13 @@
+<idea-plugin>
+    <extensions defaultExtensionNs="io.github.jhspetersson.turtlecommander">
+        <openTargetResolver implementation="io.github.jhspetersson.turtlecommander.action.VcsOpenTargetResolver"/>
+    </extensions>
+    <actions>
+        <reference ref="TurtleCommander.OpenInTurtleCommander">
+            <add-to-group group-id="ChangesViewPopupMenu" anchor="last"/>
+            <add-to-group group-id="Vcs.RepositoryChangesBrowserMenu" anchor="last"/>
+            <add-to-group group-id="Vcs.FileHistory.ContextMenu" anchor="last"/>
+            <add-to-group group-id="ShelvedChangesPopupMenu" anchor="last"/>
+        </reference>
+    </actions>
+</idea-plugin>

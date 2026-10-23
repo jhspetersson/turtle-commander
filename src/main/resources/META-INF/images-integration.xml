@@ -1,0 +1,7 @@
+<idea-plugin>
+    <actions>
+        <reference ref="TurtleCommander.OpenInTurtleCommander">
+            <add-to-group group-id="Images.EditorPopupMenu" anchor="last"/>
+        </reference>
+    </actions>
+</idea-plugin>
