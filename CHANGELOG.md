@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.100] - 2026-10-26
+
 ### Added
 
 - "Run" action in the file context menu for executable files
