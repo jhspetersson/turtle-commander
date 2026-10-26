@@ -10,6 +10,7 @@ import com.intellij.openapi.vfs.LocalFileSystem
 import io.github.jhspetersson.turtlecommander.dialog.FileSearchDialog
 import io.github.jhspetersson.turtlecommander.dialog.PropertiesDialog
 import io.github.jhspetersson.turtlecommander.model.FileEntry
+import io.github.jhspetersson.turtlecommander.operation.ExecutableFile
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.ui.*
 import com.intellij.ide.actions.RevealFileAction
@@ -125,6 +126,20 @@ class OpenInAssociatedAppAction : EdtAction() {
 
     override fun actionPerformed(e: AnActionEvent) {
         FileContextMenuState.clickedTab?.openSelectedInAssociatedApp()
+    }
+}
+
+class RunExecutableAction : EdtAction() {
+    override fun update(e: AnActionEvent) {
+        val entry = FileContextMenuState.clickedEntry
+        val tab = FileContextMenuState.clickedTab
+        e.presentation.isEnabledAndVisible = entry != null && tab != null && !tab.isInsideArchive
+            && ExecutableFile.isExecutable(entry, SystemInfo.isWindows)
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val entry = FileContextMenuState.clickedEntry ?: return
+        FileContextMenuState.clickedTab?.runExecutable(entry)
     }
 }
 

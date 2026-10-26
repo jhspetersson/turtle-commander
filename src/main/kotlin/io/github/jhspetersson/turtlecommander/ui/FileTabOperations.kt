@@ -3,6 +3,8 @@ import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.keymap.KeymapUtil
 import java.nio.file.AccessDeniedException
 
+import com.intellij.execution.process.CapturingProcessAdapter
+import com.intellij.execution.process.OSProcessHandler
 import com.intellij.ide.actions.RevealFileAction
 import com.intellij.ide.util.DeleteHandler
 import com.intellij.notification.NotificationAction.createSimpleExpiring
@@ -1067,6 +1069,41 @@ internal fun FileTab.openSelectedInAssociatedApp() {
         }
     }
 }
+
+internal fun FileTab.runExecutable(entry: FileEntry) {
+    if (entry.isDirectory || entry.isParentLink || isInsideArchive) return
+    val workingDir = entry.path.parent ?: return
+    fileOps.launch {
+        try {
+            val output = withContext(Dispatchers.IO) {
+                val process = ProcessBuilder(entry.path.toString())
+                    .directory(workingDir.toFile())
+                    .start()
+                val handler = OSProcessHandler(process, entry.name)
+                val capture = CapturingProcessAdapter()
+                handler.addProcessListener(capture)
+                handler.startNotify()
+                if (!handler.waitFor(RUN_EXECUTABLE_REFRESH_MS)) {
+                    withContext(Dispatchers.EDT) { refresh(requestFocus = false) }
+                    handler.waitFor()
+                }
+                capture.output
+            }
+            if (output.exitCode != 0) {
+                val detail = output.stderr.ifBlank { output.stdout }.trim().take(500)
+                fileErrorNotification(buildString {
+                    append("\"${entry.name}\" exited with code ${output.exitCode}")
+                    if (detail.isNotEmpty()) append("\n").append(detail)
+                })
+            }
+        } catch (e: Exception) {
+            fileErrorNotification("Failed to run \"${entry.name}\": ${fileErrorMessage(e)}")
+        }
+        withContext(Dispatchers.EDT) { refresh(requestFocus = false) }
+    }
+}
+
+private const val RUN_EXECUTABLE_REFRESH_MS = 10_000L
 
 internal fun FileTab.startRename() {
     val entry = getSelectedEntry() ?: return

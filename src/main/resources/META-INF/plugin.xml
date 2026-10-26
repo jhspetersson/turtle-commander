@@ -343,6 +343,11 @@
                     text="Open"
                     icon="AllIcons.Actions.MenuOpen"
                     description="Open file in editor"/>
+            <action id="TurtleCommander.RunExecutable"
+                    class="io.github.jhspetersson.turtlecommander.action.RunExecutableAction"
+                    text="Run"
+                    icon="AllIcons.RunConfigurations.TestState.Run"
+                    description="Run the executable file in its own directory"/>
             <action id="TurtleCommander.OpenInAssociatedApp"
                     class="io.github.jhspetersson.turtlecommander.action.OpenInAssociatedAppAction"
                     text="Open in Associated Application"
@@ -578,6 +583,7 @@
         <group id="TurtleCommander.FileContextMenu" text="File Context Menu" popup="true">
             <reference ref="TurtleCommander.OpenInNewTab"/>
             <reference ref="TurtleCommander.OpenFile"/>
+            <reference ref="TurtleCommander.RunExecutable"/>
             <reference ref="TurtleCommander.OpenInAssociatedApp"/>
             <reference ref="TurtleCommander.OpenInExplorer"/>
             <separator/>
