@@ -75,6 +75,8 @@ class FileTab(
     internal var onRefreshOtherPanel: () -> Unit = {},
 ) : JPanel(BorderLayout()), Disposable {
 
+    internal var openWithAssociatedApp: (Path) -> Unit = { Desktop.getDesktop().open(it.toFile()) }
+
     internal val fileOps = project.service<FileOperationService>()
     internal val tableModel = FileTableModel()
     val table = JBTable(tableModel)

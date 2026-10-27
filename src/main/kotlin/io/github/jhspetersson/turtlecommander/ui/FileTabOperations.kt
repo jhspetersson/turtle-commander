@@ -41,7 +41,6 @@ import io.github.jhspetersson.turtlecommander.vfs.ZipVirtualFileSystem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
-import java.awt.Desktop
 import java.io.IOException
 import java.nio.file.FileSystems
 import java.nio.file.Files
@@ -1046,13 +1045,12 @@ internal fun FileTab.openSelectedInAssociatedApp() {
                 val filePath = if (isZipVfs) {
                     materializeVfsEntryToTemp(entry, "turtle-vfs-app-")
                 } else {
+                    withContext(Dispatchers.IO) { vfs.materialize(entry.path) }
                     entry.path
                 }
                 // Desktop.open resolves the file association and launches the handler
                 // synchronously — the JDK explicitly warns against calling it on the EDT.
-                withContext(Dispatchers.IO) {
-                    Desktop.getDesktop().open(filePath.toFile())
-                }
+                withContext(Dispatchers.IO) { openWithAssociatedApp(filePath) }
             } catch (e: Exception) {
                 fileErrorNotification("Failed to open file: ${fileErrorMessage(e)}")
             }
@@ -1060,9 +1058,7 @@ internal fun FileTab.openSelectedInAssociatedApp() {
     } else {
         fileOps.launch {
             try {
-                withContext(Dispatchers.IO) {
-                    Desktop.getDesktop().open(entry.path.toFile())
-                }
+                withContext(Dispatchers.IO) { openWithAssociatedApp(entry.path) }
             } catch (e: Exception) {
                 fileErrorNotification("Failed to open file: ${fileErrorMessage(e)}")
             }
