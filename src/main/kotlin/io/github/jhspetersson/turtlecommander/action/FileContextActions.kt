@@ -131,15 +131,16 @@ class OpenInAssociatedAppAction : EdtAction() {
 
 class RunExecutableAction : EdtAction() {
     override fun update(e: AnActionEvent) {
-        val entry = FileContextMenuState.clickedEntry
-        val tab = FileContextMenuState.clickedTab
+        val tab = resolveFileContextTab(e)
+        val entry = resolveFileContextEntry(tab, e.place == FILE_CONTEXT_PLACE)
         e.presentation.isEnabledAndVisible = entry != null && tab != null && !tab.isInsideArchive
             && ExecutableFile.isExecutable(entry, SystemInfo.isWindows)
     }
 
     override fun actionPerformed(e: AnActionEvent) {
-        val entry = FileContextMenuState.clickedEntry ?: return
-        FileContextMenuState.clickedTab?.runExecutable(entry)
+        val tab = resolveFileContextTab(e) ?: return
+        val entry = resolveFileContextEntry(tab, e.place == FILE_CONTEXT_PLACE) ?: return
+        tab.runExecutable(entry)
     }
 }
 

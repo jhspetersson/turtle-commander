@@ -347,7 +347,9 @@
                     class="io.github.jhspetersson.turtlecommander.action.RunExecutableAction"
                     text="Run"
                     icon="AllIcons.RunConfigurations.TestState.Run"
-                    description="Run the executable file in its own directory"/>
+                    description="Run the executable file in its own directory">
+                <keyboard-shortcut first-keystroke="ctrl ENTER" keymap="$default"/>
+            </action>
             <action id="TurtleCommander.OpenInAssociatedApp"
                     class="io.github.jhspetersson.turtlecommander.action.OpenInAssociatedAppAction"
                     text="Open in Associated Application"

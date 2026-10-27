@@ -9,6 +9,7 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.SystemInfo
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import io.github.jhspetersson.turtlecommander.operation.ExecutableFile
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
@@ -103,6 +104,18 @@ class RunExecutableActionTest : BasePlatformTestCase() {
         val event = menuEvent(action)
         action.update(event)
         assertFalse(event.presentation.isEnabledAndVisible)
+    }
+
+    fun testOutsideTheMenuRunTargetsTheResolvedTabSelectionNotStaleMenuState() {
+        selectRowNamed("plain.txt")
+        FileContextMenuState.clickedTab = tab
+        FileContextMenuState.clickedEntry = tab.getSelectedEntry()
+        FileContextMenuState.clear()
+        selectRowNamed(scriptName)
+        val entry = resolveFileContextEntry(tab, isMenu = false)
+        assertEquals(scriptName, entry?.name)
+        assertTrue(ExecutableFile.isExecutable(entry!!, SystemInfo.isWindows))
+        assertNull(resolveFileContextEntry(tab, isMenu = true))
     }
 
     fun testRunExecutesTheFileInItsOwnDirectory() {
