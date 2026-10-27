@@ -7,6 +7,7 @@
 ### Fixed
 
 - "Open in Associated Application" inside ISO, PAK, RAR and tar archives no longer hands the app an empty file
+- A directory listing still in flight when the directory was modified could re-populate the listing cache with the stale snapshot
 
 ## [0.7.101] - 2026-10-27
 

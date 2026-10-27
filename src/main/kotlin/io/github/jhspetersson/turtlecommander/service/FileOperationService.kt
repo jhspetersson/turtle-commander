@@ -86,6 +86,8 @@ class FileOperationService(
             size > CACHE_MAX_SIZE
     }
 
+    private var listingEpoch = 0L
+
     fun launch(block: suspend CoroutineScope.() -> Unit): Job = cs.launch(block = block)
 
     suspend fun listFiles(directory: Path, forceRefresh: Boolean = false): List<FileEntry> = withContext(Dispatchers.IO) {
@@ -102,6 +104,7 @@ class FileOperationService(
             return@withContext result
         }
 
+        val epoch = synchronized(listingCache) { listingEpoch }
         val effectiveDirectory = try {
             resolveReparsePoint(directory)
         } catch (_: Exception) {
@@ -121,7 +124,7 @@ class FileOperationService(
         }
 
         val mtime = try { Files.getLastModifiedTime(effectiveDirectory) } catch (_: Exception) { null }
-        putCachedListing(directory, dirs.toList(), files.toList(), mtime)
+        putCachedListing(directory, dirs.toList(), files.toList(), mtime, epoch)
         appendSortedEntries(result, dirs, files)
 
         result
@@ -307,8 +310,15 @@ class FileOperationService(
         return entry
     }
 
-    private fun putCachedListing(directory: Path, dirs: List<FileEntry>, files: List<FileEntry>, dirMtime: FileTime?) {
+    private fun putCachedListing(
+        directory: Path,
+        dirs: List<FileEntry>,
+        files: List<FileEntry>,
+        dirMtime: FileTime?,
+        epoch: Long,
+    ) {
         synchronized(listingCache) {
+            if (epoch != listingEpoch) return
             listingCache[directory] = CachedListing(dirs, files, clock(), dirMtime)
         }
     }
@@ -316,12 +326,14 @@ class FileOperationService(
     fun invalidateListingCache(directory: Path) {
         synchronized(listingCache) {
             listingCache.remove(directory)
+            listingEpoch++
         }
     }
 
     fun clearListingCache() {
         synchronized(listingCache) {
             listingCache.clear()
+            listingEpoch++
         }
     }
 
