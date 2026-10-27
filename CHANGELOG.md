@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.101] - 2026-10-27
+
 ### Added
 
 - `Ctrl-ENTER` as a default shortcut for the "Run" action
