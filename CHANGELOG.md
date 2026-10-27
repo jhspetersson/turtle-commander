@@ -8,6 +8,10 @@
 
 - `Ctrl-ENTER` as a default shortcut for the "Run" action
 
+### Fixed
+
+- File size and date in the panel update immediately after saving the file in the IDE editor
+
 ## [0.7.100] - 2026-10-26
 
 ### Added

@@ -3,11 +3,13 @@ package io.github.jhspetersson.turtlecommander.vfs
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
+import com.intellij.openapi.components.serviceIfCreated
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileContentChangeEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
+import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -178,11 +180,14 @@ class VfsEditService(
 
 class VfsEditFileListener(private val project: Project) : BulkFileListener {
     override fun after(events: List<VFileEvent>) {
-        val service = project.service<VfsEditService>()
+        val editService = project.service<VfsEditService>()
+        val stateService = project.serviceIfCreated<FileManagerStateService>()
         for (event in events) {
-            if (event is VFileContentChangeEvent) {
-                service.onFileSaved(event.file.path)
-            }
+            if (event !is VFileContentChangeEvent) continue
+            editService.onFileSaved(event.file.path)
+            if (stateService == null || !event.file.isInLocalFileSystem) continue
+            val path = runCatching { Path.of(event.file.path) }.getOrNull() ?: continue
+            stateService.onLocalFileContentChanged(path)
         }
     }
 }

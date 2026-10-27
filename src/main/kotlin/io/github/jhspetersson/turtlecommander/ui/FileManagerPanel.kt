@@ -648,6 +648,8 @@ class FileManagerPanel(
 
     fun getTabAt(index: Int): FileTab? = tabbedPane.getComponentAt(index) as? FileTab
 
+    fun tabs(): List<FileTab> = (0 until tabbedPane.tabCount).mapNotNull { getTabAt(it) }
+
     fun getActiveTabIndex(): Int = tabbedPane.selectedIndex
 
     fun closeOtherTabs(tabIndex: Int) {

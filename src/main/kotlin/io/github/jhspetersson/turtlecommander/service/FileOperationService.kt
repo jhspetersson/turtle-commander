@@ -162,6 +162,10 @@ class FileOperationService(
         val links: Boolean,
     )
 
+    suspend fun readFileEntry(path: Path): FileEntry? = withContext(Dispatchers.IO) {
+        buildFileEntry(path, entryReadNeeds())
+    }
+
     /**
      * Resolve which expensive per-entry lookups are actually displayed. On Windows the User
      * column is hidden by default, so `Files.getOwner(...)` (a slow Win32 security descriptor +

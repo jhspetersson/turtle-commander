@@ -35,6 +35,12 @@ class FileTableModel : AbstractTableModel() {
 
     fun getEntryAt(row: Int): FileEntry? = entries.getOrNull(row)
 
+    fun updateEntry(row: Int, entry: FileEntry) {
+        if (row !in entries.indices) return
+        entries = entries.toMutableList().also { it[row] = entry }
+        fireTableRowsUpdated(row, row)
+    }
+
     override fun getRowCount(): Int = entries.size
 
     override fun getColumnCount(): Int = columns.size

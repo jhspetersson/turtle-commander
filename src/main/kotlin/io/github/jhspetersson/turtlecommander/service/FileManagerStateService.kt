@@ -266,6 +266,12 @@ class FileManagerStateService(
     fun panelOf(tab: FileTab): FileManagerPanel? =
         listOfNotNull(leftPanel, rightPanel).firstOrNull { it.containsTab(tab) }
 
+    fun onLocalFileContentChanged(path: Path) {
+        for (panel in listOfNotNull(leftPanel, rightPanel)) {
+            for (tab in panel.tabs()) tab.onFileContentChanged(path)
+        }
+    }
+
     private fun migrateFavoritesIfNeeded() {
         if (myState.favoritePaths.isNotEmpty() && myState.favoriteEntries.isEmpty()) {
             myState.favoriteEntries.addAll(myState.favoritePaths.map { FavoriteEntry(it) })

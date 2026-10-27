@@ -1622,6 +1622,42 @@ class FileTab(
         }
     }
 
+    fun onFileContentChanged(path: Path) {
+        if (currentVfs != null || !path.startsWith(currentPath)) return
+        if (allEntries.none { it.path == path }) return
+        fileOps.invalidateListingCache(currentPath)
+        fileOps.launch {
+            val fresh = fileOps.readFileEntry(path) ?: return@launch
+            withContext(Dispatchers.EDT) { replaceEntry(fresh) }
+        }
+    }
+
+    private fun replaceEntry(fresh: FileEntry) {
+        val allIndex = allEntries.indexOfFirst { it.path == fresh.path }
+        if (allIndex < 0) return
+        allEntries = allEntries.toMutableList().also { it[allIndex] = fresh }
+        val filteredIndex = filteredEntries.indexOfFirst { it.path == fresh.path }
+        if (filteredIndex >= 0) {
+            filteredEntries = filteredEntries.toMutableList().also { it[filteredIndex] = fresh }
+        }
+        for (row in 0 until tableModel.rowCount) {
+            if (tableModel.getEntryAt(row)?.path == fresh.path) tableModel.updateEntry(row, fresh)
+        }
+        for (model in listOf(listModel, thumbnailListModel)) {
+            for (i in 0 until model.size()) {
+                if (model.getElementAt(i).path == fresh.path) model.set(i, fresh)
+            }
+        }
+        for (node in treeRootNode.depthFirstEnumeration().asSequence().filterIsInstance<DefaultMutableTreeNode>()) {
+            val entry = node.userObject as? FileEntry ?: continue
+            if (entry.path == fresh.path) {
+                node.userObject = fresh
+                treeModel.nodeChanged(node)
+            }
+        }
+        updateStatusBar()
+    }
+
     /**
      * Re-list [currentPath] only if the listing cache is no longer fresh for it. Called when
      * the tab becomes active, so externally-modified directories stop showing ghost rows
