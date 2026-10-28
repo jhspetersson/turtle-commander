@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.102] - 2026-10-28
+
 ### Fixed
 
 - "Open in Associated Application" inside ISO, PAK, RAR and tar archives no longer hands the app an empty file
