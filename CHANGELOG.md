@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.103] - 2026-10-29
+
 ### Added
 
 - Dialog asks user what to do on collisions during renaming a single file
