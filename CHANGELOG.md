@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Dialog asks user what to do on collisions during renaming a single file
+
 ### Fixed
 
 - Improved font handling in the Settings dialog

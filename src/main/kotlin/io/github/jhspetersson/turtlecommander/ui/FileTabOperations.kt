@@ -1104,21 +1104,27 @@ private const val RUN_EXECUTABLE_REFRESH_MS = 10_000L
 internal fun FileTab.startRename() {
     val entry = getSelectedEntry() ?: return
     if (entry.isParentLink) return
+    openRenameEditor(entry, entry.name)
+}
+
+internal fun FileTab.openRenameEditor(entry: FileEntry, initialName: String) {
     if (viewMode == ViewMode.TABLE) {
-        val row = table.selectedRow
+        val modelRow = (0 until tableModel.rowCount).firstOrNull { tableModel.getEntryAt(it)?.path == entry.path }
+        val row = modelRow?.let { table.convertRowIndexToView(it) } ?: -1
         if (row >= 0) {
+            table.setRowSelectionInterval(row, row)
             val nameViewCol = (0 until table.columnCount).firstOrNull {
                 table.convertColumnIndexToModel(it) == FileTableModel.COL_NAME
             } ?: 0
+            renameEditorInitialText = initialName
             table.editCellAt(row, nameViewCol)
+            table.editorComponent?.requestFocusInWindow()
+            return
         }
-    } else {
-        val renameDialog = InputDialog(project, "Rename", "Enter new name:", entry.name)
-        if (!renameDialog.showAndGet()) return
-        val newName = renameDialog.inputValue
-        if (newName.isNotBlank() && newName != entry.name) {
-            performRename(entry, newName)
-        }
+    }
+    val newName = promptRenameName(initialName) ?: return
+    if (newName.isNotBlank() && newName != entry.name) {
+        performRename(entry, newName)
     }
 }
 
@@ -1126,34 +1132,82 @@ internal fun FileTab.performRename(entry: FileEntry, newName: String) {
     fileOps.launch {
         try {
             val vfs = currentVfs
-            if (vfs != null) {
-                if (vfs.isReadOnly) {
-                    fileErrorNotification("Cannot rename in a read-only archive")
-                    return@launch
+            if (vfs != null && vfs.isReadOnly) {
+                fileErrorNotification("Cannot rename in a read-only archive")
+                return@launch
+            }
+            val target = entry.path.parent?.resolve(newName)
+            val collision = target?.let { withContext(Dispatchers.IO) { detectRenameCollision(entry.path, it, newName) } }
+            if (collision != null) {
+                when (withContext(Dispatchers.EDT) { askRenameCollision(collision) }) {
+                    RenameCollisionChoice.OVERWRITE -> deleteRenameTarget(collision.target)
+                    RenameCollisionChoice.RENAME_TARGET -> {
+                        val existingName = withContext(Dispatchers.EDT) { askRenameExistingName(collision.target) }
+                            ?: return@launch
+                        val taken = withContext(Dispatchers.IO) {
+                            detectRenameCollision(collision.target, collision.target.resolveSibling(existingName), existingName)
+                        }
+                        if (taken != null) {
+                            fileErrorNotification("Cannot rename \"${collision.target.fileName}\" to \"$existingName\": it already exists")
+                            return@launch
+                        }
+                        renamePath(collision.target, existingName)
+                    }
+                    RenameCollisionChoice.KEEP_EDITING -> {
+                        withContext(Dispatchers.EDT) { openRenameEditor(entry, newName) }
+                        return@launch
+                    }
+                    RenameCollisionChoice.CANCEL -> return@launch
                 }
-                vfs.renameFile(entry.path, newName)
+            }
+            renamePath(entry.path, newName)
+            if (vfs != null) {
                 refreshAfterVfsChange(selectName = newName)
             } else {
-                // Rename via IntelliJ VFS if possible, so open editors track the rename
-                val vFile = LocalFileSystem.getInstance().findFileByNioFile(entry.path)
-                if (vFile != null) {
-                    withContext(Dispatchers.EDT) {
-                        WriteAction.run<Exception> {
-                            vFile.rename(this, newName)
-                        }
-                    }
-                    // FileOperationService.renameFile() invalidates the listing cache
-                    // itself; the VFS rename path bypasses it, so do it here.
-                    entry.path.parent?.let { fileOps.invalidateListingCache(it) }
-                } else {
-                    fileOps.renameFile(entry.path, newName)
-                }
                 navigateTo(currentPath, selectName = newName)
             }
         } catch (e: Exception) {
             fileErrorNotification("Rename failed: ${fileErrorMessage(e)}")
         }
     }
+}
+
+private suspend fun FileTab.renamePath(path: Path, newName: String) {
+    val vfs = currentVfs
+    if (vfs != null) {
+        vfs.renameFile(path, newName)
+        return
+    }
+    // Rename via IntelliJ VFS if possible, so open editors track the rename
+    val vFile = LocalFileSystem.getInstance().findFileByNioFile(path)
+    if (vFile != null) {
+        withContext(Dispatchers.EDT) {
+            WriteAction.run<Exception> {
+                vFile.rename(this, newName)
+            }
+        }
+        // FileOperationService.renameFile() invalidates the listing cache
+        // itself; the VFS rename path bypasses it, so do it here.
+        path.parent?.let { fileOps.invalidateListingCache(it) }
+    } else {
+        fileOps.renameFile(path, newName)
+    }
+}
+
+private suspend fun FileTab.deleteRenameTarget(target: Path) {
+    if (currentVfs == null) {
+        val vFile = LocalFileSystem.getInstance().findFileByNioFile(target)
+        if (vFile != null) {
+            withContext(Dispatchers.EDT) {
+                WriteAction.run<Exception> {
+                    vFile.delete(this)
+                }
+            }
+            target.parent?.let { fileOps.invalidateListingCache(it) }
+            return
+        }
+    }
+    withContext(Dispatchers.IO) { Files.delete(target) }
 }
 
 internal fun FileTab.viewSelectedFile() {

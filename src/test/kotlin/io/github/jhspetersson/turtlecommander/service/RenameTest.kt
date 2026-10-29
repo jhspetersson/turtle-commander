@@ -364,6 +364,27 @@ class TarRenameTest {
     }
 
     @Test
+    fun `rename to existing name in tar throws descriptive error and keeps both entries`() = runBlocking {
+        createTar(Triple("a.txt", false, "aaa"), Triple("b.txt", false, "bbb"))
+        val archiveBytesBefore = Files.readAllBytes(tarPath)
+
+        val source = vfs.listFiles(vfs.root).find { it.name == "a.txt" }!!.path
+        val ex = try {
+            vfs.renameFile(source, "b.txt")
+            null
+        } catch (e: FileAlreadyExistsException) {
+            e
+        }
+
+        assertNotNull("expected FileAlreadyExistsException", ex)
+        assertTrue("message should mention the conflicting name", ex!!.message?.contains("b.txt") == true)
+        assertFalse("message should not leak the temp directory", ex.message!!.contains(vfs.root.toString()))
+        val entries = vfs.listFiles(vfs.root).filter { !it.isParentLink }.map { it.name }.sorted()
+        assertEquals(listOf("a.txt", "b.txt"), entries)
+        assertArrayEquals("archive must not be repacked", archiveBytesBefore, Files.readAllBytes(tarPath))
+    }
+
+    @Test
     fun `rename persists to tar archive`() = runBlocking {
         createTar(Triple("hello.txt", false, "world"))
 

@@ -712,6 +712,9 @@ abstract class AbstractTempDirVirtualFileSystem(
         }
         val parent = source.parent ?: throw IllegalArgumentException("Cannot rename a root path")
         val target = parent.resolve(newName)
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS) && !Files.isSameFile(source, target)) {
+            throw FileAlreadyExistsException("Cannot rename to \"$newName\": entry already exists in archive")
+        }
         Files.move(source, target)
         onRenamed(source, target)
         repack(tempDir)

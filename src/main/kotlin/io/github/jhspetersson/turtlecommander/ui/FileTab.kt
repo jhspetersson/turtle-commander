@@ -26,6 +26,7 @@ import com.intellij.ui.speedSearch.SpeedSearchSupply
 import com.intellij.ui.table.JBTable
 import com.intellij.ui.treeStructure.Tree
 import io.github.jhspetersson.turtlecommander.dialog.DriveSpaceDialog
+import io.github.jhspetersson.turtlecommander.dialog.InputDialog
 import io.github.jhspetersson.turtlecommander.dialog.collectDriveInfo
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.operation.CdCommand
@@ -76,6 +77,12 @@ class FileTab(
 ) : JPanel(BorderLayout()), Disposable {
 
     internal var openWithAssociatedApp: (Path) -> Unit = { Desktop.getDesktop().open(it.toFile()) }
+    internal var askRenameCollision: (RenameCollision) -> RenameCollisionChoice = { showRenameCollisionDialog(project, it) }
+    internal var askRenameExistingName: (Path) -> String? = { showRenameExistingDialog(project, it) }
+    internal var promptRenameName: (String) -> String? = { initial ->
+        InputDialog(project, "Rename", "Enter new name:", initial).let { if (it.showAndGet()) it.inputValue else null }
+    }
+    internal var renameEditorInitialText: String? = null
 
     internal val fileOps = project.service<FileOperationService>()
     internal val tableModel = FileTableModel()
@@ -611,7 +618,8 @@ class FileTab(
                     val modelRow = table.convertRowIndexToModel(row)
                     val entry = tableModel.getEntryAt(modelRow)
                     editingEntry = entry
-                    val fullName = entry?.name ?: value?.toString() ?: ""
+                    val fullName = renameEditorInitialText ?: entry?.name ?: value?.toString() ?: ""
+                    renameEditorInitialText = null
                     return super.getTableCellEditorComponent(table, fullName, isSelected, row, column)
                 }
             }
