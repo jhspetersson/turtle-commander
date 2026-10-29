@@ -294,7 +294,7 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
             panelFontSize = 15
         })
 
-        val font = settings.getPanelFont()
+        val font = settings.getPanelFont(null)
         assertNotNull("Legacy font family should produce a font", font)
         assertEquals(15, font!!.size)
         assertEquals(Font.PLAIN, font.style)
@@ -311,7 +311,7 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
             }
         })
 
-        val font = settings.getPanelFont()
+        val font = settings.getPanelFont(null)
         assertNotNull(font)
         // Don't assert font family — "Arial" may not be installed on CI (Linux), causing fallback
         assertEquals(20, font!!.size)
@@ -324,7 +324,7 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
             tabFontSize = 11
         })
 
-        val font = settings.getTabFont()
+        val font = settings.getTabFont(null)
         assertNotNull("Legacy tab font family should produce a font", font)
         assertEquals(11, font!!.size)
     }
@@ -332,7 +332,53 @@ class SettingsIntegrationTest : BasePlatformTestCase() {
     fun testGetPanelFontReturnsNullWhenUnset() {
         settings.loadState(TurtleCommanderSettings.State())
 
-        assertNull("Panel font should be null when no font configured", settings.getPanelFont())
+        assertNull("Panel font should be null when no font configured", settings.getPanelFont(null))
+    }
+
+    fun testGetPanelFontWithOnlyBoldDerivesFamilyAndSizeFromBaseFont() {
+        settings.loadState(TurtleCommanderSettings.State().apply {
+            styles.panelStyle = ComponentStyle().apply { fontStyle = Font.BOLD }
+        })
+
+        val font = settings.getPanelFont(Font(Font.MONOSPACED, Font.PLAIN, 17))
+        assertNotNull(font)
+        assertEquals(Font.MONOSPACED, font!!.family)
+        assertEquals(17, font.size)
+        assertEquals(Font.BOLD, font.style)
+    }
+
+    fun testGetPanelFontWithOnlySizeKeepsBaseFamily() {
+        settings.loadState(TurtleCommanderSettings.State().apply {
+            styles.panelStyle = ComponentStyle().apply { fontSize = 20 }
+        })
+
+        val font = settings.getPanelFont(Font(Font.MONOSPACED, Font.PLAIN, 17))
+        assertNotNull(font)
+        assertEquals(Font.MONOSPACED, font!!.family)
+        assertEquals(20, font.size)
+        assertEquals(Font.PLAIN, font.style)
+    }
+
+    fun testGetTabFontWithOnlyItalicDerivesFamilyAndSizeFromBaseFont() {
+        settings.loadState(TurtleCommanderSettings.State().apply {
+            styles.tabStyle = ComponentStyle().apply { fontStyle = Font.ITALIC }
+        })
+
+        val font = settings.getTabFont(Font(Font.MONOSPACED, Font.PLAIN, 19))
+        assertNotNull(font)
+        assertEquals(Font.MONOSPACED, font!!.family)
+        assertEquals(19, font.size)
+        assertEquals(Font.ITALIC, font.style)
+    }
+
+    fun testLegacyPanelFontFamilyWithoutSizeKeepsBaseSize() {
+        settings.loadState(TurtleCommanderSettings.State().apply {
+            panelFontFamily = Font.MONOSPACED
+        })
+
+        val font = settings.getPanelFont(Font(Font.DIALOG, Font.PLAIN, 17))
+        assertNotNull(font)
+        assertEquals(17, font!!.size)
     }
 
     // --- All component styles initialized ---

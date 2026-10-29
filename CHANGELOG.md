@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Improved font handling in the Settings dialog
+
 ## [0.7.102] - 2026-10-28
 
 ### Fixed

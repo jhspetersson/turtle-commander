@@ -80,7 +80,7 @@ class FileTab(
     internal val fileOps = project.service<FileOperationService>()
     internal val tableModel = FileTableModel()
     val table = JBTable(tableModel)
-    private val defaultTableFont by lazy { table.font }
+    private val defaultTableFont: Font = table.font
     private val defaultTableFg = UIManager.getColor("Table.foreground")
     private val defaultTableBg = UIManager.getColor("Table.background")
     private val defaultSelectionBg = UIManager.getColor("Table.selectionBackground")
@@ -238,7 +238,7 @@ class FileTab(
 
     fun applyPanelFont() {
         val settings = TurtleCommanderSettings.getInstance()
-        val font = settings.getPanelFont()
+        val font = settings.getPanelFont(defaultTableFont)
         val size = settings.getPanelFontSize()
         if (font != null) {
             table.font = font

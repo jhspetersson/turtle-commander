@@ -320,13 +320,13 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
         return result
     }
 
-    fun getPanelFont(): Font? {
+    fun getPanelFont(defaultFont: Font?): Font? {
         val s = myState
         // Use new panelStyle if it has values, otherwise fall back to legacy fields
-        if (!s.styles.panelStyle.isDefault()) return s.styles.panelStyle.getFont(null)
+        if (!s.styles.panelStyle.isDefault()) return s.styles.panelStyle.getFont(defaultFont)
         if (s.panelFontFamily.isEmpty() && s.panelFontSize <= 0) return null
         return if (s.panelFontFamily.isNotEmpty()) {
-            Font(s.panelFontFamily, Font.PLAIN, if (s.panelFontSize > 0) s.panelFontSize else 13)
+            Font(s.panelFontFamily, Font.PLAIN, if (s.panelFontSize > 0) s.panelFontSize else defaultFont?.size ?: 13)
         } else {
             null
         }
@@ -338,12 +338,12 @@ class TurtleCommanderSettings : PersistentStateComponent<TurtleCommanderSettings
         return s.panelFontSize
     }
 
-    fun getTabFont(): Font? {
+    fun getTabFont(defaultFont: Font?): Font? {
         val s = myState
-        if (!s.styles.tabStyle.isDefault()) return s.styles.tabStyle.getFont(null)
+        if (!s.styles.tabStyle.isDefault()) return s.styles.tabStyle.getFont(defaultFont)
         if (s.tabFontFamily.isEmpty() && s.tabFontSize <= 0) return null
         return if (s.tabFontFamily.isNotEmpty()) {
-            Font(s.tabFontFamily, Font.PLAIN, if (s.tabFontSize > 0) s.tabFontSize else 12)
+            Font(s.tabFontFamily, Font.PLAIN, if (s.tabFontSize > 0) s.tabFontSize else defaultFont?.size ?: 12)
         } else {
             null
         }
