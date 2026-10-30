@@ -31,6 +31,7 @@ internal class QuickFilterBar(
 ) : JPanel(BorderLayout(4, 0)) {
 
     private val searchField = SearchTextField(false)
+    private var suppressChanges = false
 
     /** Setting the text fires [onFilterChanged] through the document listener, like typing does. */
     var text: String
@@ -64,7 +65,9 @@ internal class QuickFilterBar(
         })
 
         searchField.addDocumentListener(object : DocumentAdapter() {
-            override fun textChanged(e: DocumentEvent) = onFilterChanged(searchField.text)
+            override fun textChanged(e: DocumentEvent) {
+                if (!suppressChanges) onFilterChanged(searchField.text)
+            }
         })
     }
 
@@ -90,6 +93,15 @@ internal class QuickFilterBar(
     fun deactivate() {
         searchField.text = ""
         isVisible = false
+    }
+
+    fun deactivateSilently() {
+        suppressChanges = true
+        try {
+            deactivate()
+        } finally {
+            suppressChanges = false
+        }
     }
 
     fun hasFieldFocus(): Boolean = searchField.textEditor.hasFocus()

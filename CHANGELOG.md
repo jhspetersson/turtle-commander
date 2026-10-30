@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Navigating or closing the quick filter no longer populates the panel twice
+
 ## [0.7.103] - 2026-10-29
 
 ### Added

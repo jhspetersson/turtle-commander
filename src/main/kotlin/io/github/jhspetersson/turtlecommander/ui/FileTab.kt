@@ -1076,9 +1076,7 @@ class FileTab(
     }
 
     private fun hideQuickFilter() {
-        quickFilterBar.deactivate()
-        // deactivate() fires no document event when the field was already empty, so
-        // re-apply explicitly to guarantee the unfiltered listing is restored.
+        quickFilterBar.deactivateSilently()
         applyFilter()
         revalidate()
         focusActiveView()
@@ -1481,7 +1479,7 @@ class FileTab(
             clearAllToggledMarks()
             // Hide filter on navigation
             if (quickFilterBar.isVisible) {
-                quickFilterBar.deactivate()
+                quickFilterBar.deactivateSilently()
             }
 
             tableModel.setEntries(entries)

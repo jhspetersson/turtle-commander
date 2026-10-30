@@ -153,4 +153,47 @@ class QuickFilterIntegrationTest : BasePlatformTestCase() {
 
         assertEquals("alpha.txt", tab.getSelectedEntry()?.name)
     }
+
+    fun testNavigatingWithActiveFilterPopulatesModelsOnce() {
+        val tab = openTab()
+        val sub = Files.createDirectory(tempDir.resolve("sub"))
+        Files.writeString(sub.resolve("inner.txt"), "i")
+        tab.setQuickFilterText("*.txt")
+        assertTrue(tab.isQuickFilterActive())
+
+        var tableEvents = 0
+        var listAdds = 0
+        tab.tableModel.addTableModelListener { tableEvents++ }
+        tab.listModel.addListDataListener(object : javax.swing.event.ListDataListener {
+            override fun intervalAdded(e: javax.swing.event.ListDataEvent) { listAdds++ }
+            override fun intervalRemoved(e: javax.swing.event.ListDataEvent) {}
+            override fun contentsChanged(e: javax.swing.event.ListDataEvent) {}
+        })
+
+        val job = tab.fileOps.launch { tab.navigateTo(sub, requestFocus = false) }
+        repeat(50) {
+            PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+            if (job.isCompleted) return@repeat
+            Thread.sleep(50)
+        }
+        assertTrue(job.isCompleted)
+        assertTrue("inner.txt" in tableNames(tab))
+        assertFalse(tab.isQuickFilterActive())
+
+        assertEquals(1, tableEvents)
+        assertEquals(1, listAdds)
+    }
+
+    fun testHidingActiveFilterPopulatesModelsOnce() {
+        val tab = openTab()
+        tab.setQuickFilterText("*.txt")
+        var tableEvents = 0
+        tab.tableModel.addTableModelListener { tableEvents++ }
+
+        tab.hideQuickFilterIfActive()
+
+        assertFalse(tab.isQuickFilterActive())
+        assertTrue("notes.md" in tableNames(tab))
+        assertEquals(1, tableEvents)
+    }
 }
