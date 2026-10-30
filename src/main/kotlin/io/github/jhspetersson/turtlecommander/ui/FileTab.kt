@@ -1403,7 +1403,7 @@ class FileTab(
         }
     }
 
-    private val navigationGeneration = AtomicInteger()
+    internal val navigationGeneration = AtomicInteger()
 
     suspend fun navigateTo(path: Path, selectName: String? = null, requestFocus: Boolean = true) {
         val generation = navigationGeneration.incrementAndGet()
@@ -1675,6 +1675,7 @@ class FileTab(
      * real-filesystem mtime of the archive file doesn't reflect the virtual directory listing.
      */
     fun revalidateIfStale() {
+        if (!initialized) return
         if (currentVfs != null) return
         if (fileOps.isListingCacheFresh(currentPath)) return
         fileOps.launch { navigateTo(currentPath, requestFocus = false) }

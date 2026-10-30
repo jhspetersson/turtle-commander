@@ -7,6 +7,7 @@
 ### Fixed
 
 - Navigating or closing the quick filter no longer populates the panel twice
+- Opening a new tab no longer lists its directory twice
 
 ## [0.7.103] - 2026-10-29
 
