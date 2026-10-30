@@ -55,24 +55,48 @@ object ColorRuleEngine {
         contains: ContainsEvaluator = ContainsEvaluator.EMPTY,
     ): ResolvedStyle {
         if (rules.isEmpty()) return ResolvedStyle.EMPTY
-        val matching = rules.filter { it.active && it.matches(entry, contains) }
-        if (matching.isEmpty()) return ResolvedStyle.EMPTY
+        val order = orderFor(rules)
 
         return when (mode) {
             ColorizationMode.WINNER -> {
-                val best = matching.maxWith(
-                    compareBy<ColorRule> { it.priority }.thenBy { it.name.lowercase() }
-                )
-                ResolvedStyle.fromRuleStyle(best.style)
+                for (r in order.descending) {
+                    if (r.active && r.matches(entry, contains)) return ResolvedStyle.fromRuleStyle(r.style)
+                }
+                ResolvedStyle.EMPTY
             }
             ColorizationMode.LAYERED -> {
-                val sorted = matching.sortedWith(
-                    compareBy<ColorRule> { it.priority }.thenBy { it.name.lowercase() }
-                )
                 var acc = RuleStyle.EMPTY
-                for (r in sorted) acc = acc.overlay(r.style)
-                ResolvedStyle.fromRuleStyle(acc)
+                var matched = false
+                for (r in order.ascending) {
+                    if (r.active && r.matches(entry, contains)) {
+                        acc = acc.overlay(r.style)
+                        matched = true
+                    }
+                }
+                if (matched) ResolvedStyle.fromRuleStyle(acc) else ResolvedStyle.EMPTY
             }
         }
+    }
+
+    private class PriorityOrder(
+        val rules: List<ColorRule>,
+        val ascending: List<ColorRule>,
+        val descending: List<ColorRule>,
+    )
+
+    private val priorityComparator = compareBy<ColorRule> { it.priority }.thenBy { it.name.lowercase() }
+
+    @Volatile
+    private var lastOrder: PriorityOrder? = null
+
+    private fun orderFor(rules: List<ColorRule>): PriorityOrder {
+        lastOrder?.let { if (it.rules === rules) return it }
+        val order = PriorityOrder(
+            rules,
+            rules.sortedWith(priorityComparator),
+            rules.sortedWith(priorityComparator.reversed()),
+        )
+        lastOrder = order
+        return order
     }
 }

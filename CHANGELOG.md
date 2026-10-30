@@ -9,6 +9,7 @@
 - Navigating or closing the quick filter no longer populates the panel twice
 - Opening a new tab no longer lists its directory twice
 - Search results are appended incrementally instead of reloading the whole table, and the selection no longer jumps while results arrive
+- Color rules in "winner" mode stop evaluating once the highest-priority match is found
 
 ## [0.7.103] - 2026-10-29
 

@@ -394,4 +394,37 @@ class ColorRuleEngineTest {
         assertFalse(ColorRuleEngine.resolve(listOf(dotnet), dir, contains = withProj).isEmpty())
         assertTrue(ColorRuleEngine.resolve(listOf(dotnet), dir, contains = noProj).isEmpty())
     }
+
+    @Test
+    fun `winner mode skips lower priority rules once a higher one matches`() {
+        val calls = AtomicInteger()
+        val counting = ContainsEvaluator { calls.incrementAndGet(); listOf("pom.xml") }
+        val rules = listOf(
+            rule("low", priority = 1, matchers = listOf(RuleMatcher.Contains(PatternKind.EXACT, "pom.xml")),
+                style = RuleStyle(fontColor = "#000001")),
+            rule("high", priority = 10, matchers = listOf(RuleMatcher.Name(PatternKind.GLOB, "*")),
+                style = RuleStyle(fontColor = "#00000A")),
+        )
+
+        val r = ColorRuleEngine.resolve(rules, file("dir", isDir = true), mode = ColorizationMode.WINNER, contains = counting)
+
+        assertEquals("#00000A", r.fontColor)
+        assertEquals(0, calls.get())
+    }
+
+    @Test
+    fun `winner mode falls through to lower priority when higher does not match`() {
+        val rules = listOf(
+            rule("high", priority = 10, matchers = listOf(RuleMatcher.Name(PatternKind.GLOB, "*.kt")),
+                style = RuleStyle(fontColor = "#00000A")),
+            rule("low", priority = 1, matchers = listOf(RuleMatcher.Name(PatternKind.GLOB, "*")),
+                style = RuleStyle(fontColor = "#000001")),
+        )
+
+        val first = ColorRuleEngine.resolve(rules, file("a.txt"), mode = ColorizationMode.WINNER)
+        val second = ColorRuleEngine.resolve(rules, file("b.kt"), mode = ColorizationMode.WINNER)
+
+        assertEquals("#000001", first.fontColor)
+        assertEquals("#00000A", second.fontColor)
+    }
 }
