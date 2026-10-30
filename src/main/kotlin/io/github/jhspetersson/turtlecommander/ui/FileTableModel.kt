@@ -28,9 +28,23 @@ class FileTableModel : AbstractTableModel() {
     private var entries: List<FileEntry> = emptyList()
     var directorySizeProvider: ((Path) -> Long?)? = null
 
+    private var appendableEntries: ArrayList<FileEntry>? = null
+
     fun setEntries(newEntries: List<FileEntry>) {
         entries = newEntries
+        appendableEntries = null
         fireTableDataChanged()
+    }
+
+    fun appendEntries(newEntries: List<FileEntry>) {
+        if (newEntries.isEmpty()) return
+        val target = appendableEntries ?: ArrayList(entries).also {
+            appendableEntries = it
+            entries = it
+        }
+        val first = target.size
+        target.addAll(newEntries)
+        fireTableRowsInserted(first, target.size - 1)
     }
 
     fun getEntryAt(row: Int): FileEntry? = entries.getOrNull(row)
@@ -38,6 +52,7 @@ class FileTableModel : AbstractTableModel() {
     fun updateEntry(row: Int, entry: FileEntry) {
         if (row !in entries.indices) return
         entries = entries.toMutableList().also { it[row] = entry }
+        appendableEntries = null
         fireTableRowsUpdated(row, row)
     }
 

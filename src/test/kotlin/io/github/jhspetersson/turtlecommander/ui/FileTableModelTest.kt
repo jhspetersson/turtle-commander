@@ -305,4 +305,16 @@ class FileTableModelTest {
         ))
         assertEquals(3, model.rowCount)
     }
+
+    @Test
+    fun testAppendEntriesLeavesTheListGivenToSetEntriesUntouched() {
+        val original = mutableListOf(fileEntry("a.txt"))
+        model.setEntries(original)
+
+        model.appendEntries(listOf(fileEntry("b.txt")))
+        model.appendEntries(listOf(fileEntry("c.txt")))
+
+        assertEquals(1, original.size)
+        assertEquals(listOf("a.txt", "b.txt", "c.txt"), (0 until model.rowCount).map { model.getEntryAt(it)?.name })
+    }
 }

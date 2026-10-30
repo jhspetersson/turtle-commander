@@ -34,8 +34,8 @@ class SearchResultsPanel(
     private var criteria: FileSearchCriteria,
 ) : JPanel(BorderLayout()), Disposable {
 
-    private val tableModel = FileTableModel()
-    private val table = JBTable(tableModel)
+    internal val tableModel = FileTableModel()
+    internal val table = JBTable(tableModel)
     private val resultEntries = mutableListOf<FileEntry>()
     private val statusLabel = JLabel("Ready")
 
@@ -382,20 +382,20 @@ class SearchResultsPanel(
             pendingResults.clear()
         }
         if (!disposed) {
-            SwingUtilities.invokeLater {
-                val wasEmpty = resultEntries.isEmpty()
-                resultEntries.addAll(batch)
-                val selectedRow = table.selectedRow
-                tableModel.setEntries(filteredEntries())
-                if (wasEmpty && table.rowCount > 0) {
-                    table.setRowSelectionInterval(0, 0)
-                    // Don't steal focus while the user is typing in the quick filter
-                    if (isShowing && !quickFilterBar.hasFieldFocus()) {
-                        table.requestFocusInWindow()
-                    }
-                } else if (selectedRow in 0 until table.rowCount) {
-                    table.setRowSelectionInterval(selectedRow, selectedRow)
-                }
+            SwingUtilities.invokeLater { appendResults(batch) }
+        }
+    }
+
+    internal fun appendResults(batch: List<FileEntry>) {
+        val wasEmpty = resultEntries.isEmpty()
+        resultEntries.addAll(batch)
+        val matcher = cachedFilterMatcher
+        tableModel.appendEntries(if (matcher == null) batch else batch.filter { matcher.matches(it.name) })
+        if (wasEmpty && table.rowCount > 0) {
+            table.setRowSelectionInterval(0, 0)
+            // Don't steal focus while the user is typing in the quick filter
+            if (isShowing && !quickFilterBar.hasFieldFocus()) {
+                table.requestFocusInWindow()
             }
         }
     }
