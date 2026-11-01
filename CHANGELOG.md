@@ -8,6 +8,7 @@
 
 - Column widths are kept when switching to another view and back
 - A slow folder expansion finishing after a tree refresh no longer collapses the tree
+- Double-clicking empty space in a panel no longer opens the entry under the cursor
 
 ## [0.7.104] - 2026-10-30
 

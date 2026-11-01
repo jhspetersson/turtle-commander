@@ -645,7 +645,7 @@ class FileTab(
                     if (e.clickCount == 2) {
                         // A double-click opens; cancel any rename armed by its first click.
                         renameClickTimer?.stop()
-                        openSelectedEntry()
+                        if (table.rowAtPoint(e.point) >= 0) openSelectedEntry()
                         return
                     }
                     if (e.clickCount == 1) {
@@ -764,11 +764,11 @@ class FileTab(
 
             addMouseListener(object : MouseAdapter() {
                 override fun mouseClicked(e: MouseEvent) {
+                    val idx = locationToIndex(e.point)
+                    val onItem = idx >= 0 && getCellBounds(idx, idx)?.contains(e.point) == true
                     if (e.clickCount == 2) {
-                        openSelectedEntry()
+                        if (onItem) openSelectedEntry()
                     } else if (e.clickCount == 1) {
-                        val idx = locationToIndex(e.point)
-                        val onItem = idx >= 0 && getCellBounds(idx, idx)?.contains(e.point) == true
                         maybeSingleClickOpenDirectory(e, onItem)
                     }
                 }
@@ -836,11 +836,11 @@ class FileTab(
 
             addMouseListener(object : MouseAdapter() {
                 override fun mouseClicked(e: MouseEvent) {
+                    val idx = locationToIndex(e.point)
+                    val onItem = idx >= 0 && getCellBounds(idx, idx)?.contains(e.point) == true
                     if (e.clickCount == 2) {
-                        openSelectedEntry()
+                        if (onItem) openSelectedEntry()
                     } else if (e.clickCount == 1) {
-                        val idx = locationToIndex(e.point)
-                        val onItem = idx >= 0 && getCellBounds(idx, idx)?.contains(e.point) == true
                         maybeSingleClickOpenDirectory(e, onItem)
                     }
                 }
@@ -938,6 +938,8 @@ class FileTab(
             addMouseListener(object : MouseAdapter() {
                 override fun mouseClicked(e: MouseEvent) {
                     if (e.clickCount == 2) {
+                        val bounds = getRowBounds(getClosestRowForLocation(e.x, e.y)) ?: return
+                        if (e.y < bounds.y || e.y >= bounds.y + bounds.height) return
                         val node = lastSelectedPathComponent as? DefaultMutableTreeNode ?: return
                         val entry = node.userObject as? FileEntry ?: return
                         if (entry.isParentLink) {
