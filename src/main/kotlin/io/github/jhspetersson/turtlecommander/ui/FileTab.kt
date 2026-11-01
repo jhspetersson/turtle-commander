@@ -983,6 +983,7 @@ class FileTab(
                                         vfs?.listFiles(entry.path) ?: fileOps.listFiles(entry.path)
                                     }
                                     withContext(Dispatchers.EDT) {
+                                        if (node.root !== treeRootNode) return@withContext
                                         node.removeAllChildren()
                                         for (child in children) {
                                             if (child.isParentLink) continue

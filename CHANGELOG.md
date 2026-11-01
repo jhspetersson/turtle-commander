@@ -7,6 +7,7 @@
 ### Fixed
 
 - Column widths are kept when switching to another view and back
+- A slow folder expansion finishing after a tree refresh no longer collapses the tree
 
 ## [0.7.104] - 2026-10-30
 
