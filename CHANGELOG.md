@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.105] - 2026-11-01
+
 ### Fixed
 
 - Column widths are kept when switching to another view and back
