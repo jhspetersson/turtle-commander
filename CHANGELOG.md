@@ -10,6 +10,10 @@
 - A slow folder expansion finishing after a tree refresh no longer collapses the tree
 - Double-clicking empty space in a panel no longer opens the entry under the cursor
 
+### Changed
+
+- Panel cell renderers reuse colors, fonts and icons instead of allocating them on every paint
+
 ## [0.7.104] - 2026-10-30
 
 ### Fixed

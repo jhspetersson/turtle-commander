@@ -2098,7 +2098,7 @@ fun fileEntryIcon(
     val overrideIcon = if (enableFileNameHighlighting && !entry.isParentLink) {
         RuleIcons.resolve(resolved.iconId)
     } else null
-    var base: Icon = when {
+    val base: Icon = when {
         entry.isParentLink -> AllIcons.Nodes.UpLevel
         overrideIcon != null -> overrideIcon
         entry.isDirectory -> AllIcons.Nodes.Folder
@@ -2108,15 +2108,18 @@ fun fileEntryIcon(
     }
     // Overlay the rule's colored dot on whatever icon was chosen — file or folder alike. The
     // ".." parent link is exempt; it never carries rule styling.
-    if (enableFileNameHighlighting && !entry.isParentLink) {
-        resolved.iconDotJBColor()?.let { base = DirectoryIcons.iconWithDot(base, it) }
-    }
+    val dot = if (enableFileNameHighlighting && !entry.isParentLink) resolved.iconDotJBColor() else null
     // Badge symbolic links with the platform's link-arrow overlay so they read as links in
     // every view. Color (the valid/broken default rules) conveys whether the target resolves.
-    if (entry.isSymbolicLink) {
-        return LayeredIcon.layeredIcon(arrayOf(base, AllIcons.Nodes.Symlink))
+    if (dot == null && !entry.isSymbolicLink) return base
+    return composedEntryIcons.computeIfAbsent(ComposedEntryIconKey(base, dot, entry.isSymbolicLink)) { key ->
+        val withDot = key.dot?.let { DirectoryIcons.iconWithDot(key.base, it) } ?: key.base
+        if (key.symlink) LayeredIcon.layeredIcon(arrayOf(withDot, AllIcons.Nodes.Symlink)) else withDot
     }
-    return base
 }
+
+private data class ComposedEntryIconKey(val base: Icon, val dot: Color?, val symlink: Boolean)
+
+private val composedEntryIcons = ConcurrentHashMap<ComposedEntryIconKey, Icon>()
 
 enum class ViewMode { TABLE, LIST, THUMBNAIL, TREE }

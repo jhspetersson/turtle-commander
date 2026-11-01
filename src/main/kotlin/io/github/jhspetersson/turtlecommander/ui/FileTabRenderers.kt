@@ -5,6 +5,7 @@ import java.awt.font.TextAttribute
 import com.intellij.ui.*
 import com.intellij.ui.speedSearch.SpeedSearchSupply
 import com.intellij.ui.speedSearch.SpeedSearchUtil
+import com.intellij.ui.scale.JBUIScale
 import com.intellij.util.IconUtil
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.service.ColorizationService
@@ -15,6 +16,7 @@ import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component
+import java.util.concurrent.ConcurrentHashMap
 import javax.swing.*
 import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.tree.DefaultMutableTreeNode
@@ -40,12 +42,19 @@ internal fun nameTextAttributes(baseStyle: Int, fg: Color?, strikethrough: Boole
 private val STRIKE_FONT_ATTRS = mapOf(TextAttribute.STRIKETHROUGH to TextAttribute.STRIKETHROUGH_ON)
 
 /** [base] with a strikethrough applied for label-based renderers (thumbnail names). */
+private val struckFonts = ConcurrentHashMap<Font, Font>()
+
 internal fun strikeFont(base: Font, strikethrough: Boolean): Font =
-    if (strikethrough) base.deriveFont(STRIKE_FONT_ATTRS) else base
+    if (strikethrough) struckFonts.computeIfAbsent(base) { it.deriveFont(STRIKE_FONT_ATTRS) } else base
+
+private val INVALID_COLOR = Any()
+private val parsedHexColors = ConcurrentHashMap<String, Any>()
 
 private fun parseHexColor(hex: String): Color? {
     if (hex.isBlank()) return null
-    return try { Color.decode(hex) } catch (_: Exception) { null }
+    return parsedHexColors.computeIfAbsent(hex) {
+        try { Color.decode(it) } catch (_: Exception) { INVALID_COLOR }
+    } as? Color
 }
 
 /**
@@ -298,17 +307,29 @@ internal class StyledDisplayValueRenderer(
     }
 }
 
+private object InactiveSelectionColor {
+    var custom: String? = null
+    var active: Color? = null
+    var background: Color? = null
+    var color: Color? = null
+}
+
 internal fun FileTab.inactiveSelectionBackground(): Color {
-    val panelStyle = TurtleCommanderSettings.getInstance().state.styles.panelStyle
-    val custom = panelStyle.parsedSelectedColor()
-    if (custom != null) return custom
+    val custom = TurtleCommanderSettings.getInstance().state.styles.panelStyle.selectedColor
     val active = table.selectionBackground
     val bg = table.background
+    val memo = InactiveSelectionColor
+    memo.color?.let { cached ->
+        if (memo.custom == custom && memo.active == active && memo.background == bg) return cached
+    }
     fun blend(a: Int, b: Int) = (a + b) / 2
-    return JBColor(
-        Color(blend(active.red, bg.red), blend(active.green, bg.green), blend(active.blue, bg.blue)),
-        Color(blend(active.red, bg.red), blend(active.green, bg.green), blend(active.blue, bg.blue)),
-    )
+    val blended = Color(blend(active.red, bg.red), blend(active.green, bg.green), blend(active.blue, bg.blue))
+    val color = parseHexColor(custom) ?: JBColor(blended, blended)
+    memo.custom = custom
+    memo.active = active
+    memo.background = bg
+    memo.color = color
+    return color
 }
 
 internal fun FileTab.inactiveSelectionForeground(): Color {
@@ -360,6 +381,8 @@ internal class FileThumbnailCellRenderer(private val tab: FileTab) : ListCellRen
     private val panel = JPanel(BorderLayout())
     private val iconLabel = JLabel()
     private val nameLabel = JLabel()
+    private val scaledIcons = HashMap<Icon, Icon>()
+    private var scaledIconsSysScale = 0f
 
     init {
         panel.isOpaque = true
@@ -400,7 +423,7 @@ internal class FileThumbnailCellRenderer(private val tab: FileTab) : ListCellRen
             iconLabel.icon = thumbnail
         } else {
             val entryIcon = fileEntryIcon(entry, tab.enableFileNameHighlighting, resolved)
-            iconLabel.icon = IconUtil.scale(entryIcon, list, 2.0f)
+            iconLabel.icon = scaledIcon(entryIcon, list)
         }
         val name = entry.name
         val displayName = if (name.length > 16) name.substring(0, 14) + "\u2026" else name
@@ -426,6 +449,15 @@ internal class FileThumbnailCellRenderer(private val tab: FileTab) : ListCellRen
             nameLabel.foreground = resolved.fontJBColor() ?: list.foreground
         }
         return panel
+    }
+
+    private fun scaledIcon(icon: Icon, list: JList<*>): Icon {
+        val sysScale = JBUIScale.sysScale(list)
+        if (sysScale != scaledIconsSysScale) {
+            scaledIcons.clear()
+            scaledIconsSysScale = sysScale
+        }
+        return scaledIcons.getOrPut(icon) { IconUtil.scale(icon, list, 2.0f) }
     }
 }
 
