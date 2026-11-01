@@ -149,7 +149,8 @@ class FileTab(
     private var cachedFilterGlob: String? = null
     private var cachedFilterMatcher: FileNameGlobMatcher? = null
     internal var stateService: FileManagerStateService? = null
-    private var initialized = false
+    internal var initialized = false
+        private set
     internal var pendingTabState: FileManagerStateService.TabState? = null
     internal var enableFileNameHighlighting = TurtleCommanderSettings.getInstance().state.enableFileNameHighlighting
     private var nameEditor: DefaultCellEditor? = null

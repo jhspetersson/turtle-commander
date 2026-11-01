@@ -40,6 +40,8 @@ fun FileTab.setViewMode(mode: ViewMode) {
         Pair(targetDir, namesInDir)
     } else null
 
+    if (previousMode == ViewMode.TABLE && initialized) saveColumnState()
+
     viewMode = mode
     val card = when (mode) {
         ViewMode.TABLE -> FileTab.VIEW_TABLE
