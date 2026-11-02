@@ -37,6 +37,24 @@ class MultiRenameTemplateTest {
     }
 
     @Test
+    fun `trailing dot survives the default template`() {
+        val out = MultiRenameTemplate.render(
+            listOf(input("notes."), input("a...")),
+            MultiRenameTemplate.Options(zone = zone),
+        )
+        assertEquals(listOf("notes.", "a..."), out)
+    }
+
+    @Test
+    fun `trailing dot name takes a new extension without doubling the dot`() {
+        val out = MultiRenameTemplate.render(
+            listOf(input("notes.")),
+            MultiRenameTemplate.Options(extensionTemplate = "txt", zone = zone),
+        )
+        assertEquals(listOf("notes.txt"), out)
+    }
+
+    @Test
     fun `substring extracts fixed-width prefix`() {
         val out = MultiRenameTemplate.render(
             listOf(input("Photograph.jpg")),

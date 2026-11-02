@@ -12,6 +12,7 @@
 - Packing files from inside a ZIP archive no longer fails
 - Actions invoked while neither panel has focus target the last active panel instead of the right one
 - The gear menu's Keymap entry selects the plugin's actions every time, not only the first
+- Multi-rename keeps a trailing dot in file names
 
 ## [0.7.105] - 2026-11-01
 

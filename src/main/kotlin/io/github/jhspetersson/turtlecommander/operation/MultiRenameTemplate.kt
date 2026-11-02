@@ -130,7 +130,11 @@ object MultiRenameTemplate {
         )
         val renderedBase = expand(options.nameTemplate, ctx)
         val renderedExt = expand(options.extensionTemplate, ctx)
-        val joined = if (renderedExt.isEmpty()) renderedBase else "$renderedBase.$renderedExt"
+        val joined = when {
+            renderedExt.isNotEmpty() -> "$renderedBase.$renderedExt"
+            input.originalName.endsWith('.') -> "$renderedBase."
+            else -> renderedBase
+        }
         val afterReplace = applySearchReplace(joined, options)
         return applyCase(afterReplace, options.caseMode)
     }
