@@ -1,9 +1,13 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
+import io.github.jhspetersson.turtlecommander.model.FileEntry
 import org.junit.Assert.*
 import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -95,6 +99,60 @@ class SharedVfsRegistryTest {
         } finally {
             SharedVfsRegistry.release(vfs1)
             SharedVfsRegistry.release(vfs2)
+        }
+    }
+    private class SlowCloseVfs(override val archivePath: Path) : VirtualFileSystem {
+        override val root: Path = archivePath.parent
+        val closeEntered = CountDownLatch(1)
+        val allowClose = CountDownLatch(1)
+        @Volatile var closed = false
+        override suspend fun listFiles(directory: Path): List<FileEntry> = emptyList()
+        override fun isRoot(path: Path): Boolean = path == root
+        override fun getPath(relativePath: String): Path = root.resolve(relativePath.trimStart('/'))
+        override fun flush() {}
+        override suspend fun renameFile(source: Path, newName: String): Path = source
+        override fun close() {
+            closeEntered.countDown()
+            allowClose.await(10, TimeUnit.SECONDS)
+            closed = true
+        }
+    }
+
+    private object SlowCloseProvider : VirtualFileSystemProvider {
+        val created = mutableListOf<SlowCloseVfs>()
+        val previousClosedAtCreate = mutableListOf<Boolean>()
+        override fun supportsExtension(ext: String): Boolean = ext == "tcslowclose"
+        override fun create(archivePath: Path): VirtualFileSystem = synchronized(this) {
+            previousClosedAtCreate += created.lastOrNull()?.closed ?: true
+            SlowCloseVfs(archivePath).also { created += it }
+        }
+
+        init {
+            VirtualFileSystemRegistry.register(this)
+        }
+    }
+
+    @Test
+    fun acquireWaitsForAnInFlightCloseOfTheSameArchive() {
+        val archive = Files.createTempDirectory("shared-vfs-test-").resolve("a.tcslowclose")
+        Files.write(archive, byteArrayOf(1))
+        SlowCloseProvider.created.clear()
+        SlowCloseProvider.previousClosedAtCreate.clear()
+        val first = SharedVfsRegistry.acquire(archive) as SlowCloseVfs
+        val releaser = thread { SharedVfsRegistry.release(first) }
+        assertTrue(first.closeEntered.await(10, TimeUnit.SECONDS))
+        var second: VirtualFileSystem? = null
+        val acquirer = thread { second = SharedVfsRegistry.acquire(archive) }
+        acquirer.join(300)
+        first.allowClose.countDown()
+        releaser.join(10_000)
+        acquirer.join(10_000)
+        try {
+            assertNotSame(first, second)
+            assertEquals(listOf(true, true), SlowCloseProvider.previousClosedAtCreate)
+        } finally {
+            (second as? SlowCloseVfs)?.allowClose?.countDown()
+            second?.let { SharedVfsRegistry.release(it) }
         }
     }
 }

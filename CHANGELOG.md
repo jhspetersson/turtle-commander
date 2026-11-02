@@ -8,6 +8,7 @@
 
 - ISO images can be renamed or deleted while open, and images under 514 KiB open
 - RAR archives can be renamed or deleted while open
+- Reopening an archive right after closing its last tab waits for the close to finish
 
 ## [0.7.105] - 2026-11-01
 
