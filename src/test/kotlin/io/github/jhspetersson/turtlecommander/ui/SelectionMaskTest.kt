@@ -35,4 +35,34 @@ class SelectionMaskTest {
         assertFalse(isValidSelectionMask(""))
         assertFalse(isValidSelectionMask("  ,  "))
     }
+
+    private fun matches(name: String, mask: String) = matchesMask(name, parseSelectionMaskPatterns(mask))
+
+    @Test
+    fun `names that are not valid local paths still match`() {
+        assertTrue(matches("a:b.txt", "*.txt"))
+        assertTrue(matches("what?.txt", "*.txt"))
+        assertTrue(matches("pipe|name.md", "*.txt,*.md"))
+        assertFalse(matches("a<b>.log", "*.txt"))
+    }
+
+    @Test
+    fun `glob features match plain names`() {
+        assertTrue(matches("report-7.pdf", "report-[0-9].pdf"))
+        assertFalse(matches("report-x.pdf", "report-[0-9].pdf"))
+        assertTrue(matches("report-x.pdf", "report-[!0-9].pdf"))
+        assertTrue(matches("photo.jpg", "*.{jpg}"))
+        assertTrue(matches("a.c", "a?c"))
+        assertFalse(matches("ac", "a?c"))
+        assertTrue(matches("x.txt", "**.txt"))
+        assertTrue(matches("*.txt", "\\*.txt"))
+        assertFalse(matches("a.txt", "\\*.txt"))
+        assertTrue(matches("a+b(1).txt", "a+b(1).txt"))
+    }
+
+    @Test
+    fun `case folding follows the platform`() {
+        val windows = System.getProperty("os.name").startsWith("Windows")
+        assertEquals(windows, matches("README.TXT", "*.txt"))
+    }
 }

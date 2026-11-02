@@ -16,6 +16,7 @@
 - Huge counter widths or random lengths in multi-rename no longer run out of memory
 - Multi-rename detects case-only collisions per directory (also on macOS) and case-insensitive search matches non-ASCII letters
 - The command line understands `cd..`, `cd\` and `cd /d`
+- Select/Unselect Group works inside archives holding names that are invalid on Windows
 
 ## [0.7.105] - 2026-11-01
 

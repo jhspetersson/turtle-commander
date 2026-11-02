@@ -1,6 +1,6 @@
 package io.github.jhspetersson.turtlecommander.ui
-import java.nio.file.FileSystems
-import java.nio.file.PathMatcher
+
+import io.github.jhspetersson.turtlecommander.util.FileNameGlobMatcher
 
 import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.actionSystem.ActionManager
@@ -332,14 +332,13 @@ fun FileTab.invertSelectionEntries() {
  * against the entry's filename. Empty mask matches nothing. By convention directories are
  * included only when [includeDirectories] is true — TC's "Select Group" defaults to files only.
  */
-internal fun parseSelectionMaskPatterns(mask: String): List<PathMatcher> {
-    val fs = FileSystems.getDefault()
+internal fun parseSelectionMaskPatterns(mask: String): List<FileNameGlobMatcher> {
     return mask.split(',', ';')
         .map { it.trim() }
         .filter { it.isNotEmpty() }
         .mapNotNull { token ->
             try {
-                fs.getPathMatcher("glob:$token")
+                FileNameGlobMatcher(token)
             } catch (_: Exception) {
                 null
             }
@@ -349,10 +348,9 @@ internal fun parseSelectionMaskPatterns(mask: String): List<PathMatcher> {
 internal fun isValidSelectionMask(mask: String): Boolean {
     val tokens = mask.split(',', ';').map { it.trim() }.filter { it.isNotEmpty() }
     if (tokens.isEmpty()) return false
-    val fs = FileSystems.getDefault()
     return tokens.all { token ->
         try {
-            fs.getPathMatcher("glob:$token")
+            FileNameGlobMatcher(token)
             true
         } catch (_: Exception) {
             false
@@ -360,11 +358,8 @@ internal fun isValidSelectionMask(mask: String): Boolean {
     }
 }
 
-private fun matchesMask(name: String, patterns: List<PathMatcher>): Boolean {
-    if (patterns.isEmpty()) return false
-    val asPath = Path.of(name)
-    return patterns.any { it.matches(asPath) }
-}
+internal fun matchesMask(name: String, patterns: List<FileNameGlobMatcher>): Boolean =
+    patterns.any { it.matches(name) }
 
 fun FileTab.selectByMask(mask: String, includeDirectories: Boolean = false) {
     val patterns = parseSelectionMaskPatterns(mask)
