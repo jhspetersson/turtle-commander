@@ -7,6 +7,7 @@
 ### Fixed
 
 - ISO images can be renamed or deleted while open, and images under 514 KiB open
+- RAR archives can be renamed or deleted while open
 
 ## [0.7.105] - 2026-11-01
 

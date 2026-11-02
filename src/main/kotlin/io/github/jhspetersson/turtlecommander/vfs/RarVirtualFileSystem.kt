@@ -128,11 +128,7 @@ class RarVirtualFileSystem(
      * here on every other path, including any thrown exception.
      */
     private fun junrarExtract(into: Path, password: String?, progress: VfsOpenProgress) {
-        val archive = if (password == null) {
-            Archive(archivePath.toFile())
-        } else {
-            Archive(archivePath.toFile(), password)
-        }
+        val archive = Archive(ChannelVolumeManager(archivePath), null, password)
         var handedOver = false
         try {
             if (password == null && archive.isPasswordProtected) throw PasswordRequired()
