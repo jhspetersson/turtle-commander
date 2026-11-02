@@ -82,6 +82,50 @@ class MultiRenameTemplateTest {
     }
 
     @Test
+    fun `case-insensitive literal search folds non-ASCII letters`() {
+        val out = MultiRenameTemplate.render(
+            listOf(input("Éclair.txt")),
+            MultiRenameTemplate.Options(search = "é", replace = "e", caseSensitive = false, zone = zone),
+        )
+        assertEquals(listOf("eclair.txt"), out)
+    }
+
+    @Test
+    fun `case-insensitive regex search folds non-ASCII letters`() {
+        val out = MultiRenameTemplate.render(
+            listOf(input("Éclair.txt")),
+            MultiRenameTemplate.Options(search = "^é", replace = "e", regex = true, caseSensitive = false, zone = zone),
+        )
+        assertEquals(listOf("eclair.txt"), out)
+    }
+
+    @Test
+    fun `directory case sensitivity matches what the file system resolves`() {
+        val dir = Files.createTempDirectory("mr-case-")
+        try {
+            Files.writeString(dir.resolve("Probe.txt"), "x")
+            val expected = Files.exists(dir.resolve("pROBE.TXT"))
+            assertEquals(expected, MultiRenameTemplate.isCaseInsensitiveDirectory(dir))
+            if (System.getProperty("os.name").startsWith("Windows")) assertTrue(expected)
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `directory inside a zip is case sensitive`() {
+        val dir = Files.createTempDirectory("mr-case-zip-")
+        try {
+            java.nio.file.FileSystems.newFileSystem(java.net.URI.create("jar:" + dir.resolve("a.zip").toUri()), mapOf("create" to "true")).use { fs ->
+                Files.writeString(fs.getPath("/Probe.txt"), "x")
+                assertFalse(MultiRenameTemplate.isCaseInsensitiveDirectory(fs.getPath("/")))
+            }
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
     fun `substring extracts fixed-width prefix`() {
         val out = MultiRenameTemplate.render(
             listOf(input("Photograph.jpg")),

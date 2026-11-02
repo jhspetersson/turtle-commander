@@ -64,7 +64,8 @@ class MultiRenameDialog(
     private var currentTargets: List<String> = emptyList()
 
     /**
-     * Names already present in the entries' parent directories, case-folded on Windows.
+     * Names already present in the entries' parent directories, case-folded where the
+     * directory is case-insensitive.
      * Snapshotted once on a pooled thread: the conflict preview recomputes on every
      * keystroke, and probing `Files.exists` per row per keystroke on the EDT lags badly
      * on network shares. Until the snapshot lands, targets are optimistically treated as
@@ -73,8 +74,14 @@ class MultiRenameDialog(
     @Volatile
     private var existingNames: Map<Path, Set<String>>? = null
 
-    private fun foldName(name: String): String =
-        if (SystemInfo.isWindows) name.lowercase(Locale.ROOT) else name
+    @Volatile
+    private var caseInsensitiveDirs: Map<Path, Boolean>? = null
+
+    private fun isCaseInsensitive(dir: Path?): Boolean =
+        dir?.let { caseInsensitiveDirs?.get(it) } ?: (SystemInfo.isWindows || SystemInfo.isMac)
+
+    private fun foldName(dir: Path?, name: String): String =
+        if (isCaseInsensitive(dir)) name.lowercase(Locale.ROOT) else name
 
     var result: Result? = null
         private set
@@ -87,16 +94,22 @@ class MultiRenameDialog(
         init()
         recomputePreview()
         ApplicationManager.getApplication().executeOnPooledThread {
-            val snapshot = entries.mapNotNull { it.path.parent }.toSet().associateWith { dir ->
+            val dirs = entries.mapNotNull { it.path.parent }.toSet()
+            val caseFlags = dirs.associateWith { MultiRenameTemplate.isCaseInsensitiveDirectory(it) }
+            val snapshot = dirs.associateWith { dir ->
+                val fold = caseFlags.getValue(dir)
                 try {
                     Files.newDirectoryStream(dir).use { stream ->
-                        stream.mapNotNullTo(mutableSetOf()) { it.fileName?.toString()?.let(::foldName) }
+                        stream.mapNotNullTo(mutableSetOf()) { child ->
+                            child.fileName?.toString()?.let { if (fold) it.lowercase(Locale.ROOT) else it }
+                        }
                     }
                 } catch (_: Exception) {
                     emptySet()
                 }
             }
             SwingUtilities.invokeLater {
+                caseInsensitiveDirs = caseFlags
                 existingNames = snapshot
                 recomputePreview()
             }
@@ -224,7 +237,7 @@ class MultiRenameDialog(
             MultiRenameTemplate.Input.from(entry.path, entry.lastModified)
         }
         val targets = MultiRenameTemplate.render(inputs, options)
-        val caseInsensitiveFs = SystemInfo.isWindows
+        val caseInsensitiveFs = entries.any { isCaseInsensitive(it.path.parent) }
         conflictRows = MultiRenameTemplate.detectConflicts(
             sources = entries.map { it.path },
             targetNames = targets,
@@ -232,7 +245,7 @@ class MultiRenameDialog(
             existsOnDisk = { target ->
                 val names = existingNames ?: return@detectConflicts false
                 val name = target.fileName?.toString() ?: return@detectConflicts false
-                names[target.parent]?.contains(foldName(name)) == true
+                names[target.parent]?.contains(foldName(target.parent, name)) == true
             },
         )
         currentTargets = targets

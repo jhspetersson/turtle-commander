@@ -1,6 +1,10 @@
 package io.github.jhspetersson.turtlecommander.operation
 
+import com.intellij.openapi.util.SystemInfo
+import java.nio.file.FileSystems
+import java.nio.file.Files
 import java.nio.file.InvalidPathException
+import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.nio.file.attribute.FileTime
 import java.time.Instant
@@ -157,6 +161,21 @@ object MultiRenameTemplate {
      * be surprising — users think of dotfiles as having no extension.
      */
     private const val MAX_NAME_LENGTH = 255
+
+    fun isCaseInsensitiveDirectory(dir: Path): Boolean {
+        val probe = runCatching {
+            Files.newDirectoryStream(dir).use { stream -> stream.firstOrNull { it.fileName?.toString()?.hasCase() == true } }
+        }.getOrNull() ?: dir.takeIf { it.parent != null && it.fileName?.toString()?.hasCase() == true }
+        if (probe == null) return dir.fileSystem == FileSystems.getDefault() && (SystemInfo.isWindows || SystemInfo.isMac)
+        val flipped = probe.resolveSibling(flipCase(probe.fileName.toString()))
+        return runCatching { Files.exists(flipped, LinkOption.NOFOLLOW_LINKS) && Files.isSameFile(probe, flipped) }.getOrDefault(false)
+    }
+
+    private fun String.hasCase(): Boolean = flipCase(this) != this
+
+    private fun flipCase(name: String): String = buildString(name.length) {
+        for (c in name) append(if (c.isUpperCase()) c.lowercaseChar() else c.uppercaseChar())
+    }
 
     internal fun splitBaseExt(name: String): Pair<String, String> {
         if (name.isEmpty()) return "" to ""
@@ -391,7 +410,7 @@ object MultiRenameTemplate {
     private fun applySearchReplace(name: String, options: Options): String {
         if (options.search.isEmpty()) return name
         return if (options.regex) {
-            val flags = if (options.caseSensitive) 0 else Pattern.CASE_INSENSITIVE
+            val flags = if (options.caseSensitive) 0 else Pattern.CASE_INSENSITIVE or Pattern.UNICODE_CASE
             try {
                 val pattern = Pattern.compile(options.search, flags)
                 pattern.matcher(name).replaceAll(options.replace)
@@ -407,7 +426,7 @@ object MultiRenameTemplate {
                 // Java's String.replace is always case-sensitive; use regex with LITERAL + CASE_INSENSITIVE
                 // so the Replace text is still treated as literal text (no $1 back-references when
                 // the user explicitly turned regex off).
-                val pattern = Pattern.compile(Pattern.quote(options.search), Pattern.CASE_INSENSITIVE)
+                val pattern = Pattern.compile(Pattern.quote(options.search), Pattern.CASE_INSENSITIVE or Pattern.UNICODE_CASE)
                 pattern.matcher(name).replaceAll(java.util.regex.Matcher.quoteReplacement(options.replace))
             }
         }
