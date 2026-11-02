@@ -44,6 +44,28 @@ class CdCommandTest {
         assertNull(CdCommand.parseArgument("mkdir cd"))
     }
 
+    @Test
+    fun `cd glued to dots or a separator is still cd`() {
+        assertEquals("..", CdCommand.parseArgument("cd.."))
+        assertEquals("""..\sub""", CdCommand.parseArgument("""cd..\sub"""))
+        assertEquals("""\""", CdCommand.parseArgument("""cd\"""))
+        assertEquals("/", CdCommand.parseArgument("cd/"))
+        assertEquals("..", CdCommand.parseArgument("  CD..  "))
+    }
+
+    @Test
+    fun `cd slash d switch is dropped on Windows`() {
+        assertEquals("""D:\work""", CdCommand.parseArgument("""cd /d D:\work""", isWindows = true))
+        assertEquals("""C:\my dir""", CdCommand.parseArgument("""cd /D "C:\my dir"""", isWindows = true))
+        assertEquals("", CdCommand.parseArgument("cd /d", isWindows = true))
+    }
+
+    @Test
+    fun `slash d is an ordinary path elsewhere`() {
+        assertEquals("/d", CdCommand.parseArgument("cd /d", isWindows = false))
+        assertEquals("/dev", CdCommand.parseArgument("cd /dev", isWindows = true))
+    }
+
     // --- resolveTarget ---
 
     private val home = Path.of("/home/user")

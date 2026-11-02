@@ -169,7 +169,7 @@ class CommandInputBar(
         syncHistory()
         // A `cd` can't outlive a one-shot child shell, so handle it ourselves by navigating the
         // active tab instead of spawning a process that would immediately discard the change.
-        val cdTarget = CdCommand.parseArgument(command)
+        val cdTarget = CdCommand.parseArgument(command, SystemInfo.isWindows)
         if (cdTarget != null) {
             tab.changeDirectoryFromCommand(cdTarget) { updatePrompt() }
         } else {

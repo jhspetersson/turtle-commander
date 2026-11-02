@@ -4,9 +4,11 @@ import java.nio.file.Path
 
 object CdCommand {
 
-    fun parseArgument(command: String): String? {
-        val match = Regex("""^\s*(?i:cd)(?:\s+(.*?))?\s*$""").find(command) ?: return null
-        return unquote(match.groupValues[1].trim())
+    fun parseArgument(command: String, isWindows: Boolean = false): String? {
+        val match = CD_PATTERN.find(command) ?: return null
+        val arg = match.groupValues[1].ifEmpty { match.groupValues[2] }.trim()
+        val withoutSwitch = if (isWindows) arg.replace(DRIVE_SWITCH, "") else arg
+        return unquote(withoutSwitch.trim())
     }
 
     fun resolveTarget(arg: String, base: Path, home: Path, isWindows: Boolean): Path? {
@@ -24,6 +26,9 @@ object CdCommand {
             null
         }
     }
+
+    private val CD_PATTERN = Regex("""^\s*(?i:cd)(?:\s+(.*?)|(\.\..*?|[\\/].*?))?\s*$""")
+    private val DRIVE_SWITCH = Regex("""^(?i)/d(?:\s+|$)""")
 
     private fun unquote(s: String): String {
         if (s.length >= 2 &&
