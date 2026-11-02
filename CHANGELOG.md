@@ -13,6 +13,7 @@
 - Actions invoked while neither panel has focus target the last active panel instead of the right one
 - The gear menu's Keymap entry selects the plugin's actions every time, not only the first
 - Multi-rename keeps a trailing dot in file names
+- Huge counter widths or random lengths in multi-rename no longer run out of memory
 
 ## [0.7.105] - 2026-11-01
 

@@ -55,6 +55,33 @@ class MultiRenameTemplateTest {
     }
 
     @Test
+    fun `huge counter width is capped at the file name limit`() {
+        val out = MultiRenameTemplate.render(
+            listOf(input("a.txt")),
+            MultiRenameTemplate.Options(nameTemplate = "[C:2147483647]", zone = zone),
+        )
+        assertEquals("0".repeat(254) + "1.txt", out.single())
+    }
+
+    @Test
+    fun `huge counter width from the dialog is capped too`() {
+        val out = MultiRenameTemplate.render(
+            listOf(input("a.txt")),
+            MultiRenameTemplate.Options(nameTemplate = "[C]", counter = MultiRenameTemplate.CounterConfig(width = Int.MAX_VALUE), zone = zone),
+        )
+        assertEquals(255 + 4, out.single().length)
+    }
+
+    @Test
+    fun `huge random count is capped at the file name limit`() {
+        val out = MultiRenameTemplate.render(
+            listOf(input("a.txt")),
+            MultiRenameTemplate.Options(nameTemplate = "[R2147483647]", random = kotlin.random.Random(1), zone = zone),
+        )
+        assertEquals(255 + 4, out.single().length)
+    }
+
+    @Test
     fun `substring extracts fixed-width prefix`() {
         val out = MultiRenameTemplate.render(
             listOf(input("Photograph.jpg")),

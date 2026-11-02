@@ -156,6 +156,8 @@ object MultiRenameTemplate {
      * (e.g. ".gitignore" -> (".gitignore", "")) because treating it as an extension would
      * be surprising — users think of dotfiles as having no extension.
      */
+    private const val MAX_NAME_LENGTH = 255
+
     internal fun splitBaseExt(name: String): Pair<String, String> {
         if (name.isEmpty()) return "" to ""
         val lastDot = name.lastIndexOf('.')
@@ -318,6 +320,7 @@ object MultiRenameTemplate {
             }
             if (tail.isNotEmpty()) tail.toIntOrNull()?.let { width = it }
         }
+        width = width.coerceAtMost(MAX_NAME_LENGTH)
         val value = start + step * index
         val abs = kotlin.math.abs(value).toString()
         val padded = if (abs.length < width) "0".repeat(width - abs.length) + abs else abs
@@ -368,7 +371,7 @@ object MultiRenameTemplate {
             }
         }
         val spec = body.substring(specStart)
-        val count = parseRandomCount(spec) ?: return null
+        val count = parseRandomCount(spec)?.coerceAtMost(MAX_NAME_LENGTH) ?: return null
         if (count <= 0) return ""
         val sb = StringBuilder(count)
         repeat(count) { sb.append(alphabet[ctx.random.nextInt(alphabet.length)]) }
