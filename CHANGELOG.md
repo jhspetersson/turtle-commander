@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.106] - 2026-11-02
+
 ### Fixed
 
 - ISO images can be renamed or deleted while open, and images under 514 KiB open
