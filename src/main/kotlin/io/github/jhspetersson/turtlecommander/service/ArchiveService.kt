@@ -70,7 +70,7 @@ class ArchiveService {
             FileSystems.newFileSystem(URI.create("jar:" + staged.toUri()), mapOf("create" to "true", "useTempFile" to "true")).use { zipFs ->
                 for (source in sourcePaths) {
                     if (isCancelled()) break
-                    if (source.toFile().isDirectory) {
+                    if (Files.isDirectory(source)) {
                         Files.walkFileTree(source, object : SimpleFileVisitor<Path>() {
                             override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
                                 if (isCancelled()) return FileVisitResult.TERMINATE
@@ -138,7 +138,7 @@ class ArchiveService {
                     TarOutputStream(gzos).use { tarOs ->
                         for (source in sourcePaths) {
                             if (isCancelled()) break
-                            if (source.toFile().isDirectory) {
+                            if (Files.isDirectory(source)) {
                                 Files.walkFileTree(source, object : SimpleFileVisitor<Path>() {
                                     override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
                                         if (isCancelled()) return FileVisitResult.TERMINATE
