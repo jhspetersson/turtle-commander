@@ -1,5 +1,6 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -7,6 +8,7 @@ import org.junit.Assert.fail
 import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 
 class IsoVirtualFileSystemTest {
 
@@ -50,6 +52,46 @@ class IsoVirtualFileSystemTest {
             }
         } finally {
             Files.deleteIfExists(notIso)
+        }
+    }
+    private fun writeIso(files: Map<String, ByteArray>, minSectors: Int = 0): Path {
+        val iso = Files.createTempFile("test-iso-", ".iso")
+        Files.write(iso, IsoImageFixture.build(files, minSectors))
+        return iso
+    }
+
+    private fun readEntry(vfs: IsoVirtualFileSystem, name: String): ByteArray {
+        val entry = runBlocking { vfs.listFiles(vfs.root) }.first { !it.isParentLink && it.name.equals(name, ignoreCase = true) }
+        vfs.materialize(entry.path)
+        return Files.readAllBytes(entry.path)
+    }
+
+    @Test
+    fun `image smaller than the UDF anchor area opens`() {
+        val iso = writeIso(mapOf("HELLO.TXT" to "hello iso".toByteArray()))
+        try {
+            IsoVirtualFileSystem(iso).use { vfs ->
+                assertEquals("hello iso", String(readEntry(vfs, "HELLO.TXT")))
+            }
+        } finally {
+            Files.deleteIfExists(iso)
+        }
+    }
+
+    @Test
+    fun `image can be renamed and deleted while browsed`() {
+        val iso = writeIso(mapOf("HELLO.TXT" to "hello iso".toByteArray()), minSectors = 300)
+        val moved = iso.resolveSibling(iso.fileName.toString() + ".moved")
+        try {
+            IsoVirtualFileSystem(iso).use { vfs ->
+                assertEquals("hello iso", String(readEntry(vfs, "HELLO.TXT")))
+                Files.move(iso, moved, StandardCopyOption.ATOMIC_MOVE)
+                Files.delete(moved)
+                assertFalse(Files.exists(moved))
+            }
+        } finally {
+            Files.deleteIfExists(iso)
+            Files.deleteIfExists(moved)
         }
     }
 }

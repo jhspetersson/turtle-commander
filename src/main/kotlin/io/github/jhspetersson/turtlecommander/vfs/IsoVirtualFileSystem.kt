@@ -63,10 +63,10 @@ class IsoVirtualFileSystem(
     private val pendingEntries = ConcurrentHashMap<Path, GenericInternalIsoFile>()
 
     /**
-     * The reader is kept open for the VFS lifetime so [materialize] can stream individual
+     * The reader is kept for the VFS lifetime so [materialize] can stream individual
      * files on demand without re-parsing the volume descriptors and tree on every call.
-     * Initialised in [extract] (which holds it through the directory walk) and closed in
-     * [close]; null when the VFS is empty or already torn down.
+     * It holds no file handle between calls (see ARCHITECTURE.md §5.11). Initialised in
+     * [extract]; null when the VFS is empty or already torn down.
      */
     private var reader: IsoFileReader? = null
 
@@ -80,12 +80,13 @@ class IsoVirtualFileSystem(
         // stub bookkeeping of the previous round first.
         closeReader()
         pendingEntries.clear()
-        val newReader = IsoFileReader(archivePath.toFile())
+        val udfProbeable = Files.size(archivePath) >= MIN_UDF_PROBE_BYTES
+        val newReader = openReader(udfProbeable)
         // The constructor runs format detection and silently picks the best mode it can.
         // If it finds neither an ISO 9660 volume descriptor nor a UDF anchor, we must reject
         // the file explicitly — otherwise we'd silently mount any random file as an empty
         // VFS. Close the reader on the failure path so we don't leak the file handle.
-        if (!newReader.hasIsoFormat() && !newReader.hasUdfFormat()) {
+        if (!newReader.hasIsoFormat() && !(udfProbeable && newReader.hasUdfFormat())) {
             newReader.close()
             throw IOException("Not an ISO 9660 or UDF disc image: ${archivePath.fileName}")
         }
@@ -111,11 +112,24 @@ class IsoVirtualFileSystem(
                     thisLogger().debug("Failed to stub iso entry: $cleanPath", e)
                 }
             }
-        } catch (e: Exception) {
+        } finally {
             newReader.close()
-            throw e
         }
         reader = newReader
+    }
+
+    private fun openReader(udfProbeable: Boolean): IsoFileReader {
+        val file = archivePath.toFile()
+        if (udfProbeable) return IsoFileReader(file)
+        val reader = IsoFileReader(file, "0,0,-1")
+        try {
+            reader.setUdfModeInUse(false)
+            reader.findOptimalSettings()
+        } catch (e: Exception) {
+            reader.close()
+            throw e
+        }
+        return reader
     }
 
     /**
@@ -138,8 +152,10 @@ class IsoVirtualFileSystem(
             // same temp dir is supported on every platform we run on.
             val tmp = Files.createTempFile(normalized.parent, ".tc-materializing-", ".tmp")
             try {
-                activeReader.getFileStream(entry).use { input ->
-                    Files.copy(input, tmp, StandardCopyOption.REPLACE_EXISTING)
+                activeReader.rawIso.use { raf ->
+                    activeReader.getFileStream(raf, entry).use { input ->
+                        Files.copy(input, tmp, StandardCopyOption.REPLACE_EXISTING)
+                    }
                 }
                 Files.move(tmp, normalized, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
             } finally {
@@ -186,5 +202,9 @@ class IsoVirtualFileSystem(
             if (!path[i].isDigit()) return path
         }
         return path.substring(0, semi)
+    }
+
+    private companion object {
+        const val MIN_UDF_PROBE_BYTES = 257L * 2048
     }
 }
