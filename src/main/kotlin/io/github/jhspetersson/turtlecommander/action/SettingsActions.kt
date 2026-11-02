@@ -43,18 +43,14 @@ class OpenKeymapSettingsAction : AnAction(), DumbAware {
         }
     }
 
-    private var cachedComponent: Component? = null
-
-    private fun scheduleTreeNavigation(configurable: Configurable, attempt: Int) {
+    internal fun scheduleTreeNavigation(configurable: Configurable, attempt: Int = 0, component: Component? = null) {
         if (attempt > 50) return
         val delay = if (attempt == 0) 500 else 200
         Timer(delay, null).apply {
             isRepeats = false
             addActionListener {
-                if (cachedComponent == null) {
-                    cachedComponent = configurable.createComponent()
-                }
-                val tree = cachedComponent?.let { findTree(it) }
+                val resolved = component ?: configurable.createComponent()
+                val tree = resolved?.let { findTree(it) }
                 if (tree != null && canNavigate(tree, "Plugins", "Turtle Commander")) {
                     // Apply selection multiple times to survive post-initialization resets
                     for (d in listOf(0, 100, 300, 500, 750, 1000)) {
@@ -67,7 +63,7 @@ class OpenKeymapSettingsAction : AnAction(), DumbAware {
                         }
                     }
                 } else {
-                    scheduleTreeNavigation(configurable, attempt + 1)
+                    scheduleTreeNavigation(configurable, attempt + 1, resolved)
                 }
             }
             start()

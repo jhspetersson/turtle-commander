@@ -11,6 +11,7 @@
 - Reopening an archive right after closing its last tab waits for the close to finish
 - Packing files from inside a ZIP archive no longer fails
 - Actions invoked while neither panel has focus target the last active panel instead of the right one
+- The gear menu's Keymap entry selects the plugin's actions every time, not only the first
 
 ## [0.7.105] - 2026-11-01
 
