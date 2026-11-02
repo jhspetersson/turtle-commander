@@ -256,7 +256,11 @@ class FileManagerStateService(
     fun getActivePanel(): FileManagerPanel? {
         val left = leftPanel ?: return null
         val right = rightPanel ?: return null
-        return if (left.hasFocusInPanel()) left else right
+        return when {
+            left.hasFocusInPanel() -> left
+            right.hasFocusInPanel() -> right
+            else -> lastActivePanel ?: right
+        }
     }
 
     fun getActiveTab(): FileTab? {

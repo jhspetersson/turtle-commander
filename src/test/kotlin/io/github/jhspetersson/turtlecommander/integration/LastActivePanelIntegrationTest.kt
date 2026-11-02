@@ -53,6 +53,18 @@ class LastActivePanelIntegrationTest : BasePlatformTestCase() {
         return panel
     }
 
+    fun testActivePanelFallsBackToTheLastActivePanelWhenNeitherHasFocus() {
+        stateService.noteFocusOwner(leftPanel.getActiveTab()!!.table)
+        stateService.noteFocusOwner(JButton())
+
+        assertSame(leftPanel, stateService.getActivePanel())
+        assertSame(leftPanel.getActiveTab(), stateService.getActiveTab())
+    }
+
+    fun testActivePanelIsTheRightPanelWithoutAnyFocusHistory() {
+        assertSame(rightPanel, stateService.getActivePanel())
+    }
+
     fun testFocusInsideRightPanelMakesItLastActive() {
         stateService.noteFocusOwner(rightPanel.getActiveTab()!!.table)
 

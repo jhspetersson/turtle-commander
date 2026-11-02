@@ -10,6 +10,7 @@
 - RAR archives can be renamed or deleted while open
 - Reopening an archive right after closing its last tab waits for the close to finish
 - Packing files from inside a ZIP archive no longer fails
+- Actions invoked while neither panel has focus target the last active panel instead of the right one
 
 ## [0.7.105] - 2026-11-01
 
