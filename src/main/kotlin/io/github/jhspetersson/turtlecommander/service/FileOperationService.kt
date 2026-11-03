@@ -105,18 +105,21 @@ class FileOperationService(
         }
 
         val epoch = synchronized(listingCache) { listingEpoch }
-        val effectiveDirectory = try {
-            resolveReparsePoint(directory)
-        } catch (_: Exception) {
-            directory
-        }
-
         val dirs = mutableListOf<FileEntry>()
         val files = mutableListOf<FileEntry>()
 
         val needs = entryReadNeeds()
 
-        Files.newDirectoryStream(effectiveDirectory).use { stream ->
+        var effectiveDirectory = directory
+        val directoryStream = try {
+            Files.newDirectoryStream(directory)
+        } catch (e: AccessDeniedException) {
+            effectiveDirectory = resolveReparsePoint(directory)
+            if (effectiveDirectory == directory) throw e
+            Files.newDirectoryStream(effectiveDirectory)
+        }
+
+        directoryStream.use { stream ->
             for (entry in stream) {
                 val fileEntry = buildFileEntry(entry, needs) ?: continue
                 if (fileEntry.isDirectory) dirs.add(fileEntry) else files.add(fileEntry)
