@@ -14,12 +14,17 @@ object IsoImageFixture {
     private const val ROOT_DIR = 20
     private const val FIRST_DATA = 21
 
-    fun build(files: Map<String, ByteArray>, minSectors: Int = 0): ByteArray {
+    fun build(files: Map<String, ByteArray>, minSectors: Int = 0, emptyDirs: List<String> = emptyList()): ByteArray {
         val extents = LinkedHashMap<String, Int>()
         var next = FIRST_DATA
         for ((name, bytes) in files) {
             extents[name] = next
             next += maxOf(1, (bytes.size + SECTOR - 1) / SECTOR)
+        }
+        val dirExtents = LinkedHashMap<String, Int>()
+        for (name in emptyDirs) {
+            dirExtents[name] = next
+            next += 1
         }
         val total = maxOf(next, minSectors)
         val image = ByteBuffer.allocate(total * SECTOR)
@@ -36,6 +41,14 @@ object IsoImageFixture {
             dir.put(record(extents.getValue(name), bytes.size, directory = false, ident = "$name;1".toByteArray(StandardCharsets.US_ASCII)))
             image.position(extents.getValue(name) * SECTOR)
             image.put(bytes)
+        }
+        for ((name, extent) in dirExtents) {
+            dir.put(record(extent, SECTOR, directory = true, ident = name.toByteArray(StandardCharsets.US_ASCII)))
+            val sub = ByteBuffer.allocate(SECTOR)
+            sub.put(record(extent, SECTOR, directory = true, ident = byteArrayOf(0)))
+            sub.put(record(ROOT_DIR, SECTOR, directory = true, ident = byteArrayOf(1)))
+            image.position(extent * SECTOR)
+            image.put(sub.array())
         }
         image.position(ROOT_DIR * SECTOR)
         image.put(dir.array())

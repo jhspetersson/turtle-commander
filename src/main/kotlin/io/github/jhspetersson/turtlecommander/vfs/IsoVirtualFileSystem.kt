@@ -91,8 +91,8 @@ class IsoVirtualFileSystem(
             throw IOException("Not an ISO 9660 or UDF disc image: ${archivePath.fileName}")
         }
         try {
-            val tree = newReader.allFiles
-            val files = newReader.convertTreeFilesToFlatList(tree)
+            val files = mutableListOf<GenericInternalIsoFile>()
+            collectEntries(newReader.allFiles, files)
             files.forEachIndexed { index, entry ->
                 if (progress.isCancelled) return@forEachIndexed
                 val rawPath = entry.getFullFileName('/') ?: return@forEachIndexed
@@ -101,6 +101,10 @@ class IsoVirtualFileSystem(
                 progress.onEntry(index + 1, files.size, cleanPath)
                 val entryPath = resolveEntryPath(into, cleanPath) ?: return@forEachIndexed
                 try {
+                    if (entry.isDirectory) {
+                        Files.createDirectories(entryPath)
+                        return@forEachIndexed
+                    }
                     entryPath.parent?.let { Files.createDirectories(it) }
                     createSparseStub(entryPath, entry.size)
                     val dateOpt = entry.dateAsDate
@@ -116,6 +120,13 @@ class IsoVirtualFileSystem(
             newReader.close()
         }
         reader = newReader
+    }
+
+    private fun collectEntries(records: Array<GenericInternalIsoFile>, into: MutableList<GenericInternalIsoFile>) {
+        for (record in records) {
+            into += record
+            if (record.isDirectory) collectEntries(record.children ?: continue, into)
+        }
     }
 
     private fun openReader(udfProbeable: Boolean): IsoFileReader {

@@ -54,9 +54,9 @@ class IsoVirtualFileSystemTest {
             Files.deleteIfExists(notIso)
         }
     }
-    private fun writeIso(files: Map<String, ByteArray>, minSectors: Int = 0): Path {
+    private fun writeIso(files: Map<String, ByteArray>, minSectors: Int = 0, emptyDirs: List<String> = emptyList()): Path {
         val iso = Files.createTempFile("test-iso-", ".iso")
-        Files.write(iso, IsoImageFixture.build(files, minSectors))
+        Files.write(iso, IsoImageFixture.build(files, minSectors, emptyDirs))
         return iso
     }
 
@@ -92,6 +92,23 @@ class IsoVirtualFileSystemTest {
         } finally {
             Files.deleteIfExists(iso)
             Files.deleteIfExists(moved)
+        }
+    }
+
+    @Test
+    fun `empty directory is listed as a directory`() {
+        val iso = writeIso(mapOf("HELLO.TXT" to "hello iso".toByteArray()), emptyDirs = listOf("EMPTY"))
+        try {
+            IsoVirtualFileSystem(iso).use { vfs ->
+                val entries = runBlocking { vfs.listFiles(vfs.root) }.filter { !it.isParentLink }
+                val empty = entries.firstOrNull { it.name.equals("EMPTY", ignoreCase = true) }
+                assertTrue("EMPTY missing from ${entries.map { it.name }}", empty != null)
+                assertTrue(empty!!.isDirectory)
+                assertTrue(Files.isDirectory(empty.path))
+                assertEquals("hello iso", String(readEntry(vfs, "HELLO.TXT")))
+            }
+        } finally {
+            Files.deleteIfExists(iso)
         }
     }
 }
