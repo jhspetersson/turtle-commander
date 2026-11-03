@@ -4,6 +4,7 @@ import com.intellij.openapi.diagnostic.thisLogger
 import org.apache.commons.compress.archivers.ar.ArArchiveEntry
 import org.apache.commons.compress.archivers.ar.ArArchiveInputStream
 import org.apache.commons.compress.archivers.ar.ArArchiveOutputStream
+import java.io.OutputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
@@ -28,6 +29,7 @@ class ArFileSystemProvider : VirtualFileSystemProvider {
 class ArVirtualFileSystem(
     override val archivePath: Path,
     openProgress: VfsOpenProgress? = null,
+    private val repackOutput: (Path) -> OutputStream = { Files.newOutputStream(it) },
 ) : AbstractTempDirVirtualFileSystem("turtle-ar-", openProgress) {
 
     private data class ArEntryMetadata(
@@ -92,7 +94,7 @@ class ArVirtualFileSystem(
 
     override fun repack(from: Path) {
         repackAtomically(archivePath) { target ->
-            Files.newOutputStream(target).use { raw ->
+            CompressedStreams.bufferedOutput(repackOutput(target)).use { raw ->
                 ArArchiveOutputStream(raw).use { ar ->
                     ar.setLongFileMode(ArArchiveOutputStream.LONGFILE_BSD)
                     forEachArchiveEntry(from) { path, relativeName ->

@@ -26,6 +26,8 @@ internal object CompressedStreams {
     fun openOutput(path: Path, wrap: (OutputStream) -> OutputStream): OutputStream =
         wrapOutput(Files.newOutputStream(path), wrap)
 
+    fun bufferedOutput(raw: OutputStream): OutputStream = BufferedOutputStream(raw, BUFFER_SIZE)
+
     fun wrapInput(raw: InputStream, wrap: (InputStream) -> InputStream): InputStream {
         val buffered = BufferedInputStream(raw, BUFFER_SIZE)
         return try {

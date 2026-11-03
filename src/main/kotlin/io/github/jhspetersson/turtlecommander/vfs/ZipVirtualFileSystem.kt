@@ -9,6 +9,7 @@ import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream
 import org.apache.commons.compress.archivers.zip.ZipFile
 import java.io.IOException
+import java.io.OutputStream
 import java.nio.charset.Charset
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.FileSystem
@@ -209,6 +210,7 @@ class ZipVirtualFileSystem(override val archivePath: Path) : VirtualFileSystem {
 class ZipExtractVirtualFileSystem(
     override val archivePath: Path,
     openProgress: VfsOpenProgress? = null,
+    private val repackOutput: (Path) -> OutputStream = { Files.newOutputStream(it) },
 ) : AbstractTempDirVirtualFileSystem("turtle-zip-", openProgress) {
 
     /**
@@ -399,7 +401,7 @@ class ZipExtractVirtualFileSystem(
         // Release the read handle: the atomic move below replaces the same file.
         closeReader()
         repackAtomically(archivePath) { target ->
-            ZipArchiveOutputStream(Files.newOutputStream(target)).use { zip ->
+            ZipArchiveOutputStream(CompressedStreams.bufferedOutput(repackOutput(target))).use { zip ->
                 zip.setEncoding(nameCharset.name())
                 zip.setFallbackToUTF8(true)
                 forEachArchiveEntry(from) { path, relativeName ->

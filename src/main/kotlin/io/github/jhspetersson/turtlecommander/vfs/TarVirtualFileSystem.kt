@@ -376,7 +376,7 @@ class TarVirtualFileSystem(
         materializeAllForRepack()
         val outFactory = outputStreamFactory ?: { path -> Files.newOutputStream(path) }
         repackAtomically(archivePath) { tmpArchive ->
-            outFactory(tmpArchive).use { raw ->
+            CompressedStreams.bufferedOutput(outFactory(tmpArchive)).use { raw ->
                 TarArchiveOutputStream(raw).use { tar ->
                     tar.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX)
                     tar.setBigNumberMode(TarArchiveOutputStream.BIGNUMBER_POSIX)
