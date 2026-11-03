@@ -266,6 +266,41 @@ class TarVirtualFileSystemTest {
     }
 
     @Test
+    fun `hard links are resolved in a single extra pass`() = runBlocking {
+        val linkTar = Files.createTempFile("tar-hardlinks-", ".tar")
+        try {
+            TarArchiveOutputStream(Files.newOutputStream(linkTar)).use { tar ->
+                for (i in 0 until 5) {
+                    val content = "bytes $i".toByteArray()
+                    val target = TarArchiveEntry("t$i.txt")
+                    target.size = content.size.toLong()
+                    tar.putArchiveEntry(target)
+                    tar.write(content)
+                    tar.closeArchiveEntry()
+                    val link = TarArchiveEntry("l$i.txt", TarArchiveEntry.LF_LINK)
+                    link.linkName = "t$i.txt"
+                    tar.putArchiveEntry(link)
+                    tar.closeArchiveEntry()
+                }
+            }
+            var opens = 0
+            TarVirtualFileSystem(
+                linkTar,
+                inputStreamFactory = { opens++; Files.newInputStream(it) },
+                outputStreamFactory = { Files.newOutputStream(it) },
+            ).use { fs ->
+                assertEquals(2, opens)
+                for (i in 0 until 5) {
+                    assertEquals("bytes $i", Files.readString(fs.root.resolve("l$i.txt")))
+                    assertEquals("bytes $i", Files.readString(fs.root.resolve("t$i.txt")))
+                }
+            }
+        } finally {
+            Files.deleteIfExists(linkTar)
+        }
+    }
+
+    @Test
     fun `flush keeps the temp dir when nothing changed and re-extracts when the archive did`() = runBlocking {
         val oldRoot = vfs.root
 

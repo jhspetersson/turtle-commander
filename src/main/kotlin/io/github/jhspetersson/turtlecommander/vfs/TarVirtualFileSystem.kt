@@ -107,6 +107,7 @@ class TarVirtualFileSystem(
         pendingEntries.clear()
         entryMetadataByName.clear()
         val pendingSymlinks = mutableListOf<PendingSymlink>()
+        val pendingHardLinks = mutableListOf<PendingHardLink>()
         inputStreamFactory(archivePath).use { raw ->
             TarArchiveInputStream(raw).use { tar ->
                 var ordinal = -1
@@ -139,25 +140,15 @@ class TarVirtualFileSystem(
                             setEntryMtime(entryPath, entry)
                         } else if (entry.isLink) {
                             // Hard link: the target precedes the link in any well-formed tar,
-                            // so it is already recorded — materialise it now and link against
-                            // the real inode. Resolve the target through resolveEntryPath so a
+                            // so it is already recorded; all targets are materialised in one pass
+                            // after the walk and linked against the real inode. Resolve the target through resolveEntryPath so a
                             // malicious linkName like "/etc/passwd" or "../../secret" (which would
                             // otherwise hard-link/copy a host file into the archive) is rejected.
                             val linkTarget = resolveEntryPath(into, entry.linkName)
                             if (linkTarget == null) {
                                 thisLogger().warn("Skipping tar hard link escaping the archive root: ${entry.name} -> ${entry.linkName}")
                             } else {
-                                entryPath.parent?.let { Files.createDirectories(it) }
-                                materialize(linkTarget)
-                                try {
-                                    Files.createLink(entryPath, linkTarget)
-                                } catch (_: Exception) {
-                                    // Hard link may fail, try copying the target instead
-                                    if (Files.exists(linkTarget)) {
-                                        Files.copy(linkTarget, entryPath)
-                                    }
-                                }
-                                setEntryMtime(entryPath, entry)
+                                pendingHardLinks += PendingHardLink(entry.name, entryPath, linkTarget, entry)
                             }
                         } else {
                             Files.createDirectories(entryPath.parent)
@@ -176,6 +167,7 @@ class TarVirtualFileSystem(
                 }
             }
         }
+        if (!progress.isCancelled) createHardLinks(pendingHardLinks)
         createConfinedSymlinks(
             into,
             pendingSymlinks,
@@ -184,6 +176,36 @@ class TarVirtualFileSystem(
             },
             onFailed = { unresolvedSymlinks[normalizeRelativeName(into, it.linkPath)] = it.target },
         )
+    }
+
+    private class PendingHardLink(
+        val name: String,
+        val linkPath: Path,
+        val target: Path,
+        val entry: TarArchiveEntry,
+    )
+
+    private fun createHardLinks(links: List<PendingHardLink>) {
+        if (links.isEmpty()) return
+        materializeAll(links.map { it.target })
+        for (link in links) {
+            try {
+                if (pendingEntries.containsKey(link.target.normalize())) {
+                    throw IOException("Hard link target could not be read: ${link.entry.linkName}")
+                }
+                link.linkPath.parent?.let { Files.createDirectories(it) }
+                try {
+                    Files.createLink(link.linkPath, link.target)
+                } catch (_: Exception) {
+                    if (Files.exists(link.target)) {
+                        Files.copy(link.target, link.linkPath)
+                    }
+                }
+                setEntryMtime(link.linkPath, link.entry)
+            } catch (e: Exception) {
+                reportUnextractable(link.name, e)
+            }
+        }
     }
 
     private fun setEntryMtime(path: Path, entry: TarArchiveEntry) {

@@ -8,6 +8,7 @@
 
 - Folders reached through a junction or symlink on Windows keep their path instead of jumping to the target
 - Empty folders in ISO images are shown
+- Tar archives with many hard links open in one extra pass instead of one per link
 
 ## [0.7.106] - 2026-11-02
 
