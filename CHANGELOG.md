@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.107] - 2026-11-03
+
 ### Fixed
 
 - Folders reached through a junction or symlink on Windows keep their path instead of jumping to the target
