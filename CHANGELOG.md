@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Thumbnails show the new size after changing it while they load
+- A damaged thumbnail cache file is rebuilt instead of hiding the thumbnail
+- The thumbnail disk cache is capped at 256 MiB
+
 ## [0.7.107] - 2026-11-03
 
 ### Fixed

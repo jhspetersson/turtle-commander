@@ -92,7 +92,7 @@ class ThumbnailCacheEvictTest {
         val field = ThumbnailCache::class.java.getDeclaredField("memoryCache")
         field.isAccessible = true
         val cache = field.get(thumbnailCache)
-        val put = cache.javaClass.getDeclaredMethod("putIfAbsent", Path::class.java, Icon::class.java, Long::class.javaPrimitiveType)
+        val put = cache.javaClass.getDeclaredMethod("putIfCurrent", Path::class.java, Icon::class.java, Long::class.javaPrimitiveType, Long::class.javaPrimitiveType)
         put.isAccessible = true
 
         val dir = Path.of("/test/evict/dir")
@@ -100,10 +100,10 @@ class ThumbnailCacheEvictTest {
 
         // Add entries under the directory
         for (i in 1..20) {
-            put.invoke(cache, dir.resolve("file$i.png"), icon, 0L)
+            put.invoke(cache, dir.resolve("file$i.png"), icon, 0L, 0L)
         }
         // Add entries outside the directory
-        put.invoke(cache, Path.of("/other/file.png"), icon, 0L)
+        put.invoke(cache, Path.of("/other/file.png"), icon, 0L, 0L)
 
         // Should not throw ConcurrentModificationException
         thumbnailCache.evictDirectory(dir)

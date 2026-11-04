@@ -25,6 +25,7 @@ import java.awt.image.BufferedImage
 import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.FileTime
 import java.util.concurrent.ConcurrentHashMap
 import javax.imageio.ImageIO
@@ -64,6 +65,11 @@ class ThumbnailCache(private val scope: CoroutineScope) {
     private val bulkPrefetches = ConcurrentHashMap<Path, Job>()
 
     internal var memoryBudgetBytes: Long = DEFAULT_MEMORY_BUDGET_BYTES
+
+    internal var diskBudgetBytes: Long = DEFAULT_DISK_BUDGET_BYTES
+
+    private val diskLock = Any()
+    private var diskBytes = -1L
 
     internal fun isLoading(path: Path): Boolean = path in loading
 
@@ -116,13 +122,15 @@ class ThumbnailCache(private val scope: CoroutineScope) {
                 if (memoryCache.containsKey(path)) return@launch
                 if (!isStillVisible()) return@launch
                 ensureActive()
-                val icon = loadOrCreateThumbnail(path, lastModified)
+                val generation = memoryCache.generation()
+                val icon = loadOrCreateThumbnail(path, lastModified, currentSize())
                 if (icon == null) {
                     rememberUndecodable(path, stamp)
                     return@launch
                 }
                 ensureActive()
-                memoryCache.putIfAbsent(path, icon, (icon as? HighQualityImageIcon)?.retainedBytes ?: 0L)
+                val bytes = (icon as? HighQualityImageIcon)?.retainedBytes ?: 0L
+                if (!memoryCache.putIfCurrent(path, icon, bytes, generation)) loading.remove(path)
                 withContext(Dispatchers.EDT) { onReady() }
             } catch (e: CancellationException) {
                 throw e
@@ -167,28 +175,26 @@ class ThumbnailCache(private val scope: CoroutineScope) {
     fun clearCache() {
         memoryCache.clear()
         forgetUndecodable { true }
-        try {
-            if (!Files.isDirectory(cacheDir)) return
-            Files.list(cacheDir).use { stream ->
-                stream.forEach { path ->
-                    try { Files.deleteIfExists(path) } catch (_: Exception) {}
+        synchronized(diskLock) {
+            diskBytes = -1L
+            try {
+                if (!Files.isDirectory(cacheDir)) return
+                Files.list(cacheDir).use { stream ->
+                    stream.forEach { path ->
+                        try { Files.deleteIfExists(path) } catch (_: Exception) {}
+                    }
                 }
-            }
-        } catch (_: Exception) {}
+            } catch (_: Exception) {}
+        }
     }
 
-    private suspend fun loadOrCreateThumbnail(path: Path, lastModified: FileTime?): Icon? {
-        val size = currentSize()
+    private suspend fun loadOrCreateThumbnail(path: Path, lastModified: FileTime?, size: ThumbnailSize): Icon? {
         val cachePath = getCachePath(path, size.cacheSize)
         val modMillis = lastModified?.toMillis() ?: 0L
 
-        // Check disk cache
         if (cachePath != null && Files.exists(cachePath)) {
-            val cacheModified = Files.getLastModifiedTime(cachePath).toMillis()
-            if (cacheModified >= modMillis) {
-                val img = ImageIO.read(cachePath.toFile())
-                if (img != null) return HighQualityImageIcon(img, size.displaySize)
-            }
+            val cached = readDiskCache(cachePath, modMillis)
+            if (cached != null) return HighQualityImageIcon(cached, size.displaySize)
         }
 
         // Generate thumbnail from source using subsampled reading
@@ -202,12 +208,53 @@ class ThumbnailCache(private val scope: CoroutineScope) {
                 if (modMillis > 0) {
                     Files.setLastModifiedTime(cachePath, FileTime.fromMillis(modMillis))
                 }
+                recordDiskWrite(cachePath)
             } catch (e: Exception) {
                 thisLogger().debug("Failed to write thumbnail cache for $path: ${e.message}")
             }
         }
 
         return HighQualityImageIcon(thumb, size.displaySize)
+    }
+
+    private fun readDiskCache(cachePath: Path, modMillis: Long): BufferedImage? {
+        try {
+            if (Files.getLastModifiedTime(cachePath).toMillis() < modMillis) return null
+            ImageIO.read(cachePath.toFile())?.let { return it }
+        } catch (e: Exception) {
+            thisLogger().debug("Discarding unreadable thumbnail cache $cachePath: ${e.message}")
+        }
+        try { Files.deleteIfExists(cachePath) } catch (_: Exception) {}
+        return null
+    }
+
+    private fun recordDiskWrite(cachePath: Path) {
+        synchronized(diskLock) {
+            diskBytes = if (diskBytes < 0) getCacheSize() else diskBytes + Files.size(cachePath)
+            if (diskBytes > diskBudgetBytes) pruneDiskCache(cachePath)
+        }
+    }
+
+    private fun pruneDiskCache(keep: Path) {
+        val files = Files.list(cacheDir).use { stream ->
+            stream.toList().mapNotNull { path ->
+                try {
+                    path to Files.readAttributes(path, BasicFileAttributes::class.java)
+                } catch (_: Exception) {
+                    null
+                }
+            }
+        }.filter { it.second.isRegularFile }.sortedBy { it.second.creationTime() }
+        var total = files.sumOf { it.second.size() }
+        val target = diskBudgetBytes * 3 / 4
+        for ((path, attrs) in files) {
+            if (total <= target) break
+            if (path == keep) continue
+            try {
+                if (Files.deleteIfExists(path)) total -= attrs.size()
+            } catch (_: Exception) {}
+        }
+        diskBytes = total
     }
 
     private suspend fun materializeSiblingsInBulk(path: Path) {
@@ -337,6 +384,10 @@ class ThumbnailCache(private val scope: CoroutineScope) {
 
         private val entries = LinkedHashMap<Path, Entry>(64, 0.75f, true)
         private var totalBytes = 0L
+        private var generation = 0L
+
+        @Synchronized
+        fun generation(): Long = generation
 
         @Synchronized
         fun get(path: Path): Icon? = entries[path]?.icon
@@ -345,8 +396,9 @@ class ThumbnailCache(private val scope: CoroutineScope) {
         fun containsKey(path: Path): Boolean = entries.containsKey(path)
 
         @Synchronized
-        fun putIfAbsent(path: Path, icon: Icon, bytes: Long) {
-            if (entries.containsKey(path)) return
+        fun putIfCurrent(path: Path, icon: Icon, bytes: Long, expectedGeneration: Long): Boolean {
+            if (generation != expectedGeneration) return false
+            if (entries.containsKey(path)) return true
             entries[path] = Entry(icon, bytes)
             totalBytes += bytes
             val budget = budgetBytes()
@@ -356,6 +408,7 @@ class ThumbnailCache(private val scope: CoroutineScope) {
                 iterator.remove()
                 totalBytes -= eldest.value.bytes
             }
+            return true
         }
 
         @Synchronized
@@ -377,6 +430,7 @@ class ThumbnailCache(private val scope: CoroutineScope) {
         fun clear() {
             entries.clear()
             totalBytes = 0L
+            generation++
         }
     }
 
@@ -423,6 +477,7 @@ class ThumbnailCache(private val scope: CoroutineScope) {
         private const val MAX_CONCURRENT_LOADS = 4
         private const val DEFAULT_MEMORY_BUDGET_BYTES = 128L * 1024 * 1024
         private const val MAX_UNDECODABLE_ENTRIES = 4096
+        private const val DEFAULT_DISK_BUDGET_BYTES = 256L * 1024 * 1024
 
         private val IMAGE_EXTENSIONS = setOf(
             "png", "jpg", "jpeg", "gif", "bmp", "webp", "ico", "tif", "tiff",
