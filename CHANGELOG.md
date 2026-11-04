@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.108] - 2026-11-04
+
 ### Fixed
 
 - Thumbnails show the new size after changing it while they load
