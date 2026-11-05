@@ -4,8 +4,11 @@ import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.actionSystem.ActionManager
 import io.github.jhspetersson.turtlecommander.action.FileContextMenuState
 import io.github.jhspetersson.turtlecommander.model.FileEntry
+import java.awt.Point
 import java.awt.event.MouseEvent
 import javax.swing.JComponent
+import javax.swing.JList
+import javax.swing.ListModel
 import javax.swing.JPopupMenu
 import javax.swing.SwingUtilities
 import javax.swing.event.PopupMenuEvent
@@ -49,33 +52,31 @@ internal fun FileTab.handleTableContextMenu(e: MouseEvent) {
 }
 
 internal fun FileTab.handleListContextMenu(e: MouseEvent) {
-    showContextMenu(list, e) {
-        val index = list.locationToIndex(e.point)
-        if (index >= 0 && !list.isSelectedIndex(index)) {
-            list.selectedIndex = index
-        }
-        if (index >= 0) listModel.getElementAt(index) else null
-    }
+    showContextMenu(list, e) { listContextEntry(list, listModel, e.point) }
 }
 
 internal fun FileTab.handleThumbnailContextMenu(e: MouseEvent) {
-    showContextMenu(thumbnailList, e) {
-        val index = thumbnailList.locationToIndex(e.point)
-        if (index >= 0 && !thumbnailList.isSelectedIndex(index)) {
-            thumbnailList.selectedIndex = index
-        }
-        if (index >= 0) thumbnailListModel.getElementAt(index) else null
-    }
+    showContextMenu(thumbnailList, e) { listContextEntry(thumbnailList, thumbnailListModel, e.point) }
 }
 
 internal fun FileTab.handleTreeContextMenu(e: MouseEvent) {
-    showContextMenu(tree, e) {
-        val treePath = tree.getPathForLocation(e.x, e.y)
-        if (treePath != null && !tree.isPathSelected(treePath)) {
-            tree.selectionPath = treePath
-        }
-        (tree.lastSelectedPathComponent as? DefaultMutableTreeNode)?.userObject as? FileEntry
+    showContextMenu(tree, e) { treeContextEntry(e.point) }
+}
+
+internal fun listContextEntry(list: JList<FileEntry>, model: ListModel<FileEntry>, point: Point): FileEntry? {
+    val index = list.locationToIndex(point).takeIf { it >= 0 && list.getCellBounds(it, it)?.contains(point) == true } ?: -1
+    if (index >= 0 && !list.isSelectedIndex(index)) {
+        list.selectedIndex = index
     }
+    return if (index >= 0) model.getElementAt(index) else null
+}
+
+internal fun FileTab.treeContextEntry(point: Point): FileEntry? {
+    val treePath = tree.getPathForLocation(point.x, point.y)
+    if (treePath != null && !tree.isPathSelected(treePath)) {
+        tree.selectionPath = treePath
+    }
+    return (treePath?.lastPathComponent as? DefaultMutableTreeNode)?.userObject as? FileEntry
 }
 
 internal inline fun FileTab.showContextMenu(

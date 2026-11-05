@@ -10,6 +10,7 @@
 - A favorite with an invalid path no longer breaks the tool window
 - Search results no longer steal focus when they arrive
 - Applying settings keeps focus and the panel splitter unless the layout changed
+- Right-clicking empty space in list, thumbnail and tree views no longer targets a nearby file, and the tree targets the clicked file
 
 ## [0.7.108] - 2026-11-04
 
