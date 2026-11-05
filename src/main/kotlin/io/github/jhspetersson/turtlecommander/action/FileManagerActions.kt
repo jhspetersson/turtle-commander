@@ -10,7 +10,6 @@ import com.intellij.openapi.wm.ToolWindowManager
 import io.github.jhspetersson.turtlecommander.dialog.FileSearchDialog
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.ui.*
-import java.nio.file.Path
 
 internal fun findActiveTab(e: AnActionEvent): FileTab? {
     val project = e.project ?: return null
@@ -306,8 +305,7 @@ class QuickAccessFavoriteAction : EdtAction() {
         val favorites = stateService.getFavorites()
         val path = favorites.getOrNull(slot - 1)
         e.presentation.text = if (path != null) {
-            val name = Path.of(path).fileName?.toString() ?: path
-            "Go to $name"
+            "Go to ${favoriteDisplayName(path)}"
         } else {
             "Favorite $slot (not set)"
         }
@@ -319,8 +317,9 @@ class QuickAccessFavoriteAction : EdtAction() {
         val project = e.project ?: return
         val stateService = project.service<FileManagerStateService>()
         val path = stateService.getFavorites().getOrNull(slot - 1) ?: return
+        val target = favoritePathOrNull(path) ?: return
         val panel = stateService.getActivePanel() ?: return
-        panel.openDirectoryInNewTab(Path.of(path))
+        panel.openDirectoryInNewTab(target)
     }
 
     private fun extractSlot(e: AnActionEvent): Int? {

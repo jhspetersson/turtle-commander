@@ -7,6 +7,7 @@
 ### Fixed
 
 - Invalid date/time patterns are rejected in settings instead of saved
+- A favorite with an invalid path no longer breaks the tool window
 
 ## [0.7.108] - 2026-11-04
 

@@ -31,6 +31,13 @@ import javax.swing.JMenuItem
 import javax.swing.JPopupMenu
 import javax.swing.SwingUtilities
 
+internal fun favoritePathOrNull(favPath: String): Path? =
+    runCatching { Path.of(favPath) }.getOrNull()
+
+internal fun favoriteDisplayName(favPath: String): String =
+    favoritePathOrNull(favPath)?.fileName?.toString()
+        ?: favPath.trimEnd('/', '\\').substringAfterLast('/').substringAfterLast('\\').ifEmpty { favPath }
+
 /** Lightweight menu entry that runs [handler] when chosen. */
 internal class FavoriteMenuItem(
     text: String,
@@ -53,9 +60,7 @@ internal class FavoriteAction(
     private val project: Project,
 ) : EdtAction(), CustomComponentAction {
     init {
-        val path = Path.of(favPath)
-        val name = path.fileName?.toString() ?: favPath
-        templatePresentation.setText(name, false)
+        templatePresentation.setText(favoriteDisplayName(favPath), false)
         val shortcut = if (index in 1..9) "<br>Ctrl+$index" else ""
         templatePresentation.description = "<html>$favPath$shortcut</html>"
         templatePresentation.icon = favoriteIcon(colorHex, iconKey)
@@ -88,26 +93,28 @@ internal class FavoriteAction(
 
     private fun openInNewTab() {
         val panel = project.service<FileManagerStateService>().getActivePanel() ?: return
-        panel.openDirectoryInNewTab(Path.of(favPath))
+        panel.openDirectoryInNewTab(favoritePathOrNull(favPath) ?: return)
     }
 
     private fun showContextMenu(component: JComponent, x: Int, y: Int) {
-        val path = Path.of(favPath)
+        val path = favoritePathOrNull(favPath)
         val group = DefaultActionGroup()
 
-        group.add(FavoriteMenuItem("Open in New Tab", AllIcons.Actions.OpenNewTab) { openInNewTab() })
-        group.add(FavoriteMenuItem(RevealFileAction.getActionName(), AllIcons.Actions.MenuOpen) {
-            RevealFileAction.openDirectory(path)
-        })
+        if (path != null) {
+            group.add(FavoriteMenuItem("Open in New Tab", AllIcons.Actions.OpenNewTab) { openInNewTab() })
+            group.add(FavoriteMenuItem(RevealFileAction.getActionName(), AllIcons.Actions.MenuOpen) {
+                RevealFileAction.openDirectory(path)
+            })
+        }
 
         group.addSeparator()
 
         val copyAs = DefaultActionGroup("Copy as", true).apply {
             templatePresentation.icon = AllIcons.Actions.Copy
         }
-        copyAs.add(FavoriteMenuItem("Directory Name") { CopyPasteManager.copyTextToClipboard(path.fileName?.toString() ?: favPath) })
+        copyAs.add(FavoriteMenuItem("Directory Name") { CopyPasteManager.copyTextToClipboard(favoriteDisplayName(favPath)) })
         copyAs.add(FavoriteMenuItem("Full Path") { CopyPasteManager.copyTextToClipboard(favPath) })
-        copyAs.add(FavoriteMenuItem("Parent Path") { CopyPasteManager.copyTextToClipboard(path.parent?.toString() ?: "") })
+        copyAs.add(FavoriteMenuItem("Parent Path") { CopyPasteManager.copyTextToClipboard(path?.parent?.toString() ?: "") })
         group.add(copyAs)
 
         group.addSeparator()
@@ -133,8 +140,7 @@ internal class RemoveFavoriteAction(
     private val project: Project,
 ) : EdtAction() {
     init {
-        val name = Path.of(favPath).fileName?.toString() ?: favPath
-        templatePresentation.text = "Remove $name from favorites"
+        templatePresentation.text = "Remove ${favoriteDisplayName(favPath)} from favorites"
         templatePresentation.icon = AllIcons.Actions.Close
         templatePresentation.hoveredIcon = AllIcons.Actions.CloseHovered
     }
@@ -153,15 +159,15 @@ internal class FavoriteOverflowAction(
     override fun actionPerformed(e: AnActionEvent) {
         val popupMenu = JPopupMenu()
         for ((i, entry) in overflowEntries.withIndex()) {
-            val name = Path.of(entry.path).fileName?.toString() ?: entry.path
-            val menuItem = JMenuItem(name, favoriteIcon(entry.color, entry.icon))
+            val menuItem = JMenuItem(favoriteDisplayName(entry.path), favoriteIcon(entry.color, entry.icon))
             val favIndex = startIndex + i + 1
             val shortcut = if (favIndex in 1..9) "<br>Ctrl+$favIndex" else ""
             menuItem.toolTipText = "<html>${entry.path}$shortcut</html>"
             menuItem.addActionListener {
                 val stateService = project.service<FileManagerStateService>()
+                val target = favoritePathOrNull(entry.path) ?: return@addActionListener
                 val panel = stateService.getActivePanel() ?: return@addActionListener
-                panel.openDirectoryInNewTab(Path.of(entry.path))
+                panel.openDirectoryInNewTab(target)
             }
             popupMenu.add(menuItem)
         }
