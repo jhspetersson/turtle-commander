@@ -4,6 +4,7 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.SimpleColoredComponent
 import com.intellij.ui.components.JBList
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
@@ -15,6 +16,13 @@ internal class FavoritesEditor(private val project: Project) {
     private val listModel = DefaultListModel<FileManagerStateService.FavoriteEntry>()
     private val list: JBList<FileManagerStateService.FavoriteEntry>
     val panel: JPanel
+
+    internal fun addChosenDirectory(chosen: VirtualFile) {
+        val path = chosen.toNioPath().toString()
+        if (listModel.elements().asSequence().none { it.path == path }) {
+            listModel.addElement(FileManagerStateService.FavoriteEntry(path))
+        }
+    }
 
     init {
         loadFavorites()
@@ -30,9 +38,7 @@ internal class FavoritesEditor(private val project: Project) {
                     description = "Select a directory to add to favorites"
                 }
                 val chosen = FileChooser.chooseFile(descriptor, project, null)
-                if (chosen != null) {
-                    listModel.addElement(FileManagerStateService.FavoriteEntry(chosen.path))
-                }
+                if (chosen != null) addChosenDirectory(chosen)
             }
         }
         val removeButton = JButton("Remove").apply {
