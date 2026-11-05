@@ -74,11 +74,14 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
             PanelLayout.HORIZONTAL
         }
 
+        var appliedLayout: PanelLayout? = null
+
         fun applyLayout() {
             // Persist the user's current drag position before we rebuild the splitter.
             currentSplitter?.let { savedState.splitProportion = it.proportion }
             layoutHost.removeAll()
             currentSplitter = null
+            appliedLayout = currentLayout()
             when (currentLayout()) {
                 PanelLayout.HORIZONTAL, PanelLayout.VERTICAL -> {
                     val vertical = currentLayout() == PanelLayout.VERTICAL
@@ -240,7 +243,7 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
                     rightPanel.refreshTabIcons()
                     leftPanel.reSort()
                     rightPanel.reSort()
-                    applyLayout()
+                    if (currentLayout() != appliedLayout) applyLayout()
                     contentPanel.revalidate()
                     contentPanel.repaint()
                 }
