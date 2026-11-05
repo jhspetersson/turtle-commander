@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Invalid date/time patterns are rejected in settings instead of saved
+
 ## [0.7.108] - 2026-11-04
 
 ### Fixed

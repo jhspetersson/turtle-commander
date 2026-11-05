@@ -7,6 +7,7 @@ import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.fileChooser.FileChooserFactory
 import com.intellij.openapi.fileChooser.FileSaverDescriptor
 import com.intellij.openapi.options.Configurable
+import com.intellij.openapi.options.ConfigurationException
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.Messages
@@ -46,8 +47,10 @@ class TurtleCommanderConfigurable(private val project: Project) : Configurable {
     private var panelLayoutCombo: ComboBox<String>? = null
     private var thumbnailSizeCombo: ComboBox<ThumbnailSize>? = null
     private var fileSizeFormatCombo: ComboBox<FileSizeFormat>? = null
-    private var dateTimeFormatField: JBTextField? = null
-    private var exportDateTimeFormatField: JBTextField? = null
+    internal var dateTimeFormatField: JBTextField? = null
+        private set
+    internal var exportDateTimeFormatField: JBTextField? = null
+        private set
     private var dateTimePreviewLabel: JBLabel? = null
     private var columnsEditor: ColumnsEditor? = null
     private var favoritesEditor: FavoritesEditor? = null
@@ -708,6 +711,9 @@ class TurtleCommanderConfigurable(private val project: Project) : Configurable {
     }
 
     override fun apply() {
+        requireValidDateTimePattern(getEnteredDateTimeFormat(), "Date/time format")
+        getEnteredExportDateTimeFormat().takeIf { it.isNotEmpty() }
+            ?.let { requireValidDateTimePattern(it, "Export date/time format") }
         val service = TurtleCommanderSettings.getInstance()
         val settings = service.state
         settings.enableFileNameHighlighting = highlightingCheckBox?.isSelected ?: settings.enableFileNameHighlighting
@@ -872,6 +878,12 @@ class TurtleCommanderConfigurable(private val project: Project) : Configurable {
     private fun getSelectedFileSizeFormat(): String {
         val selected = fileSizeFormatCombo?.selectedItem as? FileSizeFormat ?: FileSizeFormat.AUTO_BINARY
         return selected.name
+    }
+
+    private fun requireValidDateTimePattern(pattern: String, label: String) {
+        runCatching {
+            DateTimeFormatter.ofPattern(pattern).withZone(ZoneId.systemDefault()).format(Instant.EPOCH)
+        }.onFailure { throw ConfigurationException("$label is not a valid pattern: ${it.message}") }
     }
 
     private fun getEnteredDateTimeFormat(): String {
