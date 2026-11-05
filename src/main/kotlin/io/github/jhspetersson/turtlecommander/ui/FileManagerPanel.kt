@@ -425,6 +425,7 @@ class FileManagerPanel(
         tabbedPane.selectedIndex = insertIndex
 
         searchPanel.startSearch()
+        focusActiveTab()
         return searchPanel
     }
 
@@ -842,10 +843,12 @@ class FileManagerPanel(
         nestedFilesButton.isSelected = tab?.showAllNestedFiles == true
     }
 
+    internal var focusSearchPanel: (SearchResultsPanel) -> Unit = { it.requestTableFocus() }
+
     fun focusActiveTab() {
         val selected = tabbedPane.selectedComponent
         if (selected is SearchResultsPanel) {
-            selected.requestTableFocus()
+            focusSearchPanel(selected)
             return
         }
         val tab = getActiveTab() ?: return

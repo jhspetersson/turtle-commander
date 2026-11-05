@@ -8,6 +8,7 @@
 
 - Invalid date/time patterns are rejected in settings instead of saved
 - A favorite with an invalid path no longer breaks the tool window
+- Search results no longer steal focus when they arrive
 
 ## [0.7.108] - 2026-11-04
 

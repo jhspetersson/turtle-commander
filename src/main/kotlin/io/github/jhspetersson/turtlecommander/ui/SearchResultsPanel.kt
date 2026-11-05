@@ -393,10 +393,6 @@ class SearchResultsPanel(
         tableModel.appendEntries(if (matcher == null) batch else batch.filter { matcher.matches(it.name) })
         if (wasEmpty && table.rowCount > 0) {
             table.setRowSelectionInterval(0, 0)
-            // Don't steal focus while the user is typing in the quick filter
-            if (isShowing && !quickFilterBar.hasFieldFocus()) {
-                table.requestFocusInWindow()
-            }
         }
     }
 
@@ -432,8 +428,10 @@ class SearchResultsPanel(
         stopSearch()
     }
 
+    internal var focusTable: () -> Unit = { table.requestFocusInWindow() }
+
     fun requestTableFocus() {
-        table.requestFocusInWindow()
+        focusTable()
     }
 
     fun hasTableFocus(): Boolean {
