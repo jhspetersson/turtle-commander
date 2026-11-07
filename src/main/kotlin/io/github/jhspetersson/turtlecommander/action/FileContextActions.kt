@@ -14,6 +14,7 @@ import io.github.jhspetersson.turtlecommander.operation.ExecutableFile
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.ui.*
 import com.intellij.ide.actions.RevealFileAction
+import java.nio.file.Path
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.util.SystemInfo
 import io.github.jhspetersson.turtlecommander.util.NativeProperties
@@ -153,9 +154,12 @@ class OpenInExplorerAction : EdtAction() {
 
     override fun actionPerformed(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry ?: return
-        openInSystemExplorer(entry)
+        openInSystemExplorer(explorerRevealTarget(FileContextMenuState.clickedTab, entry))
     }
 }
+
+internal fun explorerRevealTarget(tab: FileTab?, entry: FileEntry): Path =
+    tab?.vfsStack?.firstOrNull()?.parentPath ?: entry.path
 
 class ContextCopyAction : EdtAction() {
     override fun update(e: AnActionEvent) {

@@ -8,6 +8,7 @@
 
 - Color rules with equal priority now win in the order the settings table shows
 - Cancelling a content search stops inside a large file
+- Open in Explorer inside an archive reveals the archive file instead of a temp folder
 
 ## [0.7.109] - 2026-11-05
 

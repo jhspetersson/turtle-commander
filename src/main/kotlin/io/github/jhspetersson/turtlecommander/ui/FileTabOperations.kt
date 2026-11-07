@@ -893,8 +893,8 @@ internal fun FileTab.extractArchives(archivePaths: List<Path>, destination: Path
     }
 }
 
-internal fun openInSystemExplorer(entry: FileEntry) {
-    RevealFileAction.openFile(entry.path)
+internal fun openInSystemExplorer(path: Path) {
+    RevealFileAction.openFile(path)
 }
 
 internal fun openDirectoryInSystemExplorer(path: Path) {
