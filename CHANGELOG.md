@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.110] - 2026-11-07
+
 ### Fixed
 
 - Color rules with equal priority now win in the order the settings table shows
