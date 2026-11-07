@@ -94,7 +94,7 @@ class FileSearchService(
                     onProgress(scannedCount, dir.toString())
                 }
                 if (dir != start) {
-                    checkAndReport(dir, attrs, nameMatcher, onResult)
+                    checkAndReport(dir, attrs, nameMatcher, onResult, isCancelled)
                 }
                 return FileVisitResult.CONTINUE
             }
@@ -106,7 +106,7 @@ class FileSearchService(
                 if (scannedCount % 50 == 0) {
                     onProgress(scannedCount, file.parent?.toString() ?: "")
                 }
-                checkAndReport(file, attrs, nameMatcher, onResult)
+                checkAndReport(file, attrs, nameMatcher, onResult, isCancelled)
                 return FileVisitResult.CONTINUE
             }
 
@@ -206,6 +206,7 @@ class FileSearchService(
         attrs: BasicFileAttributes,
         nameMatcher: ((String) -> Boolean)?,
         onResult: (FileEntry) -> Unit,
+        isCancelled: () -> Boolean,
     ) {
         val name = path.fileName?.toString() ?: return
         val match = matchMetadata(path, attrs, nameMatcher) ?: return
@@ -215,7 +216,7 @@ class FileSearchService(
 
         if (criteria.contentPattern != null) {
             if (attrs.isDirectory) return
-            if (!matchesContent(path, criteria.contentPattern, criteria.contentCaseSensitive)) return
+            if (!matchesContent(path, criteria.contentPattern, criteria.contentCaseSensitive, isCancelled)) return
         }
 
         val permissions = readPermissions(path)
@@ -281,7 +282,7 @@ class FileSearchService(
         FileTypeManager.getInstance().getFileTypeByFileName(name).isBinary
     }.getOrDefault(false)
 
-    private fun matchesContent(path: Path, pattern: String, caseSensitive: Boolean): Boolean {
+    private fun matchesContent(path: Path, pattern: String, caseSensitive: Boolean, isCancelled: () -> Boolean): Boolean {
         // Stream the bytes from the source VFS if [path] points at a lazy-VFS stub;
         // harmless no-op for regular files and the other VFS implementations that extract
         // eagerly.
@@ -290,7 +291,8 @@ class FileSearchService(
         try {
             val reader: BufferedReader = Files.newBufferedReader(path, Charsets.UTF_8)
             reader.use { br ->
-                br.lineSequence().forEach { line ->
+                br.lineSequence().forEachIndexed { index, line ->
+                    if (index % CANCEL_CHECK_LINES == 0 && isCancelled()) return false
                     if (line.contains(pattern, ignoreCase = !caseSensitive)) {
                         return true
                     }
@@ -319,5 +321,9 @@ class FileSearchService(
         while (paused && !isCancelled()) {
             LockSupport.parkNanos(10_000_000L) // 10ms
         }
+    }
+
+    private companion object {
+        const val CANCEL_CHECK_LINES = 256
     }
 }

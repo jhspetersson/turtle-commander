@@ -44,6 +44,30 @@ class FileSearchFilterTest {
     }
 
     @Test
+    fun `content search stops inside a file once cancelled`() {
+        val dir = createTempDir()
+        val lines = List(20_000) { "filler" } + "needle"
+        Files.write(dir.resolve("big.txt"), lines)
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = null,
+            namePatternMode = NamePatternMode.GLOB,
+            contentPattern = "needle",
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+        )
+        val polls = java.util.concurrent.atomic.AtomicInteger()
+        val results = mutableListOf<FileEntry>()
+        FileSearchService(criteria).search(
+            onResult = { results.add(it) },
+            isCancelled = { polls.incrementAndGet() > 2 },
+            onProgress = { _, _ -> },
+        )
+        assertTrue(results.isEmpty())
+    }
+
+    @Test
     fun `search through a symlinked root finds the files beneath it`() {
         val dir = createTempDir()
         val real = Files.createDirectories(dir.resolve("real"))
