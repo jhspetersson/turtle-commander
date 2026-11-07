@@ -14,7 +14,7 @@ class FavoritesEditorPathFormatTest : BasePlatformTestCase() {
 
     override fun setUp() {
         super.setUp()
-        dir = Files.createTempDirectory("turtle-test-fav-format-")
+        dir = Files.createTempDirectory("turtle-test-fav-format-").toRealPath()
         stateService.setFavoriteEntries(emptyList())
     }
 

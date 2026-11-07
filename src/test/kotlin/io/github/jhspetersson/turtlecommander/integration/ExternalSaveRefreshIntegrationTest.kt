@@ -25,7 +25,7 @@ class ExternalSaveRefreshIntegrationTest : BasePlatformTestCase() {
     override fun setUp() {
         super.setUp()
         TurtleCommanderSettings.getInstance().state.defaultViewMode = "TABLE"
-        tempDir = Files.createTempDirectory("turtle-test-external-save-")
+        tempDir = Files.createTempDirectory("turtle-test-external-save-").toRealPath()
         note = tempDir.resolve("note.txt")
         Files.writeString(note, "")
         Files.writeString(tempDir.resolve("other.txt"), "xx")
