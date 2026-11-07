@@ -84,7 +84,7 @@ object ColorRuleEngine {
         val descending: List<ColorRule>,
     )
 
-    private val priorityComparator = compareBy<ColorRule> { it.priority }.thenBy { it.name.lowercase() }
+    private val winnerFirst = compareByDescending<ColorRule> { it.priority }.thenBy { it.name.lowercase() }
 
     @Volatile
     private var lastOrder: PriorityOrder? = null
@@ -93,8 +93,8 @@ object ColorRuleEngine {
         lastOrder?.let { if (it.rules === rules) return it }
         val order = PriorityOrder(
             rules,
-            rules.sortedWith(priorityComparator),
-            rules.sortedWith(priorityComparator.reversed()),
+            rules.sortedWith(winnerFirst.reversed()),
+            rules.sortedWith(winnerFirst),
         )
         lastOrder = order
         return order

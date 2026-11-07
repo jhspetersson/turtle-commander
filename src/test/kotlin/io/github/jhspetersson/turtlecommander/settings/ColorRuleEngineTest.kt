@@ -89,8 +89,17 @@ class ColorRuleEngineTest {
             rule("Alpha", priority = 5, matchers = listOf(RuleMatcher.Name(PatternKind.GLOB, "*")), style = RuleStyle(fontColor = "#A")),
         )
         val r = ColorRuleEngine.resolve(rules, file("f"), mode = ColorizationMode.WINNER)
-        // bravo > alpha alphabetically, and thenBy picks the "max" => bravo wins
-        assertEquals("#B", r.fontColor)
+        assertEquals("#A", r.fontColor)
+    }
+
+    @Test
+    fun `layered mode tiebreaks by name case-insensitive`() {
+        val rules = listOf(
+            rule("bravo", priority = 5, matchers = listOf(RuleMatcher.Name(PatternKind.GLOB, "*")), style = RuleStyle(fontColor = "#B")),
+            rule("Alpha", priority = 5, matchers = listOf(RuleMatcher.Name(PatternKind.GLOB, "*")), style = RuleStyle(fontColor = "#A")),
+        )
+        val r = ColorRuleEngine.resolve(rules, file("f"), mode = ColorizationMode.LAYERED)
+        assertEquals("#A", r.fontColor)
     }
 
     @Test
