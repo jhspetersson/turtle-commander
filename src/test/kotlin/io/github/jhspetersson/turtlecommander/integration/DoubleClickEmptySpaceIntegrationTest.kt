@@ -11,6 +11,7 @@ import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
 import io.github.jhspetersson.turtlecommander.ui.FileTab
 import io.github.jhspetersson.turtlecommander.ui.ViewMode
+import io.github.jhspetersson.turtlecommander.ui.getSelectedEntry
 import io.github.jhspetersson.turtlecommander.ui.setViewMode
 import java.awt.Component
 import java.awt.Point
@@ -60,7 +61,13 @@ class DoubleClickEmptySpaceIntegrationTest : BasePlatformTestCase() {
             if (condition()) return
             Thread.sleep(50)
         }
-        fail("Timed out waiting for $description")
+        fail("Timed out waiting for $description; ${state()}")
+    }
+
+    private fun state(): String {
+        val names = (0 until tab.tableModel.rowCount).mapNotNull { tab.tableModel.getEntryAt(it)?.name }
+        val selected = runCatching { tab.getSelectedEntry()?.path }.getOrElse { "error: $it" }
+        return "viewMode=${tab.viewMode} currentPath=${tab.currentPath} rows=$names selected=$selected openFiles=${openFileNames()}"
     }
 
     private fun settle() {
