@@ -3,6 +3,7 @@ package io.github.jhspetersson.turtlecommander.integration
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
@@ -25,7 +26,7 @@ class ExternalSaveRefreshIntegrationTest : BasePlatformTestCase() {
     override fun setUp() {
         super.setUp()
         TurtleCommanderSettings.getInstance().state.defaultViewMode = "TABLE"
-        tempDir = Files.createTempDirectory("turtle-test-external-save-").toRealPath()
+        tempDir = FileUtil.createTempDirectory("turtle-test-external-save", null).toPath()
         note = tempDir.resolve("note.txt")
         Files.writeString(note, "")
         Files.writeString(tempDir.resolve("other.txt"), "xx")

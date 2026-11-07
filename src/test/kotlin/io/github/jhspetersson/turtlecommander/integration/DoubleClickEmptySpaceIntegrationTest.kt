@@ -3,6 +3,7 @@ package io.github.jhspetersson.turtlecommander.integration
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.util.io.FileUtil
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import io.github.jhspetersson.turtlecommander.model.FileEntry
@@ -33,7 +34,7 @@ class DoubleClickEmptySpaceIntegrationTest : BasePlatformTestCase() {
     override fun setUp() {
         super.setUp()
         TurtleCommanderSettings.getInstance().state.defaultViewMode = "TABLE"
-        tempDir = Files.createTempDirectory("turtle-test-double-click-empty-")
+        tempDir = FileUtil.createTempDirectory("turtle-test-double-click-empty", null).toPath()
         Files.writeString(tempDir.resolve("a.txt"), "a")
         panel = FileManagerPanel(project = project, initialPath = tempDir, otherPanelPathProvider = { tempDir })
         panel.parentDisposable = parentDisposable
