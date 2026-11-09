@@ -1,6 +1,8 @@
 package io.github.jhspetersson.turtlecommander.settings
 
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptor
@@ -29,7 +31,11 @@ import javax.swing.*
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 
-class TurtleCommanderConfigurable(private val project: Project) : Configurable {
+class TurtleCommanderConfigurable @JvmOverloads constructor(
+    private val project: Project,
+    private val thumbnailCacheSize: () -> Long = { ThumbnailCache.getInstance().getCacheSize() },
+) : Configurable {
+    internal var thumbnailCacheSizeLabel: JBLabel? = null
 
     private var highlightingCheckBox: JCheckBox? = null
     private var commandBarCheckBox: JCheckBox? = null
@@ -170,12 +176,12 @@ class TurtleCommanderConfigurable(private val project: Project) : Configurable {
             add(panelLayoutCombo!!)
         }
 
-        val thumbnailCache = ThumbnailCache.getInstance()
-        val thumbnailCacheSizeLabel = JBLabel(formatSize(thumbnailCache.getCacheSize()))
+        val thumbnailCacheSizeLabel = JBLabel()
+        this.thumbnailCacheSizeLabel = thumbnailCacheSizeLabel
+        showThumbnailCacheSize(thumbnailCacheSizeLabel)
         val clearCacheButton = JButton("Clear").apply {
             addActionListener {
-                thumbnailCache.clearCache()
-                thumbnailCacheSizeLabel.text = formatSize(thumbnailCache.getCacheSize())
+                showThumbnailCacheSize(thumbnailCacheSizeLabel) { ThumbnailCache.getInstance().clearCache() }
             }
         }
         val thumbnailRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
@@ -809,7 +815,17 @@ class TurtleCommanderConfigurable(private val project: Project) : Configurable {
         colorRulesEditor?.resetFrom(settings)
     }
 
+    private fun showThumbnailCacheSize(label: JBLabel, beforeMeasure: () -> Unit = {}) {
+        label.text = "…"
+        ApplicationManager.getApplication().executeOnPooledThread {
+            beforeMeasure()
+            val text = formatSize(thumbnailCacheSize())
+            ApplicationManager.getApplication().invokeLater({ label.text = text }, ModalityState.any())
+        }
+    }
+
     override fun disposeUIResources() {
+        thumbnailCacheSizeLabel = null
         highlightingCheckBox = null
         commandBarCheckBox = null
         saveCommandHistoryCheckBox = null

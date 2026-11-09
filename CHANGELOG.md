@@ -8,6 +8,7 @@
 
 - Size color matcher rejects an inverted Between range and overflowing values
 - Color rule matchers are sorted once per rule instead of on every match
+- Settings page measures the thumbnail cache size off the UI thread
 
 ## [0.7.110] - 2026-11-07
 
