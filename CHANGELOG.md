@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Search dialog rejects NaN, Infinity and overflowing size bounds instead of searching for "more than 0 B"
+
 ## [0.7.111] - 2026-11-09
 
 ### Fixed

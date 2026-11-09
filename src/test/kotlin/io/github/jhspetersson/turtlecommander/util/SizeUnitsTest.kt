@@ -32,6 +32,13 @@ class SizeUnitsTest {
     }
 
     @Test
+    fun `values beyond a long yield null instead of wrapping`() {
+        assertNull(SizeUnits.parseBytes("1e400", "B"))
+        assertNull(SizeUnits.parseBytes("9223372036854775807", "GB"))
+        assertNull(SizeUnits.parseBytesWithSuffix("99999999999 TB"))
+    }
+
+    @Test
     fun `in-between bounds share a single unit that represents both`() {
         val (text1, text2, unit) = SizeUnits.rangeToUnit(500 * kb, 2 * mb)
         assertEquals("KB", unit)

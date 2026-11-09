@@ -19,7 +19,8 @@ object SizeUnits {
 
     fun parseBytes(text: String, unit: String?): Long? {
         val value = text.trim().toBigDecimalOrNull() ?: return null
-        return value.multiply(BigDecimal.valueOf(multiplier(unit))).setScale(0, RoundingMode.HALF_UP).toLong()
+        val bytes = value.multiply(BigDecimal.valueOf(multiplier(unit))).setScale(0, RoundingMode.HALF_UP)
+        return try { bytes.longValueExact() } catch (_: ArithmeticException) { null }
     }
 
     fun parseBytesWithSuffix(text: String): Long? {

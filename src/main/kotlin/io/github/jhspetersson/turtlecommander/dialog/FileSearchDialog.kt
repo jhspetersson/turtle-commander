@@ -680,13 +680,8 @@ class FileSearchDialog(
         return null
     }
 
-    private fun validateSizeField(field: JBTextField): ValidationInfo? {
-        val text = field.text.trim()
-        if (text.isEmpty()) return ValidationInfo("Enter a size", field)
-        val value = text.toDoubleOrNull() ?: return ValidationInfo("Size must be a number", field)
-        if (value < 0) return ValidationInfo("Size cannot be negative", field)
-        return null
-    }
+    private fun validateSizeField(field: JBTextField): ValidationInfo? =
+        sizeFieldError(field.text, sizeUnitCombo.selectedItem as? String)?.let { ValidationInfo(it, field) }
 
     /** An unparseable date would be dropped silently, running the search with no date filter. */
     private fun validateDates(): ValidationInfo? {
@@ -797,4 +792,13 @@ class FileSearchDialog(
     }
 
     override fun getPreferredFocusedComponent() = nameEditor
+}
+
+internal fun sizeFieldError(text: String, unit: String?): String? {
+    val trimmed = text.trim()
+    if (trimmed.isEmpty()) return "Enter a size"
+    if (trimmed.toBigDecimalOrNull() == null) return "Size must be a number"
+    val bytes = SizeUnits.parseBytes(trimmed, unit) ?: return "Size is too large"
+    if (bytes < 0) return "Size cannot be negative"
+    return null
 }
