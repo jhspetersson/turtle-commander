@@ -17,6 +17,7 @@ import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
 import io.github.jhspetersson.turtlecommander.dialog.*
@@ -276,14 +277,22 @@ internal fun allUnderProjectBase(paths: List<Path>, basePathStr: String?): Boole
     }
 }
 
+internal fun findLocalVirtualFiles(paths: List<Path>): List<VirtualFile>? {
+    val lfs = LocalFileSystem.getInstance()
+    val parents = HashMap<Path, VirtualFile?>()
+    return paths.map { path ->
+        val parentPath = path.parent ?: return null
+        val parent = parents.getOrPut(parentPath) { lfs.refreshAndFindFileByNioFile(parentPath) } ?: return null
+        parent.findChild(path.fileName.toString()) ?: lfs.refreshAndFindFileByNioFile(path) ?: return null
+    }
+}
+
 private fun FileTab.tryIdeaDelete(selected: List<FileEntry>): Boolean {
     if (!allUnderProjectBase(selected.map { it.path }, project.basePath)) return false
 
-    val lfs = LocalFileSystem.getInstance()
     val psiManager = PsiManager.getInstance(project)
     val elements = mutableListOf<PsiElement>()
-    for (entry in selected) {
-        val vf = lfs.refreshAndFindFileByNioFile(entry.path) ?: return false
+    for (vf in findLocalVirtualFiles(selected.map { it.path }) ?: return false) {
         val psi = if (vf.isDirectory) psiManager.findDirectory(vf) else psiManager.findFile(vf)
         elements.add(psi ?: return false)
     }
