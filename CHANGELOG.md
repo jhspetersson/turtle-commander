@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.111] - 2026-11-09
+
 ### Fixed
 
 - Size color matcher rejects an inverted Between range and overflowing values
