@@ -851,12 +851,18 @@ class FileManagerPanel(
             focusSearchPanel(selected)
             return
         }
-        val tab = getActiveTab() ?: return
-        when (tab.viewMode) {
-            ViewMode.TABLE -> tab.table.requestFocusInWindow()
-            ViewMode.LIST -> tab.list.requestFocusInWindow()
-            ViewMode.THUMBNAIL -> tab.thumbnailList.requestFocusInWindow()
-            ViewMode.TREE -> tab.tree.requestFocusInWindow()
+        activeViewComponent()?.requestFocusInWindow()
+    }
+
+    fun activeViewComponent(): JComponent? {
+        val selected = tabbedPane.selectedComponent
+        if (selected is SearchResultsPanel) return selected.table
+        val tab = getActiveTab() ?: return null
+        return when (tab.viewMode) {
+            ViewMode.TABLE -> tab.table
+            ViewMode.LIST -> tab.list
+            ViewMode.THUMBNAIL -> tab.thumbnailList
+            ViewMode.TREE -> tab.tree
         }
     }
 

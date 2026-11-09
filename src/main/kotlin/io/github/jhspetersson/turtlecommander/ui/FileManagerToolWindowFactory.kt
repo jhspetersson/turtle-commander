@@ -130,6 +130,7 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
             add(southPanel, BorderLayout.SOUTH)
         }
         val content = ContentFactory.getInstance().createContent(contentPanel, null, false)
+        content.setPreferredFocusedComponent { stateService.getActivePanel()?.activeViewComponent() }
         toolWindow.contentManager.addContent(content)
 
         registerShortcuts(contentPanel, toolWindow)
