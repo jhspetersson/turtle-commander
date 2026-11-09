@@ -7,6 +7,7 @@
 ### Fixed
 
 - Size color matcher rejects an inverted Between range and overflowing values
+- Color rule matchers are sorted once per rule instead of on every match
 
 ## [0.7.110] - 2026-11-07
 

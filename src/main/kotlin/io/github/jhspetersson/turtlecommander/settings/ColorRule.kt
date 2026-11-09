@@ -258,12 +258,14 @@ data class ColorRule(
     val matchers: List<RuleMatcher> = emptyList(),
     val style: RuleStyle = RuleStyle(),
 ) {
+    internal val orderedMatchers: List<RuleMatcher> =
+        if (matchers.size <= 1) matchers else matchers.sortedBy { it.cost }
+
     fun matches(entry: FileEntry, contains: ContainsEvaluator): Boolean {
-        if (matchers.isEmpty()) return false
-        val ordered = if (matchers.size == 1) matchers else matchers.sortedBy { it.cost }
+        if (orderedMatchers.isEmpty()) return false
         return when (combinator) {
-            Combinator.AND -> ordered.all { it.matches(entry, contains) }
-            Combinator.OR -> ordered.any { it.matches(entry, contains) }
+            Combinator.AND -> orderedMatchers.all { it.matches(entry, contains) }
+            Combinator.OR -> orderedMatchers.any { it.matches(entry, contains) }
         }
     }
 }
