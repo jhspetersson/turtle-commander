@@ -480,19 +480,28 @@ internal class ColorMatcherEditDialog(
         Kind.OWNER, Kind.GROUP, Kind.PERMISSIONS ->
             validatePattern(textKindCombo.selectedItem as PatternKind, textPatternField)
         Kind.CREATED, Kind.MODIFIED -> validateDateCard()
-        Kind.SIZE, Kind.SYMLINK, Kind.NAMED_PIPE -> null
+        Kind.SIZE -> validateSizeCard()
+        Kind.SYMLINK, Kind.NAMED_PIPE -> null
+    }
+
+    private fun sizeOp(): SizeOp = sizeOpCombo.selectedItem as SizeOp
+
+    private fun sizeBytes(): Long? =
+        sizeMatcherBytes((sizeValueSpinner.value as Number).toLong(), sizeUnitCombo.selectedItem as String)
+
+    private fun sizeBytesMax(): Long? =
+        if (sizeOp() == SizeOp.BETWEEN) sizeMatcherBytes((sizeMaxSpinner.value as Number).toLong(), sizeMaxUnitCombo.selectedItem as String) else 0L
+
+    private fun validateSizeCard(): ValidationInfo? {
+        val bytes = sizeBytes()
+        val message = sizeRangeError(sizeOp(), bytes, sizeBytesMax()) ?: return null
+        val field = if (bytes == null) sizeValueSpinner.editorField() else sizeMaxSpinner.editorField()
+        return ValidationInfo(message, field)
     }
 
     override fun doOKAction() {
         result = when (kindCombo.selectedItem as Kind) {
-            Kind.SIZE -> {
-                val op = sizeOpCombo.selectedItem as SizeOp
-                val bytes = (sizeValueSpinner.value as Number).toLong() * SizeUnits.multiplier(sizeUnitCombo.selectedItem as String)
-                val bytesMax = if (op == SizeOp.BETWEEN) {
-                    (sizeMaxSpinner.value as Number).toLong() * SizeUnits.multiplier(sizeMaxUnitCombo.selectedItem as String)
-                } else 0L
-                RuleMatcher.Size(op = op, bytes = bytes, bytesMax = bytesMax)
-            }
+            Kind.SIZE -> RuleMatcher.Size(op = sizeOp(), bytes = sizeBytes() ?: return, bytesMax = sizeBytesMax() ?: return)
             Kind.NAME -> RuleMatcher.Name(
                 kind = nameKindCombo.selectedItem as PatternKind,
                 pattern = namePatternField.text.trim(),
@@ -610,6 +619,21 @@ internal class ColorMatcherEditDialog(
             ValidationInfo("Invalid date, use YYYY-MM-DD", field)
         }
     }
+}
+
+internal fun sizeMatcherBytes(value: Long, unit: String): Long? =
+    try {
+        Math.multiplyExact(value, SizeUnits.multiplier(unit))
+    } catch (_: ArithmeticException) {
+        null
+    }
+
+internal fun sizeRangeError(op: SizeOp, bytes: Long?, bytesMax: Long?): String? = when {
+    bytes == null -> "Size is too large"
+    op != SizeOp.BETWEEN -> null
+    bytesMax == null -> "Upper bound is too large"
+    bytesMax < bytes -> "Upper bound is below the lower bound"
+    else -> null
 }
 
 internal fun RuleMatcher.describe(): String = when (this) {

@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Size color matcher rejects an inverted Between range and overflowing values
+
 ## [0.7.110] - 2026-11-07
 
 ### Fixed
