@@ -217,6 +217,25 @@ class FileOperationServiceProgressTest {
         )
     }
 
+    @Test
+    fun `invalidating a tree drops nested cached directories and keeps siblings`() {
+        val service = newService()
+        val root = Files.createTempDirectory("cache-tree-")
+        tempPaths.add(root)
+        val nested = Files.createDirectories(root.resolve("a").resolve("b"))
+        val sibling = Files.createTempDirectory("cache-tree-sibling-")
+        tempPaths.add(sibling)
+        seedListingCache(service, root)
+        seedListingCache(service, nested)
+        seedListingCache(service, sibling)
+
+        service.invalidateListingCacheUnder(root)
+
+        assertFalse(service.isListingCached(root))
+        assertFalse(service.isListingCached(nested))
+        assertTrue(service.isListingCached(sibling))
+    }
+
     private fun seedListingCache(service: FileOperationService, dir: Path) {
         val cacheField = FileOperationService::class.java.getDeclaredField("listingCache")
         cacheField.isAccessible = true

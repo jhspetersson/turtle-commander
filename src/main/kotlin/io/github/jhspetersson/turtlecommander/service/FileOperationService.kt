@@ -333,6 +333,14 @@ class FileOperationService(
         }
     }
 
+    internal fun invalidateListingCacheUnder(root: Path) {
+        val prefix = root.toAbsolutePath().normalize()
+        synchronized(listingCache) {
+            listingCache.keys.removeIf { runCatching { it.toAbsolutePath().normalize().startsWith(prefix) }.getOrDefault(false) }
+            listingEpoch++
+        }
+    }
+
     fun clearListingCache() {
         synchronized(listingCache) {
             listingCache.clear()
@@ -509,31 +517,7 @@ class FileOperationService(
                 onError(source, e)
             }
         }
-        invalidateDestinationTree(destination, sources)
-    }
-
-    /**
-     * Invalidate the listing cache for [destination] and every nested directory the
-     * copy actually wrote into. Without this, a tab viewing a sub-directory of the
-     * destination keeps serving the pre-copy listing.
-     */
-    private fun invalidateDestinationTree(destination: Path, sources: List<Path>) {
-        invalidateListingCache(destination)
-        for (source in sources) {
-            if (!source.isDirectory()) continue
-            val target = destination.resolve(source.name)
-            if (!target.isDirectory()) continue
-            try {
-                walkFileTree(target, object : SimpleFileVisitor<Path>() {
-                    override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
-                        invalidateListingCache(dir)
-                        return FileVisitResult.CONTINUE
-                    }
-                })
-            } catch (e: Exception) {
-                thisLogger().debug("Failed to walk $target for cache invalidation: ${e.message}")
-            }
-        }
+        invalidateListingCacheUnder(destination)
     }
 
     /**
@@ -682,7 +666,7 @@ class FileOperationService(
                 onError(source, e)
             }
         }
-        invalidateDestinationTree(destination, sources)
+        invalidateListingCacheUnder(destination)
         sources.mapNotNull { it.parent }.toSet().forEach { invalidateListingCache(it) }
     }
 
