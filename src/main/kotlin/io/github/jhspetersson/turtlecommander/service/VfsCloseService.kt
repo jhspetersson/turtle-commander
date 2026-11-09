@@ -1,7 +1,10 @@
 package io.github.jhspetersson.turtlecommander.service
 
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
+import io.github.jhspetersson.turtlecommander.action.FileCopyBuffer
 import io.github.jhspetersson.turtlecommander.vfs.SharedVfsRegistry
 import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
 import kotlinx.coroutines.CoroutineScope
@@ -38,5 +41,7 @@ internal class VfsCloseService(private val cs: CoroutineScope) {
             }
             entry.cleanupTempFile()
         }
+        val closed = entries.map { it.vfs }
+        ApplicationManager.getApplication()?.invokeLater({ FileCopyBuffer.dropEntriesOwnedBy(closed) }, ModalityState.any())
     }
 }

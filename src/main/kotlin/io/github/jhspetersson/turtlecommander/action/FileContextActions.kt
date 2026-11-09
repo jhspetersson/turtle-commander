@@ -14,6 +14,8 @@ import io.github.jhspetersson.turtlecommander.operation.ExecutableFile
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.ui.*
 import com.intellij.ide.actions.RevealFileAction
+import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
+import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
 import java.nio.file.Path
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.util.SystemInfo
@@ -70,6 +72,13 @@ object FileCopyBuffer {
 
     fun addChangeListener(listener: () -> Unit) {
         listeners.add(listener)
+    }
+
+    fun dropEntriesOwnedBy(closed: Collection<VirtualFileSystem>) {
+        val remaining = entries.filterNot { entry ->
+            closed.any { it.owns(entry.path) } && !OpenVfsRegistry.isInsideVfs(entry.path)
+        }
+        if (remaining.size != entries.size) entries = remaining
     }
 }
 

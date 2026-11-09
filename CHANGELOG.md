@@ -11,6 +11,7 @@
 - Settings page measures the thumbnail cache size off the UI thread
 - Deleting project files through the IDE refreshes each directory once instead of once per file
 - Copy and move no longer walk the whole destination tree to invalidate the listing cache
+- Closing an archive drops its files from the copy/cut buffer
 
 ## [0.7.110] - 2026-11-07
 
