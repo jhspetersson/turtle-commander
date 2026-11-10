@@ -54,6 +54,15 @@ private fun FileTab.notifyUnextractableEntries(vfs: VirtualFileSystem, fileName:
 }
 
 internal suspend fun FileTab.openVfs(entry: FileEntry, directory: String = "", selectName: String? = null) {
+    if (!vfsOpening.compareAndSet(false, true)) return
+    try {
+        openVfsExclusively(entry, directory, selectName)
+    } finally {
+        vfsOpening.set(false)
+    }
+}
+
+private suspend fun FileTab.openVfsExclusively(entry: FileEntry, directory: String, selectName: String?) {
     val archivePath = entry.path
     val fileName = archivePath.fileName?.toString() ?: "archive"
     withIndicatorProgress(project, "Opening $fileName…") { indicator ->
