@@ -233,6 +233,24 @@ class TarVirtualFileSystemTest {
     }
 
     @Test
+    fun `renaming a directory repacks the real bytes of its lazy children`() = runBlocking {
+        vfs.renameFile(vfs.root.resolve("mydir"), "renamed")
+        vfs.close()
+
+        vfs = TarVirtualFileSystem(
+            tarPath,
+            inputStreamFactory = { Files.newInputStream(it) },
+            outputStreamFactory = { Files.newOutputStream(it) },
+        )
+        val hello = vfs.root.resolve("renamed/hello.txt")
+        vfs.materialize(hello)
+        assertEquals("Hello from tar", Files.readString(hello))
+        val root = vfs.root.resolve("root.txt")
+        vfs.materialize(root)
+        assertEquals("Root file", Files.readString(root))
+    }
+
+    @Test
     fun `hard link entries resolve to real content at open`() = runBlocking {
         val linkTar = Files.createTempFile("tar-hardlink-", ".tar")
         try {

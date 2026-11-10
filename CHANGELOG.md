@@ -7,6 +7,7 @@
 ### Fixed
 
 - Search dialog rejects NaN, Infinity and overflowing size bounds instead of searching for "more than 0 B"
+- Renaming a directory inside a tar, pak or fallback zip no longer zero-fills its unopened files on repack
 
 ## [0.7.111] - 2026-11-09
 

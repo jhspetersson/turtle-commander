@@ -715,6 +715,7 @@ abstract class AbstractTempDirVirtualFileSystem(
         if (Files.exists(target, LinkOption.NOFOLLOW_LINKS) && !Files.isSameFile(source, target)) {
             throw FileAlreadyExistsException("Cannot rename to \"$newName\": entry already exists in archive")
         }
+        if (Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS)) materializeAll(regularFilesUnder(source))
         Files.move(source, target)
         onRenamed(source, target)
         repack(tempDir)
@@ -722,6 +723,10 @@ abstract class AbstractTempDirVirtualFileSystem(
         // would see the renamed entry as a change and repack (and re-extract) a second time.
         markClean()
         target
+    }
+
+    private fun regularFilesUnder(dir: Path): List<Path> = Files.walk(dir).use { stream ->
+        stream.filter { Files.isRegularFile(it, LinkOption.NOFOLLOW_LINKS) }.toList()
     }
 
     private fun markClean() {
