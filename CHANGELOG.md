@@ -12,6 +12,7 @@
 - A dangling symlink inside a tar, cpio or rpm no longer fails the open or leaks the temp directory
 - Multi-volume RAR archives list files from every volume and read them in any order
 - Copying a tree with a junction that points back into it reports the junction instead of recursing forever
+- Delete inside an archive is always permanent instead of failing to reach the Recycle Bin
 
 ## [0.7.111] - 2026-11-09
 

@@ -200,7 +200,7 @@ internal fun FileTab.performDelete(forcePermanent: Boolean = false) {
     // platform actually has a trash: otherwise the user must knowingly confirm a
     // permanent delete instead of getting the reversible one they asked for silently
     // downgraded.
-    val wantsRecycleBin = !forcePermanent && TurtleCommanderSettings.getInstance().state.deleteToRecycleBin
+    val wantsRecycleBin = recycleBinWanted(forcePermanent, currentVfs != null, TurtleCommanderSettings.getInstance().state.deleteToRecycleBin)
     val useRecycleBin = wantsRecycleBin && fileOps.isRecycleBinAvailable()
 
     // IDE's DeleteHandler performs a permanent delete with its own UX; we only hand off to it
@@ -1446,3 +1446,6 @@ internal fun resolveDestinationPath(input: String, base: Path): Path {
     }
     return base.resolve(path)
 }
+
+internal fun recycleBinWanted(forcePermanent: Boolean, insideArchive: Boolean, setting: Boolean): Boolean =
+    !forcePermanent && !insideArchive && setting
