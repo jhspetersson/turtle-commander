@@ -276,6 +276,43 @@ class TarVirtualFileSystemTest {
     }
 
     @Test
+    fun `dangling symlink entry does not prevent opening the archive`() = runBlocking {
+        vfs.close()
+        val withLink = Files.createTempFile("test-dangling-link-", ".tar")
+        try {
+            TarArchiveOutputStream(Files.newOutputStream(withLink)).use { tar ->
+                val content = "regular".toByteArray()
+                val fileEntry = TarArchiveEntry("regular.txt")
+                fileEntry.size = content.size.toLong()
+                tar.putArchiveEntry(fileEntry)
+                tar.write(content)
+                tar.closeArchiveEntry()
+
+                val linkEntry = TarArchiveEntry("dangling", TarArchiveEntry.LF_SYMLINK)
+                linkEntry.linkName = "nowhere.txt"
+                tar.putArchiveEntry(linkEntry)
+                tar.closeArchiveEntry()
+            }
+
+            val opened = TarVirtualFileSystem(
+                withLink,
+                inputStreamFactory = { Files.newInputStream(it) },
+                outputStreamFactory = { Files.newOutputStream(it) },
+            )
+            opened.use { fs ->
+                val names = fs.listFiles(fs.root).filter { !it.isParentLink }.map { it.name }
+                assertTrue(names.toString(), "regular.txt" in names)
+                if (Files.isSymbolicLink(fs.root.resolve("dangling"))) {
+                    assertTrue(names.toString(), "dangling" in names)
+                }
+            }
+        } finally {
+            Files.deleteIfExists(withLink)
+            vfs = TarVirtualFileSystem(tarPath, inputStreamFactory = { Files.newInputStream(it) }, outputStreamFactory = { Files.newOutputStream(it) })
+        }
+    }
+
+    @Test
     fun `hard link entries resolve to real content at open`() = runBlocking {
         val linkTar = Files.createTempFile("tar-hardlink-", ".tar")
         try {

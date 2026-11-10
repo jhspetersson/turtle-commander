@@ -270,7 +270,8 @@ internal fun readDirectoryEntries(
     Files.newDirectoryStream(directory).use { stream ->
         for (entry in stream) {
             try {
-                val attrs = Files.readAttributes(entry, BasicFileAttributes::class.java)
+                val attrs = runCatching { Files.readAttributes(entry, BasicFileAttributes::class.java) }
+                    .getOrElse { Files.readAttributes(entry, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS) }
                 val meta = metadataFor(entry)
                 val fileEntry = FileEntry(
                     name = entry.fileName.toString(),
@@ -282,6 +283,8 @@ internal fun readDirectoryEntries(
                     owner = meta?.owner ?: "",
                     group = meta?.group ?: "",
                     permissions = meta?.permissions ?: "",
+                    isSymbolicLink = attrs.isSymbolicLink,
+                    isBrokenSymlink = attrs.isSymbolicLink,
                 )
                 if (attrs.isDirectory) dirs.add(fileEntry) else files.add(fileEntry)
             } catch (e: Exception) {
@@ -628,12 +631,12 @@ abstract class AbstractTempDirVirtualFileSystem(
         unextractable.clear()
         try {
             extract(dir)
+            tempDir = dir
+            cleanFingerprint = computeFingerprint()
         } catch (e: Throwable) {
             TempRootLocks.discard(dir)
             throw e
         }
-        tempDir = dir
-        cleanFingerprint = computeFingerprint()
         cleanArchiveSignature = signature
         // Register only after the temp dir is fully populated (or stub-populated) so
         // materializeIfNeeded never dispatches to a half-initialised VFS. The matching
@@ -659,7 +662,7 @@ abstract class AbstractTempDirVirtualFileSystem(
     private fun computeFingerprint(): Long {
         var h = 1125899906842597L
         forEachArchiveEntry(tempDir) { path, relativeName ->
-            val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
+            val attrs = Files.readAttributes(path, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
             h = h * 31 + relativeName.hashCode()
             if (attrs.isDirectory) {
                 // Directories contribute by name only: their mtime changes whenever a

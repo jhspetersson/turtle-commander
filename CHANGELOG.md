@@ -9,6 +9,7 @@
 - Search dialog rejects NaN, Infinity and overflowing size bounds instead of searching for "more than 0 B"
 - Renaming a directory inside a tar, pak or fallback zip no longer zero-fills its unopened files on repack
 - Renaming a file to the same name with different case works on Windows and macOS, locally and inside archives
+- A dangling symlink inside a tar, cpio or rpm no longer fails the open or leaks the temp directory
 
 ## [0.7.111] - 2026-11-09
 
