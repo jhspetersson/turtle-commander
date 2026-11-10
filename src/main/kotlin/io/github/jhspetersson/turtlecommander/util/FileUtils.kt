@@ -12,6 +12,11 @@ import java.nio.file.attribute.PosixFileAttributeView
 import java.nio.file.attribute.PosixFilePermissions
 import java.util.Locale
 
+internal fun renameInPlace(source: Path, target: Path): Path {
+    val sameEntry = Files.exists(target, LinkOption.NOFOLLOW_LINKS) && Files.isSameFile(source, target)
+    return if (sameEntry) Files.move(source, target, StandardCopyOption.ATOMIC_MOVE) else Files.move(source, target)
+}
+
 suspend fun countFiles(sources: List<Path>): Int = withContext(Dispatchers.IO) {
     var count = 0
     for (source in sources) {

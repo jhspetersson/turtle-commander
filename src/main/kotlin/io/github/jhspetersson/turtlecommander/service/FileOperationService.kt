@@ -887,7 +887,7 @@ class FileOperationService(
     suspend fun renameFile(source: Path, newName: String): Path = withContext(Dispatchers.IO) {
         val parent = source.parent ?: throw IllegalArgumentException("Cannot rename a root path")
         val target = parent.resolve(newName)
-        val moved = Files.move(source, target)
+        val moved = renameInPlace(source, target)
         invalidateListingCache(parent)
         moved
     }

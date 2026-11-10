@@ -645,6 +645,17 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         assertEquals("content", Files.readString(result))
     }
 
+    fun testRenameFileChangingOnlyCase() = runBlocking {
+        val file = Files.writeString(tempDir.resolve("readme.txt"), "content")
+
+        val result = fileOps.renameFile(file, "README.txt")
+
+        val names = Files.list(tempDir).use { stream -> stream.map { it.fileName.toString() }.toList() }
+        assertEquals(listOf("README.txt"), names)
+        assertEquals("README.txt", result.fileName.toString())
+        assertEquals("content", Files.readString(result))
+    }
+
     fun testRenameDirectory() = runBlocking {
         val dir = Files.createDirectory(tempDir.resolve("oldDir"))
         Files.writeString(dir.resolve("child.txt"), "inside")

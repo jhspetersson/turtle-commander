@@ -251,6 +251,31 @@ class TarVirtualFileSystemTest {
     }
 
     @Test
+    fun `case-only rename keeps the entry under its new spelling`() = runBlocking {
+        vfs.materialize(vfs.root.resolve("root.txt"))
+        vfs.renameFile(vfs.root.resolve("root.txt"), "ROOT.txt")
+
+        val names = Files.list(vfs.root).use { stream -> stream.map { it.fileName.toString() }.toList() }
+        assertTrue(names.toString(), "ROOT.txt" in names)
+        assertFalse(names.toString(), "root.txt" in names)
+        vfs.close()
+
+        val reopened = TarVirtualFileSystem(
+            tarPath,
+            inputStreamFactory = { Files.newInputStream(it) },
+            outputStreamFactory = { Files.newOutputStream(it) },
+        )
+        reopened.use { fresh ->
+            val entries = fresh.listFiles(fresh.root).filter { !it.isParentLink }.map { it.name }
+            assertTrue(entries.toString(), "ROOT.txt" in entries)
+            val renamed = fresh.root.resolve("ROOT.txt")
+            fresh.materialize(renamed)
+            assertEquals("Root file", Files.readString(renamed))
+        }
+        vfs = TarVirtualFileSystem(tarPath, inputStreamFactory = { Files.newInputStream(it) }, outputStreamFactory = { Files.newOutputStream(it) })
+    }
+
+    @Test
     fun `hard link entries resolve to real content at open`() = runBlocking {
         val linkTar = Files.createTempFile("tar-hardlink-", ".tar")
         try {

@@ -6,6 +6,7 @@ import java.util.concurrent.CopyOnWriteArraySet
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.diagnostic.thisLogger
 import io.github.jhspetersson.turtlecommander.model.FileEntry
+import io.github.jhspetersson.turtlecommander.util.renameInPlace
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.Closeable
@@ -716,7 +717,7 @@ abstract class AbstractTempDirVirtualFileSystem(
             throw FileAlreadyExistsException("Cannot rename to \"$newName\": entry already exists in archive")
         }
         if (Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS)) materializeAll(regularFilesUnder(source))
-        Files.move(source, target)
+        renameInPlace(source, target)
         onRenamed(source, target)
         repack(tempDir)
         // The archive now matches the temp dir again; without this a following flush()
