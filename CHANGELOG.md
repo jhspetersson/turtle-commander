@@ -14,6 +14,7 @@
 - Copying a tree with a junction that points back into it reports the junction instead of recursing forever
 - Delete inside an archive is always permanent instead of failing to reach the Recycle Bin
 - Pressing Enter twice on a large archive while it opens no longer attaches it twice
+- New tab from inside an archive opens in the same archive directory instead of on the raw temp path
 
 ## [0.7.111] - 2026-11-09
 

@@ -395,13 +395,37 @@ class FileManagerPanel(
 
     fun openNewTab() {
         val currentTab = getActiveTab()
+        if (currentTab != null && openInsideArchiveInNewTab(currentTab, currentTab.currentPath, null)) return
         addNewTab(currentTab?.currentPath ?: initialPath)
         focusActiveTab()
     }
 
     fun openDirectoryInNewTab(path: Path, selectName: String? = null) {
+        val owner = archiveTabOwning(path)
+        if (owner != null && openInsideArchiveInNewTab(owner, path, selectName)) return
         addNewTab(path, selectName)
         focusActiveTab()
+    }
+
+    private fun archiveTabOwning(path: Path): FileTab? {
+        val panels = (listOfNotNull(stateService?.leftPanel, stateService?.rightPanel) + this).distinct()
+        return panels.flatMap { it.tabs() }.firstOrNull { tab -> tab.vfsStack.any { it.vfs.owns(path) } }
+    }
+
+    private fun openInsideArchiveInNewTab(owner: FileTab, path: Path, selectName: String?): Boolean {
+        val outer = owner.vfsStack.firstOrNull() ?: return false
+        val archivePath = outer.parentPath
+        val archiveName = archivePath.fileName?.toString()
+        if (owner.vfsStack.size == 1 && outer.vfs.owns(path)) {
+            val directory = vfsRelativePath(outer.vfs, path).replace('\\', '/')
+            addNewTab(archivePath.parent ?: archivePath, archiveName) { tab ->
+                tab.openArchive(archivePath, directory, selectName)
+            }
+        } else {
+            addNewTab(archivePath.parent ?: archivePath, selectName = archiveName)
+        }
+        focusActiveTab()
+        return true
     }
 
     fun openArchiveEntryInNewTab(archivePath: Path, entryPath: String, entryIsDirectory: Boolean) {
