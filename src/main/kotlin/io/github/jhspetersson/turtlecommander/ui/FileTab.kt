@@ -60,7 +60,7 @@ import java.awt.event.*
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.atomic.AtomicInteger
 import javax.swing.*
 import javax.swing.event.*
@@ -171,7 +171,7 @@ class FileTab(
         internal set
 
     internal val vfsStack = mutableListOf<VfsStackEntry>()
-    internal val vfsOpening = AtomicBoolean()
+    internal val vfsOpening = AtomicReference<Path?>()
 
     /**
      * Serializes VFS write-back work across [refresh], [refreshAfterVfsChange],

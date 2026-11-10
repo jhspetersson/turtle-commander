@@ -54,11 +54,13 @@ private fun FileTab.notifyUnextractableEntries(vfs: VirtualFileSystem, fileName:
 }
 
 internal suspend fun FileTab.openVfs(entry: FileEntry, directory: String = "", selectName: String? = null) {
-    if (!vfsOpening.compareAndSet(false, true)) return
+    val archivePath = entry.path
+    if (vfsStack.lastOrNull()?.parentPath == archivePath) return
+    if (!vfsOpening.compareAndSet(null, archivePath)) return
     try {
         openVfsExclusively(entry, directory, selectName)
     } finally {
-        vfsOpening.set(false)
+        vfsOpening.compareAndSet(archivePath, null)
     }
 }
 
@@ -83,6 +85,7 @@ private suspend fun FileTab.openVfsExclusively(entry: FileEntry, directory: Stri
                         return@withContext
                     }
                     attachSharedVfs(vfs, archivePath)
+                    vfsOpening.compareAndSet(archivePath, null)
                     notifyUnextractableEntries(vfs, fileName)
                     navigateTo(vfsDirectory(vfs, directory), selectName)
                 } else {
@@ -108,6 +111,7 @@ private suspend fun FileTab.openVfsExclusively(entry: FileEntry, directory: Stri
                             return@withContext
                         }
                         vfsStack.add(VfsStackEntry(vfs, archivePath, tempFile))
+                        vfsOpening.compareAndSet(archivePath, null)
                         notifyUnextractableEntries(vfs, fileName)
                         navigateTo(vfsDirectory(vfs, directory), selectName)
                     } catch (_: SilentVfsOpenException) {

@@ -9,6 +9,7 @@ import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
 import io.github.jhspetersson.turtlecommander.ui.FileTab
 import io.github.jhspetersson.turtlecommander.ui.enterVfs
+import java.io.ByteArrayOutputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.zip.ZipEntry
@@ -19,6 +20,7 @@ class DoubleArchiveOpenIntegrationTest : BasePlatformTestCase() {
     private lateinit var stateService: FileManagerStateService
     private lateinit var tempDir: Path
     private lateinit var zipPath: Path
+    private lateinit var nestedPath: Path
     private val parentDisposable = Disposer.newDisposable("turtle-test-double-archive-open")
 
     override fun setUp() {
@@ -34,6 +36,22 @@ class DoubleArchiveOpenIntegrationTest : BasePlatformTestCase() {
                 zos.closeEntry()
             }
         }
+        nestedPath = tempDir.resolve("nested.zip")
+        ZipOutputStream(Files.newOutputStream(nestedPath)).use { zos ->
+            zos.putNextEntry(ZipEntry("inner.zip"))
+            zos.write(zipBytes("old.txt"))
+            zos.closeEntry()
+        }
+    }
+
+    private fun zipBytes(name: String): ByteArray {
+        val out = ByteArrayOutputStream()
+        ZipOutputStream(out).use { zos ->
+            zos.putNextEntry(ZipEntry(name))
+            zos.write(byteArrayOf(1))
+            zos.closeEntry()
+        }
+        return out.toByteArray()
     }
 
     override fun tearDown() {
@@ -58,22 +76,59 @@ class DoubleArchiveOpenIntegrationTest : BasePlatformTestCase() {
     private fun tableNames(tab: FileTab): List<String> =
         (0 until tab.tableModel.rowCount).mapNotNull { tab.tableModel.getEntryAt(it)?.name }
 
-    fun testEnteringAnArchiveTwiceAttachesItOnce() {
+    private fun entryNamed(tab: FileTab, name: String) =
+        (0 until tab.tableModel.rowCount).mapNotNull { tab.tableModel.getEntryAt(it) }.first { it.name == name }
+
+    private fun settle() {
+        repeat(10) {
+            PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+            Thread.sleep(100)
+        }
+    }
+
+    private fun localTab(): FileTab {
         val panel = FileManagerPanel(project = project, initialPath = tempDir, otherPanelPathProvider = { tempDir })
         panel.parentDisposable = parentDisposable
         panel.restoreState(FileManagerStateService.PanelState(), stateService)
         val tab = panel.getActiveTab()!!
-        waitFor("archive listed") { "data.zip" in tableNames(tab) }
-        val entry = (0 until tab.tableModel.rowCount).mapNotNull { tab.tableModel.getEntryAt(it) }.first { it.name == "data.zip" }
+        waitFor("archives listed") { "data.zip" in tableNames(tab) && "nested.zip" in tableNames(tab) }
+        return tab
+    }
+
+    fun testEnteringAnArchiveTwiceAttachesItOnce() {
+        val tab = localTab()
+        val entry = entryNamed(tab, "data.zip")
 
         tab.enterVfs(entry)
         tab.enterVfs(entry)
 
         waitFor("archive opened") { tab.isInsideArchive && "dir1" in tableNames(tab) }
-        repeat(10) {
-            PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
-            Thread.sleep(100)
-        }
+        settle()
         assertEquals(1, tab.vfsStack.size)
+    }
+
+    fun testEnteringTheArchiveTheTabIsAlreadyInsideIsIgnored() {
+        val tab = localTab()
+        val entry = entryNamed(tab, "data.zip")
+
+        tab.enterVfs(entry)
+        waitFor("archive opened") { tab.isInsideArchive && "dir1" in tableNames(tab) }
+        settle()
+        tab.enterVfs(entry)
+        settle()
+
+        assertEquals(1, tab.vfsStack.size)
+        assertTrue("dir1" in tableNames(tab))
+    }
+
+    fun testNestedArchiveCanBeEnteredAsSoonAsTheOuterListingAppears() {
+        val tab = localTab()
+
+        tab.enterVfs(entryNamed(tab, "nested.zip"))
+        waitFor("outer archive listed") { tab.vfsStack.size == 1 && "inner.zip" in tableNames(tab) }
+        tab.enterVfs(entryNamed(tab, "inner.zip"))
+        Thread.sleep(500)
+
+        waitFor("nested archive opened") { tab.vfsStack.size == 2 && "old.txt" in tableNames(tab) }
     }
 }
