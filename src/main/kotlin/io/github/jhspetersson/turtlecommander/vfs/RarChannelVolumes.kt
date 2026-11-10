@@ -13,12 +13,19 @@ import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 
 internal class ChannelVolumeManager(private val firstVolume: Path) : VolumeManager {
-    override fun nextVolume(archive: Archive, lastVolume: Volume?): Volume {
+    override fun nextVolume(archive: Archive, lastVolume: Volume?): Volume? {
         if (lastVolume == null) return ChannelVolume(archive, firstVolume)
         val mainHeader = archive.mainHeader
         val oldNumbering = mainHeader != null && (!mainHeader.isNewNumbering || archive.isOldFormat)
         val last = (lastVolume as ChannelVolume).path.toAbsolutePath().toString()
-        return ChannelVolume(archive, Path.of(VolumeHelper.nextVolumeName(last, oldNumbering)))
+        val next = VolumeHelper.nextVolumeName(last, oldNumbering) ?: return null
+        return ChannelVolume(archive, Path.of(next))
+    }
+
+    fun volumeAt(archive: Archive, index: Int): ChannelVolume? {
+        var volume: Volume? = null
+        repeat(index + 1) { volume = nextVolume(archive, volume) ?: return null }
+        return volume as ChannelVolume
     }
 }
 

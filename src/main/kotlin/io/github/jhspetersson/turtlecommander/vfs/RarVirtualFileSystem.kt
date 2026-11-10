@@ -59,7 +59,7 @@ class RarVirtualFileSystem(
      * restores that exact mtime after streaming so a listing keeps showing the archived
      * date rather than the moment the user happened to read the file.
      */
-    private class PendingEntry(val header: FileHeader, val stubMtime: FileTime)
+    private class PendingEntry(val name: String, val volume: Int, val stubMtime: FileTime)
 
     /**
      * Map from stub path (normalised) to its pending record. Populated by [extract] and
@@ -77,6 +77,7 @@ class RarVirtualFileSystem(
      * whenever the temp dir was populated eagerly.
      */
     private var reader: Archive? = null
+    private var volumes: ChannelVolumeManager? = null
 
     init {
         openTempDir()
@@ -128,39 +129,53 @@ class RarVirtualFileSystem(
      * here on every other path, including any thrown exception.
      */
     private fun junrarExtract(into: Path, password: String?, progress: VfsOpenProgress) {
-        val archive = Archive(ChannelVolumeManager(archivePath), null, password)
+        val volumeManager = ChannelVolumeManager(archivePath)
+        val archive = Archive(volumeManager, null, password)
         var handedOver = false
         try {
             if (password == null && archive.isPasswordProtected) throw PasswordRequired()
-            val headers = archive.fileHeaders
-            val lazily = !isSolid(archive, headers)
-            for (header in headers) {
-                if (progress.isCancelled) break
-                if (password == null && header.isEncrypted) throw PasswordRequired()
-                val rawName = header.fileName ?: continue
-                progress.onEntry(0, 0, rawName)
-                val target = resolveEntryPath(into, rawName.replace('\\', '/')) ?: continue
-                if (header.isDirectory) {
-                    Files.createDirectories(target)
-                    continue
+            val lazily = !isSolid(archive, archive.fileHeaders)
+            var volume = 0
+            while (!progress.isCancelled) {
+                var index = 0
+                while (!progress.isCancelled) {
+                    ensureVolume(archive, volumeManager, volume)
+                    val header = archive.fileHeaders.getOrNull(index++) ?: break
+                    if (header.isSplitBefore) continue
+                    if (password == null && header.isEncrypted) throw PasswordRequired()
+                    val rawName = header.fileName ?: continue
+                    progress.onEntry(0, 0, rawName)
+                    val target = resolveEntryPath(into, rawName.replace('\\', '/')) ?: continue
+                    if (header.isDirectory) {
+                        Files.createDirectories(target)
+                        continue
+                    }
+                    target.parent?.let { Files.createDirectories(it) }
+                    if (lazily) {
+                        stubEntry(target, header, volume)
+                    } else {
+                        Files.newOutputStream(target).use { out -> archive.extractFile(header, out) }
+                        runCatching { header.lastModifiedTime?.let { Files.setLastModifiedTime(target, it) } }
+                    }
                 }
-                target.parent?.let { Files.createDirectories(it) }
-                if (lazily) {
-                    stubEntry(target, header)
-                } else {
-                    Files.newOutputStream(target).use { out -> archive.extractFile(header, out) }
-                    runCatching { header.lastModifiedTime?.let { Files.setLastModifiedTime(target, it) } }
-                }
+                val next = volumeManager.volumeAt(archive, volume + 1) ?: break
+                if (next.path == volumeManager.volumeAt(archive, volume)?.path || !Files.exists(next.path)) break
+                volume++
             }
             if (lazily) {
-                // Even a cancelled stub pass hands the handle over: the partial VFS is
-                // closed by the caller, and close() is what releases the archive.
                 reader = archive
+                volumes = volumeManager
                 handedOver = true
             }
         } finally {
             if (!handedOver) runCatching { archive.close() }
         }
+    }
+
+    private fun ensureVolume(archive: Archive, volumeManager: ChannelVolumeManager, index: Int) {
+        val wanted = volumeManager.volumeAt(archive, index) ?: return
+        val current = archive.volume as? ChannelVolume
+        if (current == null || current.path != wanted.path) archive.setVolume(wanted)
     }
 
     /**
@@ -175,11 +190,11 @@ class RarVirtualFileSystem(
     }
 
     /** Placeholder of the recorded size and date, registered for later [materialize]. */
-    private fun stubEntry(target: Path, header: FileHeader) {
+    private fun stubEntry(target: Path, header: FileHeader, volume: Int) {
         try {
             createSparseStub(target, header.fullUnpackSize)
             runCatching { header.lastModifiedTime?.let { Files.setLastModifiedTime(target, it) } }
-            pendingEntries[target.normalize()] = PendingEntry(header, Files.getLastModifiedTime(target))
+            pendingEntries[target.normalize()] = PendingEntry(header.fileName, volume, Files.getLastModifiedTime(target))
         } catch (e: Exception) {
             thisLogger().debug("Failed to stub rar entry: ${header.fileName}", e)
         }
@@ -197,13 +212,17 @@ class RarVirtualFileSystem(
         val normalized = path.normalize()
         val pending = pendingEntries[normalized] ?: return
         val archive = reader ?: return
+        val volumeManager = volumes ?: return
         try {
+            ensureVolume(archive, volumeManager, pending.volume)
+            val header = archive.fileHeaders.firstOrNull { !it.isSplitBefore && it.fileName == pending.name }
+                ?: throw IOException("Entry '${pending.name}' is missing from volume ${pending.volume + 1}")
             // Write into a sibling temp file then atomic-move, so a partial write never
             // leaves a half-streamed file at the canonical path. ATOMIC_MOVE within the
             // same temp dir is supported on every platform we run on.
             val tmp = Files.createTempFile(normalized.parent, ".tc-materializing-", ".tmp")
             try {
-                Files.newOutputStream(tmp).use { out -> archive.extractFile(pending.header, out) }
+                Files.newOutputStream(tmp).use { out -> archive.extractFile(header, out) }
                 Files.move(tmp, normalized, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
             } finally {
                 Files.deleteIfExists(tmp)
@@ -223,6 +242,7 @@ class RarVirtualFileSystem(
             thisLogger().debug("Failed to close RAR archive for $archivePath: ${e.message}")
         }
         reader = null
+        volumes = null
     }
 
     override fun close() {

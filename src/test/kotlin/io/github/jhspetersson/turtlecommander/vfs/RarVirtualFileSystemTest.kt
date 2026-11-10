@@ -49,6 +49,23 @@ class RarVirtualFileSystemTest {
     }
 
     @Test
+    fun `entries of every volume are listed and readable in any order`() {
+        val first = copyFixture("mv.part1.rar")
+        copyFixture("mv.part2.rar")
+        copyFixture("mv.part3.rar")
+        copyFixture("mv.part4.rar")
+        val expectedBig = String(CharArray(2500) { i -> 'A' + (i * 7) % 26 })
+        RarVirtualFileSystem(first).use { vfs ->
+            val names = runBlocking { vfs.listFiles(vfs.root) }.filter { !it.isParentLink }.map { it.name }.sorted()
+            assertEquals(listOf("a.txt", "big.txt", "z.txt"), names)
+            assertEquals(expectedBig, String(readEntry(vfs, "big.txt")))
+            assertEquals("a".repeat(200), String(readEntry(vfs, "a.txt")))
+            assertEquals("z".repeat(200), String(readEntry(vfs, "z.txt")))
+            assertEquals(expectedBig, String(readEntry(vfs, "big.txt")))
+        }
+    }
+
+    @Test
     fun `archive can be renamed and deleted while browsed`() {
         val rar = copyFixture("hello.rar")
         val moved = dir.resolve("moved.rar")
