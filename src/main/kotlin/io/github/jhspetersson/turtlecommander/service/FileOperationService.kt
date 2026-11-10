@@ -559,8 +559,10 @@ class FileOperationService(
         onOverwriteConfirm: suspend (Path) -> OverwriteResponse,
         onError: suspend (Path, Exception) -> Unit,
         isCancelled: () -> Boolean,
+        ancestors: List<Path> = emptyList(),
     ): Pair<Int, Boolean> {
         var copiedCount = startCount
+        val lineage = ancestors + listOf(source)
 
         try {
             // Tick progress only when the directory is actually created — when merging
@@ -586,9 +588,13 @@ class FileOperationService(
                     val entryTarget = target.resolve(entry.name)
                     val entryIsLink = Files.isSymbolicLink(entry)
                     if (entry.isDirectory() && !entryIsLink) {
+                        if (linksBackInto(entry, lineage)) {
+                            onError(entry, IOException("Cannot copy \"${entry.name}\": it links back into a directory being copied"))
+                            continue
+                        }
                         val (sub, cancelled) = copyDirectoryWithProgress(
                             entry, entryTarget, copiedCount, holder,
-                            onProgress, onOverwriteConfirm, onError, isCancelled,
+                            onProgress, onOverwriteConfirm, onError, isCancelled, lineage,
                         )
                         copiedCount = sub
                         if (cancelled) return copiedCount to true
@@ -1145,6 +1151,15 @@ class FileOperationService(
         } catch (_: IOException) {
             false
         }
+    }
+
+    private fun linksBackInto(dir: Path, lineage: List<Path>): Boolean {
+        val attrs = runCatching {
+            Files.readAttributes(dir, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+        }.getOrNull() ?: return false
+        if (!attrs.isOther) return false
+        val real = runCatching { dir.toRealPath() }.getOrNull() ?: return false
+        return lineage.any { ancestor -> runCatching { ancestor.toRealPath().startsWith(real) }.getOrDefault(false) }
     }
 
     private fun isTraversableDirectory(path: Path): Boolean {

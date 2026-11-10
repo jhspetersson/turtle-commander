@@ -11,6 +11,7 @@
 - Renaming a file to the same name with different case works on Windows and macOS, locally and inside archives
 - A dangling symlink inside a tar, cpio or rpm no longer fails the open or leaks the temp directory
 - Multi-volume RAR archives list files from every volume and read them in any order
+- Copying a tree with a junction that points back into it reports the junction instead of recursing forever
 
 ## [0.7.111] - 2026-11-09
 
