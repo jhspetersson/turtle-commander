@@ -43,6 +43,23 @@ class ArchiveServicePackZipTest {
         }
 
     @Test
+    fun `packs into a folder whose name ends with an exclamation mark`() {
+        val source = tempFile("pack-src-", ".txt", "hello")
+        val folder = Files.createTempDirectory("pack-dir-").resolve("bang!")
+        Files.createDirectory(folder)
+        tempFiles.add(folder.parent)
+        tempFiles.add(folder)
+        val archive = folder.resolve("out.zip")
+        tempFiles.add(archive)
+
+        val packed = pack(archive, listOf(source), append = false)
+
+        assertEquals(1, packed)
+        assertEquals(setOf(source.fileName.toString()), zipEntryNames(archive))
+        assertEquals(listOf(archive), Files.list(folder).use { it.toList() })
+    }
+
+    @Test
     fun `append creates the archive when the target vanished after the exists check`() {
         val source = tempFile("pack-src-", ".txt", "hello")
         val archive = tempFile("pack-", ".zip")

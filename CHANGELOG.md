@@ -7,6 +7,7 @@
 ### Fixed
 
 - Leaving the tree view in "show all nested files" mode no longer navigates into the selected file's directory
+- Packing a zip inside a folder whose name ends with "!" no longer fails or writes to the wrong path
 
 ## [0.7.112] - 2026-11-10
 

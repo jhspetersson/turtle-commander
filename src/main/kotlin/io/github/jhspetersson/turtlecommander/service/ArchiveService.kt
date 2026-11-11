@@ -18,7 +18,6 @@ import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStre
 import java.io.BufferedOutputStream
 import java.io.IOException
 import java.io.InputStream
-import java.net.URI
 import java.nio.file.*
 import java.nio.file.attribute.BasicFileAttributes
 import java.util.zip.GZIPOutputStream
@@ -67,7 +66,7 @@ class ArchiveService {
             // "packed" means. We count files only — directory entries are created implicitly by
             // walkFileTree and are not interesting to the user as progress ticks.
             var successCount = 0
-            FileSystems.newFileSystem(URI.create("jar:" + staged.toUri()), mapOf("create" to "true", "useTempFile" to "true")).use { zipFs ->
+            FileSystems.newFileSystem(staged, mapOf("create" to "true", "useTempFile" to "true")).use { zipFs ->
                 for (source in sourcePaths) {
                     if (isCancelled()) break
                     if (Files.isDirectory(source)) {
