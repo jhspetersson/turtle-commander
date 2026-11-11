@@ -4,6 +4,7 @@ import java.nio.file.FileSystems
 import java.nio.file.InvalidPathException
 import java.nio.file.Path
 import java.nio.file.PathMatcher
+import java.util.regex.PatternSyntaxException
 
 class FileNameGlobMatcher(val glob: String) {
     private val pathMatcher: PathMatcher = FileSystems.getDefault().getPathMatcher("glob:$glob")
@@ -20,7 +21,7 @@ private val defaultFileSystemIgnoresCase: Boolean by lazy {
     FileSystems.getDefault().getPathMatcher("glob:A").matches(Path.of("a"))
 }
 
-internal fun globToRegex(glob: String): Regex {
+internal fun globToRegex(glob: String, ignoreCase: Boolean = defaultFileSystemIgnoresCase): Regex {
     val sb = StringBuilder()
     var inGroup = false
     var i = 0
@@ -58,12 +59,17 @@ internal fun globToRegex(glob: String): Regex {
                         sb.append('-')
                     }
                 }
+                var closed = false
                 while (i < glob.length) {
                     val ch = glob[i++]
-                    if (ch == ']') break
+                    if (ch == ']') {
+                        closed = true
+                        break
+                    }
                     if (ch == '\\' || ch == '[' || (ch == '&' && peek() == '&')) sb.append('\\')
                     sb.append(ch)
                 }
+                if (!closed) throw PatternSyntaxException("Missing ']'", glob, i - 1)
                 sb.append("]]")
             }
             '{' -> {
@@ -80,7 +86,8 @@ internal fun globToRegex(glob: String): Regex {
             else -> appendLiteral(sb, c)
         }
     }
-    val options = if (defaultFileSystemIgnoresCase) setOf(RegexOption.IGNORE_CASE) else emptySet()
+    if (inGroup) throw PatternSyntaxException("Missing '}'", glob, i - 1)
+    val options = if (ignoreCase) setOf(RegexOption.IGNORE_CASE) else emptySet()
     return Regex(sb.toString(), options)
 }
 

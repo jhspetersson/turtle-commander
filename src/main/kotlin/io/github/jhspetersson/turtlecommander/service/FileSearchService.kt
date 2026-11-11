@@ -8,6 +8,7 @@ import io.github.jhspetersson.turtlecommander.util.readFileGroup
 import io.github.jhspetersson.turtlecommander.util.readFileOwner
 import io.github.jhspetersson.turtlecommander.util.readFilePermissionFlags
 import io.github.jhspetersson.turtlecommander.util.readFilePermissions
+import io.github.jhspetersson.turtlecommander.util.globToRegex
 import io.github.jhspetersson.turtlecommander.util.wrapAsSubstringGlobIfPlain
 import io.github.jhspetersson.turtlecommander.dialog.DateFilterMode
 import io.github.jhspetersson.turtlecommander.dialog.DateFilter
@@ -25,7 +26,6 @@ import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 import java.io.BufferedReader
 import java.io.IOException
 import java.nio.charset.MalformedInputException
-import java.nio.file.FileSystems
 import java.nio.file.FileVisitResult
 import java.nio.file.FileVisitor
 import java.nio.file.SimpleFileVisitor
@@ -35,7 +35,7 @@ import java.nio.file.attribute.BasicFileAttributes
 import kotlin.math.abs
 
 
-class FileSearchService(
+open class FileSearchService(
     private val criteria: FileSearchCriteria,
     private val isWindows: Boolean = SystemInfo.isWindows,
     private val ownerReader: (Path) -> String = ::readFileOwner,
@@ -47,39 +47,12 @@ class FileSearchService(
 
     class InvalidPatternException(message: String, cause: Throwable) : Exception(message, cause)
 
-    fun search(
+    open fun search(
         onResult: (FileEntry) -> Unit,
         isCancelled: () -> Boolean,
         onProgress: (scannedCount: Int, currentDir: String) -> Unit,
     ) {
-        val nameMatcher: ((String) -> Boolean)? = criteria.namePattern?.let { pattern ->
-            when (criteria.namePatternMode) {
-                NamePatternMode.GLOB -> {
-                    val wrappedPattern = wrapAsSubstringGlobIfPlain(pattern)
-                    val effectivePattern = if (criteria.caseSensitive) wrappedPattern else wrappedPattern.lowercase()
-                    val pathMatcher = try {
-                        FileSystems.getDefault().getPathMatcher("glob:$effectivePattern")
-                    } catch (e: Exception) {
-                        throw InvalidPatternException("Invalid glob pattern: $pattern", e)
-                    }
-                    val fn: (String) -> Boolean = { name ->
-                        val effectiveName = if (criteria.caseSensitive) name else name.lowercase()
-                        pathMatcher.matches(Path.of(effectiveName))
-                    }
-                    fn
-                }
-                NamePatternMode.REGEXP -> {
-                    val options = if (criteria.caseSensitive) emptySet() else setOf(RegexOption.IGNORE_CASE)
-                    val re = try {
-                        pattern.toRegex(options)
-                    } catch (e: Exception) {
-                        throw InvalidPatternException("Invalid regex pattern: $pattern", e)
-                    }
-                    val fn: (String) -> Boolean = { name -> re.containsMatchIn(name) }
-                    fn
-                }
-            }
-        }
+        val nameMatcher = compileNameMatcher(criteria)
 
         var scannedCount = 0
         val start = resolveWalkRoot(criteria.rootPath)
@@ -325,5 +298,29 @@ class FileSearchService(
 
     private companion object {
         const val CANCEL_CHECK_LINES = 256
+    }
+}
+
+internal fun compileNameMatcher(criteria: FileSearchCriteria): ((String) -> Boolean)? = criteria.namePattern?.let { pattern ->
+    when (criteria.namePatternMode) {
+        NamePatternMode.GLOB -> {
+            val regex = try {
+                globToRegex(wrapAsSubstringGlobIfPlain(pattern), ignoreCase = !criteria.caseSensitive)
+            } catch (e: Exception) {
+                throw FileSearchService.InvalidPatternException("Invalid glob pattern: $pattern", e)
+            }
+            val fn: (String) -> Boolean = { name -> regex.matches(name) }
+            fn
+        }
+        NamePatternMode.REGEXP -> {
+            val options = if (criteria.caseSensitive) emptySet() else setOf(RegexOption.IGNORE_CASE)
+            val re = try {
+                pattern.toRegex(options)
+            } catch (e: Exception) {
+                throw FileSearchService.InvalidPatternException("Invalid regex pattern: $pattern", e)
+            }
+            val fn: (String) -> Boolean = { name -> re.containsMatchIn(name) }
+            fn
+        }
     }
 }

@@ -343,6 +343,44 @@ class FileSearchFilterTest {
     }
 
     @Test
+    fun `case-sensitive glob does not match a differently cased name`() {
+        val dir = createTempDir()
+        Files.write(dir.resolve("README.md"), ByteArray(0))
+        Files.write(dir.resolve("readme.txt"), ByteArray(0))
+
+        val criteria = FileSearchCriteria(
+            rootPath = dir,
+            namePattern = "readme*",
+            namePatternMode = NamePatternMode.GLOB,
+            caseSensitive = true,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+        )
+
+        val results = search(criteria)
+        assertEquals(listOf("readme.txt"), results.map { it.name })
+    }
+
+    @Test
+    fun `glob name matcher accepts names that are not valid local paths`() {
+        val criteria = FileSearchCriteria(
+            rootPath = Path.of("."),
+            namePattern = "*.txt",
+            namePatternMode = NamePatternMode.GLOB,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+        )
+
+        val matcher = compileNameMatcher(criteria)!!
+
+        assertTrue(matcher("a:b.txt"))
+        assertTrue(matcher("what?.TXT"))
+        assertFalse(matcher("a:b.md"))
+    }
+
+    @Test
     fun `regexp pattern is case-insensitive by default`() {
         val dir = createTempDir()
         Files.write(dir.resolve("Data_2024.csv"), ByteArray(0))

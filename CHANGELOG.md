@@ -8,6 +8,7 @@
 
 - Leaving the tree view in "show all nested files" mode no longer navigates into the selected file's directory
 - Packing a zip inside a folder whose name ends with "!" no longer fails or writes to the wrong path
+- "Case sensitive" glob search is honored on Windows, and archive entries with characters like ":" in their names no longer abort the search
 
 ## [0.7.112] - 2026-11-10
 
