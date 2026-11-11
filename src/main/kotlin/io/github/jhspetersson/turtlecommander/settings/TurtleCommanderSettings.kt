@@ -202,6 +202,17 @@ class StyleSet {
         columnHeaderStyle = ComponentStyle()
     }
 
+    fun copy(): StyleSet = StyleSet().also { c ->
+        c.panelStyle = ComponentStyle().apply { copyFrom(panelStyle) }
+        c.tabStyle = ComponentStyle().apply { copyFrom(tabStyle) }
+        c.pathBarStyle = ComponentStyle().apply { copyFrom(pathBarStyle) }
+        c.statusBarStyle = ComponentStyle().apply { copyFrom(statusBarStyle) }
+        c.commandBarStyle = ComponentStyle().apply { copyFrom(commandBarStyle) }
+        c.commandButtonStyle = ComponentStyle().apply { copyFrom(commandButtonStyle) }
+        c.driveSelectorStyle = ComponentStyle().apply { copyFrom(driveSelectorStyle) }
+        c.columnHeaderStyle = ComponentStyle().apply { copyFrom(columnHeaderStyle) }
+    }
+
     override fun equals(other: Any?): Boolean {
         return other is StyleSet && (panelStyle == other.panelStyle && tabStyle == other.tabStyle
                 && pathBarStyle == other.pathBarStyle && statusBarStyle == other.statusBarStyle

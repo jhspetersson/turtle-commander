@@ -421,6 +421,7 @@ object ThemeManager {
     }
 
     fun saveTheme(state: TurtleCommanderSettings.State, theme: Theme): SaveResult {
+        if (theme.name == Theme.DEFAULT.name) return SaveResult.Reserved
         val existingIdx = state.themes.indexOfFirst { it.name == theme.name }
         if (existingIdx >= 0) {
             state.themes[existingIdx] = SavedTheme.fromTheme(theme)
@@ -533,7 +534,7 @@ object ThemeManager {
         activeSelectedColor = props["$prefix.activeSelectedColor"] ?: "",
     )
 
-    enum class SaveResult { Saved, Replaced }
+    enum class SaveResult { Saved, Replaced, Reserved }
     enum class RenameResult { Success, Conflict, NotFound, InvalidName }
     enum class ImportResult { Imported, Replaced, Renamed }
 }

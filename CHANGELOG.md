@@ -11,6 +11,7 @@
 - "Case sensitive" glob search is honored on Windows, and archive entries with characters like ":" in their names no longer abort the search
 - A search that fails unexpectedly reports the error instead of staying at "Searching…"
 - Color rules with a "Contains" matcher list directories in the background instead of while painting rows
+- Theme Save, Rename, Delete, Import and Reset in Settings are only persisted on OK/Apply and undone by Cancel; "Default" cannot be overwritten
 
 ## [0.7.112] - 2026-11-10
 

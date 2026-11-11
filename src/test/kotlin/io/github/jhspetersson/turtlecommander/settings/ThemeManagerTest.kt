@@ -104,6 +104,14 @@ class ThemeManagerTest {
     }
 
     @Test
+    fun `saveTheme refuses the Default name`() {
+        state.themes.add(SavedTheme.fromTheme(Theme.DEFAULT))
+        val result = ThemeManager.saveTheme(state, customTheme("Default"))
+        assertEquals(ThemeManager.SaveResult.Reserved, result)
+        assertEquals(Theme.DEFAULT, state.themes.single().toTheme())
+    }
+
+    @Test
     fun `saveTheme replaces existing theme`() {
         ThemeManager.saveTheme(state, customTheme("My Theme", fg = "#111111"))
         val result = ThemeManager.saveTheme(state, customTheme("My Theme", fg = "#222222"))

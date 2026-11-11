@@ -65,6 +65,11 @@ class TurtleCommanderConfigurable @JvmOverloads constructor(
     private val styleEditors = mutableMapOf<String, ComponentStyleEditor>()
     private var themeCombo: ComboBox<Theme>? = null
     private var suppressThemeAction = false
+    private var previousTheme: Theme = Theme.DEFAULT
+    internal var themeDraft: ThemeDraft? = null
+
+    private fun themeState(): TurtleCommanderSettings.State =
+        (themeDraft ?: ThemeDraft(TurtleCommanderSettings.getInstance().state).also { themeDraft = it }).state
 
     override fun getDisplayName(): String = "Turtle Commander"
 
@@ -316,7 +321,7 @@ class TurtleCommanderConfigurable @JvmOverloads constructor(
 
     private fun applyThemeToEditors(theme: Theme, previousTheme: Theme = Theme.DEFAULT) {
         if (suppressThemeAction) return
-        val state = TurtleCommanderSettings.getInstance().state
+        val state = themeState()
         if (theme.name == Theme.DEFAULT.name) {
             // Restore pre-theme styles
             styleEditors["panel"]?.resetFrom(state.preThemeStyles.panelStyle)
@@ -372,7 +377,7 @@ class TurtleCommanderConfigurable @JvmOverloads constructor(
 
     private fun rebuildThemeCombo() {
         val combo = themeCombo ?: return
-        val state = TurtleCommanderSettings.getInstance().state
+        val state = themeState()
         val currentName = (combo.selectedItem as? Theme)?.name ?: Theme.DEFAULT.name
         val allThemes = ThemeManager.getAllThemes(state)
         suppressThemeAction = true
@@ -383,12 +388,12 @@ class TurtleCommanderConfigurable @JvmOverloads constructor(
     }
 
     private fun createAppearancePanel(editors: List<ComponentStyleEditor>): JPanel {
-        val state = TurtleCommanderSettings.getInstance().state
+        val state = themeState()
         val allThemes = ThemeManager.getAllThemes(state)
         val savedThemeName = state.themeName.ifEmpty { Theme.DEFAULT.name }
         val initialIndex = allThemes.indexOfFirst { it.name == savedThemeName }.coerceAtLeast(0)
 
-        var previousTheme: Theme = allThemes[initialIndex]
+        previousTheme = allThemes[initialIndex]
         val combo = ComboBox(DefaultComboBoxModel(allThemes.toTypedArray())).apply {
             selectedIndex = initialIndex
         }
@@ -431,7 +436,7 @@ class TurtleCommanderConfigurable @JvmOverloads constructor(
                 for (editor in styleEditors.values) {
                     editor.resetFrom(ComponentStyle())
                 }
-                val s = TurtleCommanderSettings.getInstance().state
+                val s = themeState()
                 s.preThemeStyles.reset()
                 // Re-seed initial themes if all were deleted
                 if (s.themes.isEmpty()) {
@@ -439,9 +444,8 @@ class TurtleCommanderConfigurable @JvmOverloads constructor(
                         s.themes.add(SavedTheme.fromTheme(theme))
                     }
                 }
-                suppressThemeAction = true
-                themeCombo?.selectedItem = Theme.DEFAULT
-                suppressThemeAction = false
+                rebuildThemeCombo()
+                selectThemeByName(Theme.DEFAULT.name)
             }
         }
 
@@ -570,9 +574,11 @@ class TurtleCommanderConfigurable @JvmOverloads constructor(
             Messages.showWarningDialog("Theme name cannot be empty.", "Save Theme")
             return
         }
-        val state = TurtleCommanderSettings.getInstance().state
         val theme = buildThemeFromEditors(name)
-        ThemeManager.saveTheme(state, theme)
+        if (ThemeManager.saveTheme(themeState(), theme) == ThemeManager.SaveResult.Reserved) {
+            Messages.showWarningDialog("The name \"${Theme.DEFAULT.name}\" is reserved for the built-in theme.", "Save Theme")
+            return
+        }
         rebuildThemeCombo()
         selectThemeByName(name)
     }
@@ -590,7 +596,7 @@ class TurtleCommanderConfigurable @JvmOverloads constructor(
             Messages.showWarningDialog("Theme name cannot be empty.", "Rename Theme")
             return
         }
-        val state = TurtleCommanderSettings.getInstance().state
+        val state = themeState()
         when (ThemeManager.renameTheme(state, current.name, newName)) {
             ThemeManager.RenameResult.Success -> {
                 rebuildThemeCombo()
@@ -618,7 +624,7 @@ class TurtleCommanderConfigurable @JvmOverloads constructor(
             "Delete theme \"${current.name}\"?", "Delete Theme", null
         )
         if (confirm != Messages.YES) return
-        val state = TurtleCommanderSettings.getInstance().state
+        val state = themeState()
         ThemeManager.deleteTheme(state, current.name)
         rebuildThemeCombo()
     }
@@ -645,7 +651,7 @@ class TurtleCommanderConfigurable @JvmOverloads constructor(
             Messages.showWarningDialog("Invalid theme file.", "Import Theme")
             return
         }
-        val state = TurtleCommanderSettings.getInstance().state
+        val state = themeState()
         val allNames = ThemeManager.getAllThemes(state).map { it.name }.toSet()
         val overwrite = if (theme.name in allNames) {
             val choice = Messages.showYesNoCancelDialog(
@@ -662,24 +668,27 @@ class TurtleCommanderConfigurable @JvmOverloads constructor(
         }
         val (result, effectiveName) = ThemeManager.importThemeToState(state, theme, overwrite)
         val importedTheme = if (result == ThemeManager.ImportResult.Renamed) theme.copy(name = effectiveName) else theme
+        val previous = previousTheme
         rebuildThemeCombo()
         selectThemeByName(effectiveName)
-        applyThemeToEditors(importedTheme)
+        applyThemeToEditors(importedTheme, previous)
         if (result == ThemeManager.ImportResult.Renamed) {
             Messages.showInfoMessage("Theme imported as \"$effectiveName\" to avoid name conflict.", "Import Theme")
         }
     }
 
-    private fun selectThemeByName(name: String) {
-        val combo = themeCombo ?: return
+    private fun selectThemeByName(name: String): Boolean {
+        val combo = themeCombo ?: return false
         for (i in 0 until combo.itemCount) {
             if (combo.getItemAt(i).name == name) {
                 suppressThemeAction = true
                 combo.selectedIndex = i
                 suppressThemeAction = false
-                return
+                previousTheme = combo.getItemAt(i)
+                return true
             }
         }
+        return false
     }
 
     override fun isModified(): Boolean {
@@ -711,6 +720,7 @@ class TurtleCommanderConfigurable @JvmOverloads constructor(
             || styleEditors["driveSelector"]?.isModified(settings.styles.driveSelectorStyle) == true
             || styleEditors["columnHeader"]?.isModified(settings.styles.columnHeaderStyle) == true
             || getSelectedThemeName() != settings.themeName.ifEmpty { Theme.DEFAULT.name }
+            || themeDraft?.isModified(settings) == true
             || columnsEditor?.isModified(TurtleCommanderSettings.getInstance().getEffectiveColumns()) == true
             || favoritesEditor?.isModified() == true
             || colorRulesEditor?.isModified() == true
@@ -751,6 +761,7 @@ class TurtleCommanderConfigurable @JvmOverloads constructor(
         styleEditors["driveSelector"]?.applyTo(settings.styles.driveSelectorStyle)
         styleEditors["columnHeader"]?.applyTo(settings.styles.columnHeaderStyle)
 
+        themeDraft?.applyTo(settings)
         settings.themeName = getSelectedThemeName()
 
         columnsEditor?.applyTo(settings)
@@ -803,12 +814,9 @@ class TurtleCommanderConfigurable @JvmOverloads constructor(
         styleEditors["driveSelector"]?.resetFrom(settings.styles.driveSelectorStyle)
         styleEditors["columnHeader"]?.resetFrom(settings.styles.columnHeaderStyle)
 
+        themeDraft = ThemeDraft(settings)
         rebuildThemeCombo()
-        val allThemes = ThemeManager.getAllThemes(settings)
-        val themeIdx = allThemes.indexOfFirst { it.name == settings.themeName.ifEmpty { Theme.DEFAULT.name } }.coerceAtLeast(0)
-        suppressThemeAction = true
-        themeCombo?.selectedIndex = themeIdx
-        suppressThemeAction = false
+        if (!selectThemeByName(settings.themeName.ifEmpty { Theme.DEFAULT.name })) selectThemeByName(Theme.DEFAULT.name)
 
         columnsEditor?.resetFrom(TurtleCommanderSettings.getInstance().getEffectiveColumns())
         favoritesEditor?.reset()
@@ -849,6 +857,7 @@ class TurtleCommanderConfigurable @JvmOverloads constructor(
         favoritesEditor = null
         colorRulesEditor = null
         themeCombo = null
+        themeDraft = null
         suppressThemeAction = false
         styleEditors.clear()
     }
