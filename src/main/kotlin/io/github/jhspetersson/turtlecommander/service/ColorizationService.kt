@@ -1,11 +1,16 @@
 package io.github.jhspetersson.turtlecommander.service
 
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.components.Service
+import com.intellij.openapi.util.Disposer
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.settings.*
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.io.path.name
 
 /**
@@ -32,6 +37,12 @@ class ColorizationResolver {
             null
         }
     }
+
+    internal var loadAsync: (Runnable) -> Unit = { it.run() }
+
+    internal var onChildrenLoaded: (Path) -> Unit = {}
+
+    private val pendingLoads: MutableSet<Path> = ConcurrentHashMap.newKeySet()
 
     private data class CachedChildren(val names: List<String>, val timestamp: Long)
 
@@ -68,20 +79,29 @@ class ColorizationResolver {
         clock() - entry.timestamp <= CACHE_TTL_MS
     }
 
+    private fun cachedNames(path: Path): List<String>? = synchronized(childCache) {
+        val cached = childCache[path] ?: return@synchronized null
+        if (clock() - cached.timestamp <= CACHE_TTL_MS) cached.names else null
+    }
+
     private fun cachingEvaluator(): ContainsEvaluator = ContainsEvaluator { entry ->
         if (!entry.isDirectory) return@ContainsEvaluator null
         val path = entry.path
-        synchronized(childCache) {
-            val cached = childCache[path]
-            if (cached != null && clock() - cached.timestamp <= CACHE_TTL_MS) {
-                return@ContainsEvaluator cached.names
+        cachedNames(path)?.let { return@ContainsEvaluator it }
+        if (pendingLoads.add(path)) {
+            loadAsync {
+                try {
+                    val names = readChildNames(path)
+                    if (names != null) {
+                        synchronized(childCache) { childCache[path] = CachedChildren(names, clock()) }
+                    }
+                } finally {
+                    pendingLoads.remove(path)
+                }
+                onChildrenLoaded(path)
             }
         }
-        val names = readChildNames(path) ?: return@ContainsEvaluator null
-        synchronized(childCache) {
-            childCache[path] = CachedChildren(names, clock())
-        }
-        names
+        cachedNames(path)
     }
 
     companion object {
@@ -102,7 +122,22 @@ class ColorizationResolver {
 @Service(Service.Level.APP)
 class ColorizationService {
 
-    private val resolver = ColorizationResolver()
+    private val resolver = ColorizationResolver().apply {
+        loadAsync = { ApplicationManager.getApplication().executeOnPooledThread(it) }
+        onChildrenLoaded = { fireChildrenLoaded() }
+    }
+
+    private val childrenLoadedListeners = CopyOnWriteArrayList<() -> Unit>()
+
+    fun addChildrenLoadedListener(parent: Disposable, listener: () -> Unit) {
+        childrenLoadedListeners.add(listener)
+        Disposer.register(parent) { childrenLoadedListeners.remove(listener) }
+    }
+
+    private fun fireChildrenLoaded() {
+        if (childrenLoadedListeners.isEmpty()) return
+        ApplicationManager.getApplication().invokeLater({ childrenLoadedListeners.forEach { it() } }, ModalityState.any())
+    }
 
     private data class Snapshot(
         val enabled: Boolean,

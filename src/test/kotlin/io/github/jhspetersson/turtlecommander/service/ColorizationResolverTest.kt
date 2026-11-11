@@ -191,6 +191,51 @@ class ColorizationResolverTest {
     }
 
     @Test
+    fun `child listing is read through the installed loader instead of on the calling thread`() {
+        val resolver = ColorizationResolver()
+        val queued = mutableListOf<Runnable>()
+        resolver.loadAsync = { queued.add(it) }
+        val calls = AtomicInteger()
+        resolver.readChildNames = { _ ->
+            calls.incrementAndGet()
+            listOf(".git")
+        }
+        val loaded = mutableListOf<Path>()
+        resolver.onChildrenLoaded = { loaded.add(it) }
+        val entry = dirEntry(Paths.get("repo"))
+
+        val first = resolver.resolve(entry, listOf(gitRule), ColorizationMode.WINNER, enabled = true)
+        resolver.resolve(entry, listOf(gitRule), ColorizationMode.WINNER, enabled = true)
+
+        assertTrue(first.isEmpty())
+        assertEquals(0, calls.get())
+        assertEquals(1, queued.size)
+
+        queued.single().run()
+
+        assertEquals(1, calls.get())
+        assertEquals(listOf(entry.path), loaded)
+        assertEquals("#AAA", resolver.resolve(entry, listOf(gitRule), ColorizationMode.WINNER, enabled = true).fontColor)
+        assertEquals(1, queued.size)
+    }
+
+    @Test
+    fun `a failed listing can be retried after the loader finishes`() {
+        val resolver = ColorizationResolver()
+        val queued = mutableListOf<Runnable>()
+        resolver.loadAsync = { queued.add(it) }
+        resolver.readChildNames = { _ -> null }
+        val entry = dirEntry(Paths.get("broken"))
+
+        resolver.resolve(entry, listOf(gitRule), ColorizationMode.WINNER, enabled = true)
+        queued.single().run()
+        resolver.resolve(entry, listOf(gitRule), ColorizationMode.WINNER, enabled = true)
+
+        assertEquals(2, queued.size)
+        assertFalse(resolver.isCached(entry.path))
+    }
+
+    @Test
     fun `resolve with contains returns style on match`() {
         val resolver = ColorizationResolver()
         resolver.readChildNames = { _ -> listOf(".git", "src") }

@@ -19,6 +19,7 @@ import com.intellij.ui.content.ContentFactory
 import io.github.jhspetersson.turtlecommander.action.FileCopyBuffer
 import io.github.jhspetersson.turtlecommander.service.FavoritesChangeListener
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
+import io.github.jhspetersson.turtlecommander.service.ColorizationService
 import io.github.jhspetersson.turtlecommander.service.FileOperationService
 import io.github.jhspetersson.turtlecommander.service.ThumbnailCache
 import io.github.jhspetersson.turtlecommander.settings.ComponentStyle
@@ -212,6 +213,11 @@ class FileManagerToolWindowFactory : ToolWindowFactory, DumbAware {
                 .map { it.id }
                 .toSet()
         var lastVisibleDataColumns = visibleDataColumns()
+
+        ColorizationService.getInstance().addChildrenLoadedListener(toolWindow.disposable) {
+            leftPanel.repaint()
+            rightPanel.repaint()
+        }
 
         ApplicationManager.getApplication().messageBus
             .connect(toolWindow.disposable)
