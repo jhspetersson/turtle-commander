@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Leaving the tree view in "show all nested files" mode no longer navigates into the selected file's directory
+
 ## [0.7.112] - 2026-11-10
 
 ### Fixed
