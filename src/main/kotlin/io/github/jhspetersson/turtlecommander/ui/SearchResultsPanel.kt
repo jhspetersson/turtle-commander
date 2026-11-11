@@ -16,6 +16,7 @@ import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.service.FileOperationService
 import io.github.jhspetersson.turtlecommander.service.FileSearchService
+import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
 import io.github.jhspetersson.turtlecommander.util.withIndicatorProgress
 import io.github.jhspetersson.turtlecommander.util.FileNameGlobMatcher
 import io.github.jhspetersson.turtlecommander.util.wrapAsSubstringGlobIfPlain
@@ -37,7 +38,7 @@ class SearchResultsPanel(
     internal val tableModel = FileTableModel()
     internal val table = JBTable(tableModel)
     private val resultEntries = mutableListOf<FileEntry>()
-    private val statusLabel = JLabel("Ready")
+    internal val statusLabel = JLabel("Ready")
 
     private var searchService: FileSearchService? = null
     @Volatile
@@ -45,7 +46,7 @@ class SearchResultsPanel(
     @Volatile
     private var disposed = false
 
-    private val editButton = JButton("Edit Search", AllIcons.Actions.Edit)
+    internal val editButton = JButton("Edit Search", AllIcons.Actions.Edit)
     private val pauseResumeButton = JButton("Pause", AllIcons.Actions.Pause)
     private val stopButton = JButton("Stop", AllIcons.Actions.Cancel)
 
@@ -298,7 +299,7 @@ class SearchResultsPanel(
             tableModel.setEntries(emptyList())
         }
 
-        val service = FileSearchService(criteria)
+        val service = createSearchService(criteria)
         searchService = service
 
         stopButton.isEnabled = true
@@ -346,14 +347,11 @@ class SearchResultsPanel(
                             },
                         )
                     } catch (e: FileSearchService.InvalidPatternException) {
-                        if (!disposed) {
-                            SwingUtilities.invokeLater {
-                                statusLabel.text = e.message ?: "Invalid search pattern"
-                                stopButton.isEnabled = false
-                                pauseResumeButton.isEnabled = false
-                                editButton.isEnabled = true
-                            }
-                        }
+                        finishWithStatus(e.message ?: "Invalid search pattern")
+                        return@withContext
+                    } catch (e: Exception) {
+                        flushResults(pendingResults)
+                        finishWithStatus("Search failed: ${fileErrorMessage(e)}")
                         return@withContext
                     }
 
@@ -371,6 +369,16 @@ class SearchResultsPanel(
                     }
                 }
             }
+        }
+    }
+
+    private fun finishWithStatus(text: String) {
+        if (disposed) return
+        SwingUtilities.invokeLater {
+            statusLabel.text = text
+            stopButton.isEnabled = false
+            pauseResumeButton.isEnabled = false
+            editButton.isEnabled = true
         }
     }
 
@@ -429,6 +437,8 @@ class SearchResultsPanel(
     }
 
     internal var focusTable: () -> Unit = { table.requestFocusInWindow() }
+
+    internal var createSearchService: (FileSearchCriteria) -> FileSearchService = { FileSearchService(it) }
 
     fun requestTableFocus() {
         focusTable()
