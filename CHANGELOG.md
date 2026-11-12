@@ -13,6 +13,7 @@
 - Color rules with a "Contains" matcher list directories in the background instead of while painting rows
 - Theme Save, Rename, Delete, Import and Reset in Settings are only persisted on OK/Apply and undone by Cancel; "Default" cannot be overwritten
 - "Extract to Subdir" inside a tar, 7z or other extracted archive defaults to the folder beside the archive instead of the temp directory
+- Edits to files inside archives are written back even when the temp path is reported under another spelling (8.3 names, symlinks)
 
 ## [0.7.112] - 2026-11-10
 

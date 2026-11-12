@@ -138,6 +138,42 @@ class VfsEditServiceActiveEditsTest {
         }
     }
 
+    @Test
+    fun `a save reported under a different spelling of the temp path still writes back`() {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val service = VfsEditService(scope)
+        val tempDir = Files.createTempDirectory("vfs-edit-alias-test-")
+        try {
+            val realDir = Files.createDirectory(tempDir.resolve("real"))
+            val alias = tempDir.resolve("alias")
+            val linked = runCatching { Files.createSymbolicLink(alias, realDir) }
+            org.junit.Assume.assumeTrue("symlinks not creatable here", linked.isSuccess)
+            val tempFile = alias.resolve("edited.txt")
+            Files.writeString(tempFile, "new content")
+            val vfsTarget = tempDir.resolve("target.txt")
+            Files.writeString(vfsTarget, "old content")
+            val successes = java.util.concurrent.atomic.AtomicInteger()
+
+            service.trackEdit(VfsEditEntry(
+                vfsFilePath = vfsTarget,
+                tempFilePath = tempFile,
+                vfsStack = mutableListOf(),
+                onAfterFlush = { successes.incrementAndGet() },
+            ))
+
+            service.onFileSaved(realDir.resolve("edited.txt").toString())
+            runBlocking {
+                withTimeout(5_000.milliseconds) {
+                    while (successes.get() == 0) delay(20.milliseconds)
+                }
+            }
+            assertEquals("new content", Files.readString(vfsTarget))
+        } finally {
+            service.dispose()
+            tempDir.toFile().deleteRecursively()
+        }
+    }
+
     /**
      * Bug 5 regression: after a *successful* write-back the entry must stay tracked, otherwise
      * every save after the first silently no-ops. Also verifies the second save actually applies.

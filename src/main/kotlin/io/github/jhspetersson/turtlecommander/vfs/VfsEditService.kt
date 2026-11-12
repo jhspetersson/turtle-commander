@@ -92,15 +92,22 @@ class VfsEditService(
     private fun normalizeKey(path: String): String = path.replace('\\', '/')
     private fun normalizeKey(path: Path): String = normalizeKey(path.toString())
 
+    private fun canonicalKey(path: Path): String =
+        normalizeKey(runCatching { path.toRealPath() }.getOrElse { path.toAbsolutePath().normalize() })
+
+    private fun canonicalKey(path: String): String =
+        runCatching { Path.of(path) }.getOrNull()?.let { canonicalKey(it) } ?: normalizeKey(path)
+
     fun trackEdit(entry: VfsEditEntry) {
-        activeEdits[normalizeKey(entry.tempFilePath)] = entry
+        activeEdits[canonicalKey(entry.tempFilePath)] = entry
     }
 
     /** Test-only: checks whether a tracking entry still exists for the given normalized key. */
-    internal fun isTrackedForTest(normalizedKey: String): Boolean = activeEdits.containsKey(normalizedKey)
+    internal fun isTrackedForTest(normalizedKey: String): Boolean =
+        activeEdits.containsKey(normalizedKey) || activeEdits.containsKey(canonicalKey(normalizedKey))
 
     fun onFileSaved(filePath: String) {
-        val entry = activeEdits[normalizeKey(filePath)] ?: return
+        val entry = activeEdits[canonicalKey(filePath)] ?: return
         cs.launch {
             writeBack(entry)
         }
