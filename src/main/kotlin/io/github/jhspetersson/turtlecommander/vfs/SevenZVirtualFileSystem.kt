@@ -1,6 +1,7 @@
 package io.github.jhspetersson.turtlecommander.vfs
 
 import com.intellij.openapi.diagnostic.thisLogger
+import io.github.jhspetersson.turtlecommander.util.formatPosixMode
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry
 import org.apache.commons.compress.archivers.sevenz.SevenZFile
 import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile
@@ -32,6 +33,10 @@ class SevenZipVirtualFileSystem(
     override val archivePath: Path,
     openProgress: VfsOpenProgress? = null,
 ) : AbstractTempDirVirtualFileSystem("turtle-7z-", openProgress) {
+
+    private class EntryMetadata(val windowsAttributes: Int?, val creationDate: Date?, val accessDate: Date?)
+
+    private val entryMetadataByName = mutableMapOf<String, EntryMetadata>()
 
     init {
         openTempDir()
@@ -70,6 +75,7 @@ class SevenZipVirtualFileSystem(
     }
 
     private fun extractWithCommonsCompress(dir: Path, progress: VfsOpenProgress) {
+        entryMetadataByName.clear()
         SevenZFile.builder().setPath(archivePath).get().use { sevenZ ->
             var entry = sevenZ.nextEntry
             while (entry != null) {
@@ -80,6 +86,11 @@ class SevenZipVirtualFileSystem(
                     entry = sevenZ.nextEntry
                     continue
                 }
+                entryMetadataByName[normalizeRelativeName(dir, entryPath)] = EntryMetadata(
+                    windowsAttributes = if (entry.hasWindowsAttributes) entry.windowsAttributes else null,
+                    creationDate = if (entry.hasCreationDate) entry.creationDate else null,
+                    accessDate = if (entry.hasAccessDate) entry.accessDate else null,
+                )
                 if (entry.isDirectory) {
                     Files.createDirectories(entryPath)
                 } else {
@@ -144,6 +155,7 @@ class SevenZipVirtualFileSystem(
                         lastModifiedDate = Date(attrs.lastModifiedTime().toMillis())
                     }
                 }
+                applyRecordedMetadata(entry, relativeName)
                 out.putArchiveEntry(entry)
                 if (!attrs.isDirectory) {
                     Files.copy(path, sink)
@@ -152,5 +164,40 @@ class SevenZipVirtualFileSystem(
             }
         }
         }
+    }
+
+    override fun onRenamed(source: Path, target: Path) {
+        val oldName = normalizeRelativeName(tempDir, source)
+        val newName = normalizeRelativeName(tempDir, target)
+        entryMetadataByName.remove(oldName)?.let { entryMetadataByName[newName] = it }
+    }
+
+    override fun entryMetadata(path: Path): ArchiveEntryMetadata? {
+        val attributes = entryMetadataByName[normalizeRelativeName(tempDir, path)]?.windowsAttributes ?: return null
+        if (attributes and UNIX_EXTENSION == 0) return null
+        return ArchiveEntryMetadata(owner = "", group = "", permissions = formatPosixMode((attributes ushr 16) and 0xFFF))
+    }
+
+    private fun applyRecordedMetadata(entry: SevenZArchiveEntry, relativeName: String) {
+        val recorded = entryMetadataByName[relativeName] ?: return
+        recorded.windowsAttributes?.let {
+            entry.hasWindowsAttributes = true
+            entry.windowsAttributes = it
+        }
+        recorded.creationDate?.let {
+            entry.hasCreationDate = true
+            entry.creationDate = it
+        }
+        recorded.accessDate?.let {
+            entry.hasAccessDate = true
+            entry.accessDate = it
+        }
+    }
+
+    private fun normalizeRelativeName(base: Path, path: Path): String =
+        base.relativize(path).toString().replace('\\', '/')
+
+    private companion object {
+        const val UNIX_EXTENSION = 0x8000
     }
 }
