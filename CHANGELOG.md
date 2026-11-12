@@ -14,6 +14,7 @@
 - Theme Save, Rename, Delete, Import and Reset in Settings are only persisted on OK/Apply and undone by Cancel; "Default" cannot be overwritten
 - "Extract to Subdir" inside a tar, 7z or other extracted archive defaults to the folder beside the archive instead of the temp directory
 - Edits to files inside archives are written back even when the temp path is reported under another spelling (8.3 names, symlinks)
+- Create Link, Copy and Move from the unfocused panel's context menu target the real other panel
 
 ## [0.7.112] - 2026-11-10
 

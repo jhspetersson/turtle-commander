@@ -329,6 +329,7 @@ class FileManagerPanel(
             otherPanelPathProvider = { target.otherPanel?.getActiveTab()?.realFilesystemPath },
             onDirectoryChanged = { tab -> target.directoryChanged(tab) },
             onRefreshOtherPanel = { target.otherPanel?.refreshActiveTab(requestFocus = false) },
+            otherPanelTabProvider = { target.otherPanel?.getActiveTab() },
         )
     }
 
@@ -495,6 +496,7 @@ class FileManagerPanel(
             otherPanelPathProvider = { otherPanel?.getActiveTab()?.realFilesystemPath ?: otherPanelPathProvider() },
             onDirectoryChanged = { tab -> directoryChanged(tab) },
             onRefreshOtherPanel = { otherPanel?.refreshActiveTab(requestFocus = false) },
+            otherPanelTabProvider = { otherPanel?.getActiveTab() },
         )
         parentDisposable?.let { Disposer.register(it, fileTab) }
 

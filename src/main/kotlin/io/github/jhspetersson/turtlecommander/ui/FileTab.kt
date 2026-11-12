@@ -75,6 +75,7 @@ class FileTab(
     internal var otherPanelPathProvider: () -> Path?,
     private var onDirectoryChanged: (FileTab) -> Unit,
     internal var onRefreshOtherPanel: () -> Unit = {},
+    internal var otherPanelTabProvider: () -> FileTab? = { null },
 ) : JPanel(BorderLayout()), Disposable {
 
     internal var openWithAssociatedApp: (Path) -> Unit = { Desktop.getDesktop().open(it.toFile()) }
@@ -1818,6 +1819,7 @@ class FileTab(
     }
 
     internal fun getOtherPanelTab(): FileTab? {
+        otherPanelTabProvider()?.let { return it }
         val svc = stateService ?: return null
         val activePanel = svc.getActivePanel() ?: return null
         val otherPanel = if (activePanel == svc.leftPanel) svc.rightPanel else svc.leftPanel
@@ -1832,10 +1834,12 @@ class FileTab(
         otherPanelPathProvider: () -> Path?,
         onDirectoryChanged: (FileTab) -> Unit,
         onRefreshOtherPanel: () -> Unit,
+        otherPanelTabProvider: () -> FileTab? = { null },
     ) {
         this.otherPanelPathProvider = otherPanelPathProvider
         this.onDirectoryChanged = onDirectoryChanged
         this.onRefreshOtherPanel = onRefreshOtherPanel
+        this.otherPanelTabProvider = otherPanelTabProvider
     }
 
     fun applyColumnState(widths: List<Int>, order: List<Int>) {
