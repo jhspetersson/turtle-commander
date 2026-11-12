@@ -16,6 +16,7 @@
 - Edits to files inside archives are written back even when the temp path is reported under another spelling (8.3 names, symlinks)
 - Create Link, Copy and Move from the unfocused panel's context menu target the real other panel
 - Editing a file inside a 7z no longer strips attributes, Unix modes and creation times from the other entries
+- Refresh, mkdir or rename in an archive tab waits for a running copy into that archive instead of closing it underneath
 
 ## [0.7.112] - 2026-11-10
 

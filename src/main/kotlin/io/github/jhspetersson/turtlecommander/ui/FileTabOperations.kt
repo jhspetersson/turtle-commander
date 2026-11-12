@@ -41,6 +41,8 @@ import io.github.jhspetersson.turtlecommander.vfs.VfsOpenProgress
 import io.github.jhspetersson.turtlecommander.vfs.ZipVirtualFileSystem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.nio.file.FileSystems
@@ -114,7 +116,7 @@ internal fun FileTab.performMoveEntries(
  * the only thing that differs between copy and move at this layer is which method gets called.
  * Extracting the alias keeps [runTransfer]'s signature readable.
  */
-private typealias TransferOp = suspend (
+internal typealias TransferOp = suspend (
     sources: List<Path>,
     destination: Path,
     initialPolicy: OverwritePolicy,
@@ -139,7 +141,7 @@ private typealias TransferOp = suspend (
  * skipping that graceful path — the captured [kotlinx.coroutines.Job] still observes the
  * cancel request (including the one triggered by project close cancelling the service scope).
  */
-private fun FileTab.runTransfer(
+internal fun FileTab.runTransfer(
     sources: List<Path>,
     destination: Path,
     initialPolicy: OverwritePolicy,
@@ -161,21 +163,23 @@ private fun FileTab.runTransfer(
                 val totalFiles = countFiles(sources)
                 indicator.isIndeterminate = false
 
-                op(
-                    sources,
-                    destination,
-                    initialPolicy,
-                    { count, name ->
-                        indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
-                        indicator.text = "$progressVerb $count / $totalFiles"
-                        indicator.text2 = name
-                    },
-                    { path -> askOverwriteConfirm(path) },
-                    { path, error ->
-                        fileErrorNotification("Failed to $errorVerb ${path.fileName}: ${fileErrorMessage(error)}")
-                    },
-                    { indicator.isCanceled },
-                )
+                withLocks(transferWriteLocks(sources + listOf(destination))) {
+                    op(
+                        sources,
+                        destination,
+                        initialPolicy,
+                        { count, name ->
+                            indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
+                            indicator.text = "$progressVerb $count / $totalFiles"
+                            indicator.text2 = name
+                        },
+                        { path -> askOverwriteConfirm(path) },
+                        { path, error ->
+                            fileErrorNotification("Failed to $errorVerb ${path.fileName}: ${fileErrorMessage(error)}")
+                        },
+                        { indicator.isCanceled },
+                    )
+                }
 
                 onTransferFinished?.invoke()
                 refreshAfterVfsChange()
@@ -185,6 +189,19 @@ private fun FileTab.runTransfer(
             }
         }
     }
+}
+
+internal fun FileTab.transferWriteLocks(paths: List<Path>): List<Mutex> {
+    val panels = listOfNotNull(stateService?.leftPanel, stateService?.rightPanel)
+    val tabs = (panels.flatMap { it.tabs() } + this).distinct()
+    return paths
+        .mapNotNull { path -> tabs.firstOrNull { tab -> tab.vfsStack.any { runCatching { it.vfs.owns(path) }.getOrDefault(false) } }?.vfsWriteMutex }
+        .distinct()
+        .sortedBy { System.identityHashCode(it) }
+}
+
+private suspend fun withLocks(locks: List<Mutex>, block: suspend () -> Unit) {
+    if (locks.isEmpty()) block() else locks.first().withLock { withLocks(locks.drop(1), block) }
 }
 
 internal fun FileTab.performDelete(forcePermanent: Boolean = false) {

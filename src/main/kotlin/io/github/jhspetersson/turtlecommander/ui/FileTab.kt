@@ -47,6 +47,7 @@ import io.github.jhspetersson.turtlecommander.util.wrapAsSubstringGlobIfPlain
 import io.github.jhspetersson.turtlecommander.vfs.System7z
 import io.github.jhspetersson.turtlecommander.vfs.System7zUnavailableException
 import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
+import io.github.jhspetersson.turtlecommander.vfs.VfsWriteLocks
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
 import kotlinx.coroutines.Dispatchers
@@ -182,7 +183,10 @@ class FileTab(
      * close a parent fs underneath the other's in-flight `Files.copy`, producing
      * `ClosedFileSystemException`.
      */
-    internal val vfsWriteMutex = Mutex()
+    private val localWriteMutex = Mutex()
+
+    internal val vfsWriteMutex: Mutex
+        get() = vfsStack.firstOrNull()?.vfs?.let { VfsWriteLocks.of(it) } ?: localWriteMutex
 
     var currentVfs: VirtualFileSystem?
         get() = vfsStack.lastOrNull()?.vfs
@@ -1807,7 +1811,8 @@ class FileTab(
     internal fun scheduleVfsClose(entries: List<VfsStackEntry>) {
         if (entries.isEmpty()) return
         for (entry in entries) detachSharedVfs(entry)
-        service<VfsCloseService>().closeOffEdt(entries, vfsWriteMutex)
+        val mutex = vfsStack.firstOrNull()?.vfs?.let { VfsWriteLocks.of(it) } ?: VfsWriteLocks.of(entries.last().vfs)
+        service<VfsCloseService>().closeOffEdt(entries, mutex)
     }
 
     /** True when keyboard focus is inside any of the four view components owned by this tab. */
