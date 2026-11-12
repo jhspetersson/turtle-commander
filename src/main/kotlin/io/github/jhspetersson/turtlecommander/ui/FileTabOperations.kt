@@ -821,8 +821,7 @@ private fun FileTab.rejectReadOnlyExtractDestination(destination: Path): Boolean
 internal fun FileTab.performExtractToSubdir() {
     val selected = getSelectedEntries().filter { isArchiveFile(it) }
     if (selected.isEmpty()) return
-    val subdir = archiveBaseName(selected.first().name)
-    val destination = (if (currentPath.fileSystem == FileSystems.getDefault()) currentPath else destinationBasePath).resolve(subdir)
+    val destination = extractToSubdirDefault(currentPath, isInsideArchive, destinationBasePath, selected.first().name)
 
     val dialog = ExtractDialog(project, selected, destination.toString(), destinationBasePath)
     if (!dialog.showAndGet()) return
@@ -832,6 +831,9 @@ internal fun FileTab.performExtractToSubdir() {
 
     extractArchives(selected.map { it.path }, destPath, dialog.policy)
 }
+
+internal fun extractToSubdirDefault(currentPath: Path, insideArchive: Boolean, destinationBasePath: Path, archiveName: String): Path =
+    (if (insideArchive) destinationBasePath else currentPath).resolve(archiveBaseName(archiveName))
 
 /**
  * Returns the archive name with its extension stripped, handling the common compound

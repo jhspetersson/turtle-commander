@@ -12,6 +12,7 @@
 - A search that fails unexpectedly reports the error instead of staying at "Searching…"
 - Color rules with a "Contains" matcher list directories in the background instead of while painting rows
 - Theme Save, Rename, Delete, Import and Reset in Settings are only persisted on OK/Apply and undone by Cancel; "Default" cannot be overwritten
+- "Extract to Subdir" inside a tar, 7z or other extracted archive defaults to the folder beside the archive instead of the temp directory
 
 ## [0.7.112] - 2026-11-10
 
