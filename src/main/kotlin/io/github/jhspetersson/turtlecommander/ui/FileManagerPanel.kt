@@ -443,10 +443,11 @@ class FileManagerPanel(
 
         val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
         val insertIndex = if (plusIndex >= 0) plusIndex else tabbedPane.tabCount
-        val title = "Search: ${criteria.namePattern ?: criteria.rootPath.fileName ?: "Results"}"
+        val title = searchTabTitle(criteria)
         tabbedPane.insertTab(title, AllIcons.Actions.Find, searchPanel, null, insertIndex)
         tabbedPane.setTabComponentAt(insertIndex, createSearchTabHeader(title, searchPanel))
         tabbedPane.selectedIndex = insertIndex
+        searchPanel.onCriteriaChanged = { updateSearchTabTitle(searchPanel, searchTabTitle(it)) }
 
         searchPanel.startSearch()
         focusActiveTab()
@@ -462,6 +463,17 @@ class FileManagerPanel(
             addNewTab(initialPath)
         }
         focusActiveTab()
+    }
+
+    private fun searchTabTitle(criteria: FileSearchCriteria): String =
+        "Search: ${criteria.namePattern ?: criteria.rootPath.fileName ?: "Results"}"
+
+    private fun updateSearchTabTitle(searchPanel: SearchResultsPanel, title: String) {
+        val index = tabbedPane.indexOfComponent(searchPanel)
+        if (index < 0) return
+        tabbedPane.setTitleAt(index, title)
+        val label = (tabbedPane.getTabComponentAt(index) as? JPanel)?.getComponent(0) as? JLabel
+        label?.text = title
     }
 
     private fun createSearchTabHeader(title: String, searchPanel: SearchResultsPanel): JPanel {
@@ -679,6 +691,8 @@ class FileManagerPanel(
     fun getActiveTabIndex(): Int = tabbedPane.selectedIndex
 
     internal fun tabTitleAt(index: Int): String = tabbedPane.getTitleAt(index)
+
+    internal fun tabHeaderAt(index: Int): java.awt.Component? = tabbedPane.getTabComponentAt(index)
 
     fun closeOtherTabs(tabIndex: Int) {
         val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)

@@ -8,6 +8,7 @@
 
 - Tab title at an archive root shows the archive name instead of "/" or the temp directory name
 - Search results table shows only the columns enabled in Settings, in the configured order
+- "Edit Search" updates the search tab title to the new pattern
 
 ## [0.7.113] - 2026-11-12
 

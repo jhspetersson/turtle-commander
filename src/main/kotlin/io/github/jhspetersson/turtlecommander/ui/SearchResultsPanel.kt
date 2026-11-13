@@ -429,7 +429,12 @@ class SearchResultsPanel(
     private fun editSearch() {
         val dialog = FileSearchDialog(project, criteria.rootPath, criteria)
         if (!dialog.showAndGet()) return
-        criteria = dialog.getCriteria()
+        updateCriteria(dialog.getCriteria())
+    }
+
+    internal fun updateCriteria(newCriteria: FileSearchCriteria) {
+        criteria = newCriteria
+        onCriteriaChanged(newCriteria)
         startSearch()
     }
 
@@ -441,6 +446,8 @@ class SearchResultsPanel(
     internal var focusTable: () -> Unit = { table.requestFocusInWindow() }
 
     internal var createSearchService: (FileSearchCriteria) -> FileSearchService = { FileSearchService(it) }
+
+    internal var onCriteriaChanged: (FileSearchCriteria) -> Unit = {}
 
     fun requestTableFocus() {
         focusTable()
