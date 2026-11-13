@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Tab title at an archive root shows the archive name instead of "/" or the temp directory name
+
 ## [0.7.113] - 2026-11-12
 
 ### Fixed

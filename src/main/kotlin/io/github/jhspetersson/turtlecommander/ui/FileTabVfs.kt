@@ -276,6 +276,12 @@ fun FileTab.getDisplayPath(): String {
     return sb.toString()
 }
 
+fun FileTab.tabTitle(): String {
+    if (currentVfs == null) return currentPath.fileName?.toString() ?: currentPath.toString()
+    val display = getDisplayPath().trimEnd('/', '\\')
+    return display.substringAfterLast('/').substringAfterLast('\\')
+}
+
 internal fun FileTab.attachSharedVfs(vfs: VirtualFileSystem, archivePath: Path) {
     val entry = VfsStackEntry(vfs, archivePath)
     val listener: () -> Unit = { onSharedVfsMutated() }

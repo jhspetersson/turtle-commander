@@ -298,7 +298,6 @@ class FileManagerPanel(
 
     internal fun moveTabToOtherPanel(sourceIndex: Int, target: FileManagerPanel, targetIndex: Int) {
         val fileTab = tabbedPane.getComponentAt(sourceIndex) as? FileTab ?: return
-        val path = fileTab.currentPath
         val realTabCount = tabbedPane.tabCount - 1
 
         // Remove from source (but keep at least one tab)
@@ -311,7 +310,7 @@ class FileManagerPanel(
         // Add to target panel
         val plusIndex = target.tabbedPane.indexOfComponent(target.addTabPlaceholder)
         val insertAt = if (targetIndex in 0 until plusIndex) targetIndex else plusIndex
-        val title = path.fileName?.toString() ?: path.toString()
+        val title = fileTab.tabTitle()
 
         // Save border — JBTabbedPane.insertTab calls UIUtil.addInsets which accumulates
         val savedBorder = fileTab.border
@@ -607,7 +606,7 @@ class FileManagerPanel(
     private fun updateTabTitle(tab: FileTab) {
         val index = tabbedPane.indexOfComponent(tab)
         if (index < 0) return
-        val title = tab.currentPath.fileName?.toString() ?: tab.currentPath.toString()
+        val title = tab.tabTitle()
         tabbedPane.setTitleAt(index, title)
 
         val tabComponent = tabbedPane.getTabComponentAt(index)
@@ -678,6 +677,8 @@ class FileManagerPanel(
     fun tabs(): List<FileTab> = (0 until tabbedPane.tabCount).mapNotNull { getTabAt(it) }
 
     fun getActiveTabIndex(): Int = tabbedPane.selectedIndex
+
+    internal fun tabTitleAt(index: Int): String = tabbedPane.getTitleAt(index)
 
     fun closeOtherTabs(tabIndex: Int) {
         val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
