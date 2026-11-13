@@ -10,6 +10,7 @@ import com.intellij.util.IconUtil
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.service.ColorizationService
 import io.github.jhspetersson.turtlecommander.service.ThumbnailCache
+import io.github.jhspetersson.turtlecommander.settings.ColumnConfig
 import io.github.jhspetersson.turtlecommander.settings.ComponentStyle
 import io.github.jhspetersson.turtlecommander.settings.ResolvedStyle
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
@@ -145,10 +146,6 @@ internal fun applyColumnConfig(tab: FileTab) {
     val columns = TurtleCommanderSettings.getInstance().getEffectiveColumns()
     val columnStyleMap = mutableMapOf<Int, ComponentStyle>()
 
-    val visibleModelIndices = columns
-        .filter { it.visible }
-        .mapNotNull { COLUMN_NAME_TO_MODEL_INDEX[it.id] }
-        .toSet()
     for (col in columns) {
         if (!col.style.isDefault()) {
             val modelIdx = COLUMN_NAME_TO_MODEL_INDEX[col.id] ?: continue
@@ -168,28 +165,21 @@ internal fun applyColumnConfig(tab: FileTab) {
         }
     }
     applyDefaultColumnWidths(tab)
+    applyColumnLayout(table, columns)
+}
 
-    // Remove hidden/unavailable columns (iterate in reverse to avoid index shifting)
-    for (i in table.columnModel.columnCount - 1 downTo 0) {
-        val tc = table.columnModel.getColumn(i)
-        if (tc.modelIndex !in visibleModelIndices) {
-            table.removeColumn(tc)
-        }
-    }
-
-    // Reorder visible columns to match settings order
+internal fun applyColumnLayout(table: JTable, columns: List<ColumnConfig>) {
     val desiredOrder = columns.filter { it.visible }.mapNotNull { COLUMN_NAME_TO_MODEL_INDEX[it.id] }
-    for (targetViewIdx in desiredOrder.indices) {
-        val wantedModelIdx = desiredOrder[targetViewIdx]
-        var currentViewIdx = -1
-        for (i in 0 until table.columnModel.columnCount) {
-            if (table.columnModel.getColumn(i).modelIndex == wantedModelIdx) {
-                currentViewIdx = i
-                break
-            }
-        }
-        if (currentViewIdx >= 0 && currentViewIdx != targetViewIdx && targetViewIdx < table.columnModel.columnCount) {
-            table.columnModel.moveColumn(currentViewIdx, targetViewIdx)
+    val columnModel = table.columnModel
+    for (i in columnModel.columnCount - 1 downTo 0) {
+        val tc = columnModel.getColumn(i)
+        if (tc.modelIndex !in desiredOrder) table.removeColumn(tc)
+    }
+    for ((targetViewIdx, wantedModelIdx) in desiredOrder.withIndex()) {
+        val currentViewIdx = (0 until columnModel.columnCount)
+            .firstOrNull { columnModel.getColumn(it).modelIndex == wantedModelIdx } ?: continue
+        if (currentViewIdx != targetViewIdx && targetViewIdx < columnModel.columnCount) {
+            columnModel.moveColumn(currentViewIdx, targetViewIdx)
         }
     }
 }

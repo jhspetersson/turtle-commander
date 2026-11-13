@@ -16,6 +16,7 @@ import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
 import io.github.jhspetersson.turtlecommander.service.FileOperationService
 import io.github.jhspetersson.turtlecommander.service.FileSearchService
+import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
 import io.github.jhspetersson.turtlecommander.util.withIndicatorProgress
 import io.github.jhspetersson.turtlecommander.util.FileNameGlobMatcher
@@ -103,6 +104,7 @@ class SearchResultsPanel(
             columnModel.getColumn(4).cellRenderer = SearchDisplayValueRenderer()
             columnModel.getColumn(5).preferredWidth = 80
             columnModel.getColumn(5).cellRenderer = SearchDisplayValueRenderer()
+            applyColumnLayout(this, TurtleCommanderSettings.getInstance().getEffectiveColumns())
 
             addMouseListener(object : MouseAdapter() {
                 override fun mouseClicked(e: MouseEvent) {

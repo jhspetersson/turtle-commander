@@ -7,6 +7,7 @@
 ### Fixed
 
 - Tab title at an archive root shows the archive name instead of "/" or the temp directory name
+- Search results table shows only the columns enabled in Settings, in the configured order
 
 ## [0.7.113] - 2026-11-12
 
