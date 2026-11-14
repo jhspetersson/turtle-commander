@@ -15,6 +15,7 @@
 - Pack dialog swaps the archive extension regardless of its case
 - ar archives with duplicate member names open read-only instead of failing
 - Edited ar members get their new modification time
+- A path being typed in the breadcrumb field survives a background refresh of the same directory
 
 ## [0.7.114] - 2026-11-13
 

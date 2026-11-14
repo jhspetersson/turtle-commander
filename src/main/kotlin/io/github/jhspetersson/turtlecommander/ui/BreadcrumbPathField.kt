@@ -26,6 +26,7 @@ class BreadcrumbPathField : JPanel() {
     var text: String = ""
         get() = if (isEditMode) editField.text else field
         set(value) {
+            if (isEditMode && value == field) return
             field = value
             editField.text = value
             rebuildBreadcrumbs()

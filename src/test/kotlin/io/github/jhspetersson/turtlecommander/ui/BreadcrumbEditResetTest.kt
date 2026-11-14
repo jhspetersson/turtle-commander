@@ -59,4 +59,27 @@ class BreadcrumbEditResetTest : BasePlatformTestCase() {
 
         assertEquals("/var/log", field.editor().text)
     }
+
+    fun testRefreshOfTheSamePathKeepsTheEditInProgress() {
+        val field = BreadcrumbPathField()
+        field.text = "/home/user"
+
+        field.clickBreadcrumbs()
+        field.editor().text = "/typed/so/far"
+        field.text = "/home/user"
+
+        assertEquals("/typed/so/far", field.editor().text)
+        assertEquals("/typed/so/far", field.text)
+    }
+
+    fun testNavigationToAnotherPathEndsTheEdit() {
+        val field = BreadcrumbPathField()
+        field.text = "/home/user"
+
+        field.clickBreadcrumbs()
+        field.editor().text = "/typed/so/far"
+        field.text = "/var/log"
+
+        assertEquals("/var/log", field.text)
+    }
 }
