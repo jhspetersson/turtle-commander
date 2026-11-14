@@ -17,6 +17,7 @@
 
     <extensions defaultExtensionNs="com.intellij">
         <postStartupActivity implementation="io.github.jhspetersson.turtlecommander.action.OpenInTurtleCommanderMenuInstaller"/>
+        <errorHandler implementation="com.intellij.diagnostic.JetBrainsMarketplaceErrorReportSubmitter"/>
         <toolWindow
             factoryClass="io.github.jhspetersson.turtlecommander.ui.FileManagerToolWindowFactory"
             id="Turtle Commander"
