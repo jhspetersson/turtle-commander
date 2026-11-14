@@ -953,10 +953,8 @@ class FileTab(
                             goUp()
                         } else if (entry.isDirectory) {
                             // Handled by tree expansion
-                        } else if (isEntryBrowsableArchive(entry)) {
-                            enterVfs(entry)
                         } else {
-                            openFile(entry)
+                            openNonDirectoryEntry(entry)
                         }
                     }
                 }
@@ -1745,18 +1743,21 @@ class FileTab(
     }
 
     private fun openNonDirectoryEntry(entry: FileEntry) {
-        if (!entry.isNamedPipe && isEntryBrowsableArchive(entry)) {
-            enterVfs(entry)
-        } else {
+        if (entry.isNamedPipe || entry.isDirectory || entry.isParentLink) {
             openFile(entry)
+            return
         }
-    }
-
-    private fun isEntryBrowsableArchive(entry: FileEntry): Boolean {
-        return !(entry.isDirectory || entry.isParentLink) && if (currentVfs != null) {
-            VirtualFileSystemRegistry.supportsByExtension(entry.name)
-        } else {
-            VirtualFileSystemRegistry.supports(entry.path)
+        if (currentVfs != null) {
+            if (VirtualFileSystemRegistry.supportsByExtension(entry.name)) enterVfs(entry) else openFile(entry)
+            return
+        }
+        if (!VirtualFileSystemRegistry.supportsName(entry.path)) {
+            openFile(entry)
+            return
+        }
+        fileOps.launch {
+            val browsable = withContext(Dispatchers.IO) { VirtualFileSystemRegistry.supports(entry.path) }
+            if (browsable) openVfs(entry) else withContext(Dispatchers.EDT) { openFile(entry) }
         }
     }
 

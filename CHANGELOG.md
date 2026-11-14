@@ -8,6 +8,10 @@
 
 - Diagnostics reporting to JetBrains Marketplace for plugin errors.
 
+### Fixed
+
+- Enter on an archive no longer checks the file on the UI thread
+
 ## [0.7.114] - 2026-11-13
 
 ### Fixed

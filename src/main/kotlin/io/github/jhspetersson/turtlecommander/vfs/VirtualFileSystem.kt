@@ -227,9 +227,10 @@ interface VirtualFileSystemProvider {
      * regular file. Previously every provider duplicated this logic; keeping it here
      * means extensions only need to be declared in one place per provider.
      */
-    fun supports(path: Path): Boolean {
+    fun supports(path: Path): Boolean = supportsName(path) && Files.isRegularFile(path)
+    fun supportsName(path: Path): Boolean {
         val ext = path.fileName?.toString()?.substringAfterLast('.', "")?.lowercase() ?: return false
-        return ext.isNotEmpty() && supportsExtension(ext) && Files.isRegularFile(path)
+        return ext.isNotEmpty() && supportsExtension(ext)
     }
     fun supportsExtension(ext: String): Boolean
     fun create(archivePath: Path): VirtualFileSystem
@@ -798,6 +799,8 @@ object VirtualFileSystemRegistry {
     }
 
     fun supports(path: Path): Boolean = providers.any { it.supports(path) }
+
+    fun supportsName(path: Path): Boolean = providers.any { it.supportsName(path) }
 
     fun supportsByExtension(fileName: String): Boolean {
         val ext = fileName.substringAfterLast('.', "").lowercase()

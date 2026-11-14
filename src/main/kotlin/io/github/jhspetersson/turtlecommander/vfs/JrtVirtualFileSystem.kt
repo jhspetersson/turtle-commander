@@ -22,9 +22,11 @@ class JrtFileSystemProvider : VirtualFileSystemProvider {
 
         fun jrtFsJarFor(javaHome: Path): Path = javaHome.resolve(LIB_DIR_NAME).resolve(JRT_FS_JAR_NAME)
 
+        fun isModulesImageName(path: Path): Boolean =
+            path.fileName?.toString() == MODULES_FILE_NAME && path.parent?.fileName?.toString() == LIB_DIR_NAME
+
         fun isModulesImage(path: Path): Boolean {
-            if (path.fileName?.toString() != MODULES_FILE_NAME) return false
-            if (path.parent?.fileName?.toString() != LIB_DIR_NAME) return false
+            if (!isModulesImageName(path)) return false
             if (!Files.isRegularFile(path)) return false
             return try {
                 Files.newInputStream(path).use { it.readNBytes(JIMAGE_MAGIC.size) }.contentEquals(JIMAGE_MAGIC)
@@ -35,6 +37,8 @@ class JrtFileSystemProvider : VirtualFileSystemProvider {
     }
 
     override fun supports(path: Path): Boolean = isModulesImage(path)
+
+    override fun supportsName(path: Path): Boolean = isModulesImageName(path)
 
     override fun supportsExtension(ext: String): Boolean = false
 
