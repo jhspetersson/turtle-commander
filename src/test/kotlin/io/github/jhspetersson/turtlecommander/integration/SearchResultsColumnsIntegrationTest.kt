@@ -78,6 +78,7 @@ class SearchResultsColumnsIntegrationTest : BasePlatformTestCase() {
                 column("Ext", false),
                 column("Date Created", false),
                 column("User", false),
+                column("Group", false),
                 column("Permissions", false),
             ),
         )
