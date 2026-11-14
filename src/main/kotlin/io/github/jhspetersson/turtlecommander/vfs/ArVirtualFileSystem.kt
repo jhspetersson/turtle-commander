@@ -4,6 +4,7 @@ import com.intellij.openapi.diagnostic.thisLogger
 import org.apache.commons.compress.archivers.ar.ArArchiveEntry
 import org.apache.commons.compress.archivers.ar.ArArchiveInputStream
 import org.apache.commons.compress.archivers.ar.ArArchiveOutputStream
+import java.io.IOException
 import java.io.OutputStream
 import java.nio.file.Files
 import java.nio.file.Path
@@ -37,6 +38,7 @@ class ArVirtualFileSystem(
         val userId: Int,
         val groupId: Int,
         val lastModifiedSeconds: Long,
+        val extractedModifiedSeconds: Long,
     )
 
     /**
@@ -64,14 +66,13 @@ class ArVirtualFileSystem(
                         entry = ar.nextEntry
                         continue
                     }
+                    if (Files.exists(entryPath)) {
+                        reportUnextractable(entry.name, IOException("duplicate member name"))
+                        entry = ar.nextEntry
+                        continue
+                    }
                     Files.createDirectories(entryPath.parent)
                     Files.copy(ar, entryPath)
-                    entryMetadata[entry.name] = ArEntryMetadata(
-                        mode = entry.mode,
-                        userId = entry.userId,
-                        groupId = entry.groupId,
-                        lastModifiedSeconds = entry.lastModified,
-                    )
                     try {
                         if (entry.lastModifiedDate != null) {
                             Files.setLastModifiedTime(entryPath, FileTime.fromMillis(entry.lastModifiedDate.time))
@@ -79,6 +80,13 @@ class ArVirtualFileSystem(
                     } catch (e: Exception) {
                         thisLogger().debug("Failed to set modified time for ar entry: ${entry.name}", e)
                     }
+                    entryMetadata[entry.name] = ArEntryMetadata(
+                        mode = entry.mode,
+                        userId = entry.userId,
+                        groupId = entry.groupId,
+                        lastModifiedSeconds = entry.lastModified,
+                        extractedModifiedSeconds = Files.getLastModifiedTime(entryPath).toMillis() / 1000,
+                    )
                     entry = ar.nextEntry
                 }
             }
@@ -101,13 +109,15 @@ class ArVirtualFileSystem(
                         val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
                         if (attrs.isDirectory) return@forEachArchiveEntry // AR format is flat, skip directories
                         val metadata = entryMetadata[relativeName]
+                        val modifiedSeconds = attrs.lastModifiedTime().toMillis() / 1000
                         val entry = ArArchiveEntry(
                             relativeName,
                             attrs.size(),
                             metadata?.userId ?: 0,
                             metadata?.groupId ?: 0,
                             metadata?.mode ?: DEFAULT_FILE_MODE,
-                            metadata?.lastModifiedSeconds ?: (attrs.lastModifiedTime().toMillis() / 1000),
+                            metadata?.takeIf { it.extractedModifiedSeconds == modifiedSeconds }?.lastModifiedSeconds
+                                ?: modifiedSeconds,
                         )
                         ar.putArchiveEntry(entry)
                         Files.copy(path, ar)

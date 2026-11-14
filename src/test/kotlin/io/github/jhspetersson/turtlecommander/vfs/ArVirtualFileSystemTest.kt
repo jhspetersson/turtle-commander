@@ -10,6 +10,7 @@ import org.junit.Before
 import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.attribute.FileTime
 
 class ArVirtualFileSystemTest {
 
@@ -129,6 +130,46 @@ class ArVirtualFileSystemTest {
                 assertEquals(setOf(longName, "second.bin"), entries.map { it.first }.toSet())
                 assertEquals("Hello from ar", entries.first { it.first == longName }.second)
             }
+        }
+    }
+
+    private fun archivedEntries(): List<ArArchiveEntry> =
+        Files.newInputStream(arPath).use { raw ->
+            ArArchiveInputStream(raw).use { ar -> generateSequence { ar.nextEntry }.toList() }
+        }
+
+    @Test
+    fun `edited member gets its new timestamp on repack`() = runBlocking {
+        val edited = vfs.root.resolve("hello.txt")
+        Files.writeString(edited, "changed")
+        Files.setLastModifiedTime(edited, FileTime.fromMillis(1_650_000_000_000L))
+        vfs.flush()
+
+        val entries = archivedEntries().associateBy { it.name }
+        assertEquals(1_650_000_000L, entries.getValue("hello.txt").lastModified)
+        assertEquals(1_700_000_000L, entries.getValue("second.bin").lastModified)
+        assertEquals(0x81ED, entries.getValue("hello.txt").mode)
+    }
+
+    @Test
+    fun `duplicate member names open read-only keeping the first member`() = runBlocking {
+        val path = Files.createTempFile("duplicate-members-", ".a")
+        try {
+            ArArchiveOutputStream(Files.newOutputStream(path)).use { ar ->
+                for (content in listOf("first", "second")) {
+                    val bytes = content.toByteArray()
+                    ar.putArchiveEntry(ArArchiveEntry("same.o", bytes.size.toLong()))
+                    ar.write(bytes)
+                    ar.closeArchiveEntry()
+                }
+            }
+            ArVirtualFileSystem(path).use { fs ->
+                assertEquals("first", Files.readString(fs.root.resolve("same.o")))
+                assertTrue(fs.isReadOnly)
+                assertEquals(listOf("same.o"), fs.unextractableEntries)
+            }
+        } finally {
+            Files.deleteIfExists(path)
         }
     }
 }
