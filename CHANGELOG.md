@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Diagnostics reporting to JetBrains Marketplace for plugin errors.
+
 ## [0.7.114] - 2026-11-13
 
 ### Fixed
