@@ -80,16 +80,17 @@ internal class ColorRuleEditDialog(
     private val bgColorButton = ColorPickerButton("...")
     private val dotColorButton = ColorPickerButton("...")
     private val iconPickerButton = IconPickerButton()
-    private val fontStyleCombo = ComboBox(DefaultComboBoxModel(arrayOf("Default", "Plain", "Bold", "Italic", "Bold Italic")))
-    private val fontSizeSpinner = JSpinner(SpinnerNumberModel(0, 0, 72, 1))
+    internal val fontStyleCombo = ComboBox(DefaultComboBoxModel(arrayOf("Default", "Plain", "Bold", "Italic", "Bold Italic")))
+    internal val fontSizeSpinner = JSpinner(SpinnerNumberModel(0, 0, 72, 1))
     private val strikethroughCheck = JCheckBox("Strikethrough")
-    private val previewLabel = JBLabel("Preview").apply {
+    internal val previewLabel = JBLabel("Preview").apply {
         border = BorderFactory.createCompoundBorder(
             BorderFactory.createLineBorder(UIManager.getColor("Separator.foreground") ?: JBColor.GRAY),
             BorderFactory.createEmptyBorder(6, 10, 6, 10),
         )
         isOpaque = true
     }
+    private val previewBaseFont: Font? = previewLabel.font
 
     var result: ColorRule? = null
         private set
@@ -242,24 +243,12 @@ internal class ColorRuleEditDialog(
     }
 
     private fun refreshPreview() {
-        val font = previewLabel.font
-        val baseSize = font?.size ?: 13
-        val styleIdx = fontStyleCombo.selectedIndex
-        val swingStyle = when (styleIdx) {
-            2 -> Font.BOLD
-            3 -> Font.ITALIC
-            4 -> Font.BOLD or Font.ITALIC
-            1 -> Font.PLAIN
-            else -> font?.style ?: Font.PLAIN
-        }
-        val sizeOverride = (fontSizeSpinner.value as? Number)?.toInt() ?: 0
-        val size = if (sizeOverride > 0) sizeOverride else baseSize
-        val baseFont = Font(font?.family ?: Font.DIALOG, swingStyle, size)
-        previewLabel.font = if (strikethroughCheck.isSelected) {
-            baseFont.deriveFont(mapOf(TextAttribute.STRIKETHROUGH to TextAttribute.STRIKETHROUGH_ON))
-        } else {
-            baseFont
-        }
+        previewLabel.font = rulePreviewFont(
+            previewBaseFont,
+            fontStyleCombo.selectedIndex,
+            (fontSizeSpinner.value as? Number)?.toInt() ?: 0,
+            strikethroughCheck.isSelected,
+        )
         val fg = fontColorButton.getColorHex()
         val bg = bgColorButton.getColorHex()
         previewLabel.foreground = if (fg.isNotEmpty()) Color.decode(fg) else UIManager.getColor("Label.foreground")
@@ -410,6 +399,23 @@ private fun decodeOrNull(hex: String): Color? {
 }
 
 /** Light swatch cell renderer for previewing colors in the rules table. */
+internal fun rulePreviewFont(base: Font?, styleIndex: Int, sizeOverride: Int, strikethrough: Boolean): Font {
+    val style = when (styleIndex) {
+        2 -> Font.BOLD
+        3 -> Font.ITALIC
+        4 -> Font.BOLD or Font.ITALIC
+        1 -> Font.PLAIN
+        else -> base?.style ?: Font.PLAIN
+    }
+    val size = if (sizeOverride > 0) sizeOverride else base?.size ?: 13
+    val font = Font(base?.family ?: Font.DIALOG, style, size)
+    return if (strikethrough) {
+        font.deriveFont(mapOf(TextAttribute.STRIKETHROUGH to TextAttribute.STRIKETHROUGH_ON))
+    } else {
+        font
+    }
+}
+
 internal class ColorSwatchCellRenderer : DefaultTableCellRenderer() {
     override fun getTableCellRendererComponent(
         table: JTable?, value: Any?, isSelected: Boolean, hasFocus: Boolean, row: Int, column: Int,

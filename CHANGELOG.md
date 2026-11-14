@@ -11,6 +11,7 @@
 ### Fixed
 
 - Enter on an archive no longer checks the file on the UI thread
+- Color rule preview resets when a font size or style override is cleared
 
 ## [0.7.114] - 2026-11-13
 
