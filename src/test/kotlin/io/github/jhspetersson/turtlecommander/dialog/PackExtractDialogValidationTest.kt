@@ -53,6 +53,27 @@ class PackExtractDialogValidationTest : BasePlatformTestCase() {
         }
     }
 
+    fun testPackDialogSwapsAnUppercaseExtension() {
+        val dialog = PackDialog(project, sources, tempDir.resolve("backup.ZIP").toString(), tempDir)
+        try {
+            dialog.formatCombo.selectedItem = ArchiveFormat.TAR_GZ
+
+            assertEquals(tempDir.resolve("backup.tar.gz").toString(), dialog.archiveField.text)
+            assertEquals(tempDir.resolve("backup.tar.gz").toString(), dialog.archivePath)
+        } finally {
+            dialog.close(DialogWrapper.CANCEL_EXIT_CODE)
+        }
+    }
+
+    fun testPackDialogKeepsTheTypedCaseOfAMatchingExtension() {
+        val dialog = PackDialog(project, sources, tempDir.resolve("backup.ZIP").toString(), tempDir)
+        try {
+            assertEquals(tempDir.resolve("backup.ZIP").toString(), dialog.archivePath)
+        } finally {
+            dialog.close(DialogWrapper.CANCEL_EXIT_CODE)
+        }
+    }
+
     fun testExtractDialogRejectsBlankDestination() {
         val dialog = ExtractDialog(project, sources, "", tempDir)
         try {

@@ -27,6 +27,12 @@ enum class ArchiveFormat(val extension: String, val label: String) {
     TAR_GZ(".tar.gz", ".tar.gz"),
 }
 
+internal fun withArchiveExtension(path: String, format: ArchiveFormat): String? {
+    val current = ArchiveFormat.entries.firstOrNull { path.endsWith(it.extension, ignoreCase = true) } ?: return null
+    if (current == format) return path
+    return path.dropLast(current.extension.length) + format.extension
+}
+
 class PackDialog(
     project: Project,
     private val sources: List<FileEntry>,
@@ -36,20 +42,13 @@ class PackDialog(
 
     val archivePath: String get() {
         val path = archiveField.text.trim()
-        val selectedFormat = formatCombo.selectedItem as? ArchiveFormat ?: ArchiveFormat.ZIP
-        // Replace extension if user hasn't manually changed it
-        for (fmt in ArchiveFormat.entries) {
-            if (path.endsWith(fmt.extension)) {
-                return path.removeSuffix(fmt.extension) + selectedFormat.extension
-            }
-        }
-        return path
+        return withArchiveExtension(path, archiveFormat) ?: path
     }
     val archiveFormat: ArchiveFormat get() = formatCombo.selectedItem as? ArchiveFormat ?: ArchiveFormat.ZIP
     val deleteAfterPacking: Boolean get() = deleteCheckBox.isSelected
 
-    private val archiveField = JBTextField(defaultArchivePath)
-    private val formatCombo = ComboBox(DefaultComboBoxModel(ArchiveFormat.entries.toTypedArray())).apply {
+    internal val archiveField = JBTextField(defaultArchivePath)
+    internal val formatCombo = ComboBox(DefaultComboBoxModel(ArchiveFormat.entries.toTypedArray())).apply {
         selectedItem = ArchiveFormat.ZIP
         renderer = DefaultListCellRenderer().let { renderer ->
             ListCellRenderer { list, value, index, isSelected, cellHasFocus ->
@@ -66,14 +65,8 @@ class PackDialog(
         init()
 
         formatCombo.addActionListener {
-            val path = archiveField.text.trim()
             val newFormat = formatCombo.selectedItem as? ArchiveFormat ?: return@addActionListener
-            for (fmt in ArchiveFormat.entries) {
-                if (path.endsWith(fmt.extension)) {
-                    archiveField.text = path.removeSuffix(fmt.extension) + newFormat.extension
-                    return@addActionListener
-                }
-            }
+            withArchiveExtension(archiveField.text.trim(), newFormat)?.let { archiveField.text = it }
         }
     }
 
