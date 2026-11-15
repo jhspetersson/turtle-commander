@@ -11,6 +11,7 @@
 - Packing a selection of only empty directories creates the archive
 - Sorting a large directory reads settings and cell values once per sort instead of per comparison
 - A directory size is no longer calculated twice when requested again before the first pass finishes
+- Saving changes to an archive scans its temp directory once instead of twice
 
 ## [0.7.115] - 2026-11-14
 

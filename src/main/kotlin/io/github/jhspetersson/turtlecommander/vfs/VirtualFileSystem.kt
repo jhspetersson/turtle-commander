@@ -742,10 +742,11 @@ abstract class AbstractTempDirVirtualFileSystem(
     override fun flush() {
         // Repack only when the temp dir actually changed: read-only operations (copying a
         // file out of the archive, a plain refresh) must not rewrite the archive.
-        val dirty = !isReadOnly && computeFingerprint() != cleanFingerprint
-        if (dirty) {
+        val fingerprint = if (isReadOnly) cleanFingerprint else computeFingerprint()
+        if (fingerprint != cleanFingerprint) {
             repack(tempDir)
-            markClean()
+            cleanFingerprint = fingerprint
+            cleanArchiveSignature = archiveSignature()
             return
         }
         val signature = archiveSignature()
