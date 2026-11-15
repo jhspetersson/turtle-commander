@@ -66,6 +66,12 @@ class ArchiveService {
             // "packed" means. We count files only — directory entries are created implicitly by
             // walkFileTree and are not interesting to the user as progress ticks.
             var successCount = 0
+            var directoryCount = 0
+            var failureCount = 0
+            val reportError = { path: Path, error: Exception ->
+                failureCount++
+                onError(path, error)
+            }
             FileSystems.newFileSystem(staged, mapOf("create" to "true", "useTempFile" to "true")).use { zipFs ->
                 for (source in sourcePaths) {
                     if (isCancelled()) break
@@ -77,6 +83,7 @@ class ArchiveService {
                                 val zipDir = zipFs.getPath(relativePath)
                                 try { Files.createDirectories(zipDir) } catch (_: FileAlreadyExistsException) {}
                                 Files.setLastModifiedTime(zipDir, attrs.lastModifiedTime())
+                                directoryCount++
                                 // Report the directory name for UX but do not tick the counter —
                                 // otherwise the final count exceeds the number of files actually
                                 // written, which is what the method returns.
@@ -94,14 +101,14 @@ class ArchiveService {
                                     successCount++
                                     onProgress(successCount, file.fileName.toString())
                                 } catch (e: Exception) {
-                                    onError(file, e)
+                                    reportError(file, e)
                                 }
                                 return FileVisitResult.CONTINUE
                             }
 
                             override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
                                 if (isCancelled()) return FileVisitResult.TERMINATE
-                                onError(file, exc)
+                                reportError(file, exc)
                                 return FileVisitResult.CONTINUE
                             }
                         })
@@ -113,12 +120,12 @@ class ArchiveService {
                             successCount++
                             onProgress(successCount, source.fileName.toString())
                         } catch (e: Exception) {
-                            onError(source, e)
+                            reportError(source, e)
                         }
                     }
                 }
             }
-            successCount
+            PackTally(successCount, directoryCount, failureCount)
         }
     }
 
@@ -132,6 +139,12 @@ class ArchiveService {
         OpenVfsRegistry.materializeTreesIfNeeded(sourcePaths)
         packStaged(archivePath, isCancelled) { staged ->
             var successCount = 0
+            var directoryCount = 0
+            var failureCount = 0
+            val reportError = { path: Path, error: Exception ->
+                failureCount++
+                onError(path, error)
+            }
             BufferedOutputStream(Files.newOutputStream(staged)).use { fos ->
                 GZIPOutputStream(fos).use { gzos ->
                     TarOutputStream(gzos).use { tarOs ->
@@ -144,6 +157,7 @@ class ArchiveService {
                                         val relativePath = (source.parent ?: source).relativize(dir).toString().replace("\\", "/")
                                         if (relativePath.isNotEmpty()) {
                                             tarOs.putDirectoryEntry("$relativePath/", attrs.lastModifiedTime().toMillis(), TarOutputStream.modeOf(dir, attrs))
+                                            directoryCount++
                                         }
                                         onProgress(successCount, dir.fileName.toString())
                                         return FileVisitResult.CONTINUE
@@ -157,14 +171,14 @@ class ArchiveService {
                                             successCount++
                                             onProgress(successCount, file.fileName.toString())
                                         } catch (e: Exception) {
-                                            onError(file, e)
+                                            reportError(file, e)
                                         }
                                         return FileVisitResult.CONTINUE
                                     }
 
                                     override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
                                         if (isCancelled()) return FileVisitResult.TERMINATE
-                                        onError(file, exc)
+                                        reportError(file, exc)
                                         return FileVisitResult.CONTINUE
                                     }
                                 })
@@ -175,7 +189,7 @@ class ArchiveService {
                                     successCount++
                                     onProgress(successCount, source.fileName.toString())
                                 } catch (e: Exception) {
-                                    onError(source, e)
+                                    reportError(source, e)
                                 }
                             }
                         }
@@ -183,7 +197,7 @@ class ArchiveService {
                     }
                 }
             }
-            successCount
+            PackTally(successCount, directoryCount, failureCount)
         }
     }
 
@@ -196,17 +210,21 @@ class ArchiveService {
         }
     }
 
-    private fun packStaged(archivePath: Path, isCancelled: () -> Boolean, write: (Path) -> Int): Int {
+    private class PackTally(val files: Int, val directories: Int, val failures: Int) {
+        val worthKeeping: Boolean get() = files > 0 || (directories > 0 && failures == 0)
+    }
+
+    private fun packStaged(archivePath: Path, isCancelled: () -> Boolean, write: (Path) -> PackTally): Int {
         val dir = archivePath.toAbsolutePath().normalize().parent
             ?: throw IOException("Cannot pack into an archive with no parent directory: $archivePath")
         val staged = Files.createTempFile(dir, "tc-pack-", ".tmp")
         try {
             Files.delete(staged)
-            val packed = write(staged)
-            if (packed > 0 && !isCancelled()) {
+            val tally = write(staged)
+            if (tally.worthKeeping && !isCancelled()) {
                 replaceAtomically(staged, archivePath)
             }
-            return packed
+            return tally.files
         } finally {
             runCatching { Files.deleteIfExists(staged) }
         }

@@ -738,7 +738,7 @@ internal fun FileTab.performPack() {
                         )
                     }
 
-                    if (!indicator.isCanceled && packedCount > 0 && deleteAfterPacking) {
+                    if (!indicator.isCanceled && deleteAfterPacking && (packedCount > 0 || failedPaths.isEmpty())) {
                         val deletablePaths = sourcesSafeToDelete(sourcePaths, failedPaths)
                         val keptCount = sourcePaths.size - deletablePaths.size
                         if (keptCount > 0) {

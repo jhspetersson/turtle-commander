@@ -69,6 +69,47 @@ class ArchiveServicePackStagingTest {
     }
 
     @Test
+    fun `zip of only empty directories is created with the directories`() {
+        val empty = Files.createDirectories(dir.resolve("empty/nested")).parent
+        val archive = dir.resolve("dirs.zip")
+
+        assertEquals(0, packZip(archive, listOf(empty), append = false))
+
+        java.util.zip.ZipFile(archive.toFile()).use { zip ->
+            assertEquals(listOf("empty/", "empty/nested/"), zip.entries().toList().map { it.name }.sorted())
+        }
+        assertTrue(leftovers().isEmpty())
+    }
+
+    @Test
+    fun `tar gz of only empty directories is created with the directories`() {
+        val empty = Files.createDirectories(dir.resolve("empty/nested")).parent
+        val archive = dir.resolve("dirs.tar.gz")
+        val packed = runBlocking {
+            ArchiveService().packTarGz(archive, listOf(empty), onProgress = { _, _ -> }, onError = { _, _ -> }, isCancelled = { false })
+        }
+
+        assertEquals(0, packed)
+        TarArchiveInputStream(GzipCompressorInputStream(Files.newInputStream(archive))).use { tar ->
+            val names = generateSequence { tar.nextEntry }.map { it.name }.toList().sorted()
+            assertEquals(listOf("empty/", "empty/nested/"), names)
+        }
+    }
+
+    @Test
+    fun `zip overwrite keeps the original when a directory is packed alongside a failure`() {
+        val archive = existingZip()
+        val original = Files.readAllBytes(archive)
+        val empty = Files.createDirectory(dir.resolve("empty"))
+
+        val packed = packZip(archive, listOf(empty, dir.resolve("missing.txt")), append = false)
+
+        assertEquals(0, packed)
+        assertArrayEquals(original, Files.readAllBytes(archive))
+        assertEquals(emptyList<String>(), leftovers())
+    }
+
+    @Test
     fun `zip overwrite keeps the original when nothing could be packed`() {
         val archive = existingZip()
         val original = Files.readAllBytes(archive)

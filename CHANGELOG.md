@@ -8,6 +8,7 @@
 
 - Drive Space dialog lists each volume once
 - Move and delete progress no longer counts files behind a junction
+- Packing a selection of only empty directories creates the archive
 
 ## [0.7.115] - 2026-11-14
 
