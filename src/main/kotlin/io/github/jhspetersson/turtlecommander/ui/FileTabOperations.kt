@@ -107,6 +107,7 @@ internal fun FileTab.performMoveEntries(
         progressVerb = "Moving",
         errorVerb = "move",
         op = fileOps::moveFilesWithProgress,
+        traverseJunctions = false,
         onTransferFinished = onTransferFinished,
     )
 }
@@ -149,6 +150,7 @@ internal fun FileTab.runTransfer(
     progressVerb: String,
     errorVerb: String,
     op: TransferOp,
+    traverseJunctions: Boolean = true,
     /**
      * Runs after [op] returns — normally, after per-file errors, or after a cancel — but
      * never when the transfer dialog was dismissed (the caller's transfer didn't start).
@@ -160,7 +162,7 @@ internal fun FileTab.runTransfer(
         withIndicatorProgress(project, taskTitle) { indicator ->
             withContext(NonCancellable) {
                 indicator.text = "Counting files..."
-                val totalFiles = countFiles(sources)
+                val totalFiles = countFiles(sources, traverseJunctions)
                 indicator.isIndeterminate = false
 
                 withLocks(transferWriteLocks(sources + listOf(destination))) {
@@ -258,7 +260,7 @@ internal fun FileTab.performDelete(forcePermanent: Boolean = false) {
                     sourcePaths.size
                 } else {
                     indicator.text = "Counting files..."
-                    countFiles(sourcePaths)
+                    countFiles(sourcePaths, traverseJunctions = false)
                 }
                 indicator.isIndeterminate = false
 

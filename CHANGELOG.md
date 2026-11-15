@@ -7,6 +7,7 @@
 ### Fixed
 
 - Drive Space dialog lists each volume once
+- Move and delete progress no longer counts files behind a junction
 
 ## [0.7.115] - 2026-11-14
 

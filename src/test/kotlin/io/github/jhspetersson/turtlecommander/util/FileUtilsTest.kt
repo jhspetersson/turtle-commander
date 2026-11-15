@@ -111,6 +111,53 @@ class FileUtilsTest {
         assertEquals(3, countFiles(listOf(single, dir)))
     }
 
+    private fun junction(link: Path, target: Path) {
+        assumeTrue(System.getProperty("os.name").startsWith("Windows"))
+        val exit = ProcessBuilder("cmd", "/c", "mklink", "/J", link.toString(), target.toString())
+            .redirectErrorStream(true).start().also { it.inputStream.readAllBytes() }.waitFor()
+        assumeTrue(exit == 0)
+    }
+
+    @Test
+    fun `countFiles counts a junction as one entry when junctions are not traversed`() = runBlocking {
+        val outside = Files.createDirectory(root.resolve("outside"))
+        Files.createFile(outside.resolve("a.txt"))
+        Files.createFile(outside.resolve("b.txt"))
+        val tree = Files.createDirectory(root.resolve("tree"))
+        junction(tree.resolve("link"), outside)
+        try {
+            assertEquals(2, countFiles(listOf(tree), traverseJunctions = false))
+            assertEquals(4, countFiles(listOf(tree)))
+        } finally {
+            Files.delete(tree.resolve("link"))
+        }
+    }
+
+    @Test
+    fun `countFiles does not descend a junction that links back to an ancestor`() = runBlocking {
+        val tree = Files.createDirectory(root.resolve("tree"))
+        Files.createFile(tree.resolve("a.txt"))
+        junction(tree.resolve("self"), tree)
+        try {
+            assertEquals(2, countFiles(listOf(tree)))
+        } finally {
+            Files.delete(tree.resolve("self"))
+        }
+    }
+
+    @Test
+    fun `countFiles counts a symlinked directory as one entry`() = runBlocking {
+        val outside = Files.createDirectory(root.resolve("outside"))
+        Files.createFile(outside.resolve("a.txt"))
+        val tree = Files.createDirectory(root.resolve("tree"))
+        try {
+            Files.createSymbolicLink(tree.resolve("link"), outside)
+        } catch (e: Exception) {
+            assumeNoException(e)
+        }
+        assertEquals(2, countFiles(listOf(tree)))
+    }
+
     // --- readFileOwner / readFilePermissions edge cases ---
 
     @Test
