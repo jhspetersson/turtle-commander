@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.116] - 2026-11-15
+
 ### Fixed
 
 - Drive Space dialog lists each volume once
