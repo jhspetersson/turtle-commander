@@ -10,6 +10,7 @@ import com.intellij.util.ui.JBUI
 import io.github.jhspetersson.turtlecommander.util.formatSize
 import java.awt.*
 import java.io.File
+import java.nio.file.FileStore
 import java.nio.file.Files
 import java.nio.file.Path
 import javax.swing.*
@@ -22,63 +23,44 @@ data class DriveInfo(
 )
 
 fun collectDriveInfo(): List<DriveInfo> {
+    val candidates = File.listRoots().map { it.toPath() }.toMutableList()
+    if (!SystemInfo.isWindows) {
+        for (mountDir in listOf("/Volumes", "/media", "/mnt")) {
+            val dir = Path.of(mountDir)
+            if (!Files.isDirectory(dir)) continue
+            try {
+                Files.newDirectoryStream(dir).use { stream -> stream.filterTo(candidates) { Files.isDirectory(it) } }
+            } catch (_: Exception) {
+            }
+        }
+    }
+    return driveInfos(candidates)
+}
+
+internal fun driveInfos(
+    candidates: List<Path>,
+    storeOf: (Path) -> FileStore = { Files.getFileStore(it) },
+): List<DriveInfo> {
+    val seen = mutableSetOf<FileStore>()
     val result = mutableListOf<DriveInfo>()
-    for (root in File.listRoots()) {
+    for (candidate in candidates) {
         try {
-            val store = Files.getFileStore(root.toPath())
+            val store = storeOf(candidate)
             val total = store.totalSpace
-            if (total <= 0) continue
+            if (total <= 0 || !seen.add(store)) continue
             val free = store.usableSpace
-            val used = total - free
+            val path = candidate.toString()
             val label = buildString {
-                append(root.absolutePath.trimEnd(File.separatorChar, '/'))
+                append(path.trimEnd(File.separatorChar, '/').ifEmpty { path })
                 val storeName = store.name()
                 if (storeName.isNotBlank()) {
                     append(" ($storeName)")
                 }
             }
-            result.add(DriveInfo(label, total, free, used))
+            result.add(DriveInfo(label, total, free, total - free))
         } catch (_: Exception) {
-            // skip inaccessible drives
         }
     }
-
-    // On Unix, also add mounted volumes
-    if (!SystemInfo.isWindows) {
-        val mountDirs = listOf("/Volumes", "/media", "/mnt")
-        for (mountDir in mountDirs) {
-            val dir = Path.of(mountDir)
-            if (!Files.isDirectory(dir)) continue
-            try {
-                Files.newDirectoryStream(dir).use { stream ->
-                    for (entry in stream) {
-                        if (!Files.isDirectory(entry)) continue
-                        try {
-                            val store = Files.getFileStore(entry)
-                            val total = store.totalSpace
-                            if (total <= 0) continue
-                            if (result.any { it.label.startsWith(entry.toString()) }) continue
-                            val free = store.usableSpace
-                            val used = total - free
-                            val label = buildString {
-                                append(entry.toString())
-                                val storeName = store.name()
-                                if (storeName.isNotBlank()) {
-                                    append(" ($storeName)")
-                                }
-                            }
-                            result.add(DriveInfo(label, total, free, used))
-                        } catch (_: Exception) {
-                            // skip
-                        }
-                    }
-                }
-            } catch (_: Exception) {
-                // skip
-            }
-        }
-    }
-
     return result
 }
 
