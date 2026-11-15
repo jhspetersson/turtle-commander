@@ -9,6 +9,7 @@
 - Drive Space dialog lists each volume once
 - Move and delete progress no longer counts files behind a junction
 - Packing a selection of only empty directories creates the archive
+- Sorting a large directory reads settings and cell values once per sort instead of per comparison
 
 ## [0.7.115] - 2026-11-14
 

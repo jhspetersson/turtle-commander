@@ -620,4 +620,65 @@ class ParentPinningRowSorterTest {
         // Dirs first (natural), then files (natural)
         assertEquals(listOf("dir1", "dir2", "dir10", "file2", "file10"), visibleNames())
     }
+
+    @Test
+    fun settingsAreReadOncePerSortInsteadOfPerComparison() {
+        var directoryReads = 0
+        var naturalReads = 0
+        val countingModel = FileTableModel()
+        val countingSorter = ParentPinningRowSorter(
+            countingModel,
+            { directoryReads++; false },
+            { naturalReads++; true },
+        )
+        JTable(countingModel).rowSorter = countingSorter
+        countingModel.setEntries((1..300).map { entry("file${300 - it}.txt") })
+        directoryReads = 0
+        naturalReads = 0
+
+        countingSorter.sortKeys = mutableListOf(RowSorter.SortKey(FileTableModel.COL_NAME, SortOrder.DESCENDING))
+
+        assertEquals(1, directoryReads)
+        assertEquals(1, naturalReads)
+    }
+
+    @Test
+    fun cellValuesAreReadOncePerRowInASort() {
+        var sizeReads = 0
+        model.directorySizeProvider = { sizeReads++; it.fileName.toString().removePrefix("dir").toLong() }
+        model.setEntries((1..300).map { entry("dir${(it * 7919) % 300}", isDirectory = true) })
+        sizeReads = 0
+
+        sortBy(FileTableModel.COL_SIZE, SortOrder.ASCENDING)
+
+        assertEquals(300, sizeReads)
+        assertEquals("dir0", visibleNames().first())
+        assertEquals("dir299", visibleNames().last())
+    }
+
+    @Test
+    fun aValueChangedBetweenSortsIsPickedUp() {
+        val sizes = mutableMapOf("a" to 1L, "b" to 2L)
+        model.directorySizeProvider = { sizes[it.fileName.toString()] }
+        model.setEntries(listOf(entry("a", isDirectory = true), entry("b", isDirectory = true)))
+        sortBy(FileTableModel.COL_SIZE, SortOrder.ASCENDING)
+        assertEquals(listOf("a", "b"), visibleNames())
+
+        sizes["a"] = 5L
+        sorter.sort()
+
+        assertEquals(listOf("b", "a"), visibleNames())
+    }
+
+    @Test
+    fun settingChangedBetweenSortsIsPickedUp() {
+        model.setEntries(listOf(entry("b.txt"), entry("a", isDirectory = true), entry("c", isDirectory = true)))
+        sortBy(FileTableModel.COL_NAME, SortOrder.ASCENDING)
+        assertEquals(listOf("a", "c", "b.txt"), visibleNames())
+
+        sortWithDirectories = true
+        sorter.sort()
+
+        assertEquals(listOf("a", "b.txt", "c"), visibleNames())
+    }
 }

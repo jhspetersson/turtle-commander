@@ -42,6 +42,11 @@ internal class ParentPinningRowSorter(
         override fun getRowCount(): Int = tableModel.rowCount
         override fun getIdentifier(row: Int): Int = row
         override fun getValueAt(row: Int, column: Int): Any {
+            val active = pass ?: return dirAwareValue(row, column)
+            return active.value(row, column) ?: dirAwareValue(row, column).also { active.remember(row, column, it) }
+        }
+
+        private fun dirAwareValue(row: Int, column: Int): DirAwareValue {
             val value = tableModel.getValueAt(row, column)
             val entry = tableModel.getEntryAt(row)
             return DirAwareValue(value, entry?.isDirectory == true, entry?.isParentLink == true)
@@ -51,12 +56,67 @@ internal class ParentPinningRowSorter(
         }
     }
 
+    private inner class SortPass {
+        val groupsDirectories: Boolean by lazy(LazyThreadSafetyMode.NONE) { !sortWithDirectories() }
+        val naturalNames: Boolean by lazy(LazyThreadSafetyMode.NONE) { naturalNameSort() }
+        private val descending: BooleanArray by lazy(LazyThreadSafetyMode.NONE) {
+            BooleanArray(model.columnCount).also { flags ->
+                for (key in sortKeys.asReversed()) {
+                    if (key.column in flags.indices) flags[key.column] = key.sortOrder == SortOrder.DESCENDING
+                }
+            }
+        }
+        private val rowCount = model.rowCount
+        private val values = arrayOfNulls<Array<DirAwareValue?>>(model.columnCount)
+
+        fun isDescending(column: Int): Boolean = descending.getOrElse(column) { false }
+
+        fun value(row: Int, column: Int): DirAwareValue? = values.getOrNull(column)?.getOrNull(row)
+
+        fun remember(row: Int, column: Int, value: DirAwareValue) {
+            if (column !in values.indices || row !in 0 until rowCount) return
+            val cells = values[column] ?: arrayOfNulls<DirAwareValue>(rowCount).also { values[column] = it }
+            cells[row] = value
+        }
+    }
+
+    private var pass: SortPass? = null
+
+    private inline fun inSortPass(block: () -> Unit) {
+        if (pass != null) {
+            block()
+            return
+        }
+        pass = SortPass()
+        try {
+            block()
+        } finally {
+            pass = null
+        }
+    }
+
+    internal fun groupsDirectories(): Boolean = pass?.groupsDirectories ?: !sortWithDirectories()
+
+    internal fun usesNaturalNames(): Boolean = pass?.naturalNames ?: naturalNameSort()
+
+    internal fun isDescending(column: Int): Boolean =
+        pass?.isDescending(column)
+            ?: (sortKeys.firstOrNull { it.column == column }?.sortOrder == SortOrder.DESCENDING)
+
     init {
         setModelWrapper(DirAwareModelWrapper(fileModel))
         for (col in 0 until fileModel.columnCount) {
-            setComparator(col, ParentFirstComparator(this, col, sortWithDirectories, naturalNameSort))
+            setComparator(col, ParentFirstComparator(this, col))
         }
     }
+
+    override fun sort() = inSortPass { super.sort() }
+
+    override fun allRowsChanged() = inSortPass { super.allRowsChanged() }
+
+    override fun rowsInserted(firstRow: Int, endRow: Int) = inSortPass { super.rowsInserted(firstRow, endRow) }
+
+    override fun rowsUpdated(firstRow: Int, endRow: Int) = inSortPass { super.rowsUpdated(firstRow, endRow) }
 
     override fun setSortKeys(keys: MutableList<out SortKey>?) {
         if (keys.isNullOrEmpty()) {
@@ -79,10 +139,6 @@ internal class ParentPinningRowSorter(
 internal class ParentFirstComparator(
     private val sorter: ParentPinningRowSorter,
     private val column: Int,
-    private val sortWithDirectories: () -> Boolean,
-    private val naturalNameSort: () -> Boolean = {
-        TurtleCommanderSettings.getInstance().state.naturalNameSort
-    },
 ) : Comparator<Any> {
     override fun compare(o1: Any?, o2: Any?): Int {
         val dav1 = o1 as? DirAwareValue ?: return 0
@@ -93,15 +149,15 @@ internal class ParentFirstComparator(
         if (dav1.isParent || dav2.isParent) {
             if (dav1.isParent && dav2.isParent) return 0
             val parentFirst = if (dav1.isParent) -1 else 1
-            return if (isDescending()) -parentFirst else parentFirst
+            return if (sorter.isDescending(column)) -parentFirst else parentFirst
         }
 
         // Group directories before files when the setting is off.
         // Same DESC counter-reversal to keep dirs on top.
-        if (!sortWithDirectories()) {
+        if (sorter.groupsDirectories()) {
             if (dav1.isDirectory != dav2.isDirectory) {
                 val dirFirst = if (dav1.isDirectory) -1 else 1
-                return if (isDescending()) -dirFirst else dirFirst
+                return if (sorter.isDescending(column)) -dirFirst else dirFirst
             }
         }
 
@@ -116,16 +172,10 @@ internal class ParentFirstComparator(
 
         val s1 = v1.toString()
         val s2 = v2.toString()
-        return if (column == FileTableModel.COL_NAME && naturalNameSort()) {
+        return if (column == FileTableModel.COL_NAME && sorter.usesNaturalNames()) {
             StringUtil.naturalCompare(s1, s2)
         } else {
             s1.compareTo(s2, ignoreCase = true)
         }
-    }
-
-    private fun isDescending(): Boolean {
-        val keys = sorter.sortKeys
-        val key = keys.firstOrNull { it.column == column } ?: return false
-        return key.sortOrder == SortOrder.DESCENDING
     }
 }
