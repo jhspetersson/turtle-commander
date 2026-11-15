@@ -461,25 +461,33 @@ fun FileTab.restoreSavedSelection() {
     applyMarksForCurrentView()
 }
 
+internal fun walkDirectorySize(directory: Path): Long {
+    var total = 0L
+    try {
+        Files.walkFileTree(directory, object : SimpleFileVisitor<Path>() {
+            override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                total += attrs.size()
+                return FileVisitResult.CONTINUE
+            }
+            override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
+                return FileVisitResult.CONTINUE
+            }
+        })
+    } catch (_: Exception) {
+    }
+    return total
+}
+
 internal fun FileTab.calculateDirectorySize(entry: FileEntry) {
     if (!entry.isDirectory || entry.isParentLink) return
     if (!TurtleCommanderSettings.getInstance().state.calculateDirectorySize) return
     if (directorySizes.containsKey(entry.path)) return
+    if (!directorySizesInFlight.add(entry.path)) return
     fileOps.launch {
-        val size = withContext(Dispatchers.IO) {
-            var total = 0L
-            try {
-                Files.walkFileTree(entry.path, object : SimpleFileVisitor<Path>() {
-                    override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
-                        total += attrs.size()
-                        return FileVisitResult.CONTINUE
-                    }
-                    override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
-                        return FileVisitResult.CONTINUE
-                    }
-                })
-            } catch (_: Exception) {}
-            total
+        val size = try {
+            withContext(Dispatchers.IO) { directorySizeWalker(entry.path) }
+        } finally {
+            directorySizesInFlight.remove(entry.path)
         }
         directorySizes[entry.path] = size
         withContext(Dispatchers.EDT) {

@@ -1712,6 +1712,8 @@ class FileTab(
     // / restoreTreeMarks call after the rebuild does the work once.
     internal var insideViewSwitch = false
     internal val directorySizes = ConcurrentHashMap<Path, Long>()
+    internal val directorySizesInFlight: MutableSet<Path> = ConcurrentHashMap.newKeySet()
+    internal var directorySizeWalker: (Path) -> Long = ::walkDirectorySize
 
     fun openSelectedEntry() {
         val entry = getSelectedEntry() ?: return
