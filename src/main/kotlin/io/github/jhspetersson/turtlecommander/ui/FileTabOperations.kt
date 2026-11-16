@@ -35,10 +35,13 @@ import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
 import io.github.jhspetersson.turtlecommander.util.formatSize
 import io.github.jhspetersson.turtlecommander.util.withIndicatorProgress
 import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
+import io.github.jhspetersson.turtlecommander.vfs.SharedVfsRegistry
 import io.github.jhspetersson.turtlecommander.vfs.VfsEditEntry
 import io.github.jhspetersson.turtlecommander.vfs.VfsEditService
 import io.github.jhspetersson.turtlecommander.vfs.VfsOpenProgress
+import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
 import io.github.jhspetersson.turtlecommander.vfs.ZipVirtualFileSystem
+import io.github.jhspetersson.turtlecommander.vfs.writeBackNestedStack
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
@@ -158,6 +161,7 @@ internal fun FileTab.runTransfer(
      */
     onTransferFinished: (suspend () -> Unit)? = null,
 ) {
+    val destinationArchive = archiveStackOwning(destination)
     fileOps.launch {
         withIndicatorProgress(project, taskTitle) { indicator ->
             withContext(NonCancellable) {
@@ -181,7 +185,14 @@ internal fun FileTab.runTransfer(
                         },
                         { indicator.isCanceled },
                     )
+                    if (destinationArchive != null) {
+                        withContext(Dispatchers.IO) {
+                            destinationArchive.last().vfs.flush()
+                            writeBackNestedStack(destinationArchive)
+                        }
+                    }
                 }
+                destinationArchive?.let { SharedVfsRegistry.notifyMutated(it.first().vfs) }
 
                 onTransferFinished?.invoke()
                 refreshAfterVfsChange()
@@ -191,6 +202,19 @@ internal fun FileTab.runTransfer(
             }
         }
     }
+}
+
+internal fun FileTab.archiveStackOwning(path: Path): List<VfsStackEntry>? {
+    val panels = listOfNotNull(stateService?.leftPanel, stateService?.rightPanel)
+    val tabs = (panels.flatMap { it.tabs() } + this).distinct()
+    for (tab in tabs) {
+        val stack = tab.vfsStack.toList()
+        val index = stack.indexOfLast { entry ->
+            entry.vfs.root.fileSystem == path.fileSystem && runCatching { entry.vfs.owns(path) }.getOrDefault(false)
+        }
+        if (index >= 0) return stack.subList(0, index + 1)
+    }
+    return null
 }
 
 internal fun FileTab.transferWriteLocks(paths: List<Path>): List<Mutex> {
