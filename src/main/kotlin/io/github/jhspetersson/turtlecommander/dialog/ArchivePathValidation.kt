@@ -1,11 +1,12 @@
 package io.github.jhspetersson.turtlecommander.dialog
 
+import io.github.jhspetersson.turtlecommander.service.targetIsInsideSource
 import io.github.jhspetersson.turtlecommander.ui.resolveDestinationPath
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
 import java.nio.file.Path
 
-internal fun validatePackArchivePath(input: String, base: Path): String? {
+internal fun validatePackArchivePath(input: String, base: Path, sources: List<Path> = emptyList()): String? {
     val text = input.trim()
     if (text.isEmpty()) return "Enter an archive path"
     val path = try {
@@ -14,6 +15,9 @@ internal fun validatePackArchivePath(input: String, base: Path): String? {
         return "Invalid archive path: ${e.reason ?: text}"
     }
     if (Files.isDirectory(path)) return "Archive path points to an existing directory"
+    if (sources.any { it.fileSystem == path.fileSystem && targetIsInsideSource(it, path) }) {
+        return "Archive cannot be created inside an item being packed"
+    }
     return null
 }
 

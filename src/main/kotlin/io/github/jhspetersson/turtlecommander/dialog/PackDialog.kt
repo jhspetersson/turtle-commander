@@ -116,5 +116,5 @@ class PackDialog(
     override fun getPreferredFocusedComponent() = archiveField
 
     public override fun doValidate(): ValidationInfo? =
-        validatePackArchivePath(archiveField.text, basePath)?.let { ValidationInfo(it, archiveField) }
+        validatePackArchivePath(archivePath, basePath, sources.map { it.path })?.let { ValidationInfo(it, archiveField) }
 }

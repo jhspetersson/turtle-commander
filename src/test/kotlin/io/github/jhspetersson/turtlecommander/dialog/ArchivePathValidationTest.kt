@@ -43,6 +43,30 @@ class ArchivePathValidationTest {
     }
 
     @Test
+    fun packRejectsAnArchiveInsideAPackedDirectory() {
+        val source = Files.createDirectories(base.resolve("proj/sub")).parent
+
+        assertNotNull(validatePackArchivePath(source.resolve("proj.zip").toString(), base, listOf(source)))
+        assertNotNull(validatePackArchivePath(source.resolve("sub/proj.zip").toString(), base, listOf(source)))
+        assertNotNull(validatePackArchivePath(source.resolve("new/deeper/proj.zip").toString(), base, listOf(source)))
+    }
+
+    @Test
+    fun packRejectsAnArchiveThatIsItselfBeingPacked() {
+        val source = Files.writeString(base.resolve("archive.zip"), "x")
+
+        assertNotNull(validatePackArchivePath("archive.zip", base, listOf(source, base.resolve("other.txt"))))
+    }
+
+    @Test
+    fun packAcceptsAnArchiveBesideThePackedItems() {
+        val source = Files.createDirectory(base.resolve("proj"))
+
+        assertNull(validatePackArchivePath("proj.zip", base, listOf(source)))
+        assertNull(validatePackArchivePath(base.resolve("projects.zip").toString(), base, listOf(source)))
+    }
+
+    @Test
     fun packAcceptsNewFileInsideExistingDirectory() {
         assertNull(validatePackArchivePath("new.zip", base))
         assertNull(validatePackArchivePath(base.resolve("new.zip").toString(), base))

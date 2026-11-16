@@ -448,29 +448,6 @@ class FileOperationService(
         return if (sourceNewer) TargetAction.OVERWRITE else TargetAction.SKIP
     }
 
-    private fun targetIsInsideSource(source: Path, target: Path): Boolean =
-        try {
-            resolveExistingPrefix(target).startsWith(resolveExistingPrefix(source))
-        } catch (_: Exception) {
-            false
-        }
-
-    private fun resolveExistingPrefix(path: Path): Path {
-        val absolute = path.toAbsolutePath().normalize()
-        var existing = absolute
-        val missing = ArrayDeque<Path>()
-        while (!Files.exists(existing, LinkOption.NOFOLLOW_LINKS)) {
-            missing.addFirst(existing.fileName ?: return absolute)
-            existing = existing.parent ?: return absolute
-        }
-        val real = try {
-            existing.toRealPath()
-        } catch (_: Exception) {
-            existing
-        }
-        return missing.fold(real) { acc, name -> acc.resolve(name) }
-    }
-
     suspend fun copyFilesWithProgress(
         sources: List<Path>,
         destination: Path,
@@ -1222,4 +1199,27 @@ internal fun copyPreservingAttributes(source: Path, target: Path, replaceExistin
         if (nofollow) add(LinkOption.NOFOLLOW_LINKS)
     }
     Files.copy(source, target, *options.toTypedArray())
+}
+
+internal fun targetIsInsideSource(source: Path, target: Path): Boolean =
+    try {
+        resolveExistingPrefix(target).startsWith(resolveExistingPrefix(source))
+    } catch (_: Exception) {
+        false
+    }
+
+private fun resolveExistingPrefix(path: Path): Path {
+    val absolute = path.toAbsolutePath().normalize()
+    var existing = absolute
+    val missing = ArrayDeque<Path>()
+    while (!Files.exists(existing, LinkOption.NOFOLLOW_LINKS)) {
+        missing.addFirst(existing.fileName ?: return absolute)
+        existing = existing.parent ?: return absolute
+    }
+    val real = try {
+        existing.toRealPath()
+    } catch (_: Exception) {
+        existing
+    }
+    return missing.fold(real) { acc, name -> acc.resolve(name) }
 }
