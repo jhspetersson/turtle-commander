@@ -1622,11 +1622,11 @@ class FileTab(
         val vfs = currentVfs
         if (vfs != null) {
             val relativePath = vfsRelativePath(vfs, currentPath)
+            val stack = vfsStack.toList()
             fileOps.launch {
                 withContext(Dispatchers.IO) {
                     vfsWriteMutex.withLock {
-                        vfs.flush()
-                        writeBackNestedArchivesLocked()
+                        saveArchiveStackLocked(stack)
                     }
                 }
                 notifySharedVfsMutated()
@@ -1712,6 +1712,9 @@ class FileTab(
     // / restoreTreeMarks call after the rebuild does the work once.
     internal var insideViewSwitch = false
     internal val directorySizes = ConcurrentHashMap<Path, Long>()
+    internal var onArchiveSaveFailed: (VirtualFileSystem, Exception) -> Unit = { vfs, cause ->
+        fileErrorNotification(archiveSaveFailureMessage(vfs, cause), cause)
+    }
     internal val directorySizesInFlight: MutableSet<Path> = ConcurrentHashMap.newKeySet()
     internal var directorySizeWalker: (Path) -> Long = ::walkDirectorySize
 

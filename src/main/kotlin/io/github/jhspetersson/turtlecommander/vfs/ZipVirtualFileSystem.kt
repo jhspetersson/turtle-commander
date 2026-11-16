@@ -93,6 +93,8 @@ class ZipVirtualFileSystem(override val archivePath: Path) : VirtualFileSystem {
 
     override val root: Path get() = fileSystem.getPath("/")
 
+    override val isReadOnly: Boolean get() = fileSystem.isReadOnly
+
     private fun openZipFs(): FileSystem {
         return FileSystems.newFileSystem(archivePath, mapOf<String, Any>("create" to "false"))
     }
@@ -181,8 +183,11 @@ class ZipVirtualFileSystem(override val archivePath: Path) : VirtualFileSystem {
     @Synchronized
     override fun flush() {
         metadataCache = null
-        fileSystem.close()
-        fileSystem = openZipFs()
+        try {
+            fileSystem.close()
+        } finally {
+            fileSystem = openZipFs()
+        }
     }
 
     @Synchronized

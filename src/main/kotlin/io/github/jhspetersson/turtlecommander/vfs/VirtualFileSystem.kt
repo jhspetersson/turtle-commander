@@ -596,7 +596,14 @@ abstract class AbstractTempDirVirtualFileSystem(
 
     override val unextractableEntries: List<String> get() = unextractable.keys.toList()
 
-    override val isReadOnly: Boolean get() = unextractable.isNotEmpty()
+    private var archiveNotWritable = false
+
+    override val isReadOnly: Boolean get() = unextractable.isNotEmpty() || archiveNotWritable
+
+    private fun archiveCanBeRewritten(): Boolean {
+        val parent = archivePath.toAbsolutePath().parent
+        return Files.isWritable(archivePath) && (parent == null || Files.isWritable(parent))
+    }
 
     protected fun reportUnextractable(name: String, cause: Exception) {
         val detail = cause.message ?: cause.javaClass.simpleName
@@ -630,6 +637,7 @@ abstract class AbstractTempDirVirtualFileSystem(
         val dir = Files.createTempDirectory(tempDirPrefix)
         TempRootLocks.claim(dir)
         unextractable.clear()
+        archiveNotWritable = !archiveCanBeRewritten()
         try {
             extract(dir)
             tempDir = dir

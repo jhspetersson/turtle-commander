@@ -8,6 +8,7 @@
 
 - Pack refuses an archive path inside an item being packed, which "Delete files after packing" then deleted
 - Files copied or moved into an archive are saved even if its tab leaves the archive or is switched away before the transfer ends
+- A failed archive save is reported instead of being silent, and an archive that cannot be rewritten opens read-only
 
 ## [0.7.116] - 2026-11-15
 

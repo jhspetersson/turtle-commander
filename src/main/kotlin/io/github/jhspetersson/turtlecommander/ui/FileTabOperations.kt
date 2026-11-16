@@ -41,7 +41,6 @@ import io.github.jhspetersson.turtlecommander.vfs.VfsEditService
 import io.github.jhspetersson.turtlecommander.vfs.VfsOpenProgress
 import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
 import io.github.jhspetersson.turtlecommander.vfs.ZipVirtualFileSystem
-import io.github.jhspetersson.turtlecommander.vfs.writeBackNestedStack
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
@@ -186,10 +185,7 @@ internal fun FileTab.runTransfer(
                         { indicator.isCanceled },
                     )
                     if (destinationArchive != null) {
-                        withContext(Dispatchers.IO) {
-                            destinationArchive.last().vfs.flush()
-                            writeBackNestedStack(destinationArchive)
-                        }
+                        withContext(Dispatchers.IO) { saveArchiveStackLocked(destinationArchive) }
                     }
                 }
                 destinationArchive?.let { SharedVfsRegistry.notifyMutated(it.first().vfs) }

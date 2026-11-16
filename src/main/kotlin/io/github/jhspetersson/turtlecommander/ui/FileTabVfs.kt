@@ -19,6 +19,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import com.intellij.openapi.progress.ProcessCanceledException
+import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -220,15 +222,40 @@ internal suspend fun FileTab.writeBackNestedArchives() {
     notifySharedVfsMutated()
 }
 
+internal fun archiveSaveFailureMessage(vfs: VirtualFileSystem, cause: Throwable): String {
+    val archive = vfs.archivePath.fileName?.toString() ?: vfs.archivePath.toString()
+    val reason = cause.message ?: cause.javaClass.simpleName
+    val kept = if (vfs.root.fileSystem == FileSystems.getDefault()) {
+        " The unsaved files are kept in ${vfs.root} until the archive is closed; fix the problem and refresh to retry."
+    } else {
+        ""
+    }
+    return "Changes inside \"$archive\" were not saved: $reason.$kept"
+}
+
+internal fun FileTab.saveArchiveStackLocked(stack: List<VfsStackEntry>): Boolean {
+    val vfs = stack.lastOrNull()?.vfs ?: return true
+    return try {
+        vfs.flush()
+        writeBackNestedStack(stack)
+        true
+    } catch (e: ProcessCanceledException) {
+        throw e
+    } catch (e: Exception) {
+        onArchiveSaveFailed(vfs, e)
+        false
+    }
+}
+
 internal suspend fun FileTab.refreshAfterVfsChange(selectName: String? = null) {
     invalidateFreeSpaceCache()
     val vfs = currentVfs
     if (vfs != null) {
         val relativePath = vfsRelativePath(vfs, currentPath)
+        val stack = vfsStack.toList()
         withContext(Dispatchers.IO) {
             vfsWriteMutex.withLock {
-                vfs.flush()
-                writeBackNestedArchivesLocked()
+                saveArchiveStackLocked(stack)
             }
         }
         notifySharedVfsMutated()
