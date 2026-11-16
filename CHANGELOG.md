@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.117] - 2026-11-16
+
 ### Fixed
 
 - Pack refuses an archive path inside an item being packed, which "Delete files after packing" then deleted
