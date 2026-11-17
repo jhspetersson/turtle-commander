@@ -72,14 +72,20 @@ class ArchiveService {
                 failureCount++
                 onError(path, error)
             }
+            val entryNames = PackEntryNames(sourcePaths)
             FileSystems.newFileSystem(staged, mapOf("create" to "true", "useTempFile" to "true")).use { zipFs ->
                 for (source in sourcePaths) {
                     if (isCancelled()) break
+                    val base = entryNames.baseOf(source)
+                    if (!entryNames.claim(source)) {
+                        reportError(source, entryNames.clash(source))
+                        continue
+                    }
                     if (Files.isDirectory(source)) {
                         Files.walkFileTree(source, object : SimpleFileVisitor<Path>() {
                             override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
                                 if (isCancelled()) return FileVisitResult.TERMINATE
-                                val relativePath = (source.parent ?: source).relativize(dir).toString().replace("\\", "/")
+                                val relativePath = base.relativize(dir).toString().replace("\\", "/")
                                 val zipDir = zipFs.getPath(relativePath)
                                 try { Files.createDirectories(zipDir) } catch (_: FileAlreadyExistsException) {}
                                 Files.setLastModifiedTime(zipDir, attrs.lastModifiedTime())
@@ -95,7 +101,7 @@ class ArchiveService {
                                 if (isCancelled()) return FileVisitResult.TERMINATE
                                 try {
                                     OpenVfsRegistry.materializeIfNeeded(file)
-                                    val relativePath = (source.parent ?: source).relativize(file).toString().replace("\\", "/")
+                                    val relativePath = base.relativize(file).toString().replace("\\", "/")
                                     val zipEntry = zipFs.getPath(relativePath)
                                     copyPreservingAttributes(file, zipEntry, replaceExisting = true)
                                     successCount++
@@ -115,7 +121,8 @@ class ArchiveService {
                     } else {
                         try {
                             OpenVfsRegistry.materializeIfNeeded(source)
-                            val zipEntry = zipFs.getPath(source.fileName.toString())
+                            val zipEntry = zipFs.getPath(entryNames.nameOf(source))
+                            zipEntry.parent?.let { Files.createDirectories(it) }
                             copyPreservingAttributes(source, zipEntry, replaceExisting = true)
                             successCount++
                             onProgress(successCount, source.fileName.toString())
@@ -145,16 +152,22 @@ class ArchiveService {
                 failureCount++
                 onError(path, error)
             }
+            val entryNames = PackEntryNames(sourcePaths)
             BufferedOutputStream(Files.newOutputStream(staged)).use { fos ->
                 GZIPOutputStream(fos).use { gzos ->
                     TarOutputStream(gzos).use { tarOs ->
                         for (source in sourcePaths) {
                             if (isCancelled()) break
+                            val base = entryNames.baseOf(source)
+                            if (!entryNames.claim(source)) {
+                                reportError(source, entryNames.clash(source))
+                                continue
+                            }
                             if (Files.isDirectory(source)) {
                                 Files.walkFileTree(source, object : SimpleFileVisitor<Path>() {
                                     override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
                                         if (isCancelled()) return FileVisitResult.TERMINATE
-                                        val relativePath = (source.parent ?: source).relativize(dir).toString().replace("\\", "/")
+                                        val relativePath = base.relativize(dir).toString().replace("\\", "/")
                                         if (relativePath.isNotEmpty()) {
                                             tarOs.putDirectoryEntry("$relativePath/", attrs.lastModifiedTime().toMillis(), TarOutputStream.modeOf(dir, attrs))
                                             directoryCount++
@@ -166,7 +179,7 @@ class ArchiveService {
                                     override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                                         if (isCancelled()) return FileVisitResult.TERMINATE
                                         try {
-                                            val relativePath = (source.parent ?: source).relativize(file).toString().replace("\\", "/")
+                                            val relativePath = base.relativize(file).toString().replace("\\", "/")
                                             putTarEntry(tarOs, relativePath, file, attrs)
                                             successCount++
                                             onProgress(successCount, file.fileName.toString())
@@ -185,7 +198,7 @@ class ArchiveService {
                             } else {
                                 try {
                                     val attrs = Files.readAttributes(source, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
-                                    putTarEntry(tarOs, source.fileName.toString(), source, attrs)
+                                    putTarEntry(tarOs, entryNames.nameOf(source), source, attrs)
                                     successCount++
                                     onProgress(successCount, source.fileName.toString())
                                 } catch (e: Exception) {
@@ -207,6 +220,37 @@ class ArchiveService {
             tarOs.putSymlinkEntry(name, Files.readSymbolicLink(file).toString().replace('\\', '/'), modTime)
         } else {
             tarOs.putFileEntry(name, file, modTime, TarOutputStream.modeOf(file, attrs))
+        }
+    }
+
+    private class PackEntryNames(sources: List<Path>) {
+        private val sharedBase: Path? = sharedBaseOf(sources)
+        private val claimed = HashMap<String, Path>()
+
+        fun baseOf(source: Path): Path = sharedBase ?: source.parent ?: source
+
+        fun nameOf(source: Path): String {
+            val relative = baseOf(source).relativize(source).toString().replace("\\", "/")
+            return relative.ifEmpty { source.fileName?.toString().orEmpty() }
+        }
+
+        fun claim(source: Path): Boolean {
+            val owner = claimed.getOrPut(nameOf(source)) { source }
+            return owner == source
+        }
+
+        fun clash(source: Path): IOException =
+            IOException("\"${nameOf(source)}\" is already in the archive from ${claimed[nameOf(source)]}")
+
+        private fun sharedBaseOf(sources: List<Path>): Path? {
+            val names = sources.map { it.fileName?.toString() }
+            if (names.toSet().size == names.size) return null
+            if (sources.any { !it.isAbsolute }) return null
+            var base = sources.first().parent ?: return null
+            while (sources.any { it.fileSystem != base.fileSystem || !it.startsWith(base) || it == base }) {
+                base = base.parent ?: return null
+            }
+            return base
         }
     }
 

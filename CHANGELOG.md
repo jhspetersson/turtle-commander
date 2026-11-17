@@ -11,6 +11,7 @@
 - A tar file reached through a symlink inside the archive no longer reads as zeros
 - A read error in the middle of a file no longer corrupts the rest of a tar.gz being packed
 - Renaming a symlink to the name of its own target no longer replaces the target
+- Packing same-named items from different folders keeps them apart instead of overwriting one with another
 
 ## [0.7.117] - 2026-11-16
 
