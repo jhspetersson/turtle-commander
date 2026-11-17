@@ -92,6 +92,7 @@ private suspend fun FileTab.openVfsExclusively(entry: FileEntry, directory: Stri
                     navigateTo(vfsDirectory(vfs, directory), selectName)
                 } else {
                     var tempFile: File? = null
+                    val insideReadOnlyArchive = vfsStack.any { it.vfs.isReadOnly }
                     try {
                         VfsTempCleanup.cleanupOnce()
                         val vfs = withContext(Dispatchers.IO) {
@@ -105,6 +106,7 @@ private suspend fun FileTab.openVfsExclusively(entry: FileEntry, directory: Stri
                             val tempPath = tempDir.resolve(fileName)
                             tempFile = tempPath.toFile()
                             Files.copy(archivePath, tempPath)
+                            if (insideReadOnlyArchive) tempPath.toFile().setWritable(false)
                             VirtualFileSystemRegistry.create(tempPath, openProgress)
                         }
                         if (indicator.isCanceled) {

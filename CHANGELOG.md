@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- An archive opened inside a read-only archive is read-only, instead of silently dropping edits
+
 ## [0.7.117] - 2026-11-16
 
 ### Fixed
