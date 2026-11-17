@@ -7,6 +7,7 @@ import org.apache.commons.compress.archivers.cpio.CpioArchiveInputStream
 import org.apache.commons.compress.archivers.cpio.CpioArchiveOutputStream
 import org.apache.commons.compress.archivers.cpio.CpioConstants
 import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.FileTime
@@ -99,6 +100,7 @@ class CpioVirtualFileSystem(
             pendingSymlinks,
             onEscaped = {
                 thisLogger().warn("Skipping cpio symlink escaping the archive root: ${normalizeRelativeName(into, it.linkPath)} -> ${it.target}")
+                unresolvedSymlinks[normalizeRelativeName(into, it.linkPath)] = it.target
             },
             onFailed = { unresolvedSymlinks[normalizeRelativeName(into, it.linkPath)] = it.target },
         )
@@ -143,6 +145,7 @@ class CpioVirtualFileSystem(
                         }
                     }
                     for ((relativeName, linkTarget) in unresolvedSymlinks) {
+                        if (Files.exists(from.resolve(relativeName), LinkOption.NOFOLLOW_LINKS)) continue
                         writeSymlinkEntry(cpio, relativeName, linkTarget)
                     }
                 }

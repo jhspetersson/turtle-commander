@@ -9,6 +9,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.BasicFileAttributes
@@ -173,6 +174,7 @@ class TarVirtualFileSystem(
             pendingSymlinks,
             onEscaped = {
                 thisLogger().warn("Skipping tar symlink escaping the archive root: ${normalizeRelativeName(into, it.linkPath)} -> ${it.target}")
+                unresolvedSymlinks[normalizeRelativeName(into, it.linkPath)] = it.target
             },
             onFailed = { unresolvedSymlinks[normalizeRelativeName(into, it.linkPath)] = it.target },
         )
@@ -404,6 +406,7 @@ class TarVirtualFileSystem(
                     // Re-emit symlink entries that we could not materialize locally. Without this,
                     // editing any file inside a tar on Windows silently strips every symlink.
                     for ((relativeName, linkTarget) in unresolvedSymlinks) {
+                        if (Files.exists(from.resolve(relativeName), LinkOption.NOFOLLOW_LINKS)) continue
                         val entry = TarArchiveEntry(relativeName, TarArchiveEntry.LF_SYMLINK)
                         entry.linkName = linkTarget
                         applyRecordedMetadata(entry, relativeName)
