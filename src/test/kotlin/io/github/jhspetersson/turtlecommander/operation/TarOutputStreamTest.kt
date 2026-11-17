@@ -12,6 +12,7 @@ import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
@@ -147,6 +148,47 @@ class TarOutputStreamTest {
 
             val entries = readEntries(out.toByteArray())
             assertEquals(listOf("truncated.bin", "b.txt"), entries.map { it.first.name })
+            assertEquals(1000, entries[0].second.size)
+            assertTrue(entries[0].second.take(400).all { it == 7.toByte() })
+            assertTrue(entries[0].second.drop(400).all { it == 0.toByte() })
+            assertEquals("survivor", entries[1].second.toString(Charsets.UTF_8))
+        } finally {
+            Files.deleteIfExists(fileB)
+        }
+    }
+
+    @Test
+    fun `read error mid-file is zero-padded and later entries stay readable`() {
+        val fileB = Files.createTempFile("tar-test-", ".bin")
+        try {
+            Files.write(fileB, "survivor".toByteArray())
+            val failing = object : InputStream() {
+                private var served = 0
+
+                override fun read(): Int = throw UnsupportedOperationException()
+
+                override fun read(b: ByteArray, off: Int, len: Int): Int {
+                    if (served >= 400) throw IOException("device not ready")
+                    val count = minOf(len, 400 - served)
+                    b.fill(7, off, off + count)
+                    served += count
+                    return count
+                }
+            }
+            val out = ByteArrayOutputStream()
+            TarOutputStream(out).use { tar ->
+                try {
+                    tar.putFileEntry("broken.bin", failing, 1000, 0, "broken.bin")
+                    fail("Expected IOException for a source that fails mid-read")
+                } catch (e: IOException) {
+                    assertTrue(e.message, "device not ready" in e.message.orEmpty())
+                }
+                tar.putFileEntry("b.txt", fileB, 0)
+                tar.finish()
+            }
+
+            val entries = readEntries(out.toByteArray())
+            assertEquals(listOf("broken.bin", "b.txt"), entries.map { it.first.name })
             assertEquals(1000, entries[0].second.size)
             assertTrue(entries[0].second.take(400).all { it == 7.toByte() })
             assertTrue(entries[0].second.drop(400).all { it == 0.toByte() })

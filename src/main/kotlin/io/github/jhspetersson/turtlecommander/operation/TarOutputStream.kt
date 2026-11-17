@@ -79,9 +79,15 @@ class TarOutputStream(private val out: OutputStream) : AutoCloseable {
         out.write(header)
         val buf = ByteArray(8192)
         var remaining = declaredSize
+        var readFailure: IOException? = null
         while (remaining > 0) {
             val toRead = minOf(buf.size.toLong(), remaining).toInt()
-            val read = input.read(buf, 0, toRead)
+            val read = try {
+                input.read(buf, 0, toRead)
+            } catch (e: IOException) {
+                readFailure = e
+                break
+            }
             if (read <= 0) break
             out.write(buf, 0, read)
             remaining -= read
@@ -99,6 +105,12 @@ class TarOutputStream(private val out: OutputStream) : AutoCloseable {
         val remainder = (declaredSize % blockSize).toInt()
         if (remainder > 0) {
             out.write(ByteArray(blockSize - remainder))
+        }
+        readFailure?.let {
+            throw IOException(
+                "File $source could not be read past ${declaredSize - missing} of $declaredSize bytes (${it.message ?: it.javaClass.simpleName}); the entry was zero-padded to keep the archive readable",
+                it,
+            )
         }
         if (missing > 0) {
             throw IOException(
