@@ -8,6 +8,7 @@
 
 - An archive opened inside a read-only archive is read-only, instead of silently dropping edits
 - Tar and cpio symlinks pointing outside the archive are kept when the archive is rewritten
+- A tar file reached through a symlink inside the archive no longer reads as zeros
 
 ## [0.7.117] - 2026-11-16
 

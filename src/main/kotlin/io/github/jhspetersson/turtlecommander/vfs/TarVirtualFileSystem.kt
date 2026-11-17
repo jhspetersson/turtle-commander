@@ -264,12 +264,20 @@ class TarVirtualFileSystem(
     private fun pendingOrdinals(paths: Collection<Path>): MutableMap<Int, Path> {
         val byOrdinal = HashMap<Int, Path>()
         for (path in paths) {
+            if (pendingEntries.isEmpty()) break
             val normalized = path.normalize()
-            val pending = pendingEntries[normalized] ?: continue
-            byOrdinal[pending.ordinal] = normalized
+            val stub = if (pendingEntries.containsKey(normalized)) normalized else stubBehindLinks(normalized) ?: continue
+            val pending = pendingEntries[stub] ?: continue
+            byOrdinal[pending.ordinal] = stub
         }
         return byOrdinal
     }
+
+    private fun stubBehindLinks(path: Path): Path? = runCatching {
+        val realRoot = tempDir.toRealPath()
+        val real = path.toRealPath()
+        if (real.startsWith(realRoot)) tempDir.resolve(realRoot.relativize(real)).normalize() else null
+    }.getOrNull()
 
     /**
      * One pass over the archive, handing each entry whose ordinal is in [byOrdinal] to
