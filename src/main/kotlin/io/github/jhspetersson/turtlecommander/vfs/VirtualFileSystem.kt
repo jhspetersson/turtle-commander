@@ -6,6 +6,7 @@ import java.util.concurrent.CopyOnWriteArraySet
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.diagnostic.thisLogger
 import io.github.jhspetersson.turtlecommander.model.FileEntry
+import io.github.jhspetersson.turtlecommander.util.isSameDirectoryEntry
 import io.github.jhspetersson.turtlecommander.util.renameInPlace
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -725,7 +726,7 @@ abstract class AbstractTempDirVirtualFileSystem(
         }
         val parent = source.parent ?: throw IllegalArgumentException("Cannot rename a root path")
         val target = parent.resolve(newName)
-        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS) && !Files.isSameFile(source, target)) {
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS) && !isSameDirectoryEntry(source, target)) {
             throw FileAlreadyExistsException("Cannot rename to \"$newName\": entry already exists in archive")
         }
         if (Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS)) materializeAll(regularFilesUnder(source))

@@ -10,6 +10,7 @@
 - Tar and cpio symlinks pointing outside the archive are kept when the archive is rewritten
 - A tar file reached through a symlink inside the archive no longer reads as zeros
 - A read error in the middle of a file no longer corrupts the rest of a tar.gz being packed
+- Renaming a symlink to the name of its own target no longer replaces the target
 
 ## [0.7.117] - 2026-11-16
 

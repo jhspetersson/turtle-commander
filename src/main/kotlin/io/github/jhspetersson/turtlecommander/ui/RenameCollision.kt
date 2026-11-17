@@ -2,6 +2,7 @@ package io.github.jhspetersson.turtlecommander.ui
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
+import io.github.jhspetersson.turtlecommander.util.isSameDirectoryEntry
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.Path
@@ -18,7 +19,7 @@ internal class RenameCollision(
 
 internal fun detectRenameCollision(source: Path, target: Path, newName: String): RenameCollision? {
     if (!Files.exists(target, LinkOption.NOFOLLOW_LINKS)) return null
-    if (runCatching { Files.isSameFile(source, target) }.getOrDefault(false)) return null
+    if (isSameDirectoryEntry(source, target)) return null
     val isDirectory = Files.isDirectory(target, LinkOption.NOFOLLOW_LINKS)
     val nonEmpty = isDirectory && Files.list(target).use { it.findAny().isPresent }
     return RenameCollision(source, target, newName, targetIsDirectory = isDirectory, canOverwrite = !nonEmpty)

@@ -12,8 +12,18 @@ import java.nio.file.attribute.PosixFileAttributeView
 import java.nio.file.attribute.PosixFilePermissions
 import java.util.Locale
 
+internal fun isSameDirectoryEntry(first: Path, second: Path): Boolean = runCatching {
+    val firstKey = Files.readAttributes(first, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS).fileKey()
+    val secondKey = Files.readAttributes(second, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS).fileKey()
+    if (firstKey != null && secondKey != null) {
+        firstKey == secondKey
+    } else {
+        first.toRealPath(LinkOption.NOFOLLOW_LINKS) == second.toRealPath(LinkOption.NOFOLLOW_LINKS)
+    }
+}.getOrDefault(false)
+
 internal fun renameInPlace(source: Path, target: Path): Path {
-    val sameEntry = Files.exists(target, LinkOption.NOFOLLOW_LINKS) && Files.isSameFile(source, target)
+    val sameEntry = Files.exists(target, LinkOption.NOFOLLOW_LINKS) && isSameDirectoryEntry(source, target)
     return if (sameEntry) Files.move(source, target, StandardCopyOption.ATOMIC_MOVE) else Files.move(source, target)
 }
 
