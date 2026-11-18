@@ -346,7 +346,8 @@ class TarVirtualFileSystem(
         // archive's recorded owner/group/permissions instead of reverting to blanks.
         val oldName = normalizeRelativeName(tempDir, source)
         val newName = normalizeRelativeName(tempDir, target)
-        entryMetadataByName.remove(oldName)?.let { entryMetadataByName[newName] = it }
+        entryMetadataByName.renameEntryKeys(oldName, newName)
+        unresolvedSymlinks.renameEntryKeys(oldName, newName)
     }
 
     /**

@@ -346,6 +346,14 @@ internal inline fun forEachArchiveEntry(
     }
 }
 
+internal fun <V> MutableMap<String, V>.renameEntryKeys(oldName: String, newName: String) {
+    remove(oldName)?.let { this[newName] = it }
+    val prefix = "$oldName/"
+    for (key in keys.filter { it.startsWith(prefix) }) {
+        remove(key)?.let { this["$newName/${key.substring(prefix.length)}"] = it }
+    }
+}
+
 private val ILLEGAL_FILENAME_CHARS = charArrayOf('<', '>', ':', '"', '|', '?', '*')
 
 /**

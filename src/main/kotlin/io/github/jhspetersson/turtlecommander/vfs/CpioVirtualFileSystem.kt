@@ -111,8 +111,8 @@ class CpioVirtualFileSystem(
     override fun onRenamed(source: Path, target: Path) {
         val oldName = normalizeRelativeName(tempDir, source)
         val newName = normalizeRelativeName(tempDir, target)
-        entryMetadata.remove(oldName)?.let { entryMetadata[newName] = it }
-        unresolvedSymlinks.remove(oldName)?.let { unresolvedSymlinks[newName] = it }
+        entryMetadata.renameEntryKeys(oldName, newName)
+        unresolvedSymlinks.renameEntryKeys(oldName, newName)
     }
 
     override fun repack(from: Path) {

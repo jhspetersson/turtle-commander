@@ -169,7 +169,7 @@ class SevenZipVirtualFileSystem(
     override fun onRenamed(source: Path, target: Path) {
         val oldName = normalizeRelativeName(tempDir, source)
         val newName = normalizeRelativeName(tempDir, target)
-        entryMetadataByName.remove(oldName)?.let { entryMetadataByName[newName] = it }
+        entryMetadataByName.renameEntryKeys(oldName, newName)
     }
 
     override fun entryMetadata(path: Path): ArchiveEntryMetadata? {

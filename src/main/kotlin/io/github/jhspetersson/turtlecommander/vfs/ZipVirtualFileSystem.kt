@@ -378,7 +378,7 @@ class ZipExtractVirtualFileSystem(
         }
         val oldName = tempDir.relativize(source).toString().replace('\\', '/')
         val newName = tempDir.relativize(target).toString().replace('\\', '/')
-        entryUnixModeByName.remove(oldName)?.let { entryUnixModeByName[newName] = it }
+        entryUnixModeByName.renameEntryKeys(oldName, newName)
     }
 
     override fun entryMetadata(path: Path): ArchiveEntryMetadata? =
