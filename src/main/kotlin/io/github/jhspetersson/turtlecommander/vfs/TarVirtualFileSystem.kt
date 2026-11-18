@@ -327,9 +327,10 @@ class TarVirtualFileSystem(
             pendingEntries.remove(path)
             return
         }
-        val tmp = Files.createTempFile(path.parent, ".tc-materializing-", ".tmp")
+        val tmp = Files.createTempFile(path.parent, MATERIALIZING_TEMP_PREFIX, ".tmp")
         try {
             Files.copy(tar, tmp, StandardCopyOption.REPLACE_EXISTING)
+            Files.setLastModifiedTime(tmp, pending.stubMtime)
             Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
         } finally {
             Files.deleteIfExists(tmp)

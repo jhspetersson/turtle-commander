@@ -149,7 +149,7 @@ class PakVirtualFileSystem(
             pendingEntries.remove(path)
             return
         }
-        val tmp = Files.createTempFile(path.parent, ".tc-materializing-", ".tmp")
+        val tmp = Files.createTempFile(path.parent, MATERIALIZING_TEMP_PREFIX, ".tmp")
         try {
             raf.seek(pending.offset)
             Files.newOutputStream(tmp).use { out ->
@@ -164,6 +164,7 @@ class PakVirtualFileSystem(
                 }
                 if (remaining > 0) throw EOFException("archive ends $remaining bytes short of the entry")
             }
+            Files.setLastModifiedTime(tmp, pending.stubMtime)
             Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
         } finally {
             Files.deleteIfExists(tmp)

@@ -308,6 +308,8 @@ private val LOG = Logger.getInstance("VirtualFileSystem")
  * entries are well-formed), and siblings are sorted by name. Deterministic traversal also
  * makes repack output byte-stable across filesystems, which matters for checksums and CI.
  */
+internal const val MATERIALIZING_TEMP_PREFIX = ".tc-materializing-"
+
 internal inline fun forEachArchiveEntry(
     tempDir: Path,
     crossinline visitor: (path: Path, relativeName: String) -> Unit,
@@ -328,7 +330,7 @@ internal inline fun forEachArchiveEntry(
                 file: Path,
                 attrs: BasicFileAttributes,
             ): FileVisitResult {
-                collected.add(file)
+                if (!file.fileName.toString().startsWith(MATERIALIZING_TEMP_PREFIX)) collected.add(file)
                 return FileVisitResult.CONTINUE
             }
         },

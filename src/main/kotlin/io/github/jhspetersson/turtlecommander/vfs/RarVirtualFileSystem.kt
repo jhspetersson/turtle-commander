@@ -220,7 +220,7 @@ class RarVirtualFileSystem(
             // Write into a sibling temp file then atomic-move, so a partial write never
             // leaves a half-streamed file at the canonical path. ATOMIC_MOVE within the
             // same temp dir is supported on every platform we run on.
-            val tmp = Files.createTempFile(normalized.parent, ".tc-materializing-", ".tmp")
+            val tmp = Files.createTempFile(normalized.parent, MATERIALIZING_TEMP_PREFIX, ".tmp")
             try {
                 Files.newOutputStream(tmp).use { out -> archive.extractFile(header, out) }
                 Files.move(tmp, normalized, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)

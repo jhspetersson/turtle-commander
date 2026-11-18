@@ -352,11 +352,12 @@ class ZipExtractVirtualFileSystem(
         try {
             // Write into a sibling temp file then atomic-move, so a partial write never
             // leaves a half-streamed file at the canonical path.
-            val tmp = Files.createTempFile(normalized.parent, ".tc-materializing-", ".tmp")
+            val tmp = Files.createTempFile(normalized.parent, MATERIALIZING_TEMP_PREFIX, ".tmp")
             try {
                 zip.getInputStream(pending.entry).use { input ->
                     Files.copy(input, tmp, StandardCopyOption.REPLACE_EXISTING)
                 }
+                Files.setLastModifiedTime(tmp, pending.stubMtime)
                 Files.move(tmp, normalized, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
             } finally {
                 Files.deleteIfExists(tmp)
