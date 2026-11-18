@@ -11,6 +11,7 @@
 - Renaming a folder inside a tar, cpio, 7z or zip archive keeps the permissions and owners of its contents
 - Saving a PAK archive fails with a message instead of silently dropping a file whose name is too long or not ASCII
 - Device nodes and FIFOs in tar and cpio archives are kept when the archive is rewritten
+- An archive holding a file name that is not valid on this system opens read-only instead of being rewritten with the changed name
 
 ## [0.7.118] - 2026-11-17
 

@@ -354,6 +354,17 @@ internal fun <V> MutableMap<String, V>.renameEntryKeys(oldName: String, newName:
     }
 }
 
+internal fun entryNameIsAltered(baseDir: Path, entryName: String): Boolean {
+    val cleanName = entryName.removeSuffix("/")
+    if (cleanName.isEmpty() || cleanName == ".") return false
+    return try {
+        baseDir.resolve(cleanName)
+        false
+    } catch (_: InvalidPathException) {
+        true
+    }
+}
+
 private val ILLEGAL_FILENAME_CHARS = charArrayOf('<', '>', ':', '"', '|', '?', '*')
 
 /**
@@ -612,6 +623,15 @@ abstract class AbstractTempDirVirtualFileSystem(
     private fun archiveCanBeRewritten(): Boolean {
         val parent = archivePath.toAbsolutePath().parent
         return Files.isWritable(archivePath) && (parent == null || Files.isWritable(parent))
+    }
+
+    protected fun resolveEntryPath(baseDir: Path, entryName: String): Path? {
+        val resolved = io.github.jhspetersson.turtlecommander.vfs.resolveEntryPath(baseDir, entryName)
+        val alwaysReadOnly = isReadOnly && unextractable.isEmpty() && !archiveNotWritable
+        if (resolved != null && !alwaysReadOnly && entryNameIsAltered(baseDir, entryName)) {
+            reportUnextractable(entryName, IOException("the name is not valid on this system and is shown changed"))
+        }
+        return resolved
     }
 
     protected fun reportUnextractable(name: String, cause: Exception) {
