@@ -88,6 +88,9 @@ class TarVirtualFileSystem(
         val groupName: String,
         val userId: Long,
         val groupId: Long,
+        val specialType: Byte? = null,
+        val deviceMajor: Int = 0,
+        val deviceMinor: Int = 0,
     )
 
     /**
@@ -128,6 +131,9 @@ class TarVirtualFileSystem(
                         groupName = entry.groupName.orEmpty(),
                         userId = entry.longUserId,
                         groupId = entry.longGroupId,
+                        specialType = entry.linkFlag.takeIf { entry.isCharacterDevice || entry.isBlockDevice || entry.isFIFO },
+                        deviceMajor = entry.devMajor,
+                        deviceMinor = entry.devMinor,
                     )
                     try {
                         if (entry.isSymbolicLink) {
@@ -401,7 +407,16 @@ class TarVirtualFileSystem(
                             tar.closeArchiveEntry()
                         } else {
                             val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
-                            val entry = TarArchiveEntry(path, relativeName)
+                            val special = entryMetadataByName[relativeName]
+                                ?.takeIf { it.specialType != null && attrs.isRegularFile && attrs.size() == 0L }
+                            val entry = if (special?.specialType != null) {
+                                TarArchiveEntry(relativeName, special.specialType).also {
+                                    it.devMajor = special.deviceMajor
+                                    it.devMinor = special.deviceMinor
+                                }
+                            } else {
+                                TarArchiveEntry(path, relativeName)
+                            }
                             entry.size = if (attrs.isDirectory) 0 else attrs.size()
                             entry.modTime = Date(attrs.lastModifiedTime().toMillis())
                             applyRecordedMetadata(entry, relativeName)

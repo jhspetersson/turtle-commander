@@ -36,6 +36,8 @@ class CpioVirtualFileSystem(
         val mode: Long,
         val uid: Long,
         val gid: Long,
+        val deviceMajor: Long = 0,
+        val deviceMinor: Long = 0,
     )
 
     private val entryMetadata = mutableMapOf<String, CpioEntryMetadata>()
@@ -69,7 +71,13 @@ class CpioVirtualFileSystem(
                         continue
                     }
                     val relativeName = normalizeRelativeName(into, entryPath)
-                    entryMetadata[relativeName] = CpioEntryMetadata(entry.mode, entry.getUID(), entry.getGID())
+                    entryMetadata[relativeName] = CpioEntryMetadata(
+                        entry.mode,
+                        entry.getUID(),
+                        entry.getGID(),
+                        deviceMajor = if (entry.hasSplitDevice()) entry.remoteDeviceMaj else entry.remoteDevice ushr 8,
+                        deviceMinor = if (entry.hasSplitDevice()) entry.remoteDeviceMin else entry.remoteDevice and 0xFF,
+                    )
                     try {
                         when {
                             entry.isDirectory -> Files.createDirectories(entryPath)
@@ -133,7 +141,13 @@ class CpioVirtualFileSystem(
                                     ?: DEFAULT_DIR_MODE
                             } else {
                                 entry.size = attrs.size()
-                                entry.mode = metadata?.mode?.takeIf { it.isType(CpioConstants.C_ISREG) }
+                                val special = metadata?.takeIf { attrs.size() == 0L && it.mode.isSpecial() }
+                                if (special != null) {
+                                    entry.remoteDeviceMaj = special.deviceMajor
+                                    entry.remoteDeviceMin = special.deviceMinor
+                                }
+                                entry.mode = special?.mode
+                                    ?: metadata?.mode?.takeIf { it.isType(CpioConstants.C_ISREG) }
                                     ?: DEFAULT_FILE_MODE
                             }
                             entry.setUID(metadata?.uid ?: 0)
@@ -177,7 +191,13 @@ class CpioVirtualFileSystem(
         )
     }
 
+    private fun CpioArchiveEntry.hasSplitDevice(): Boolean =
+        format == CpioConstants.FORMAT_NEW || format == CpioConstants.FORMAT_NEW_CRC
+
     private fun Long.isType(type: Int): Boolean = (this and TYPE_MASK) == type.toLong()
+
+    private fun Long.isSpecial(): Boolean =
+        isType(CpioConstants.C_ISCHR) || isType(CpioConstants.C_ISBLK) || isType(CpioConstants.C_ISFIFO) || isType(CpioConstants.C_ISSOCK)
 
     private fun normalizeRelativeName(base: Path, path: Path): String =
         base.relativize(path).toString().replace('\\', '/')
