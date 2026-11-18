@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.119] - 2026-11-18
+
 ### Fixed
 
 - Editing an ar or .deb archive keeps the member order, and a .a symbol table survives renames and deletions
