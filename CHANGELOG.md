@@ -9,6 +9,7 @@
 - Editing an ar or .deb archive keeps the member order, and a .a symbol table survives renames and deletions
 - Non-ASCII file names in cpio archives and rpm packages are no longer garbled
 - Renaming a folder inside a tar, cpio, 7z or zip archive keeps the permissions and owners of its contents
+- Saving a PAK archive fails with a message instead of silently dropping a file whose name is too long or not ASCII
 
 ## [0.7.118] - 2026-11-17
 

@@ -219,9 +219,11 @@ class PakVirtualFileSystem(
         forEachArchiveEntry(from) { path, relativeName ->
             val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
             if (attrs.isDirectory) return@forEachArchiveEntry
-            if (relativeName.toByteArray(StandardCharsets.US_ASCII).size > NAME_SIZE) {
-                thisLogger().warn("Skipping pak entry whose name exceeds $NAME_SIZE bytes: $relativeName")
-                return@forEachArchiveEntry
+            if (!StandardCharsets.US_ASCII.newEncoder().canEncode(relativeName)) {
+                throw IOException("a PAK archive cannot store a name with non-ASCII characters")
+            }
+            if (relativeName.length > NAME_SIZE) {
+                throw IOException("a PAK archive cannot store a name longer than $NAME_SIZE bytes")
             }
             files.add(relativeName to path)
         }

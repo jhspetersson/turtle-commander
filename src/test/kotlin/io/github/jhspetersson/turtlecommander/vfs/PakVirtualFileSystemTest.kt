@@ -276,4 +276,41 @@ class PakVirtualFileSystemTest {
         pakVfs.flush()
         assertArrayEquals("a read-only archive must never be repacked", original, Files.readAllBytes(pakPath))
     }
+
+    @Test
+    fun `a name the format cannot store aborts the repack instead of dropping the file`() {
+        for (name in listOf("d".repeat(40) + "/" + "f".repeat(20) + ".txt", "café.txt")) {
+            pakPath = writePak(linkedMapOf("keep.txt" to "keep me around".toByteArray()))
+            val original = Files.readAllBytes(pakPath)
+            val pakVfs = PakVirtualFileSystem(pakPath)
+            vfs = pakVfs
+            val added = pakVfs.root.resolve(name)
+            Files.createDirectories(added.parent)
+            Files.writeString(added, "new")
+
+            val thrown = runCatching { pakVfs.flush() }.exceptionOrNull()
+
+            assertNotNull(name, thrown)
+            assertTrue(thrown!!.message, thrown.message!!.contains(added.fileName.toString()))
+            assertArrayEquals(original, Files.readAllBytes(pakPath))
+            assertEquals("new", Files.readString(added))
+            pakVfs.close()
+            Files.delete(pakPath)
+        }
+    }
+
+    @Test
+    fun `a name of exactly 56 bytes is stored`() {
+        val name = "d".repeat(30) + "/" + "f".repeat(21) + ".txt"
+        pakPath = writePak(linkedMapOf("keep.txt" to "keep me around".toByteArray()))
+        val pakVfs = PakVirtualFileSystem(pakPath)
+        vfs = pakVfs
+        Files.createDirectories(pakVfs.root.resolve(name).parent)
+        Files.writeString(pakVfs.root.resolve(name), "new")
+
+        pakVfs.flush()
+
+        assertEquals("new", Files.readString(pakVfs.root.resolve(name)))
+        assertEquals(56, name.length)
+    }
 }
