@@ -12,6 +12,7 @@
 - Saving a PAK archive fails with a message instead of silently dropping a file whose name is too long or not ASCII
 - Device nodes and FIFOs in tar and cpio archives are kept when the archive is rewritten
 - An archive holding a file name that is not valid on this system opens read-only instead of being rewritten with the changed name
+- Symlink entries in a zip archive stay symlinks after the archive is edited
 
 ## [0.7.118] - 2026-11-17
 

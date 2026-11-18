@@ -68,6 +68,7 @@ class ZipFileSystemProvider : VirtualFileSystemProvider {
     override fun create(archivePath: Path): VirtualFileSystem = create(archivePath, null)
 
     override fun create(archivePath: Path, openProgress: VfsOpenProgress?): VirtualFileSystem {
+        if (zipHasUnixSymlinks(archivePath)) return ZipExtractVirtualFileSystem(archivePath, openProgress)
         return try {
             ZipVirtualFileSystem(archivePath)
         } catch (_: Exception) {
@@ -77,6 +78,10 @@ class ZipFileSystemProvider : VirtualFileSystemProvider {
         }
     }
 }
+
+internal fun zipHasUnixSymlinks(archivePath: Path): Boolean = runCatching {
+    ZipFile.builder().setPath(archivePath).get().use { zip -> zip.entries.asSequence().any { it.isUnixSymlink } }
+}.getOrDefault(false)
 
 class ZipVirtualFileSystem(override val archivePath: Path) : VirtualFileSystem {
     private var fileSystem: FileSystem = openZipFs()
