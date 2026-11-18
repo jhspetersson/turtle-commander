@@ -33,7 +33,7 @@ class RpmVirtualFileSystemTest {
     /** Builds a cpio archive (newc format, what RPM uses) from [files]. */
     private fun buildCpio(files: List<CpioFile>): ByteArray {
         val out = ByteArrayOutputStream()
-        CpioArchiveOutputStream(out, CpioConstants.FORMAT_NEW).use { cpio ->
+        CpioArchiveOutputStream(out, CpioConstants.FORMAT_NEW, 512, "UTF-8").use { cpio ->
             for (f in files) {
                 val entry = CpioArchiveEntry(CpioConstants.FORMAT_NEW, "./${f.name}", f.content.size.toLong())
                 entry.mode = f.mode
@@ -139,6 +139,15 @@ class RpmVirtualFileSystemTest {
 
         val binPath = rpmVfs.getPath("/usr/bin/hello")
         assertTrue(Files.readString(binPath).startsWith("#!/bin/sh"))
+    }
+
+    @Test
+    fun `non-ascii entry names are read as utf-8`() = runBlocking {
+        rpmPath = buildRpm(compressor = "gzip", files = listOf(CpioFile("usr/share/doc/caf\u00e9-\u65e5\u672c.txt", "menu".toByteArray())))
+        val rpmVfs = RpmVirtualFileSystem(rpmPath)
+        vfs = rpmVfs
+
+        assertEquals("menu", Files.readString(rpmVfs.getPath("/usr/share/doc/caf\u00e9-\u65e5\u672c.txt")))
     }
 
     @Test

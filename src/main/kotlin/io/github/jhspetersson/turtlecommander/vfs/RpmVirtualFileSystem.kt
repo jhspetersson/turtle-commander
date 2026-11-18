@@ -69,7 +69,7 @@ class RpmVirtualFileSystem(
             skipFully(data, sigPadding.toLong())
             val compressor = readMainHeaderCompressor(data)
             val payload = wrapCompressor(raw, compressor)
-            CpioArchiveInputStream(payload).use { cpio ->
+            CpioArchiveInputStream(payload, CPIO_NAME_ENCODING).use { cpio ->
                 var entry = cpio.nextEntry
                 while (entry != null) {
                     if (progress.isCancelled) break

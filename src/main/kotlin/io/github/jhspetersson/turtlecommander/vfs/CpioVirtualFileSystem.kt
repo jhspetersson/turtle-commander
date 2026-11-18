@@ -12,6 +12,8 @@ import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.FileTime
 
+internal const val CPIO_NAME_ENCODING = "UTF-8"
+
 class CpioFileSystemProvider : VirtualFileSystemProvider {
     companion object {
         val ARCHIVE_EXTENSIONS = setOf("cpio")
@@ -51,7 +53,7 @@ class CpioVirtualFileSystem(
         val pendingSymlinks = mutableListOf<PendingSymlink>()
         val hardLinks = CpioHardLinks()
         Files.newInputStream(archivePath).buffered().use { raw ->
-            CpioArchiveInputStream(raw).use { cpio ->
+            CpioArchiveInputStream(raw, CPIO_NAME_ENCODING).use { cpio ->
                 var entry = cpio.nextEntry
                 while (entry != null) {
                     if (progress.isCancelled) break
@@ -116,7 +118,7 @@ class CpioVirtualFileSystem(
     override fun repack(from: Path) {
         repackAtomically(archivePath) { target ->
             Files.newOutputStream(target).buffered().use { raw ->
-                CpioArchiveOutputStream(raw).use { cpio ->
+                CpioArchiveOutputStream(raw, CPIO_NAME_ENCODING).use { cpio ->
                     forEachArchiveEntry(from) { path, relativeName ->
                         val metadata = entryMetadata[relativeName]
                         if (Files.isSymbolicLink(path)) {

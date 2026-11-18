@@ -7,6 +7,7 @@
 ### Fixed
 
 - Editing an ar or .deb archive keeps the member order, and a .a symbol table survives renames and deletions
+- Non-ASCII file names in cpio archives and rpm packages are no longer garbled
 
 ## [0.7.118] - 2026-11-17
 

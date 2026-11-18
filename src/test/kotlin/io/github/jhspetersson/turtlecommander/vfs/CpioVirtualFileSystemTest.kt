@@ -132,6 +132,33 @@ class CpioVirtualFileSystemTest {
     }
 
     @Test
+    fun `non-ascii entry names survive opening and a repack`() {
+        val name = "caf\u00e9-\u65e5\u672c.txt"
+        cpioPath = Files.createTempFile("test-", ".cpio")
+        CpioArchiveOutputStream(Files.newOutputStream(cpioPath), "UTF-8").use { cpio ->
+            val body = "menu".toByteArray()
+            val entry = CpioArchiveEntry(name)
+            entry.mode = FILE_MODE
+            entry.size = body.size.toLong()
+            cpio.putArchiveEntry(entry)
+            cpio.write(body)
+            cpio.closeArchiveEntry()
+        }
+        val cpioVfs = CpioVirtualFileSystem(cpioPath)
+        vfs = cpioVfs
+
+        assertEquals("menu", Files.readString(cpioVfs.getPath("/$name")))
+        Files.writeString(cpioVfs.getPath("/added.txt"), "x")
+        cpioVfs.flush()
+
+        val names = CpioArchiveInputStream(Files.newInputStream(cpioPath), "UTF-8").use { cpio ->
+            generateSequence { cpio.nextEntry }.map { it.name }.toList()
+        }
+        assertTrue(names.toString(), name in names)
+        assertTrue(names.toString(), "added.txt" in names)
+    }
+
+    @Test
     fun `new file added inside the archive survives repack`() {
         cpioPath = writeDefaultCpio()
         val cpioVfs = CpioVirtualFileSystem(cpioPath)
