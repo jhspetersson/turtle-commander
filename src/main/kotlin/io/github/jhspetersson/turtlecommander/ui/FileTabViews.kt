@@ -80,6 +80,9 @@ fun FileTab.setViewMode(mode: ViewMode) {
             } else {
                 selectEntriesByNameThenApplyMarks(namesInDir)
             }
+        } else if (showAllNestedFiles) {
+            val selectedPaths = selectedEntries.map { it.path }.toSet()
+            selectEntriesThenApplyMarks { it.path in selectedPaths }
         } else {
             selectEntriesByNameThenApplyMarks(selectedNames)
         }
@@ -257,20 +260,24 @@ internal fun FileTab.applyMarksForCurrentView() {
 }
 
 // Suppresses the per-event mark-restore in the selection listeners so the inevitable
-// clearSelection + N addRowSelectionInterval calls inside selectEntriesByName don't each
+// clearSelection + N addRowSelectionInterval calls inside selectEntriesMatching don't each
 // fire a full O(rowCount) restoreTableMarks. One explicit applyMarksForCurrentView at the
 // end does the work once.
 private fun FileTab.selectEntriesByNameThenApplyMarks(names: Set<String>) {
+    selectEntriesThenApplyMarks { it.name in names }
+}
+
+private fun FileTab.selectEntriesThenApplyMarks(matches: (FileEntry) -> Boolean) {
     insideViewSwitch = true
     try {
-        selectEntriesByName(names)
+        selectEntriesMatching(matches)
     } finally {
         insideViewSwitch = false
     }
     if (markedPaths.isNotEmpty()) applyMarksForCurrentView()
 }
 
-internal fun FileTab.selectEntriesByName(names: Set<String>) {
+internal fun FileTab.selectEntriesMatching(matches: (FileEntry) -> Boolean) {
     if (viewMode == ViewMode.TABLE) {
         var firstSelectedRow = -1
         withSelectionAdjusting(table.selectionModel) {
@@ -278,7 +285,7 @@ internal fun FileTab.selectEntriesByName(names: Set<String>) {
             for (viewRow in 0 until table.rowCount) {
                 val modelRow = table.convertRowIndexToModel(viewRow)
                 val entry = tableModel.getEntryAt(modelRow) ?: continue
-                if (entry.name in names) {
+                if (matches(entry)) {
                     table.addRowSelectionInterval(viewRow, viewRow)
                     if (firstSelectedRow == -1) firstSelectedRow = viewRow
                 }
@@ -288,14 +295,14 @@ internal fun FileTab.selectEntriesByName(names: Set<String>) {
             table.scrollRectToVisible(table.getCellRect(firstSelectedRow, 0, true))
         }
     } else if (viewMode == ViewMode.LIST) {
-        val indices = (0 until listModel.size()).filter { listModel.getElementAt(it).name in names }.toIntArray()
+        val indices = (0 until listModel.size()).filter { matches(listModel.getElementAt(it)) }.toIntArray()
         withSelectionAdjusting(list.selectionModel) {
             list.clearSelection()
             if (indices.isNotEmpty()) list.selectedIndices = indices
         }
         if (indices.isNotEmpty()) list.ensureIndexIsVisible(indices.first())
     } else if (viewMode == ViewMode.THUMBNAIL) {
-        val indices = (0 until thumbnailListModel.size()).filter { thumbnailListModel.getElementAt(it).name in names }.toIntArray()
+        val indices = (0 until thumbnailListModel.size()).filter { matches(thumbnailListModel.getElementAt(it)) }.toIntArray()
         withSelectionAdjusting(thumbnailList.selectionModel) {
             thumbnailList.clearSelection()
             if (indices.isNotEmpty()) thumbnailList.selectedIndices = indices

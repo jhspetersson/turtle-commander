@@ -10,6 +10,7 @@ import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
 import io.github.jhspetersson.turtlecommander.ui.FileTab
 import io.github.jhspetersson.turtlecommander.ui.ViewMode
+import io.github.jhspetersson.turtlecommander.ui.getSelectedEntries
 import io.github.jhspetersson.turtlecommander.ui.setViewMode
 import java.nio.file.Files
 import java.nio.file.Path
@@ -80,5 +81,32 @@ class FlatTreeViewSwitchIntegrationTest : BasePlatformTestCase() {
 
         assertEquals(tempDir, tab.currentPath)
         assertTrue("deep.txt" in tableNames(tab))
+    }
+
+    fun testSwitchingViewsInTheFlatListingKeepsOnlyTheSelectedFileSelected() {
+        Files.writeString(tempDir.resolve("same.txt"), "top")
+        Files.writeString(tempDir.resolve("sub").resolve("same.txt"), "nested")
+        val panel = FileManagerPanel(project = project, initialPath = projectPath, otherPanelPathProvider = { projectPath })
+        panel.restoreState(PanelState(), stateService)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        panel.openDirectoryInNewTab(tempDir)
+        val tab = panel.getTabAt(1)!!
+        waitFor("listing") { "top.txt" in tableNames(tab) }
+        tab.setShowAllNestedFiles(true)
+        waitFor("nested listing") { tableNames(tab).count { it == "same.txt" } == 2 }
+        val nested = tempDir.resolve("sub").resolve("same.txt")
+        val modelRow = (0 until tab.tableModel.rowCount).first { tab.tableModel.getEntryAt(it)?.path == nested }
+        val viewRow = tab.table.convertRowIndexToView(modelRow)
+        tab.table.setRowSelectionInterval(viewRow, viewRow)
+
+        tab.setViewMode(ViewMode.LIST)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        assertEquals(listOf(nested), tab.list.selectedValuesList.map { it.path })
+
+        tab.setViewMode(ViewMode.TABLE)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        assertEquals(listOf(nested), tab.getSelectedEntries().map { it.path })
     }
 }

@@ -1706,7 +1706,7 @@ class FileTab(
     // arrow / click handler clobbered them. Prevents the restore from triggering itself.
     internal var insideRestore = false
     // Set while setViewMode / rebuildFullTree is rebuilding selection in the new view.
-    // Without this, each addRowSelectionInterval call inside selectEntriesByName fires the
+    // Without this, each addRowSelectionInterval call inside selectEntriesMatching fires the
     // listener and runs a full restoreTableMarks pass, giving O(N*rowCount) work on view
     // switch. With the flag, the listener no-ops and one explicit applyMarksForCurrentView
     // / restoreTreeMarks call after the rebuild does the work once.
