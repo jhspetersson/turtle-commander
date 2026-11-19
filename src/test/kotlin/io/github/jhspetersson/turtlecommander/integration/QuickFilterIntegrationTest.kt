@@ -11,7 +11,9 @@ import io.github.jhspetersson.turtlecommander.ui.FileTab
 import io.github.jhspetersson.turtlecommander.ui.FileTableModel
 import io.github.jhspetersson.turtlecommander.ui.getSelectedEntry
 import io.github.jhspetersson.turtlecommander.ui.ViewMode
+import io.github.jhspetersson.turtlecommander.ui.getSelectedEntries
 import io.github.jhspetersson.turtlecommander.ui.setViewMode
+import io.github.jhspetersson.turtlecommander.ui.toggleSelection
 import java.nio.file.Files
 import java.nio.file.Path
 import javax.swing.RowSorter
@@ -195,5 +197,52 @@ class QuickFilterIntegrationTest : BasePlatformTestCase() {
         assertFalse(tab.isQuickFilterActive())
         assertTrue("notes.md" in tableNames(tab))
         assertEquals(1, tableEvents)
+    }
+
+    private fun putCursorOn(tab: FileTab, name: String) {
+        val modelRow = (0 until tab.tableModel.rowCount).first { tab.tableModel.getEntryAt(it)?.name == name }
+        val viewRow = tab.table.convertRowIndexToView(modelRow)
+        tab.table.setRowSelectionInterval(viewRow, viewRow)
+    }
+
+    private fun selectedNames(tab: FileTab): List<String> =
+        tab.getSelectedEntries().map { it.name }
+
+    private fun mark(tab: FileTab, name: String) {
+        putCursorOn(tab, name)
+        tab.toggleSelection()
+    }
+
+    fun testTheCursorFileIsSelectedWhenEveryMarkIsHiddenByTheFilter() {
+        val tab = openTab()
+        mark(tab, "notes.md")
+
+        tab.setQuickFilterText("*.txt")
+        putCursorOn(tab, "beta.txt")
+
+        assertEquals(listOf("beta.txt"), selectedNames(tab))
+    }
+
+    fun testVisibleMarksStillWinOverTheCursorUnderAFilter() {
+        val tab = openTab()
+        mark(tab, "notes.md")
+        mark(tab, "alpha.txt")
+
+        tab.setQuickFilterText("*.txt")
+        putCursorOn(tab, "beta.txt")
+
+        assertEquals(listOf("alpha.txt"), selectedNames(tab))
+    }
+
+    fun testHiddenMarksComeBackWhenTheFilterIsCleared() {
+        val tab = openTab()
+        mark(tab, "notes.md")
+        tab.setQuickFilterText("*.txt")
+        putCursorOn(tab, "beta.txt")
+
+        tab.setQuickFilterText("")
+        putCursorOn(tab, "alpha.txt")
+
+        assertEquals(listOf("notes.md"), selectedNames(tab))
     }
 }

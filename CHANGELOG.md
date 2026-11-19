@@ -8,6 +8,7 @@
 
 - Bottom bar buttons and the command line act on the panel you were last in when focus is in the quick filter, path field or command line
 - Insert and Space in tree view keep the cursor in place or move it to the next row instead of losing it
+- When the quick filter hides every marked file, operations act on the file under the cursor instead of doing nothing
 
 ## [0.7.119] - 2026-11-18
 

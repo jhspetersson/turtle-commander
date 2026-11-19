@@ -276,6 +276,9 @@ internal fun FileTab.restoreTreeMarks() {
     }
 }
 
+internal fun FileTab.hasDisplayedMarks(): Boolean =
+    markedPaths.isNotEmpty() && getDisplayedEntries().any { it.path in markedPaths }
+
 internal fun FileTab.clearAllToggledMarks() {
     markedPaths.clear()
 }

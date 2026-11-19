@@ -685,7 +685,7 @@ class FileTab(
             transferHandler = FileEntryTransferHandler(this@FileTab)
 
             selectionModel.addListSelectionListener { e ->
-                if (!insideToggle && !insideRestore && !insideViewSwitch && markedPaths.isNotEmpty()) {
+                if (!insideToggle && !insideRestore && !insideViewSwitch && hasDisplayedMarks()) {
                     restoreTableMarks()
                 }
                 // A selection change means this click (re)selected a row rather than landing on an
@@ -793,7 +793,7 @@ class FileTab(
             transferHandler = FileEntryTransferHandler(this@FileTab)
 
             addListSelectionListener { e ->
-                if (!insideToggle && !insideRestore && !insideViewSwitch && markedPaths.isNotEmpty()) {
+                if (!insideToggle && !insideRestore && !insideViewSwitch && hasDisplayedMarks()) {
                     restoreListMarks(list, listModel)
                 }
                 if (!e.valueIsAdjusting) updateStatusBar()
@@ -865,7 +865,7 @@ class FileTab(
             transferHandler = FileEntryTransferHandler(this@FileTab)
 
             addListSelectionListener { e ->
-                if (!insideToggle && !insideRestore && !insideViewSwitch && markedPaths.isNotEmpty()) {
+                if (!insideToggle && !insideRestore && !insideViewSwitch && hasDisplayedMarks()) {
                     restoreListMarks(thumbnailList, thumbnailListModel)
                 }
                 if (!e.valueIsAdjusting) updateStatusBar()
@@ -969,7 +969,7 @@ class FileTab(
             })
 
             addTreeSelectionListener {
-                if (!insideToggle && !insideRestore && !insideViewSwitch && markedPaths.isNotEmpty()) {
+                if (!insideToggle && !insideRestore && !insideViewSwitch && hasDisplayedMarks()) {
                     restoreTreeMarks()
                 }
                 updateStatusBar()
