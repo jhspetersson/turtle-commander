@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Bottom bar buttons and the command line act on the panel you were last in when focus is in the quick filter, path field or command line
+
 ## [0.7.119] - 2026-11-18
 
 ### Fixed

@@ -109,4 +109,29 @@ class CommandInputBarIntegrationTest : BasePlatformTestCase() {
         assertSame(rightPanel, bar.targetPanel)
         assertEquals(rightRoot.toString(), bar.promptDirectory)
     }
+
+    fun testActivationTargetsThePanelThatLastHadFocusEvenOutsideItsFileView() {
+        val stateService = project.service<FileManagerStateService>()
+        stateService.registerPanels(leftPanel, rightPanel, null)
+        stateService.registerCommandInputBar(bar)
+        bar.activate(leftPanel)
+
+        stateService.noteFocusOwner(rightPanel)
+        stateService.activateCommandInput()
+
+        assertSame(rightPanel, bar.targetPanel)
+        assertEquals(rightRoot.toString(), bar.promptDirectory)
+    }
+
+    fun testActivationFollowsFocusBackToTheLeftPanel() {
+        val stateService = project.service<FileManagerStateService>()
+        stateService.registerPanels(leftPanel, rightPanel, null)
+        stateService.registerCommandInputBar(bar)
+        bar.activate(rightPanel)
+
+        stateService.noteFocusOwner(leftPanel)
+        stateService.activateCommandInput()
+
+        assertSame(leftPanel, bar.targetPanel)
+    }
 }
