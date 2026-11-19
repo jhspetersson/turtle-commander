@@ -150,6 +150,7 @@ private fun FileTab.toggleSelectionInternal(moveCursorDown: Boolean) {
             toggleMarkForEntry(entry)
             val cursorRow = if (moveCursorDown && leadRow + 1 < tree.rowCount) leadRow + 1 else leadRow
             applyToggledTreeSelection()
+            tree.leadSelectionPath = tree.getPathForRow(cursorRow)
             if (moveCursorDown) tree.scrollRowToVisible(cursorRow)
         }
     }
