@@ -1453,9 +1453,14 @@ class FileTab(
         withContext(Dispatchers.EDT) {
             if (generation != navigationGeneration.get()) return@withContext
             // Save cursor position and column state for the current directory
-            val selectedRow = table.selectedRow
-            if (selectedRow >= 0) {
-                cursorPositions[currentPath] = selectedRow
+            val cursorIndex = cursorIndexInActiveView()
+            if (cursorIndex >= 0) {
+                cursorPositions[currentPath] = cursorIndex
+            }
+            val treeCursor = if (viewMode == ViewMode.TREE && selectName == null && path == currentPath) {
+                getSelectedEntry()?.path
+            } else {
+                null
             }
             if (initialized && viewMode == ViewMode.TABLE) {
                 // Only save when the user has been interacting with the table;
@@ -1508,9 +1513,10 @@ class FileTab(
                 // In full tree mode, rebuild the tree to reflect the new location. In
                 // show-all-nested-files mode the entries are an already-flat file list, so it
                 // renders as flat leaves like the other views instead of a hierarchy.
-                rebuildFullTree()
+                rebuildFullTree(setOfNotNull(selectName), treeCursor)
             } else {
                 populateFlatTree()
+                if (treeCursor != null) selectFlatTreeEntry(treeCursor)
             }
 
             updateStatusBar()
@@ -1916,6 +1922,22 @@ class FileTab(
      * Reading the filtered list (== [allEntries] when no filter is active) keeps the flat
      * tree consistent with the other views under an active quick filter.
      */
+    private fun cursorIndexInActiveView(): Int = when (viewMode) {
+        ViewMode.TABLE -> table.selectionModel.leadSelectionIndex.takeIf { it in 0 until table.rowCount } ?: table.selectedRow
+        ViewMode.LIST -> list.leadSelectionIndex.takeIf { it in 0 until listModel.size() } ?: list.selectedIndex
+        ViewMode.THUMBNAIL -> thumbnailList.leadSelectionIndex.takeIf { it in 0 until thumbnailListModel.size() }
+            ?: thumbnailList.selectedIndex
+        ViewMode.TREE -> -1
+    }
+
+    private fun selectFlatTreeEntry(path: Path) {
+        val row = (0 until treeRootNode.childCount).firstOrNull { index ->
+            ((treeRootNode.getChildAt(index) as? DefaultMutableTreeNode)?.userObject as? FileEntry)?.path == path
+        } ?: return
+        tree.setSelectionRow(row)
+        tree.scrollRowToVisible(row)
+    }
+
     internal fun populateFlatTree() {
         treeRootNode.removeAllChildren()
         for (entry in filteredEntries) {

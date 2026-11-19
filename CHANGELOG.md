@@ -10,6 +10,7 @@
 - Insert and Space in tree view keep the cursor in place or move it to the next row instead of losing it
 - When the quick filter hides every marked file, operations act on the file under the cursor instead of doing nothing
 - Switching the view while showing all nested files keeps only the selected file selected, not every file with the same name
+- List, thumbnail and tree views keep the cursor on refresh
 
 ## [0.7.119] - 2026-11-18
 

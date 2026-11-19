@@ -109,7 +109,7 @@ private fun FileTab.restoreSpeedSearchPrefix(mode: ViewMode, prefix: String) {
     target?.showPopup(prefix)
 }
 
-internal fun FileTab.rebuildFullTree(selectNames: Set<String> = emptySet()) {
+internal fun FileTab.rebuildFullTree(selectNames: Set<String> = emptySet(), cursorPath: Path? = null) {
     fileOps.launch {
         val vfs = currentVfs
 
@@ -239,6 +239,16 @@ internal fun FileTab.rebuildFullTree(selectNames: Set<String> = emptySet()) {
                 if (treePaths.isNotEmpty()) {
                     tree.selectionPaths = treePaths
                     tree.scrollPathToVisible(treePaths.first())
+                }
+            }
+            if (cursorPath != null) {
+                val cursorNode = treeRootNode.depthFirstEnumeration().asSequence()
+                    .filterIsInstance<DefaultMutableTreeNode>()
+                    .firstOrNull { (it.userObject as? FileEntry)?.path == cursorPath }
+                if (cursorNode != null) {
+                    val treePath = TreePath(cursorNode.path)
+                    tree.selectionPath = treePath
+                    tree.scrollPathToVisible(treePath)
                 }
             }
             } finally {
