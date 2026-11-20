@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Leaving an archive while it is being saved no longer drags the tab back into it
+
 ## [0.7.120] - 2026-11-19
 
 ### Fixed

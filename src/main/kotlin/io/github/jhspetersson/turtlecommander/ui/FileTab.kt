@@ -1629,16 +1629,7 @@ class FileTab(
         if (vfs != null) {
             val relativePath = vfsRelativePath(vfs, currentPath)
             val stack = vfsStack.toList()
-            fileOps.launch {
-                withContext(Dispatchers.IO) {
-                    vfsWriteMutex.withLock {
-                        saveArchiveStackLocked(stack)
-                    }
-                }
-                notifySharedVfsMutated()
-                val newPath = if (relativePath.isEmpty()) vfs.root else vfs.root.resolve(relativePath)
-                navigateTo(newPath, requestFocus = requestFocus)
-            }
+            fileOps.launch { saveArchiveAndRelist(stack, relativePath, null, requestFocus) }
         } else {
             fileOps.invalidateListingCache(currentPath)
             fileOps.launch { navigateTo(currentPath, requestFocus = requestFocus) }

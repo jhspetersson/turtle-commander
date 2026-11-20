@@ -12,6 +12,7 @@ import io.github.jhspetersson.turtlecommander.vfs.SilentVfsOpenException
 import io.github.jhspetersson.turtlecommander.vfs.SharedVfsRegistry
 import io.github.jhspetersson.turtlecommander.vfs.VfsOpenProgress
 import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
+import io.github.jhspetersson.turtlecommander.vfs.VfsWriteLocks
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystemRegistry
 import io.github.jhspetersson.turtlecommander.vfs.writeBackNestedStack
@@ -249,20 +250,30 @@ internal fun FileTab.saveArchiveStackLocked(stack: List<VfsStackEntry>): Boolean
     }
 }
 
+internal suspend fun FileTab.saveArchiveAndRelist(
+    stack: List<VfsStackEntry>,
+    relativePath: String,
+    selectName: String?,
+    requestFocus: Boolean,
+) {
+    val vfs = stack.last().vfs
+    val mutex = VfsWriteLocks.of(stack.first().vfs)
+    withContext(Dispatchers.IO) {
+        mutex.withLock {
+            saveArchiveStackLocked(stack)
+        }
+    }
+    stack.first().let { SharedVfsRegistry.notifyMutated(it.vfs, it.mutationListener) }
+    if (currentVfs !== vfs) return
+    val newPath = if (relativePath.isEmpty()) vfs.root else vfs.root.resolve(relativePath)
+    navigateTo(newPath, selectName = selectName, requestFocus = requestFocus)
+}
+
 internal suspend fun FileTab.refreshAfterVfsChange(selectName: String? = null) {
     invalidateFreeSpaceCache()
     val vfs = currentVfs
     if (vfs != null) {
-        val relativePath = vfsRelativePath(vfs, currentPath)
-        val stack = vfsStack.toList()
-        withContext(Dispatchers.IO) {
-            vfsWriteMutex.withLock {
-                saveArchiveStackLocked(stack)
-            }
-        }
-        notifySharedVfsMutated()
-        val newPath = if (relativePath.isEmpty()) vfs.root else vfs.root.resolve(relativePath)
-        navigateTo(newPath, selectName = selectName)
+        saveArchiveAndRelist(vfsStack.toList(), vfsRelativePath(vfs, currentPath), selectName, requestFocus = true)
     } else {
         navigateTo(currentPath, selectName = selectName)
     }
