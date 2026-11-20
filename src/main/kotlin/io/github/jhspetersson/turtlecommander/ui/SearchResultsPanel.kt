@@ -176,15 +176,8 @@ class SearchResultsPanel(
         val entry = tableModel.getEntryAt(modelRow) ?: return
         val targetDir = entry.path.parent ?: return
 
-        val stateService = project.service<FileManagerStateService>()
-        val activePanel = stateService.getActivePanel()
-        val otherPanel = if (activePanel === stateService.leftPanel) {
-            stateService.rightPanel
-        } else {
-            stateService.leftPanel
-        } ?: return
-
-        otherPanel.openDirectoryInNewTab(targetDir, selectName = entry.name)
+        val targetPanel = project.service<FileManagerStateService>().panelForSearchResult() ?: return
+        targetPanel.openDirectoryInNewTab(targetDir, selectName = entry.name)
     }
 
     private fun moveTableSelection(offset: Int) {

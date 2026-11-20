@@ -342,17 +342,31 @@ class FileManagerStateService(
         private const val MAX_COMMAND_HISTORY = 50
     }
 
+    fun isSinglePanelLayout(): Boolean =
+        TurtleCommanderSettings.getInstance().state.panelLayout == PanelLayout.SINGLE.name
+
+    fun panelForSearchResult(): FileManagerPanel? {
+        val active = getActivePanel()
+        if (isSinglePanelLayout()) return active
+        return if (active === leftPanel) rightPanel else leftPanel
+    }
+
+    internal fun retargetCommandInput(bar: CommandInputBar) {
+        bar.switchTargetPanel()
+        if (isSinglePanelLayout()) swapSinglePanelCallback?.invoke()
+    }
+
     fun switchToOtherPanel() {
         commandInputBar?.let {
             if (it.hasFieldFocus()) {
-                it.switchTargetPanel()
+                retargetCommandInput(it)
                 return
             }
         }
         val left = leftPanel ?: return
         val right = rightPanel ?: return
         val currentlyLeft = left.hasFocusInPanel()
-        if (TurtleCommanderSettings.getInstance().state.panelLayout == PanelLayout.SINGLE.name) {
+        if (isSinglePanelLayout()) {
             swapSinglePanelCallback?.invoke()
         }
         if (currentlyLeft) right.focusActiveTab() else left.focusActiveTab()

@@ -11,6 +11,7 @@
 - With two zip archives open, Open in New Tab opens the directory in the right archive
 - Compare Files works for files inside archives
 - Add to Favorites is no longer offered for folders inside archives, where it stored an unusable path
+- In the single-panel layout a search result opens in the visible panel, and Tab in the command line shows the panel it switches to
 
 ## [0.7.120] - 2026-11-19
 

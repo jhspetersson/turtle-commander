@@ -12,7 +12,9 @@ import io.github.jhspetersson.turtlecommander.action.FileContextMenuState
 import io.github.jhspetersson.turtlecommander.action.OpenInNewTabAction
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.service.FileManagerStateService
+import io.github.jhspetersson.turtlecommander.settings.PanelLayout
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
+import io.github.jhspetersson.turtlecommander.ui.CommandInputBar
 import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
 import io.github.jhspetersson.turtlecommander.ui.FileTab
 import java.nio.file.Files
@@ -92,6 +94,48 @@ class SearchTargetPanelIntegrationTest : BasePlatformTestCase() {
         }
         assertEquals(leftBefore + 1, leftPanel.getRealTabCount())
         assertEquals(rightBefore, rightPanel.getRealTabCount())
+    }
+
+    fun testASearchResultOpensInTheOppositePanelInADualLayout() {
+        stateService.noteFocusOwner(leftPanel.getActiveTab()!!.table)
+
+        assertSame(rightPanel, stateService.panelForSearchResult())
+    }
+
+    fun testASearchResultOpensInTheVisiblePanelInTheSinglePanelLayout() {
+        val settings = TurtleCommanderSettings.getInstance().state
+        val before = settings.panelLayout
+        settings.panelLayout = PanelLayout.SINGLE.name
+        try {
+            stateService.noteFocusOwner(leftPanel.getActiveTab()!!.table)
+            assertSame(leftPanel, stateService.panelForSearchResult())
+
+            stateService.noteFocusOwner(rightPanel.getActiveTab()!!.table)
+            assertSame(rightPanel, stateService.panelForSearchResult())
+        } finally {
+            settings.panelLayout = before
+        }
+    }
+
+    fun testRetargetingTheCommandLineShowsItsNewPanelInTheSinglePanelLayout() {
+        val settings = TurtleCommanderSettings.getInstance().state
+        val before = settings.panelLayout
+        val bar = CommandInputBar(project, leftPanel, rightPanel)
+        var swaps = 0
+        stateService.setSwapSinglePanelCallback { swaps++ }
+        try {
+            stateService.retargetCommandInput(bar)
+            assertSame(rightPanel, bar.targetPanel)
+            assertEquals(0, swaps)
+
+            settings.panelLayout = PanelLayout.SINGLE.name
+            stateService.retargetCommandInput(bar)
+            assertSame(leftPanel, bar.targetPanel)
+            assertEquals(1, swaps)
+        } finally {
+            settings.panelLayout = before
+            stateService.setSwapSinglePanelCallback(null)
+        }
     }
 
     fun testPanelOfReturnsNullForATabNoPanelOwns() {
