@@ -175,6 +175,10 @@ class FileTab(
     internal val vfsStack = mutableListOf<VfsStackEntry>()
     internal val vfsOpening = AtomicReference<Path?>()
 
+    @Volatile
+    internal var disposed = false
+        private set
+
     /**
      * Serializes VFS write-back work across [refresh], [refreshAfterVfsChange],
      * [writeBackNestedArchives] and [io.github.jhspetersson.turtlecommander.vfs.VfsEditService.writeBack]
@@ -1784,6 +1788,7 @@ class FileTab(
     }
 
     override fun dispose() {
+        disposed = true
         renameClickTimer?.stop()
         stopDriveUpdates()
         closeVfsStackAsync()

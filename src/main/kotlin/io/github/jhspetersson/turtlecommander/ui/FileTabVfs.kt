@@ -83,7 +83,7 @@ private suspend fun FileTab.openVfsExclusively(entry: FileEntry, directory: Stri
                     val vfs = withContext(Dispatchers.IO) {
                         SharedVfsRegistry.acquire(archivePath, openProgress)
                     }
-                    if (indicator.isCanceled) {
+                    if (indicator.isCanceled || disposed || vfsStack.isNotEmpty()) {
                         runCatching { SharedVfsRegistry.release(vfs) }
                         return@withContext
                     }
@@ -94,6 +94,7 @@ private suspend fun FileTab.openVfsExclusively(entry: FileEntry, directory: Stri
                 } else {
                     var tempFile: File? = null
                     val insideReadOnlyArchive = vfsStack.any { it.vfs.isReadOnly }
+                    val outer = vfsStack.last().vfs
                     try {
                         VfsTempCleanup.cleanupOnce()
                         val vfs = withContext(Dispatchers.IO) {
@@ -110,7 +111,7 @@ private suspend fun FileTab.openVfsExclusively(entry: FileEntry, directory: Stri
                             if (insideReadOnlyArchive) tempPath.toFile().setWritable(false)
                             VirtualFileSystemRegistry.create(tempPath, openProgress)
                         }
-                        if (indicator.isCanceled) {
+                        if (indicator.isCanceled || disposed || currentVfs !== outer) {
                             vfs.close()
                             tempFile?.parentFile?.let { VfsTempCleanup.discard(it.toPath()) }
                             return@withContext
@@ -126,7 +127,7 @@ private suspend fun FileTab.openVfsExclusively(entry: FileEntry, directory: Stri
                         openFile(entry)
                     } catch (e: Exception) {
                         tempFile?.parentFile?.let { VfsTempCleanup.discard(it.toPath()) }
-                        fileErrorNotification("Cannot open nested archive: ${fileErrorMessage(e)}", e)
+                        if (currentVfs === outer) fileErrorNotification("Cannot open nested archive: ${fileErrorMessage(e)}", e)
                     }
                 }
             } catch (_: SilentVfsOpenException) {
