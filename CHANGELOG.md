@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.121] - 2026-11-20
+
 ### Fixed
 
 - Leaving an archive while it is being saved no longer drags the tab back into it
