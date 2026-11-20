@@ -380,8 +380,11 @@ class CombineFilesAction : EdtAction() {
     }
 }
 
+internal fun isInsideArchive(path: Path): Boolean =
+    path.fileSystem != FileSystems.getDefault() || OpenVfsRegistry.isInsideVfs(path)
+
 internal fun archiveFileBytes(path: Path): ByteArray? {
-    if (path.fileSystem == FileSystems.getDefault() && !OpenVfsRegistry.isInsideVfs(path)) return null
+    if (!isInsideArchive(path)) return null
     OpenVfsRegistry.materializeIfNeeded(path)
     return Files.readAllBytes(path)
 }
@@ -518,11 +521,13 @@ class ContextCreateLinkAction : EdtAction() {
 class AddToFavoritesAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry
-        e.presentation.isEnabledAndVisible = entry != null && entry.isDirectory && !entry.isParentLink
+        e.presentation.isEnabledAndVisible =
+            entry != null && entry.isDirectory && !entry.isParentLink && !isInsideArchive(entry.path)
     }
 
     override fun actionPerformed(e: AnActionEvent) {
         val entry = FileContextMenuState.clickedEntry ?: return
+        if (isInsideArchive(entry.path)) return
         val project = e.project ?: return
         val stateService = project.service<FileManagerStateService>()
         stateService.addFavorite(entry.path.toString())

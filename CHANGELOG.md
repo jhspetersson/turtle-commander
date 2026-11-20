@@ -10,6 +10,7 @@
 - Closing a tab or leaving the outer archive while an archive is still opening no longer leaves it open and locked
 - With two zip archives open, Open in New Tab opens the directory in the right archive
 - Compare Files works for files inside archives
+- Add to Favorites is no longer offered for folders inside archives, where it stored an unusable path
 
 ## [0.7.120] - 2026-11-19
 
