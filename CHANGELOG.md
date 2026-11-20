@@ -9,6 +9,7 @@
 - Leaving an archive while it is being saved no longer drags the tab back into it
 - Closing a tab or leaving the outer archive while an archive is still opening no longer leaves it open and locked
 - With two zip archives open, Open in New Tab opens the directory in the right archive
+- Compare Files works for files inside archives
 
 ## [0.7.120] - 2026-11-19
 

@@ -1,6 +1,11 @@
 package io.github.jhspetersson.turtlecommander.action
 
 import com.intellij.diff.DiffContentFactory
+import com.intellij.diff.contents.DiffContent
+import com.intellij.openapi.fileTypes.FileTypeManager
+import com.intellij.openapi.project.Project
+import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
+import java.nio.file.FileSystems
 import com.intellij.diff.DiffManager
 import com.intellij.diff.requests.SimpleDiffRequest
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -375,6 +380,12 @@ class CombineFilesAction : EdtAction() {
     }
 }
 
+internal fun archiveFileBytes(path: Path): ByteArray? {
+    if (path.fileSystem == FileSystems.getDefault() && !OpenVfsRegistry.isInsideVfs(path)) return null
+    OpenVfsRegistry.materializeIfNeeded(path)
+    return Files.readAllBytes(path)
+}
+
 class CompareFilesAction : EdtAction() {
     override fun update(e: AnActionEvent) {
         e.presentation.isEnabledAndVisible = resolveFiles(e).let { it.first != null && it.second != null }
@@ -385,22 +396,37 @@ class CompareFilesAction : EdtAction() {
         val (left, right) = resolveFiles(e)
         if (left == null || right == null) return
 
-        val vfsLeft = LocalFileSystem.getInstance().findFileByNioFile(left.path)
-        val vfsRight = LocalFileSystem.getInstance().findFileByNioFile(right.path)
-        if (vfsLeft == null || vfsRight == null) return
+        val tab = FileContextMenuState.clickedTab ?: return
+        tab.fileOps.launch {
+            val bytes = try {
+                withContext(Dispatchers.IO) { archiveFileBytes(left.path) to archiveFileBytes(right.path) }
+            } catch (e: Exception) {
+                withContext(Dispatchers.EDT) { tab.fileErrorNotification("Cannot compare files: ${fileErrorMessage(e)}", e) }
+                return@launch
+            }
+            withContext(Dispatchers.EDT) {
+                val leftContent = diffContent(project, left, bytes.first) ?: return@withContext
+                val rightContent = diffContent(project, right, bytes.second) ?: return@withContext
+                val request = SimpleDiffRequest(
+                    "${left.name} vs ${right.name}",
+                    leftContent,
+                    rightContent,
+                    left.name,
+                    right.name,
+                )
+                DiffManager.getInstance().showDiff(project, request)
+            }
+        }
+    }
 
+    private fun diffContent(project: Project, entry: FileEntry, bytes: ByteArray?): DiffContent? {
         val factory = DiffContentFactory.getInstance()
-        val leftContent = factory.create(project, vfsLeft)
-        val rightContent = factory.create(project, vfsRight)
-
-        val request = SimpleDiffRequest(
-            "${left.name} vs ${right.name}",
-            leftContent,
-            rightContent,
-            left.name,
-            right.name,
-        )
-        DiffManager.getInstance().showDiff(project, request)
+        if (bytes != null) {
+            val fileType = FileTypeManager.getInstance().getFileTypeByFileName(entry.name)
+            return factory.createFromBytes(project, bytes, fileType, entry.name)
+        }
+        val file = LocalFileSystem.getInstance().findFileByNioFile(entry.path) ?: return null
+        return factory.create(project, file)
     }
 
     private fun resolveFiles(e: AnActionEvent): Pair<FileEntry?, FileEntry?> {
