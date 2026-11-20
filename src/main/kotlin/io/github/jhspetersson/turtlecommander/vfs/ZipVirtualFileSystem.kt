@@ -113,6 +113,14 @@ class ZipVirtualFileSystem(override val archivePath: Path) : VirtualFileSystem {
         return fileSystem.getPath(relativePath)
     }
 
+    override fun owns(path: Path): Boolean {
+        val other = path.fileSystem
+        if (other !== fileSystem) {
+            if (other.provider() !== fileSystem.provider() || other.toString() != fileSystem.toString()) return false
+        }
+        return path.normalize().startsWith(root.normalize())
+    }
+
     override suspend fun listFiles(directory: Path): List<FileEntry> = withContext(Dispatchers.IO) {
         val result = mutableListOf<FileEntry>()
 

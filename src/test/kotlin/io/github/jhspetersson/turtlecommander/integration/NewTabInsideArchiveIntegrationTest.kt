@@ -103,4 +103,28 @@ class NewTabInsideArchiveIntegrationTest : BasePlatformTestCase() {
         assertEquals("com", relativeDir(opened))
         assertEquals(jarPath, opened.vfsStack.single().parentPath)
     }
+
+    fun testOpeningADirectoryOfTheSecondZipInNewTabStaysInThatZip() {
+        val otherJar = tempDir.resolve("other.jar")
+        ZipOutputStream(Files.newOutputStream(otherJar)).use { zos ->
+            zos.putNextEntry(ZipEntry("com/example/Other.class"))
+            zos.write(byteArrayOf(1))
+            zos.closeEntry()
+        }
+        openArchiveDirectory()
+        panel.openArchiveEntryInNewTab(otherJar, "com/example", true)
+        waitFor("second archive opened") {
+            val tab = panel.getActiveTab()
+            tab != null && tab.isInsideArchive && "Other.class" in tableNames(tab)
+        }
+        val otherTab = panel.getActiveTab()!!
+
+        panel.openDirectoryInNewTab(otherTab.currentPath.parent, selectName = "example")
+        waitFor("new tab opened inside an archive") {
+            val tab = panel.getActiveTab()
+            tab != null && tab !== otherTab && tab.isInsideArchive && "example" in tableNames(tab)
+        }
+
+        assertEquals(otherJar, panel.getActiveTab()!!.vfsStack.single().parentPath)
+    }
 }
