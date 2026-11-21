@@ -7,6 +7,7 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.nio.file.*
 import java.nio.file.attribute.BasicFileAttributes
+import java.nio.file.attribute.DosFileAttributeView
 import java.nio.file.attribute.DosFileAttributes
 import java.nio.file.attribute.PosixFileAttributeView
 import java.nio.file.attribute.PosixFilePermissions
@@ -286,3 +287,30 @@ internal fun posixModeToFlags(mode: Int): Set<PermissionFlag> = buildSet {
     if (mode and S_ISGID != 0) add(PermissionFlag.SETGID)
     if (mode and S_ISVTX != 0) add(PermissionFlag.STICKY)
 }
+
+private fun readOnlyView(path: Path): DosFileAttributeView? =
+    runCatching { Files.getFileAttributeView(path, DosFileAttributeView::class.java, LinkOption.NOFOLLOW_LINKS) }.getOrNull()
+
+private fun clearReadOnly(path: Path): Boolean = runCatching {
+    val view = readOnlyView(path) ?: return false
+    if (!view.readAttributes().isReadOnly) return false
+    view.setReadOnly(false)
+    true
+}.getOrDefault(false)
+
+internal fun <T> withReadOnlyCleared(path: Path, action: () -> T): T =
+    try {
+        action()
+    } catch (denied: java.nio.file.AccessDeniedException) {
+        if (!clearReadOnly(path)) throw denied
+        try {
+            action()
+        } catch (e: Exception) {
+            runCatching { readOnlyView(path)?.setReadOnly(true) }
+            throw e
+        }
+    }
+
+internal fun deleteClearingReadOnly(path: Path) = withReadOnlyCleared(path) { Files.delete(path) }
+
+internal fun deleteIfExistsClearingReadOnly(path: Path): Boolean = withReadOnlyCleared(path) { Files.deleteIfExists(path) }

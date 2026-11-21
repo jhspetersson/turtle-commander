@@ -752,7 +752,7 @@ class FileOperationService(
         }
 
         try {
-            Files.deleteIfExists(source)
+            deleteIfExistsClearingReadOnly(source)
         } catch (e: Exception) {
             if (e !is DirectoryNotEmptyException || !leftBehind) {
                 thisLogger().warn("Failed to remove source directory $source: ${e.message}")
@@ -841,7 +841,7 @@ class FileOperationService(
                     for (entry in entries) {
                         if (isCancelled()) break
                         try {
-                            Files.delete(entry)
+                            deleteClearingReadOnly(entry)
                             deletedCount++
                             onProgress(deletedCount, entry.name)
                         } catch (e: Exception) {
@@ -851,7 +851,7 @@ class FileOperationService(
                     }
                 } else {
                     try {
-                        Files.deleteIfExists(path)
+                        deleteIfExistsClearingReadOnly(path)
                         deletedCount++
                         onProgress(deletedCount, path.name)
                     } catch (e: Exception) {
@@ -1088,7 +1088,7 @@ class FileOperationService(
             // first, or the destination would receive zero-filled placeholders. No-op for
             // paths outside any VFS.
             OpenVfsRegistry.materializeTreeIfNeeded(source)
-            Files.move(source, target, *options)
+            withReadOnlyCleared(target) { Files.move(source, target, *options) }
             return
         }
         val replaceExisting = StandardCopyOption.REPLACE_EXISTING in options
@@ -1096,9 +1096,9 @@ class FileOperationService(
             // Recreate the link node on the target side rather than following it:
             // isDirectory() on a dir link would otherwise route it through the recursive
             // copy+delete below, duplicating the target's content and then deleting it.
-            if (replaceExisting) Files.deleteIfExists(target)
+            if (replaceExisting) deleteIfExistsClearingReadOnly(target)
             copyPreservingAttributes(source, target, replaceExisting = false, nofollow = true)
-            Files.delete(source)
+            deleteClearingReadOnly(source)
             return
         }
         if (source.isDirectory()) {
@@ -1114,7 +1114,7 @@ class FileOperationService(
         } else {
             OpenVfsRegistry.materializeIfNeeded(source)
             copyPreservingAttributes(source, target, replaceExisting)
-            Files.delete(source)
+            deleteClearingReadOnly(source)
         }
     }
 
@@ -1148,20 +1148,20 @@ class FileOperationService(
 
     private fun deleteDirectoryRecursive(path: Path) {
         if (!isTraversableDirectory(path)) {
-            Files.deleteIfExists(path)
+            deleteIfExistsClearingReadOnly(path)
             return
         }
         walkFileTree(path, object : SimpleFileVisitor<Path>() {
             override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
                 if (attrs.isOther) {
-                    Files.delete(dir)
+                    deleteClearingReadOnly(dir)
                     return FileVisitResult.SKIP_SUBTREE
                 }
                 return FileVisitResult.CONTINUE
             }
 
             override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
-                Files.delete(file)
+                deleteClearingReadOnly(file)
                 return FileVisitResult.CONTINUE
             }
 
@@ -1175,7 +1175,7 @@ class FileOperationService(
                     thisLogger().warn("Failed to fully iterate $dir: ${exc.message}")
                 }
                 try {
-                    Files.delete(dir)
+                    deleteClearingReadOnly(dir)
                 } catch (e: Exception) {
                     thisLogger().warn("Failed to delete directory $dir: ${e.message}")
                 }
@@ -1198,7 +1198,11 @@ internal fun copyPreservingAttributes(source: Path, target: Path, replaceExistin
         if (replaceExisting) add(StandardCopyOption.REPLACE_EXISTING)
         if (nofollow) add(LinkOption.NOFOLLOW_LINKS)
     }
-    Files.copy(source, target, *options.toTypedArray())
+    if (replaceExisting) {
+        withReadOnlyCleared(target) { Files.copy(source, target, *options.toTypedArray()) }
+    } else {
+        Files.copy(source, target, *options.toTypedArray())
+    }
 }
 
 internal fun targetIsInsideSource(source: Path, target: Path): Boolean =
