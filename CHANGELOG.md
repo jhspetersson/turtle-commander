@@ -10,6 +10,7 @@
 - Deleting the selected theme restores the Default styles in the settings editors
 - Up and Down in the color rules list move a rule by one row even when priorities are equal
 - Pack dialog switches the format when you type a .zip or .tar.gz extension
+- Multi-rename no longer reports a conflict for files in different folders that get the same name
 
 ## [0.7.121] - 2026-11-20
 

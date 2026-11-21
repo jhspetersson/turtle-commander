@@ -473,13 +473,14 @@ object MultiRenameTemplate {
     ): Set<Int> {
         require(sources.size == targetNames.size) { "sources/targets length mismatch" }
         val conflicts = HashSet<Int>()
-        val seen = HashMap<String, Int>()
+        val seen = HashMap<Pair<String?, String>, Int>()
         targetNames.forEachIndexed { i, name ->
             if (name.isBlank()) {
                 conflicts.add(i)
                 return@forEachIndexed
             }
-            val key = if (caseInsensitiveDuplicates) name.lowercase(Locale.ROOT) else name
+            val directory = sources[i].parent?.let { pathKey(it, caseInsensitiveDuplicates) }
+            val key = directory to (if (caseInsensitiveDuplicates) name.lowercase(Locale.ROOT) else name)
             val prev = seen.put(key, i)
             if (prev != null) {
                 conflicts.add(i)

@@ -391,6 +391,28 @@ class MultiRenameTemplateTest {
     }
 
     @Test
+    fun `detectConflicts allows the same target name in different directories`() {
+        val base = Path.of("/tmp/work")
+        val sources = listOf(base.resolve("one/a.txt"), base.resolve("two/a.txt"), base.resolve("two/b.txt"))
+        val targets = listOf("out.txt", "out.txt", "other.txt")
+
+        val conflicts = MultiRenameTemplate.detectConflicts(sources, targets, caseInsensitiveDuplicates = true) { false }
+
+        assertTrue(conflicts.isEmpty())
+    }
+
+    @Test
+    fun `detectConflicts still flags duplicates inside one of several directories`() {
+        val base = Path.of("/tmp/work")
+        val sources = listOf(base.resolve("one/a.txt"), base.resolve("two/a.txt"), base.resolve("two/b.txt"))
+        val targets = listOf("out.txt", "out.txt", "OUT.txt")
+
+        val conflicts = MultiRenameTemplate.detectConflicts(sources, targets, caseInsensitiveDuplicates = true) { false }
+
+        assertEquals(setOf(1, 2), conflicts)
+    }
+
+    @Test
     fun `detectConflicts flags duplicate targets on both offenders`() {
         val base = Path.of("/tmp/work")
         val sources = listOf(base.resolve("a.txt"), base.resolve("b.txt"), base.resolve("c.txt"))
