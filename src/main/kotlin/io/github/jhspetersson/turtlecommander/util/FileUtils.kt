@@ -28,10 +28,13 @@ internal fun renameInPlace(source: Path, target: Path): Path {
     return if (sameEntry) Files.move(source, target, StandardCopyOption.ATOMIC_MOVE) else Files.move(source, target)
 }
 
-private fun linksBackToAncestor(dir: Path): Boolean = runCatching {
+internal fun linksBackToAncestor(dir: Path): Boolean = runCatching {
     val parent = dir.toAbsolutePath().parent ?: return false
     parent.toRealPath().startsWith(dir.toRealPath())
 }.getOrDefault(false)
+
+internal fun descendUnlessCycle(dir: Path, attrs: BasicFileAttributes): FileVisitResult =
+    if (attrs.isOther && linksBackToAncestor(dir)) FileVisitResult.SKIP_SUBTREE else FileVisitResult.CONTINUE
 
 suspend fun countFiles(sources: List<Path>, traverseJunctions: Boolean = true): Int = withContext(Dispatchers.IO) {
     var count = 0

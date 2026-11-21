@@ -3,6 +3,7 @@ import java.util.concurrent.locks.LockSupport
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.util.SystemInfo
 import io.github.jhspetersson.turtlecommander.util.PermissionFlag
+import io.github.jhspetersson.turtlecommander.util.descendUnlessCycle
 import io.github.jhspetersson.turtlecommander.util.isNamedPipe
 import io.github.jhspetersson.turtlecommander.util.readFileGroup
 import io.github.jhspetersson.turtlecommander.util.readFileOwner
@@ -68,6 +69,7 @@ open class FileSearchService(
                 }
                 if (dir != start) {
                     checkAndReport(dir, attrs, nameMatcher, onResult, isCancelled)
+                    return descendUnlessCycle(dir, attrs)
                 }
                 return FileVisitResult.CONTINUE
             }

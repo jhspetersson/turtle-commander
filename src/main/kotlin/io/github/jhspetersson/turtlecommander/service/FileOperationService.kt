@@ -142,6 +142,9 @@ class FileOperationService(
         val start = resolveWalkRoot(directory)
         try {
             walkFileTree(start, object : SimpleFileVisitor<Path>() {
+                override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult =
+                    if (dir == start) FileVisitResult.CONTINUE else descendUnlessCycle(dir, attrs)
+
                 override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                     // buildFileEntry follows symlinks to classify them, so a link to a directory
                     // resolves as a directory and is excluded — only true files are kept.

@@ -3,6 +3,7 @@ package io.github.jhspetersson.turtlecommander.service
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import io.github.jhspetersson.turtlecommander.operation.TarOutputStream
+import io.github.jhspetersson.turtlecommander.util.descendUnlessCycle
 import io.github.jhspetersson.turtlecommander.vfs.CompressedStreams
 import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 import io.github.jhspetersson.turtlecommander.vfs.VfsOpenProgress
@@ -94,7 +95,7 @@ class ArchiveService {
                                 // otherwise the final count exceeds the number of files actually
                                 // written, which is what the method returns.
                                 onProgress(successCount, dir.fileName.toString())
-                                return FileVisitResult.CONTINUE
+                                return if (dir == source) FileVisitResult.CONTINUE else descendUnlessCycle(dir, attrs)
                             }
 
                             override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
@@ -173,7 +174,7 @@ class ArchiveService {
                                             directoryCount++
                                         }
                                         onProgress(successCount, dir.fileName.toString())
-                                        return FileVisitResult.CONTINUE
+                                        return if (dir == source) FileVisitResult.CONTINUE else descendUnlessCycle(dir, attrs)
                                     }
 
                                     override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {

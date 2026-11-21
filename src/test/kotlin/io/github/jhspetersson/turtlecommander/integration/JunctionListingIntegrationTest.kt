@@ -56,4 +56,17 @@ class JunctionListingIntegrationTest : BasePlatformTestCase() {
         val nested = fileOps.listFiles(link.resolve("sub"), forceRefresh = true).filter { !it.isParentLink }
         assertEquals(listOf(link.resolve("sub").resolve("file.txt")), nested.map { it.path })
     }
+
+    fun testTheNestedListingShowsEachFileOnceThroughAJunctionToAnAncestor() = runBlocking {
+        Files.createDirectories(target.resolve("sub"))
+        Files.writeString(target.resolve("a.txt"), "a")
+        Files.writeString(target.resolve("sub").resolve("b.txt"), "b")
+        link = target.resolve("sub").resolve("loop")
+        if (!createJunction()) return@runBlocking
+        val fileOps: FileOperationService = project.service()
+
+        val files = fileOps.listAllNestedFiles(target).filter { !it.isParentLink }.map { it.path }
+
+        assertEquals(listOf(target.resolve("a.txt"), target.resolve("sub").resolve("b.txt")), files.sorted())
+    }
 }

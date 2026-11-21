@@ -13,6 +13,7 @@
 - Multi-rename no longer reports a conflict for files in different folders that get the same name
 - A Contains color rule no longer makes the panel repaint endlessly on a folder that cannot be read
 - Read-only files on Windows can be deleted and overwritten
+- Search, the nested-files listing and Pack no longer loop through a junction that points to a parent folder
 
 ## [0.7.121] - 2026-11-20
 
