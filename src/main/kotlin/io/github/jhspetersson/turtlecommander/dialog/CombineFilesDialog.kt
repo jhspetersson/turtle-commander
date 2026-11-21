@@ -9,6 +9,7 @@ import com.intellij.ui.components.JBTextField
 import io.github.jhspetersson.turtlecommander.ui.installStandardContextMenu
 import com.intellij.util.ui.JBUI
 import java.awt.Dimension
+import java.nio.file.Path
 import javax.swing.BoxLayout
 import javax.swing.JComponent
 import javax.swing.JPanel
@@ -20,6 +21,7 @@ class CombineFilesDialog(
     private val hasCrc: Boolean,
     targetDirectory: String,
     targetFileName: String,
+    private val basePath: Path,
 ) : DialogWrapper(project) {
 
     private val targetDirField = JBTextField(targetDirectory)
@@ -71,12 +73,8 @@ class CombineFilesDialog(
     }
 
     override fun doValidate(): ValidationInfo? {
-        if (targetDirectory.isEmpty()) {
-            return ValidationInfo("Target directory cannot be empty", targetDirField)
-        }
-        if (targetFile.isEmpty()) {
-            return ValidationInfo("Target file name cannot be empty", targetFileField)
-        }
+        validateTargetDirectory(targetDirectory, basePath)?.let { return ValidationInfo(it, targetDirField) }
+        validateTargetFileName(targetFile)?.let { return ValidationInfo(it, targetFileField) }
         return null
     }
 }

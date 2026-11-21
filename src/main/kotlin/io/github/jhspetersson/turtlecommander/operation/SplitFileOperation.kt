@@ -21,7 +21,9 @@ object SplitFileOperation {
         require(chunkSize > 0) { "Chunk size must be positive, got $chunkSize" }
         val fileSize = Files.size(sourceFile)
         val fileName = sourceFile.fileName.toString()
-        val totalChunks = if (fileSize == 0L) 1 else ((fileSize + chunkSize - 1) / chunkSize).toInt()
+        val chunkCount = chunkCount(fileSize, chunkSize)
+        require(chunkCount <= MAX_CHUNKS) { "Chunk size is too small: $chunkCount parts, the limit is $MAX_CHUNKS" }
+        val totalChunks = chunkCount.toInt()
         val extensionWidth = extensionWidth(totalChunks)
 
         Files.createDirectories(targetDirectory)
@@ -101,6 +103,9 @@ object SplitFileOperation {
         return pendingChunks.size
     }
 
+    fun chunkCount(fileSize: Long, chunkSize: Long): Long =
+        if (fileSize <= 0L) 1L else (fileSize - 1) / chunkSize + 1
+
     fun chunkSizeForParts(fileSize: Long, parts: Int): Long {
         require(parts > 0) { "Part count must be positive, got $parts" }
         return maxOf(1L, (fileSize + parts - 1) / parts)
@@ -163,6 +168,7 @@ object SplitFileOperation {
         }
     }
 
+    const val MAX_CHUNKS = 999_999
     private const val BUFFER_SIZE = 64 * 1024
     private const val TEMP_SUFFIX = ".part"
 }

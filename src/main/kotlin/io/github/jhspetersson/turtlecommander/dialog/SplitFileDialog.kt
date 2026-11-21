@@ -14,6 +14,7 @@ import io.github.jhspetersson.turtlecommander.util.formatSize
 import java.awt.Dimension
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
+import java.nio.file.Path
 import javax.swing.BorderFactory
 import javax.swing.BoxLayout
 import javax.swing.ButtonGroup
@@ -28,6 +29,7 @@ class SplitFileDialog(
     private val fileName: String,
     private val fileSize: Long,
     targetDirectory: String,
+    private val basePath: Path,
 ) : DialogWrapper(project) {
 
     private val targetDirField = JBTextField(targetDirectory)
@@ -135,14 +137,10 @@ class SplitFileDialog(
     }
 
     override fun doValidate(): ValidationInfo? {
-        if (targetDirectory.isEmpty()) {
-            return ValidationInfo("Target directory cannot be empty", targetDirField)
-        }
+        validateTargetDirectory(targetDirectory, basePath)?.let { return ValidationInfo(it, targetDirField) }
         if (isSplitBySize) {
             val size = try { chunkSize } catch (_: Exception) { 0L }
-            if (size <= 0) {
-                return ValidationInfo("Invalid chunk size", sizeCombo)
-            }
+            validateChunkSize(size, fileSize)?.let { return ValidationInfo(it, sizeCombo) }
         }
         return null
     }

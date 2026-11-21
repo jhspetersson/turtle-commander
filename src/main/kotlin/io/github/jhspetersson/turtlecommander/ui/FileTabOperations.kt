@@ -483,7 +483,7 @@ internal fun FileTab.performSplitFile() {
     if (entry.isDirectory || entry.isParentLink) return
 
     val otherPath = otherPanelPathProvider()?.toString() ?: destinationBasePath.toString()
-    val dialog = SplitFileDialog(project, entry.name, entry.size, otherPath)
+    val dialog = SplitFileDialog(project, entry.name, entry.size, otherPath, destinationBasePath)
     if (!dialog.showAndGet()) return
 
     val targetDir = resolveDestinationPath(dialog.targetDirectory, destinationBasePath)
@@ -602,7 +602,7 @@ internal fun FileTab.performCombineFiles() {
         val totalSize = withContext(Dispatchers.IO) { chunkFiles.sumOf { Files.size(it) } }
 
         val dialogChoice = withContext(Dispatchers.EDT) {
-            val dialog = CombineFilesDialog(project, chunkFiles.size, totalSize, hasCrc, otherPath, targetFileName)
+            val dialog = CombineFilesDialog(project, chunkFiles.size, totalSize, hasCrc, otherPath, targetFileName, destinationBasePath)
             if (dialog.showAndGet()) dialog.targetDirectory to dialog.targetFile else null
         } ?: return@launch
         val (targetDirString, finalTargetFileName) = dialogChoice
