@@ -227,9 +227,7 @@ internal class ColorRulesEditor(private val project: Project?) {
 
     /**
      * Raises ([direction] = -1) or lowers ([direction] = +1) the selected rule's priority so it
-     * swaps places with its neighbour in the priority-sorted list. The new priority is set just
-     * past the neighbour's, so a single click always reorders even when priorities are spaced
-     * apart (a plain +/-1 could leave the row visually stuck).
+     * swaps places with its neighbour in the priority-sorted list.
      */
     private fun moveSelected(direction: Int) {
         val idx = table.selectedRow
@@ -237,9 +235,9 @@ internal class ColorRulesEditor(private val project: Project?) {
         val target = idx + direction
         if (target < 0 || target >= rules.size) return // already at the top/bottom
         val cur = rules[idx]
-        val neighbor = rules[target]
-        val newPriority = if (direction < 0) neighbor.priority + 1 else neighbor.priority - 1
-        rules[idx] = cur.copy(priority = newPriority)
+        val moved = moveColorRule(rules, idx, direction)
+        rules.clear()
+        rules.addAll(moved)
         resortAndSelect(cur.id)
     }
 
@@ -456,4 +454,17 @@ internal class ColorRulesEditor(private val project: Project?) {
             return rule.matchers.joinToString(joiner) { it.describe() }
         }
     }
+}
+
+internal fun moveColorRule(rules: List<ColorRule>, index: Int, direction: Int): List<ColorRule> {
+    val target = index + direction
+    if (index !in rules.indices || target !in rules.indices) return rules
+    val result = rules.toMutableList()
+    result[index] = rules[target].copy(priority = rules[index].priority)
+    result[target] = rules[index].copy(priority = rules[target].priority)
+    for (i in result.size - 2 downTo 0) {
+        val floor = result[i + 1].priority + 1
+        if (result[i].priority < floor) result[i] = result[i].copy(priority = floor)
+    }
+    return result
 }
