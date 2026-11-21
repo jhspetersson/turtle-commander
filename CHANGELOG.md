@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.122] - 2026-11-21
+
 ### Fixed
 
 - Split and Combine dialogs reject invalid target paths, file names with separators and chunk sizes that would create too many parts
