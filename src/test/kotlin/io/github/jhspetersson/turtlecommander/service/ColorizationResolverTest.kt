@@ -236,6 +236,19 @@ class ColorizationResolverTest {
     }
 
     @Test
+    fun `a failed listing does not ask for a repaint`() {
+        val resolver = ColorizationResolver()
+        resolver.readChildNames = { _ -> null }
+        val loaded = mutableListOf<Path>()
+        resolver.onChildrenLoaded = { loaded.add(it) }
+        val entry = dirEntry(Paths.get("broken"))
+
+        resolver.resolve(entry, listOf(gitRule), ColorizationMode.WINNER, enabled = true)
+
+        assertTrue(loaded.isEmpty())
+    }
+
+    @Test
     fun `resolve with contains returns style on match`() {
         val resolver = ColorizationResolver()
         resolver.readChildNames = { _ -> listOf(".git", "src") }

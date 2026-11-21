@@ -11,6 +11,7 @@
 - Up and Down in the color rules list move a rule by one row even when priorities are equal
 - Pack dialog switches the format when you type a .zip or .tar.gz extension
 - Multi-rename no longer reports a conflict for files in different folders that get the same name
+- A Contains color rule no longer makes the panel repaint endlessly on a folder that cannot be read
 
 ## [0.7.121] - 2026-11-20
 

@@ -90,15 +90,15 @@ class ColorizationResolver {
         cachedNames(path)?.let { return@ContainsEvaluator it }
         if (pendingLoads.add(path)) {
             loadAsync {
-                try {
-                    val names = readChildNames(path)
-                    if (names != null) {
-                        synchronized(childCache) { childCache[path] = CachedChildren(names, clock()) }
-                    }
+                val names = try {
+                    readChildNames(path)
                 } finally {
                     pendingLoads.remove(path)
                 }
-                onChildrenLoaded(path)
+                if (names != null) {
+                    synchronized(childCache) { childCache[path] = CachedChildren(names, clock()) }
+                    onChildrenLoaded(path)
+                }
             }
         }
         cachedNames(path)
