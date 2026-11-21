@@ -62,8 +62,9 @@ class TurtleCommanderConfigurable @JvmOverloads constructor(
     private var favoritesEditor: FavoritesEditor? = null
     private var colorRulesEditor: ColorRulesEditor? = null
 
-    private val styleEditors = mutableMapOf<String, ComponentStyleEditor>()
-    private var themeCombo: ComboBox<Theme>? = null
+    internal val styleEditors = mutableMapOf<String, ComponentStyleEditor>()
+    internal var themeCombo: ComboBox<Theme>? = null
+        private set
     private var suppressThemeAction = false
     private var previousTheme: Theme = Theme.DEFAULT
     internal var themeDraft: ThemeDraft? = null
@@ -375,7 +376,7 @@ class TurtleCommanderConfigurable @JvmOverloads constructor(
         )
     }
 
-    private fun rebuildThemeCombo() {
+    internal fun rebuildThemeCombo() {
         val combo = themeCombo ?: return
         val state = themeState()
         val currentName = (combo.selectedItem as? Theme)?.name ?: Theme.DEFAULT.name
@@ -624,9 +625,14 @@ class TurtleCommanderConfigurable @JvmOverloads constructor(
             "Delete theme \"${current.name}\"?", "Delete Theme", null
         )
         if (confirm != Messages.YES) return
-        val state = themeState()
-        ThemeManager.deleteTheme(state, current.name)
+        removeTheme(current)
+    }
+
+    internal fun removeTheme(theme: Theme) {
+        ThemeManager.deleteTheme(themeState(), theme.name)
         rebuildThemeCombo()
+        selectThemeByName(Theme.DEFAULT.name)
+        applyThemeToEditors(Theme.DEFAULT, theme)
     }
 
     private fun exportSelectedTheme() {

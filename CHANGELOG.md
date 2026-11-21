@@ -7,6 +7,7 @@
 ### Fixed
 
 - Split and Combine dialogs reject invalid target paths, file names with separators and chunk sizes that would create too many parts
+- Deleting the selected theme restores the Default styles in the settings editors
 
 ## [0.7.121] - 2026-11-20
 
