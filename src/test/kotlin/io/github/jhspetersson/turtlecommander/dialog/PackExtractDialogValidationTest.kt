@@ -74,6 +74,45 @@ class PackExtractDialogValidationTest : BasePlatformTestCase() {
         }
     }
 
+    fun testPackDialogFollowsATypedExtension() {
+        val dialog = PackDialog(project, sources, tempDir.resolve("out.zip").toString(), tempDir)
+        try {
+            dialog.archiveField.text = tempDir.resolve("out.tar.gz").toString()
+
+            assertEquals(ArchiveFormat.TAR_GZ, dialog.archiveFormat)
+            assertEquals(tempDir.resolve("out.tar.gz").toString(), dialog.archivePath)
+
+            dialog.archiveField.text = tempDir.resolve("out.ZIP").toString()
+
+            assertEquals(ArchiveFormat.ZIP, dialog.archiveFormat)
+            assertEquals(tempDir.resolve("out.ZIP").toString(), dialog.archivePath)
+        } finally {
+            dialog.close(DialogWrapper.CANCEL_EXIT_CODE)
+        }
+    }
+
+    fun testPackDialogStartsOnTheFormatOfItsDefaultPath() {
+        val dialog = PackDialog(project, sources, tempDir.resolve("out.tar.gz").toString(), tempDir)
+        try {
+            assertEquals(ArchiveFormat.TAR_GZ, dialog.archiveFormat)
+            assertEquals(tempDir.resolve("out.tar.gz").toString(), dialog.archivePath)
+        } finally {
+            dialog.close(DialogWrapper.CANCEL_EXIT_CODE)
+        }
+    }
+
+    fun testPackDialogKeepsTheComboFormatForANameWithoutAKnownExtension() {
+        val dialog = PackDialog(project, sources, tempDir.resolve("out.zip").toString(), tempDir)
+        try {
+            dialog.formatCombo.selectedItem = ArchiveFormat.TAR_GZ
+            dialog.archiveField.text = tempDir.resolve("plain").toString()
+
+            assertEquals(ArchiveFormat.TAR_GZ, dialog.archiveFormat)
+        } finally {
+            dialog.close(DialogWrapper.CANCEL_EXIT_CODE)
+        }
+    }
+
     fun testExtractDialogRejectsBlankDestination() {
         val dialog = ExtractDialog(project, sources, "", tempDir)
         try {

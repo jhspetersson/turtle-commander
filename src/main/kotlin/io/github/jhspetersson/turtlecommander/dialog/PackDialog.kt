@@ -5,6 +5,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.ValidationInfo
+import com.intellij.ui.DocumentAdapter
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
 import io.github.jhspetersson.turtlecommander.ui.installStandardContextMenu
@@ -21,14 +22,18 @@ import javax.swing.JPanel
 import javax.swing.JScrollPane
 import javax.swing.JTextArea
 import javax.swing.ListCellRenderer
+import javax.swing.event.DocumentEvent
 
 enum class ArchiveFormat(val extension: String, val label: String) {
     ZIP(".zip", ".zip"),
     TAR_GZ(".tar.gz", ".tar.gz"),
 }
 
+internal fun archiveFormatOf(path: String): ArchiveFormat? =
+    ArchiveFormat.entries.firstOrNull { path.endsWith(it.extension, ignoreCase = true) }
+
 internal fun withArchiveExtension(path: String, format: ArchiveFormat): String? {
-    val current = ArchiveFormat.entries.firstOrNull { path.endsWith(it.extension, ignoreCase = true) } ?: return null
+    val current = archiveFormatOf(path) ?: return null
     if (current == format) return path
     return path.dropLast(current.extension.length) + format.extension
 }
@@ -64,10 +69,18 @@ class PackDialog(
         archiveField.installStandardContextMenu()
         init()
 
+        archiveFormatOf(defaultArchivePath.trim())?.let { formatCombo.selectedItem = it }
         formatCombo.addActionListener {
             val newFormat = formatCombo.selectedItem as? ArchiveFormat ?: return@addActionListener
-            withArchiveExtension(archiveField.text.trim(), newFormat)?.let { archiveField.text = it }
+            val current = archiveField.text.trim()
+            withArchiveExtension(current, newFormat)?.takeIf { it != current }?.let { archiveField.text = it }
         }
+        archiveField.document.addDocumentListener(object : DocumentAdapter() {
+            override fun textChanged(e: DocumentEvent) {
+                val typed = archiveFormatOf(archiveField.text.trim()) ?: return
+                if (typed != formatCombo.selectedItem) formatCombo.selectedItem = typed
+            }
+        })
     }
 
     override fun createCenterPanel(): JComponent {
