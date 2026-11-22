@@ -699,24 +699,28 @@ class FileManagerPanel(
         if (tabIndex < 0 || tabIndex == plusIndex) return
         // Ascending order pushes the rightmost tab last → reopened first, restoring layout.
         removeTabsAt((0 until tabbedPane.tabCount).filter { it != tabIndex && it != plusIndex })
+        focusActiveTab()
     }
 
     fun closeAllTabs() {
         val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
         val firstRealIndex = (0 until tabbedPane.tabCount).firstOrNull { it != plusIndex } ?: return
         removeTabsAt((0 until tabbedPane.tabCount).filter { it != firstRealIndex && it != plusIndex })
+        focusActiveTab()
     }
 
     fun closeTabsToTheLeft(tabIndex: Int) {
         val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
         if (tabIndex <= 0 || tabIndex == plusIndex) return
         removeTabsAt((0 until tabIndex).filter { it != plusIndex })
+        focusActiveTab()
     }
 
     fun closeTabsToTheRight(tabIndex: Int) {
         val plusIndex = tabbedPane.indexOfComponent(addTabPlaceholder)
         if (tabIndex < 0 || tabIndex == plusIndex) return
         removeTabsAt((tabIndex + 1 until tabbedPane.tabCount).filter { it != plusIndex })
+        focusActiveTab()
     }
 
     fun duplicateTab(tabIndex: Int) {

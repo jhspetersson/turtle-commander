@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Close Others, Close All and Close Tabs to the Left/Right leave keyboard focus in the remaining tab
+
 ## [0.7.123] - 2026-11-22
 
 ### Fixed

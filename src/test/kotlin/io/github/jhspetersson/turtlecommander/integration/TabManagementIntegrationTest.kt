@@ -192,6 +192,32 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
         assertEquals("Should have 1 tab after closing others", 1, panel.saveState().tabs.size)
     }
 
+    fun testBulkClosesGiveFocusBackToTheRemainingTab() {
+        val panel = createPanel()
+        panel.openDirectoryInNewTab(Files.createDirectory(tempDir.resolve("f1")))
+        panel.openDirectoryInNewTab(Files.createDirectory(tempDir.resolve("f2")))
+        val criteria = FileSearchCriteria(
+            rootPath = tempDir,
+            namePattern = "*.txt",
+            namePatternMode = NamePatternMode.GLOB,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+        )
+        val searchPanel = panel.openSearchTab(criteria)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        val focused = mutableListOf<SearchResultsPanel>()
+        panel.focusSearchPanel = { focused += it }
+
+        panel.closeTabsToTheLeft(2)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertEquals(listOf(searchPanel), focused)
+
+        panel.closeOtherTabs(1)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        assertEquals(listOf(searchPanel, searchPanel), focused)
+    }
+
     fun testCloseAllTabs() {
         val panel = createPanel()
         panel.openDirectoryInNewTab(Files.createDirectory(tempDir.resolve("x")))
