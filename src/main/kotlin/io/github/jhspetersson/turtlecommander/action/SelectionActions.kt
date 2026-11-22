@@ -5,6 +5,7 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.ui.InputValidatorEx
 import com.intellij.openapi.ui.Messages
 import io.github.jhspetersson.turtlecommander.ui.isValidSelectionMask
+import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
 import io.github.jhspetersson.turtlecommander.ui.FileTab
 import io.github.jhspetersson.turtlecommander.ui.hasAnyDisplayedEntries
 import io.github.jhspetersson.turtlecommander.ui.hasAnyDisplayedUnmarked
@@ -32,19 +33,24 @@ import io.github.jhspetersson.turtlecommander.ui.unselectSameExtension
  * Falling back to [findActiveTab] keeps the action functional even when the cached popup state
  * is somehow missing.
  */
-private fun resolveSelectionTab(e: AnActionEvent): FileTab? {
-    when (e.place) {
-        FILE_CONTEXT_PLACE -> return FileContextMenuState.clickedTab ?: findActiveTab(e)
-        ActionPlaces.POPUP -> {
-            val panel = TabContextMenuState.clickedPanel
-            val index = TabContextMenuState.clickedTabIndex
-            if (panel != null && index >= 0) {
-                panel.getTabAt(index)?.let { return it }
-            }
-            return findActiveTab(e)
-        }
-    }
-    return findActiveTab(e)
+private fun resolveSelectionTab(e: AnActionEvent): FileTab? =
+    selectionTabFor(
+        e.place,
+        FileContextMenuState.clickedTab,
+        TabContextMenuState.clickedPanel,
+        TabContextMenuState.clickedTabIndex,
+    ) { findActiveTab(e) }
+
+internal fun selectionTabFor(
+    place: String,
+    fileMenuTab: FileTab?,
+    tabMenuPanel: FileManagerPanel?,
+    tabMenuIndex: Int,
+    activeTab: () -> FileTab?,
+): FileTab? = when {
+    place == FILE_CONTEXT_PLACE -> fileMenuTab ?: activeTab()
+    place == ActionPlaces.POPUP && tabMenuPanel != null && tabMenuIndex >= 0 -> tabMenuPanel.getTabAt(tabMenuIndex)
+    else -> activeTab()
 }
 
 private fun isInvokedFromContextMenu(place: String): Boolean {

@@ -4,7 +4,10 @@ import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
 import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
 
+import com.intellij.openapi.actionSystem.ActionPlaces
 import com.intellij.openapi.components.service
+import io.github.jhspetersson.turtlecommander.action.FILE_CONTEXT_PLACE
+import io.github.jhspetersson.turtlecommander.action.selectionTabFor
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import io.github.jhspetersson.turtlecommander.dialog.FileSearchCriteria
@@ -216,6 +219,26 @@ class TabManagementIntegrationTest : BasePlatformTestCase() {
         panel.closeOtherTabs(1)
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
         assertEquals(listOf(searchPanel, searchPanel), focused)
+    }
+
+    fun testTabMenuSelectionActionsDoNotFallBackFromASearchTab() {
+        val panel = createPanel()
+        val criteria = FileSearchCriteria(
+            rootPath = tempDir,
+            namePattern = "*.txt",
+            namePatternMode = NamePatternMode.GLOB,
+            sizeFilter = null,
+            creationDateFilter = null,
+            modificationDateFilter = null,
+        )
+        panel.openSearchTab(criteria)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        val fileTab = panel.getTabAt(0)!!
+
+        assertNull(selectionTabFor(ActionPlaces.POPUP, null, panel, 1) { fileTab })
+        assertSame(fileTab, selectionTabFor(ActionPlaces.POPUP, null, panel, 0) { null })
+        assertSame(fileTab, selectionTabFor(ActionPlaces.POPUP, null, null, -1) { fileTab })
+        assertSame(fileTab, selectionTabFor(FILE_CONTEXT_PLACE, fileTab, panel, 1) { null })
     }
 
     fun testCloseAllTabs() {
