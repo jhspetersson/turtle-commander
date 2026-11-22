@@ -219,7 +219,7 @@ class ThumbnailCache(private val scope: CoroutineScope) {
 
     private fun readDiskCache(cachePath: Path, modMillis: Long): BufferedImage? {
         try {
-            if (Files.getLastModifiedTime(cachePath).toMillis() < modMillis) return null
+            if (modMillis > 0 && Files.getLastModifiedTime(cachePath).toMillis() != modMillis) return null
             ImageIO.read(cachePath.toFile())?.let { return it }
         } catch (e: Exception) {
             thisLogger().debug("Discarding unreadable thumbnail cache $cachePath: ${e.message}")

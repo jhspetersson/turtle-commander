@@ -138,6 +138,23 @@ class ThumbnailCacheStalenessTest : BasePlatformTestCase() {
         assertNotNull("the rewritten cache file must decode", ImageIO.read(cachePath.toFile()))
     }
 
+    fun testAFileReplacedByAnOlderOneGetsANewThumbnail() {
+        val image = writeImage(tmp, "photo.png", 1)
+        load(image)
+        val cachePath = cache.getCachePath(image, ThumbnailSize.SMALL.cacheSize)!!
+        pollUntil("cache file") { Files.exists(cachePath) && !cache.isLoading(image) }
+        val firstThumbnail = Files.readAllBytes(cachePath)
+        val older = FileTime.fromMillis(Files.getLastModifiedTime(image).toMillis() / 1000 * 1000 - 86_400_000)
+
+        Files.write(image, pngBytes(2))
+        Files.setLastModifiedTime(image, older)
+        cache.clearMemoryCache()
+        load(image)
+
+        pollUntil("cache file rewritten") { !Files.readAllBytes(cachePath).contentEquals(firstThumbnail) }
+        assertEquals(older.toMillis(), Files.getLastModifiedTime(cachePath).toMillis())
+    }
+
     fun testDiskCacheIsPrunedOldestFirstBeyondBudget() {
         val first = writeImage(tmp, "img0.png", 10)
         load(first)
