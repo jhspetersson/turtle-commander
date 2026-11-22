@@ -7,6 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Locale
 
 class ParseDateRangeTest {
 
@@ -60,6 +61,33 @@ class ParseDateRangeTest {
         assertNull(parse("2020-13-45"))    // would previously parse just the 2020 prefix
         assertNull(parse("2020-06-31"))    // June has 30 days
         assertNull(parse("2020-06-15 25:00")) // hour 25
+    }
+
+    @Test
+    fun `a year needs four digits`() {
+        assertNull(parse("24"))
+        assertNull(parse("024"))
+        assertNull(parse("24-06-15"))
+        assertNull(parse("20240"))
+    }
+
+    @Test
+    fun `parsing does not depend on the default locale`() {
+        val expected = parse("2020-06-15")
+        val saved = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.forLanguageTag("th-TH-u-ca-buddhist-nu-thai"))
+            assertEquals(expected, parse("2020-06-15"))
+        } finally {
+            Locale.setDefault(saved)
+        }
+    }
+
+    @Test
+    fun `a year covers the whole year`() {
+        val (start, end) = parse("2020")!!
+        assertEquals(millis("yyyy-MM-dd HH:mm", "2020-01-01 00:00"), start)
+        assertEquals(millis("yyyy-MM-dd HH:mm", "2021-01-01 00:00") - 1, end)
     }
 
     @Test

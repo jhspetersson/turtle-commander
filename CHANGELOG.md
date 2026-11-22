@@ -7,6 +7,7 @@
 ### Fixed
 
 - "Cannot add an action twice" error when the plugin starts with several projects open
+- Search date bounds need a four-digit year and no longer depend on the system locale
 
 ## [0.7.122] - 2026-11-21
 

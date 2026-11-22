@@ -20,8 +20,9 @@ import java.awt.GridBagLayout
 import java.nio.file.FileSystems
 import java.nio.file.InvalidPathException
 import java.nio.file.Path
-import java.text.ParsePosition
-import java.text.SimpleDateFormat
+import java.time.DateTimeException
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.util.*
 import javax.swing.*
 
@@ -87,28 +88,30 @@ class FileSearchDialog(
 
         internal fun parseDateRange(text: String): Pair<Long, Long>? {
             if (text.isBlank()) return null
-            data class Fmt(val pattern: String, val unit: Int)
-            val formats = listOf(
-                Fmt("yyyy-MM-dd HH:mm", Calendar.MINUTE),
-                Fmt("yyyy-MM-dd", Calendar.DAY_OF_MONTH),
-                Fmt("yyyy-MM", Calendar.MONTH),
-                Fmt("yyyy", Calendar.YEAR),
-            )
-            for (fmt in formats) {
-                val sdf = SimpleDateFormat(fmt.pattern)
-                sdf.isLenient = false
-                val pos = ParsePosition(0)
-                val d = sdf.parse(text, pos) ?: continue
-                if (pos.index != text.length) continue
-                val cal = Calendar.getInstance()
-                cal.time = d
-                val start = cal.timeInMillis
-                cal.add(fmt.unit, 1)
-                cal.add(Calendar.MILLISECOND, -1)
-                return Pair(start, cal.timeInMillis)
+            val parts = DATE_RANGE_PATTERN.matchEntire(text)?.groupValues?.drop(1)?.filter { it.isNotEmpty() }?.map { it.toInt() }
+                ?: return null
+            return try {
+                val start = LocalDateTime.of(
+                    parts[0],
+                    parts.getOrElse(1) { 1 },
+                    parts.getOrElse(2) { 1 },
+                    parts.getOrElse(3) { 0 },
+                    parts.getOrElse(4) { 0 },
+                )
+                val end = when (parts.size) {
+                    1 -> start.plusYears(1)
+                    2 -> start.plusMonths(1)
+                    3 -> start.plusDays(1)
+                    else -> start.plusMinutes(1)
+                }
+                val zone = ZoneId.systemDefault()
+                Pair(start.atZone(zone).toInstant().toEpochMilli(), end.atZone(zone).toInstant().toEpochMilli() - 1)
+            } catch (_: DateTimeException) {
+                null
             }
-            return null
         }
+
+        private val DATE_RANGE_PATTERN = Regex("([0-9]{4})(?:-([0-9]{1,2})(?:-([0-9]{1,2})(?: ([0-9]{1,2}):([0-9]{2}))?)?)?")
     }
 
     private val rootField = JBTextField(initialRoot.toString())
