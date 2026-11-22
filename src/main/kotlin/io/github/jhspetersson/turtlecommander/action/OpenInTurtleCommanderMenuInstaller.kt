@@ -19,6 +19,7 @@ class OpenInTurtleCommanderMenuInstaller : ProjectActivity {
             "ProblemsView.ToolWindow.TreePopup",
         )
 
+        @Synchronized
         fun install(actionManager: ActionManager) {
             val action = actionManager.getAction(ACTION_ID) ?: return
             for (groupId in GROUP_IDS) {

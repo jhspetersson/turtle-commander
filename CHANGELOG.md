@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- "Cannot add an action twice" error when the plugin starts with several projects open
+
 ## [0.7.122] - 2026-11-21
 
 ### Fixed
