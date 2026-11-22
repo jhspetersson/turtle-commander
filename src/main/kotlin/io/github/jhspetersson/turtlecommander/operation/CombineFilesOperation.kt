@@ -8,6 +8,7 @@ import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.util.UUID
 import java.util.zip.CRC32
 
 object CombineFilesOperation {
@@ -90,7 +91,7 @@ object CombineFilesOperation {
         val buffer = ByteArray(BUFFER_SIZE)
 
         OpenVfsRegistry.materializeAllIfNeeded(chunkFiles)
-        val tmp = Files.createTempFile(targetFile.toAbsolutePath().parent, ".tc-combining-", ".tmp")
+        val tmp = Files.createFile(targetFile.toAbsolutePath().resolveSibling(".tc-combining-${UUID.randomUUID()}.tmp"))
         try {
             BufferedOutputStream(Files.newOutputStream(tmp), BUFFER_SIZE).use { output ->
                 for ((idx, chunk) in chunkFiles.withIndex()) {

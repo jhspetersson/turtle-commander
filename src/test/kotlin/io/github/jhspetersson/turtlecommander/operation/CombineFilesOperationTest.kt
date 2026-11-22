@@ -2,6 +2,7 @@ package io.github.jhspetersson.turtlecommander.operation
 
 import org.junit.After
 import org.junit.Assert.*
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
@@ -26,6 +27,19 @@ class CombineFilesOperationTest {
         val dir = Files.createTempDirectory("combine-test-")
         tempFiles.add(dir)
         return dir
+    }
+
+    @Test
+    fun `the combined file gets the default permissions of a new file`() {
+        val dir = createTempDir()
+        assumeTrue(Files.getFileStore(dir).supportsFileAttributeView("posix"))
+        val chunk = Files.write(dir.resolve("out.bin.001"), byteArrayOf(1, 2, 3))
+        val reference = Files.createFile(dir.resolve("reference"))
+        val target = dir.resolve("out.bin")
+
+        CombineFilesOperation.combine(listOf(chunk), target, null, null, { _, _, _, _ -> }, { false })
+
+        assertEquals(Files.getPosixFilePermissions(reference), Files.getPosixFilePermissions(target))
     }
 
     // --- parseCrcFile ---
