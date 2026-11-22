@@ -317,3 +317,15 @@ internal fun <T> withReadOnlyCleared(path: Path, action: () -> T): T =
 internal fun deleteClearingReadOnly(path: Path) = withReadOnlyCleared(path) { Files.delete(path) }
 
 internal fun deleteIfExistsClearingReadOnly(path: Path): Boolean = withReadOnlyCleared(path) { Files.deleteIfExists(path) }
+
+internal fun isPipeOrDevice(path: Path): Boolean = runCatching {
+    if (java.io.File.separatorChar != '/') return false
+    val attrs = Files.readAttributes(path, BasicFileAttributes::class.java)
+    attrs.isOther && !attrs.isDirectory
+}.getOrDefault(false)
+
+internal fun refusePipeOrDevice(path: Path) {
+    if (isPipeOrDevice(path)) {
+        throw IOException("\"${path.fileName}\" is a named pipe or device and cannot be read as a file")
+    }
+}

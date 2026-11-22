@@ -4,6 +4,7 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import io.github.jhspetersson.turtlecommander.operation.TarOutputStream
 import io.github.jhspetersson.turtlecommander.util.descendUnlessCycle
+import io.github.jhspetersson.turtlecommander.util.refusePipeOrDevice
 import io.github.jhspetersson.turtlecommander.vfs.CompressedStreams
 import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 import io.github.jhspetersson.turtlecommander.vfs.VfsOpenProgress
@@ -220,6 +221,7 @@ class ArchiveService {
         if (attrs.isSymbolicLink) {
             tarOs.putSymlinkEntry(name, Files.readSymbolicLink(file).toString().replace('\\', '/'), modTime)
         } else {
+            refusePipeOrDevice(file)
             tarOs.putFileEntry(name, file, modTime, TarOutputStream.modeOf(file, attrs))
         }
     }

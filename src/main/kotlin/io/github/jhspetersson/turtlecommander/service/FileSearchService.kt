@@ -5,6 +5,7 @@ import com.intellij.openapi.util.SystemInfo
 import io.github.jhspetersson.turtlecommander.util.PermissionFlag
 import io.github.jhspetersson.turtlecommander.util.descendUnlessCycle
 import io.github.jhspetersson.turtlecommander.util.isNamedPipe
+import io.github.jhspetersson.turtlecommander.util.isPipeOrDevice
 import io.github.jhspetersson.turtlecommander.util.readFileGroup
 import io.github.jhspetersson.turtlecommander.util.readFileOwner
 import io.github.jhspetersson.turtlecommander.util.readFilePermissionFlags
@@ -262,7 +263,7 @@ open class FileSearchService(
         // harmless no-op for regular files and the other VFS implementations that extract
         // eagerly.
         OpenVfsRegistry.materializeIfNeeded(path)
-        if (isBinaryByName(path)) return false
+        if (isBinaryByName(path) || isPipeOrDevice(path)) return false
         try {
             val reader: BufferedReader = Files.newBufferedReader(path, Charsets.UTF_8)
             reader.use { br ->

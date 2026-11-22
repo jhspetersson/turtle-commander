@@ -9,6 +9,7 @@
 - Close Others, Close All and Close Tabs to the Left/Right leave keyboard focus in the remaining tab
 - A new tab no longer starts in show-all-nested-files mode because the current tab is in it
 - Selection actions in a search tab's menu are disabled instead of acting on another tab
+- Copy, Pack and content search no longer hang on a named pipe on Linux and macOS; the pipe is skipped or reported
 
 ## [0.7.123] - 2026-11-22
 

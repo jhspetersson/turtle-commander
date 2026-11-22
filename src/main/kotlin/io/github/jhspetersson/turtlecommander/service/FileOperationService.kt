@@ -1201,6 +1201,7 @@ internal fun copyPreservingAttributes(source: Path, target: Path, replaceExistin
         if (replaceExisting) add(StandardCopyOption.REPLACE_EXISTING)
         if (nofollow) add(LinkOption.NOFOLLOW_LINKS)
     }
+    if (!nofollow) refusePipeOrDevice(source)
     if (replaceExisting) {
         withReadOnlyCleared(target) { Files.copy(source, target, *options.toTypedArray()) }
     } else {
