@@ -10,6 +10,7 @@
 - Search date bounds need a four-digit year and no longer depend on the system locale
 - Combine creates the result with normal file permissions on Linux and macOS, not owner-only
 - A file replaced by one with an older modification time gets a fresh thumbnail
+- Properties on GNOME-based desktops works for paths that contain an apostrophe
 
 ## [0.7.122] - 2026-11-21
 

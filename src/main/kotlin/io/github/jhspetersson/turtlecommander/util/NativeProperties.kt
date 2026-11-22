@@ -154,13 +154,15 @@ object NativeProperties {
                 "--dest", "org.freedesktop.FileManager1",
                 "--object-path", "/org/freedesktop/FileManager1",
                 "--method", "org.freedesktop.FileManager1.ShowItemProperties",
-                "['$uri']", "",
+                gnomeUriListArgument(uri), "",
             ).start()
             true
         } catch (_: Throwable) {
             false
         }
     }
+
+    internal fun gnomeUriListArgument(uri: String): String = "['" + uri.replace("'", "%27") + "']"
 
     private fun currentDesktop(): LinuxDesktop {
         val xdg = (System.getenv("XDG_CURRENT_DESKTOP") ?: "").uppercase()
