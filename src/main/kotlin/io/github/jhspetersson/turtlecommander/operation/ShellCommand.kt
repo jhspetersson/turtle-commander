@@ -14,6 +14,14 @@ object ShellCommand {
         "wsl", "wsl.exe",
     )
 
+    fun start(invocation: ShellInvocation): Process {
+        val builder = ProcessBuilder(listOf(invocation.exePath) + invocation.args)
+        invocation.workingDirectory?.let { builder.directory(it.toFile()) }
+        val process = builder.start()
+        runCatching { process.outputStream.close() }
+        return process
+    }
+
     fun build(command: String, workingDir: Path, isWindows: Boolean): ShellInvocation {
         if (!isWindows) return ShellInvocation("/bin/sh", listOf("-c", command), workingDir)
         val body = if (command.lowercase() in bareShells) "start \"\" $command" else command

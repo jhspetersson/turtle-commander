@@ -205,9 +205,7 @@ class CommandInputBar(
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
                 val invocation = ShellCommand.build(command, workingDir, SystemInfo.isWindows)
-                val builder = ProcessBuilder(listOf(invocation.exePath) + invocation.args)
-                invocation.workingDirectory?.let { builder.directory(it.toFile()) }
-                val handler = OSProcessHandler(builder.start(), command)
+                val handler = OSProcessHandler(ShellCommand.start(invocation), command)
                 val capture = CapturingProcessAdapter()
                 handler.addProcessListener(capture)
                 handler.startNotify()

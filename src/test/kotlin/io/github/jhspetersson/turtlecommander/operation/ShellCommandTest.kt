@@ -11,6 +11,25 @@ import java.nio.file.Path
 
 class ShellCommandTest {
 
+    @Test
+    fun `a command that reads standard input ends at once`() {
+        val windows = System.getProperty("os.name").startsWith("Windows")
+        val dir = java.nio.file.Files.createTempDirectory("shell-command-stdin-")
+        try {
+            val invocation = ShellCommand.build(if (windows) "sort" else "cat", dir, windows)
+
+            val process = ShellCommand.start(invocation)
+
+            try {
+                assertTrue(process.waitFor(20, java.util.concurrent.TimeUnit.SECONDS))
+            } finally {
+                process.destroyForcibly()
+            }
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
     private val local = Path.of("C:\\work\\dir")
     private val unc = Path.of("\\\\server\\share\\dir")
 
