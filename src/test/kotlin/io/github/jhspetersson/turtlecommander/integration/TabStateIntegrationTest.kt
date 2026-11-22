@@ -105,6 +105,24 @@ class TabStateIntegrationTest : BasePlatformTestCase() {
         assertTrue("Show-all-nested-files flag should be captured", state.tabs[0].showAllNestedFiles)
     }
 
+    fun testANewTabDoesNotInheritShowAllNestedFiles() {
+        val panel = createPanel()
+        panel.getTabAt(0)!!.showAllNestedFiles = true
+
+        panel.openDirectoryInNewTab(Files.createDirectory(tempDir.resolve("fresh")))
+
+        assertFalse(panel.getTabAt(1)!!.showAllNestedFiles)
+    }
+
+    fun testADuplicatedTabKeepsShowAllNestedFiles() {
+        val panel = createPanel()
+        panel.getTabAt(0)!!.showAllNestedFiles = true
+
+        panel.duplicateTab(0)
+
+        assertTrue((0 until panel.getRealTabCount()).all { panel.getTabAt(it)!!.showAllNestedFiles })
+    }
+
     fun testTabStateRestoresShowAllNestedFiles() {
         val dir = Files.createDirectory(tempDir.resolve("nested-restore"))
         val panelState = PanelState().apply {

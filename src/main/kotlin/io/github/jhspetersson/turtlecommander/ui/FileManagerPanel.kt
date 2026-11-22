@@ -523,7 +523,7 @@ class FileManagerPanel(
             fileTab.setStateService(svc)
             if (effectiveTabState != null) {
                 fileTab.pendingTabState = effectiveTabState
-                fileTab.showAllNestedFiles = effectiveTabState.showAllNestedFiles
+                fileTab.showAllNestedFiles = tabState?.showAllNestedFiles == true
                 try { fileTab.setViewMode(ViewMode.valueOf(effectiveTabState.viewMode)) } catch (_: Exception) {}
             }
         }

@@ -7,6 +7,7 @@
 ### Fixed
 
 - Close Others, Close All and Close Tabs to the Left/Right leave keyboard focus in the remaining tab
+- A new tab no longer starts in show-all-nested-files mode because the current tab is in it
 
 ## [0.7.123] - 2026-11-22
 
