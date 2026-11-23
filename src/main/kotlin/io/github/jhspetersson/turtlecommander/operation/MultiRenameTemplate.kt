@@ -251,6 +251,8 @@ object MultiRenameTemplate {
         return null
     }
 
+    private const val COUNTER_SPEC_CHARS = "0123456789+-:"
+
     private enum class DatePart { YEAR, MONTH, DAY, HOUR, MINUTE, SECOND }
 
     /**
@@ -261,12 +263,12 @@ object MultiRenameTemplate {
      *   - `"a-"`              → chars from `a` to the end (open range; matches TC `[N3-]`)
      *   - `"a,n"`             → `n` chars starting at position `a` (TC's position+length form)
      */
-    private fun resolveSubstring(source: String, spec: String): String {
+    private fun resolveSubstring(source: String, spec: String): String? {
         if (spec.isEmpty()) return source
         val comma = spec.indexOf(',')
         if (comma > 0) {
-            val a = spec.substring(0, comma).toIntOrNull() ?: return ""
-            val len = spec.substring(comma + 1).toIntOrNull() ?: return ""
+            val a = spec.substring(0, comma).toIntOrNull() ?: return null
+            val len = spec.substring(comma + 1).toIntOrNull() ?: return null
             if (len <= 0) return ""
             val start = resolveIndex(a, source.length) ?: return ""
             val end = (start + len).coerceAtMost(source.length)
@@ -274,17 +276,18 @@ object MultiRenameTemplate {
         }
         val dash = findRangeDash(spec)
         return if (dash < 0) {
-            val idx = spec.toIntOrNull() ?: return ""
+            val idx = spec.toIntOrNull() ?: return null
             val resolved = resolveIndex(idx, source.length) ?: return ""
             source.substring(resolved, resolved + 1)
         } else {
             val left = spec.substring(0, dash)
             val right = spec.substring(dash + 1)
-            val a = left.toIntOrNull() ?: return ""
+            val a = left.toIntOrNull() ?: return null
+            if (right.isNotEmpty() && right.toIntOrNull() == null) return null
             val start = resolveIndex(a, source.length) ?: return ""
             // Open-ended "a-" means "from a to the end of the source".
             if (right.isEmpty()) return source.substring(start)
-            val b = right.toIntOrNull() ?: return ""
+            val b = right.toIntOrNull() ?: return null
             val end = if (b > source.length) {
                 source.length - 1
             } else {
@@ -319,7 +322,8 @@ object MultiRenameTemplate {
      * Parses counter specs: `""`, `"10"`, `"10+2"`, `"10+2:3"`. Any missing piece falls back
      * to [cfg]. Malformed specs fall back silently.
      */
-    private fun resolveCounter(spec: String, cfg: CounterConfig, index: Int): String {
+    private fun resolveCounter(spec: String, cfg: CounterConfig, index: Int): String? {
+        if (spec.any { it !in COUNTER_SPEC_CHARS }) return null
         var start = cfg.start
         var step = cfg.step
         var width = cfg.width

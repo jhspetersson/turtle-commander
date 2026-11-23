@@ -352,6 +352,28 @@ class MultiRenameTemplateTest {
     }
 
     @Test
+    fun `a mistyped name, extension or counter placeholder stays visible`() {
+        val out = MultiRenameTemplate.render(
+            listOf(input("a.txt")),
+            MultiRenameTemplate.Options(
+                nameTemplate = "[Name]-[N1-x]-[Nx,2]-[Count]-[N]",
+                extensionTemplate = "[Ext]",
+                zone = zone,
+            ),
+        )
+        assertEquals(listOf("[Name]-[N1-x]-[Nx,2]-[Count]-a.[Ext]"), out)
+    }
+
+    @Test
+    fun `a valid range outside the name still expands to nothing`() {
+        val out = MultiRenameTemplate.render(
+            listOf(input("abc.txt")),
+            MultiRenameTemplate.Options(nameTemplate = "[N]-[N9]-[N7-9]-[N9,2]", zone = zone),
+        )
+        assertEquals(listOf("abc---.txt"), out)
+    }
+
+    @Test
     fun `unknown placeholder passes through untouched so typos are visible`() {
         val out = MultiRenameTemplate.render(
             listOf(input("a.txt")),
