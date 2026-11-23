@@ -37,6 +37,8 @@ class FileOperationService(
     /** Test-only clock override. Defaults to wall clock. */
     internal var clock: () -> Long = System::currentTimeMillis
 
+    internal var directoryStamp: (Path) -> FileTime = { Files.getLastModifiedTime(it) }
+
     /**
      * Test-only hook for the "Delete to Recycle Bin" flow. Defaults to the real AWT Desktop
      * `moveToTrash`. Tests replace this with an in-memory fake so they don't depend on the
@@ -119,14 +121,15 @@ class FileOperationService(
             Files.newDirectoryStream(effectiveDirectory)
         }
 
+        val mtime: FileTime?
         directoryStream.use { stream ->
+            mtime = try { directoryStamp(effectiveDirectory) } catch (_: Exception) { null }
             for (entry in stream) {
                 val fileEntry = buildFileEntry(entry, needs) ?: continue
                 if (fileEntry.isDirectory) dirs.add(fileEntry) else files.add(fileEntry)
             }
         }
 
-        val mtime = try { Files.getLastModifiedTime(effectiveDirectory) } catch (_: Exception) { null }
         putCachedListing(directory, dirs.toList(), files.toList(), mtime, epoch)
         appendSortedEntries(result, dirs, files)
 

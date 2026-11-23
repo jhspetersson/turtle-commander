@@ -878,6 +878,28 @@ class FileOperationIntegrationTest : BasePlatformTestCase() {
         }
     }
 
+    fun testAChangeRightAfterTheDirectoryStampIsReadIsNotHiddenByTheCache() = runBlocking {
+        val dir = Files.createDirectory(tempDir.resolve("cache-stamp-order"))
+        Files.writeString(dir.resolve("before.txt"), "x")
+        fileOps.clearListingCache()
+        var added = false
+        fileOps.directoryStamp = { path ->
+            if (!added && path == dir) {
+                added = true
+                Files.writeString(dir.resolve("late.txt"), "x")
+            }
+            Files.getLastModifiedTime(path)
+        }
+        try {
+            fileOps.listFiles(dir)
+            val names = fileOps.listFiles(dir).map { it.name }
+
+            assertTrue(names.toString(), "late.txt" in names)
+        } finally {
+            fileOps.directoryStamp = { Files.getLastModifiedTime(it) }
+        }
+    }
+
     fun testListingCacheReturnsEquivalentContent() = runBlocking {
         val dir = Files.createDirectory(tempDir.resolve("cache-eq"))
         Files.createDirectory(dir.resolve("dir1"))

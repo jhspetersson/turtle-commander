@@ -8,6 +8,7 @@
 
 - A multi-rename that fails partway puts every file back under its old name and refreshes the list
 - cd d: in the command line goes to the root of drive D instead of leaving the tab on a broken path
+- A file created while a folder is being listed is no longer missing from the list until the next refresh
 
 ## [0.7.124] - 2026-11-23
 
