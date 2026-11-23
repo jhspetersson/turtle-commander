@@ -123,7 +123,7 @@ object SplitFileOperation {
 
     fun readRecordedParts(crcPath: Path): Int? {
         if (!Files.isRegularFile(crcPath)) return null
-        val lines = runCatching { Files.readAllLines(crcPath) }.getOrNull() ?: return null
+        val lines = runCatching { CombineFilesOperation.readCrcLines(crcPath) }.getOrNull() ?: return null
         val value = lines.firstOrNull { it.startsWith("parts=") }?.substringAfter('=')?.trim() ?: return null
         return value.toIntOrNull()?.takeIf { it > 0 }
     }

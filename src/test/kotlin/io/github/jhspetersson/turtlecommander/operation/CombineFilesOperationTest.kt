@@ -42,6 +42,32 @@ class CombineFilesOperationTest {
         assertEquals(Files.getPosixFilePermissions(reference), Files.getPosixFilePermissions(target))
     }
 
+    @Test
+    fun `parseCrcFile reads a file written in an ANSI code page`() {
+        val dir = createTempDir()
+        val crcFile = dir.resolve("legacy.crc")
+        val windows1252 = java.nio.charset.Charset.forName("windows-1252")
+        Files.write(crcFile, "filename=r\u00E9sum\u00E9.dat\r\nsize=1024\r\ncrc32=ABCD1234\r\n".toByteArray(windows1252))
+
+        val info = CombineFilesOperation.parseCrcFile(crcFile, windows1252)
+
+        assertEquals("r\u00E9sum\u00E9.dat", info.filename)
+        assertEquals(1024L, info.size)
+        assertEquals(0xABCD1234L, info.crc32)
+    }
+
+    @Test
+    fun `parseCrcFile still reads UTF-8 names and skips a byte order mark`() {
+        val dir = createTempDir()
+        val crcFile = dir.resolve("utf8.crc")
+        Files.write(crcFile, "\uFEFFfilename=r\u00E9sum\u00E9.dat\nsize=7\ncrc32=1\n".toByteArray(Charsets.UTF_8))
+
+        val info = CombineFilesOperation.parseCrcFile(crcFile, java.nio.charset.Charset.forName("windows-1252"))
+
+        assertEquals("r\u00E9sum\u00E9.dat", info.filename)
+        assertEquals(7L, info.size)
+    }
+
     // --- parseCrcFile ---
 
     @Test

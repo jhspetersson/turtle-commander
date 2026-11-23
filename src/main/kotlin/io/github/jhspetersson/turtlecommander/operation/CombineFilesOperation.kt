@@ -4,6 +4,10 @@ import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
+import java.nio.ByteBuffer
+import java.nio.charset.CharacterCodingException
+import java.nio.charset.Charset
+import java.nio.charset.StandardCharsets
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.Path
@@ -19,9 +23,22 @@ object CombineFilesOperation {
         val crc32: Long,
     )
 
-    fun parseCrcFile(crcFile: Path): CrcInfo {
+    internal fun nativeCharset(): Charset =
+        runCatching { Charset.forName(System.getProperty("native.encoding")) }.getOrDefault(StandardCharsets.ISO_8859_1)
+
+    internal fun readCrcLines(crcFile: Path, fallback: Charset = nativeCharset()): List<String> {
+        val bytes = Files.readAllBytes(crcFile)
+        val text = try {
+            StandardCharsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes)).toString()
+        } catch (_: CharacterCodingException) {
+            String(bytes, fallback)
+        }
+        return text.removePrefix("\uFEFF").lines()
+    }
+
+    fun parseCrcFile(crcFile: Path, fallback: Charset = nativeCharset()): CrcInfo {
         val props = mutableMapOf<String, String>()
-        Files.readAllLines(crcFile).forEach { line ->
+        readCrcLines(crcFile, fallback).forEach { line ->
             val idx = line.indexOf('=')
             if (idx > 0) {
                 props[line.substring(0, idx).trim().lowercase()] = line.substring(idx + 1).trim()
