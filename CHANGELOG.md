@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.124] - 2026-11-23
+
 ### Fixed
 
 - Close Others, Close All and Close Tabs to the Left/Right leave keyboard focus in the remaining tab
