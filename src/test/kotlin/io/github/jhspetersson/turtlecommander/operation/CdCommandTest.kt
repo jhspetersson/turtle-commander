@@ -2,6 +2,8 @@ package io.github.jhspetersson.turtlecommander.operation
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.nio.file.Path
 
@@ -69,6 +71,27 @@ class CdCommandTest {
     // --- resolveTarget ---
 
     private val home = Path.of("/home/user")
+
+    @Test
+    fun `a bare drive letter goes to the root of that drive on windows`() {
+        assumeTrue(System.getProperty("os.name").startsWith("Windows"))
+        val base = Path.of("C:/work/project")
+        val home = Path.of("C:/Users/me")
+
+        assertEquals(Path.of("D:\\"), CdCommand.resolveTarget("d:", base, home, isWindows = true))
+        assertEquals("D:\\", CdCommand.resolveTarget("d:", base, home, isWindows = true).toString())
+        assertEquals(Path.of("D:/data/x"), CdCommand.resolveTarget("d:data/x", base, home, isWindows = true))
+        assertEquals(base, CdCommand.resolveTarget("c:", base, home, isWindows = true))
+        assertTrue(CdCommand.resolveTarget("d:", base, home, isWindows = true)!!.isAbsolute)
+    }
+
+    @Test
+    fun `a rooted argument without a drive stays on the base drive on windows`() {
+        assumeTrue(System.getProperty("os.name").startsWith("Windows"))
+        val base = Path.of("C:/work/project")
+
+        assertEquals(Path.of("C:/tools"), CdCommand.resolveTarget("/tools", base, base, isWindows = true))
+    }
 
     @Test
     fun `relative argument resolves against the base directory`() {

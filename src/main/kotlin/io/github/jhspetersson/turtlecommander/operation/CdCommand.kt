@@ -20,11 +20,26 @@ object CdCommand {
                     return home.resolve(normalizedSeparators.substring(2)).normalize()
             }
             val path = Path.of(normalizedSeparators)
-            val resolved = if (path.isAbsolute) path else base.resolve(normalizedSeparators)
+            val resolved = when {
+                path.isAbsolute -> path
+                isDriveRelative(path) -> resolveDriveRelative(path, base)
+                else -> base.resolve(normalizedSeparators)
+            }
             resolved.normalize()
         } catch (_: Exception) {
             null
         }
+    }
+
+    private fun isDriveRelative(path: Path): Boolean =
+        !path.isAbsolute && path.root?.toString()?.endsWith(":") == true
+
+    private fun resolveDriveRelative(path: Path, base: Path): Path {
+        val drive = path.root.toString()
+        val sameDrive = base.root?.toString()?.startsWith(drive, ignoreCase = true) == true
+        var resolved = if (sameDrive) base else Path.of(drive.uppercase() + path.fileSystem.separator)
+        for (name in path) resolved = resolved.resolve(name)
+        return resolved
     }
 
     private val CD_PATTERN = Regex("""^\s*(?i:cd)(?:\s+(.*?)|(\.\..*?|[\\/].*?))?\s*$""")
