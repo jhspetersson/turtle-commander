@@ -1304,26 +1304,10 @@ internal fun FileTab.runMultiRename(pairs: List<Pair<FileEntry, String>>) {
         // Two-phase rename to survive cyclic swaps like a↔b: first move every source to a
         // uniquely-named temp file, then move each temp to its final target. Without this,
         // renaming a→b when b also needs renaming would collide on the first move.
-        val completed = mutableListOf<Pair<Path, Path>>()
-        val temps = mutableListOf<Triple<Path, Path, String>>() // original, tempPath, finalName
+        val directories = pairs.mapNotNull { it.first.path.parent }.toSet()
         try {
-            withContext(Dispatchers.IO) {
-                for ((entry, finalName) in pairs) {
-                    if (MultiRenameTemplate.resolveTarget(entry.path, finalName) == null) {
-                        throw IOException("Invalid file name: $finalName")
-                    }
-                }
-                for ((entry, finalName) in pairs) {
-                    val parent = entry.path.parent ?: continue
-                    val temp = uniqueTemp(parent, entry.path.fileName.toString())
-                    Files.move(entry.path, temp)
-                    temps.add(Triple(entry.path, temp, finalName))
-                }
-                for ((original, temp, finalName) in temps) {
-                    val finalPath = temp.resolveSibling(finalName)
-                    Files.move(temp, finalPath)
-                    completed.add(original to finalPath)
-                }
+            val completed = withContext(Dispatchers.IO) {
+                renameBatch(pairs.map { it.first.path to it.second })
             }
             completed.mapNotNull { it.first.parent }.toSet().forEach { fileOps.invalidateListingCache(it) }
             val insideArchive = currentVfs != null
@@ -1351,16 +1335,49 @@ internal fun FileTab.runMultiRename(pairs: List<Pair<FileEntry, String>>) {
             }
             if (insideArchive) refreshAfterVfsChange() else navigateTo(currentPath)
         } catch (e: Exception) {
-            // Best-effort rollback of any temps we've already created.
-            withContext(Dispatchers.IO) {
-                for ((original, temp, _) in temps) {
-                    if (original !in completed.map { it.first } && Files.exists(temp)) {
-                        try { Files.move(temp, original) } catch (_: Exception) {}
-                    }
-                }
-            }
-            fileErrorNotification("Multi-rename failed: ${fileErrorMessage(e)}")
+            directories.forEach { fileOps.invalidateListingCache(it) }
+            val leftovers = if (e.suppressed.isEmpty()) "" else " ${e.suppressed.size} file(s) could not be restored to their old names."
+            fileErrorNotification("Multi-rename failed, nothing was renamed: ${fileErrorMessage(e)}.$leftovers")
+            if (currentVfs != null) refreshAfterVfsChange() else navigateTo(currentPath)
         }
+    }
+}
+
+internal fun renameBatch(
+    pairs: List<Pair<Path, String>>,
+    move: (Path, Path) -> Unit = { from, to -> Files.move(from, to) },
+): List<Pair<Path, Path>> {
+    for ((source, finalName) in pairs) {
+        if (MultiRenameTemplate.resolveTarget(source, finalName) == null) {
+            throw IOException("Invalid file name: $finalName")
+        }
+    }
+    val parked = mutableListOf<Triple<Path, Path, String>>()
+    val completed = mutableListOf<Pair<Path, Path>>()
+    try {
+        for ((source, finalName) in pairs) {
+            val parent = source.parent ?: continue
+            val temp = uniqueTemp(parent, source.fileName.toString())
+            move(source, temp)
+            parked.add(Triple(source, temp, finalName))
+        }
+        for ((original, temp, finalName) in parked) {
+            val finalPath = temp.resolveSibling(finalName)
+            move(temp, finalPath)
+            completed.add(original to finalPath)
+        }
+        return completed
+    } catch (e: Exception) {
+        val renamed = completed.toMap()
+        for ((original, temp, _) in parked) {
+            val current = renamed[original] ?: temp
+            try {
+                Files.move(current, original)
+            } catch (restore: Exception) {
+                e.addSuppressed(restore)
+            }
+        }
+        throw e
     }
 }
 
