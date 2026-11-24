@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.125] - 2026-11-24
+
 ### Fixed
 
 - A multi-rename that fails partway puts every file back under its old name and refreshes the list
