@@ -256,12 +256,15 @@ internal suspend fun FileTab.saveArchiveAndRelist(
     relativePath: String,
     selectName: String?,
     requestFocus: Boolean,
+    change: suspend () -> Unit = {},
 ) {
     val vfs = stack.last().vfs
     val mutex = VfsWriteLocks.of(stack.first().vfs)
-    withContext(Dispatchers.IO) {
-        mutex.withLock {
-            saveArchiveStackLocked(stack)
+    mutex.withLock {
+        try {
+            change()
+        } finally {
+            withContext(Dispatchers.IO) { saveArchiveStackLocked(stack) }
         }
     }
     stack.first().let { SharedVfsRegistry.notifyMutated(it.vfs, it.mutationListener) }
@@ -362,4 +365,15 @@ internal fun FileTab.onSharedVfsMutated() {
             navigateTo(target, requestFocus = false)
         }
     }
+}
+
+internal suspend fun FileTab.changeArchiveAndRelist(selectName: String? = null, change: suspend () -> Unit) {
+    val vfs = currentVfs
+    if (vfs == null) {
+        change()
+        refreshAfterVfsChange(selectName)
+        return
+    }
+    invalidateFreeSpaceCache()
+    saveArchiveAndRelist(vfsStack.toList(), vfsRelativePath(vfs, currentPath), selectName, requestFocus = true, change = change)
 }

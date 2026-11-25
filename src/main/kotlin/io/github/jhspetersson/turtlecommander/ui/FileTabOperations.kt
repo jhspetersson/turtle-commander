@@ -40,6 +40,7 @@ import io.github.jhspetersson.turtlecommander.vfs.VfsEditEntry
 import io.github.jhspetersson.turtlecommander.vfs.VfsEditService
 import io.github.jhspetersson.turtlecommander.vfs.VfsOpenProgress
 import io.github.jhspetersson.turtlecommander.vfs.VfsStackEntry
+import io.github.jhspetersson.turtlecommander.vfs.VirtualFileSystem
 import io.github.jhspetersson.turtlecommander.vfs.ZipVirtualFileSystem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -284,21 +285,21 @@ internal fun FileTab.performDelete(forcePermanent: Boolean = false) {
                 }
                 indicator.isIndeterminate = false
 
-                fileOps.deleteFilesWithProgress(
-                    paths = sourcePaths,
-                    onProgress = { count, name ->
-                        indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
-                        indicator.text = "$progressVerb $count / $totalFiles"
-                        indicator.text2 = name
-                    },
-                    onError = { path, error ->
-                        fileErrorNotification("Failed to delete ${path.fileName}: ${fileErrorMessage(error)}")
-                    },
-                    isCancelled = { indicator.isCanceled },
-                    useRecycleBin = useRecycleBin,
-                )
-
-                refreshAfterVfsChange()
+                changeArchiveAndRelist {
+                    fileOps.deleteFilesWithProgress(
+                        paths = sourcePaths,
+                        onProgress = { count, name ->
+                            indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
+                            indicator.text = "$progressVerb $count / $totalFiles"
+                            indicator.text2 = name
+                        },
+                        onError = { path, error ->
+                            fileErrorNotification("Failed to delete ${path.fileName}: ${fileErrorMessage(error)}")
+                        },
+                        isCancelled = { indicator.isCanceled },
+                        useRecycleBin = useRecycleBin,
+                    )
+                }
                 withContext(Dispatchers.EDT) {
                     onRefreshOtherPanel()
                 }
@@ -357,10 +358,11 @@ internal fun FileTab.performCreateDirectory() {
 
     fileOps.launch {
         try {
-            fileOps.createDirectory(currentPath, name)
+            val directory = currentPath
             if (currentVfs != null) {
-                refreshAfterVfsChange(selectName = name)
+                changeArchiveAndRelist(selectName = name) { fileOps.createDirectory(directory, name) }
             } else {
+                fileOps.createDirectory(directory, name)
                 invalidateFreeSpaceCache()
                 navigateTo(currentPath, selectName = name)
             }
@@ -447,13 +449,16 @@ internal fun FileTab.performCreateFile() {
 
     fileOps.launch {
         try {
-            val filePath = withContext(Dispatchers.IO) {
-                Files.createFile(currentPath.resolve(name))
+            val directory = currentPath
+            val filePath = directory.resolve(name)
+            val create: suspend () -> Unit = {
+                withContext(Dispatchers.IO) { Files.createFile(filePath) }
+                fileOps.invalidateListingCache(directory)
             }
-            fileOps.invalidateListingCache(currentPath)
             if (currentVfs != null) {
-                refreshAfterVfsChange(selectName = name)
+                changeArchiveAndRelist(selectName = name, change = create)
             } else {
+                create()
                 invalidateFreeSpaceCache()
                 navigateTo(currentPath, selectName = name)
             }
@@ -1188,9 +1193,10 @@ internal fun FileTab.performRename(entry: FileEntry, newName: String) {
             }
             val target = entry.path.parent?.resolve(newName)
             val collision = target?.let { withContext(Dispatchers.IO) { detectRenameCollision(entry.path, it, newName) } }
+            var makeRoom: suspend () -> Unit = {}
             if (collision != null) {
                 when (withContext(Dispatchers.EDT) { askRenameCollision(collision) }) {
-                    RenameCollisionChoice.OVERWRITE -> deleteRenameTarget(collision.target)
+                    RenameCollisionChoice.OVERWRITE -> makeRoom = { deleteRenameTarget(collision.target, vfs) }
                     RenameCollisionChoice.RENAME_TARGET -> {
                         val existingName = withContext(Dispatchers.EDT) { askRenameExistingName(collision.target) }
                             ?: return@launch
@@ -1201,7 +1207,7 @@ internal fun FileTab.performRename(entry: FileEntry, newName: String) {
                             fileErrorNotification("Cannot rename \"${collision.target.fileName}\" to \"$existingName\": it already exists")
                             return@launch
                         }
-                        renamePath(collision.target, existingName)
+                        makeRoom = { renamePath(collision.target, existingName, vfs) }
                     }
                     RenameCollisionChoice.KEEP_EDITING -> {
                         withContext(Dispatchers.EDT) { openRenameEditor(entry, newName) }
@@ -1210,10 +1216,14 @@ internal fun FileTab.performRename(entry: FileEntry, newName: String) {
                     RenameCollisionChoice.CANCEL -> return@launch
                 }
             }
-            renamePath(entry.path, newName)
+            val rename: suspend () -> Unit = {
+                makeRoom()
+                renamePath(entry.path, newName, vfs)
+            }
             if (vfs != null) {
-                refreshAfterVfsChange(selectName = newName)
+                changeArchiveAndRelist(selectName = newName, change = rename)
             } else {
+                rename()
                 navigateTo(currentPath, selectName = newName)
             }
         } catch (e: Exception) {
@@ -1222,8 +1232,7 @@ internal fun FileTab.performRename(entry: FileEntry, newName: String) {
     }
 }
 
-private suspend fun FileTab.renamePath(path: Path, newName: String) {
-    val vfs = currentVfs
+private suspend fun FileTab.renamePath(path: Path, newName: String, vfs: VirtualFileSystem?) {
     if (vfs != null) {
         vfs.renameFile(path, newName)
         return
@@ -1244,8 +1253,8 @@ private suspend fun FileTab.renamePath(path: Path, newName: String) {
     }
 }
 
-private suspend fun FileTab.deleteRenameTarget(target: Path) {
-    if (currentVfs == null) {
+private suspend fun FileTab.deleteRenameTarget(target: Path, vfs: VirtualFileSystem?) {
+    if (vfs == null) {
         val vFile = LocalFileSystem.getInstance().findFileByNioFile(target)
         if (vFile != null) {
             withContext(Dispatchers.EDT) {
@@ -1306,11 +1315,15 @@ internal fun FileTab.runMultiRename(pairs: List<Pair<FileEntry, String>>) {
         // renaming a→b when b also needs renaming would collide on the first move.
         val directories = pairs.mapNotNull { it.first.path.parent }.toSet()
         try {
-            val completed = withContext(Dispatchers.IO) {
-                renameBatch(pairs.map { it.first.path to it.second })
-            }
-            completed.mapNotNull { it.first.parent }.toSet().forEach { fileOps.invalidateListingCache(it) }
             val insideArchive = currentVfs != null
+            var completed = emptyList<Pair<Path, Path>>()
+            val rename: suspend () -> Unit = {
+                completed = withContext(Dispatchers.IO) {
+                    renameBatch(pairs.map { it.first.path to it.second })
+                }
+                completed.mapNotNull { it.first.parent }.toSet().forEach { fileOps.invalidateListingCache(it) }
+            }
+            if (insideArchive) changeArchiveAndRelist(change = rename) else rename()
             MultiRenameUndo.lastBatch = if (insideArchive) null else completed
             withContext(Dispatchers.EDT) {
                 val tab = this@runMultiRename
@@ -1333,7 +1346,7 @@ internal fun FileTab.runMultiRename(pairs: List<Pair<FileEntry, String>>) {
                 }
                 notification.notify(project)
             }
-            if (insideArchive) refreshAfterVfsChange() else navigateTo(currentPath)
+            if (!insideArchive) navigateTo(currentPath)
         } catch (e: Exception) {
             directories.forEach { fileOps.invalidateListingCache(it) }
             val leftovers = if (e.suppressed.isEmpty()) "" else " ${e.suppressed.size} file(s) could not be restored to their old names."
