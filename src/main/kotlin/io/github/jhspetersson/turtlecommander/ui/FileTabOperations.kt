@@ -111,6 +111,7 @@ internal fun FileTab.performMoveEntries(
         errorVerb = "move",
         op = fileOps::moveFilesWithProgress,
         traverseJunctions = false,
+        changesSources = true,
         onTransferFinished = onTransferFinished,
     )
 }
@@ -154,6 +155,7 @@ internal fun FileTab.runTransfer(
     errorVerb: String,
     op: TransferOp,
     traverseJunctions: Boolean = true,
+    changesSources: Boolean = false,
     /**
      * Runs after [op] returns — normally, after per-file errors, or after a cancel — but
      * never when the transfer dialog was dismissed (the caller's transfer didn't start).
@@ -162,9 +164,15 @@ internal fun FileTab.runTransfer(
     onTransferFinished: (suspend () -> Unit)? = null,
 ) {
     val destinationArchive = archiveStackOwning(destination)
+    val sourceArchive = if (changesSources) sources.firstOrNull()?.let { archiveStackOwning(it) } else null
     fileOps.launch {
         withIndicatorProgress(project, taskTitle) { indicator ->
             withContext(NonCancellable) {
+                val refusal = listOfNotNull(destinationArchive, sourceArchive).firstNotNullOfOrNull { archiveWriteRefusal(it) }
+                if (refusal != null) {
+                    fileErrorNotification("Failed to $errorVerb: ${fileErrorMessage(refusal)}", refusal)
+                    return@withContext
+                }
                 indicator.text = "Counting files..."
                 val totalFiles = countFiles(sources, traverseJunctions)
                 indicator.isIndeterminate = false
@@ -285,20 +293,24 @@ internal fun FileTab.performDelete(forcePermanent: Boolean = false) {
                 }
                 indicator.isIndeterminate = false
 
-                changeArchiveAndRelist {
-                    fileOps.deleteFilesWithProgress(
-                        paths = sourcePaths,
-                        onProgress = { count, name ->
-                            indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
-                            indicator.text = "$progressVerb $count / $totalFiles"
-                            indicator.text2 = name
-                        },
-                        onError = { path, error ->
-                            fileErrorNotification("Failed to delete ${path.fileName}: ${fileErrorMessage(error)}")
-                        },
-                        isCancelled = { indicator.isCanceled },
-                        useRecycleBin = useRecycleBin,
-                    )
+                try {
+                    changeArchiveAndRelist {
+                        fileOps.deleteFilesWithProgress(
+                            paths = sourcePaths,
+                            onProgress = { count, name ->
+                                indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
+                                indicator.text = "$progressVerb $count / $totalFiles"
+                                indicator.text2 = name
+                            },
+                            onError = { path, error ->
+                                fileErrorNotification("Failed to delete ${path.fileName}: ${fileErrorMessage(error)}")
+                            },
+                            isCancelled = { indicator.isCanceled },
+                            useRecycleBin = useRecycleBin,
+                        )
+                    }
+                } catch (e: IOException) {
+                    fileErrorNotification("Delete failed: ${fileErrorMessage(e)}", e)
                 }
                 withContext(Dispatchers.EDT) {
                     onRefreshOtherPanel()

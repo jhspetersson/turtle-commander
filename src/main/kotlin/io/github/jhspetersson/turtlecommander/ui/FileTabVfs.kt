@@ -21,7 +21,12 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import com.intellij.openapi.progress.ProcessCanceledException
+import java.io.IOException
+import java.nio.channels.FileChannel
+import java.nio.file.FileSystemException
 import java.nio.file.FileSystems
+import java.nio.file.NoSuchFileException
+import java.nio.file.StandardOpenOption
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -374,6 +379,25 @@ internal suspend fun FileTab.changeArchiveAndRelist(selectName: String? = null, 
         refreshAfterVfsChange(selectName)
         return
     }
+    val stack = vfsStack.toList()
+    val relativePath = vfsRelativePath(vfs, currentPath)
+    archiveWriteRefusal(stack)?.let { throw it }
     invalidateFreeSpaceCache()
-    saveArchiveAndRelist(vfsStack.toList(), vfsRelativePath(vfs, currentPath), selectName, requestFocus = true, change = change)
+    saveArchiveAndRelist(stack, relativePath, selectName, requestFocus = true, change = change)
+}
+
+internal fun archiveWriteObstacle(archive: Path): IOException? = try {
+    FileChannel.open(archive, StandardOpenOption.WRITE).close()
+    null
+} catch (_: NoSuchFileException) {
+    null
+} catch (e: IOException) {
+    e
+}
+
+internal suspend fun FileTab.archiveWriteRefusal(stack: List<VfsStackEntry>): IOException? {
+    val archive = stack.firstOrNull()?.vfs?.archivePath ?: return null
+    val obstacle = withContext(Dispatchers.IO) { archiveWriteProbe(archive) } ?: return null
+    val reason = (obstacle as? FileSystemException)?.reason ?: obstacle.message ?: obstacle.javaClass.simpleName
+    return IOException("\"${archive.fileName}\" cannot be changed right now: $reason", obstacle)
 }

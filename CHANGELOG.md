@@ -8,6 +8,7 @@
 
 - Switching to a tab no longer freezes the UI while a slow folder is checked for changes
 - Deleting, renaming or creating a file or folder inside an archive is saved even if the tab leaves the archive before the operation finishes
+- Changing an archive that another program has open is refused up front instead of failing when the archive is saved
 
 ## [0.7.125] - 2026-11-24
 
