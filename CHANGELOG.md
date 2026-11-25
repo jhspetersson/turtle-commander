@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Switching to a tab no longer freezes the UI while a slow folder is checked for changes
+
 ## [0.7.125] - 2026-11-24
 
 ### Fixed

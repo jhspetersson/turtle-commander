@@ -373,7 +373,7 @@ class FileOperationService(
             e
         }
         if (entry.dirMtime == null) return true
-        val current = try { Files.getLastModifiedTime(directory) } catch (_: Exception) { return false }
+        val current = try { directoryStamp(directory) } catch (_: Exception) { return false }
         return current == entry.dirMtime
     }
 
