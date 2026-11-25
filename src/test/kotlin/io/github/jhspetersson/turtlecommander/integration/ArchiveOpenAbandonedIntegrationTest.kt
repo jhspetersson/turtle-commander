@@ -143,6 +143,33 @@ class ArchiveOpenAbandonedIntegrationTest : BasePlatformTestCase() {
         assertEquals(tempDir, tab.currentPath)
     }
 
+    fun testNavigatingElsewhereWhileTheArchiveOpensDropsTheArchive() {
+        val elsewhere = Files.createDirectories(tempDir.resolve("elsewhere"))
+
+        tab.enterVfs(entryFor(tempDir.resolve("data.turtleslowopen")))
+        assertTrue(SlowProvider.started.await(10, TimeUnit.SECONDS))
+        tab.fileOps.launch { tab.navigateTo(elsewhere, requestFocus = false) }
+        waitFor("navigated elsewhere") { tab.currentPath == elsewhere }
+        SlowProvider.release.countDown()
+
+        waitFor("archive created") { SlowProvider.created.size == 1 }
+        waitFor("archive closed") { SlowProvider.created.single().closes.get() == 1 }
+        assertTrue(tab.vfsStack.isEmpty())
+        assertEquals(elsewhere, tab.currentPath)
+    }
+
+    fun testRefreshingTheSameFolderWhileTheArchiveOpensStillEntersIt() {
+        tab.enterVfs(entryFor(tempDir.resolve("data.turtleslowopen")))
+        assertTrue(SlowProvider.started.await(10, TimeUnit.SECONDS))
+        val generation = tab.navigationGeneration.get()
+        tab.fileOps.launch { tab.navigateTo(tempDir, requestFocus = false) }
+        waitFor("refreshed") { tab.navigationGeneration.get() > generation && tab.tableModel.rowCount >= 1 }
+        SlowProvider.release.countDown()
+
+        waitFor("archive opened") { tab.vfsStack.size == 1 }
+        assertEquals(0, SlowProvider.created.single().closes.get())
+    }
+
     fun testAnArchiveStillOpensWhenNothingInterrupts() {
         SlowProvider.release.countDown()
 

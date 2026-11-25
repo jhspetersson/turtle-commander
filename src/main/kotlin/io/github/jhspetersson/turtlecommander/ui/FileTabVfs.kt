@@ -75,6 +75,7 @@ internal suspend fun FileTab.openVfs(entry: FileEntry, directory: String = "", s
 private suspend fun FileTab.openVfsExclusively(entry: FileEntry, directory: String, selectName: String?) {
     val archivePath = entry.path
     val fileName = archivePath.fileName?.toString() ?: "archive"
+    val startPath = currentPath
     withIndicatorProgress(project, "Opening $fileName…") { indicator ->
         // Same graceful-cancel contract as the operations in FileTabOperations:
         // extraction observes the cancel request through the polled hook and returns
@@ -88,7 +89,7 @@ private suspend fun FileTab.openVfsExclusively(entry: FileEntry, directory: Stri
                     val vfs = withContext(Dispatchers.IO) {
                         SharedVfsRegistry.acquire(archivePath, openProgress)
                     }
-                    if (indicator.isCanceled || disposed || vfsStack.isNotEmpty()) {
+                    if (indicator.isCanceled || disposed || vfsStack.isNotEmpty() || currentPath != startPath) {
                         runCatching { SharedVfsRegistry.release(vfs) }
                         return@withContext
                     }
@@ -116,7 +117,7 @@ private suspend fun FileTab.openVfsExclusively(entry: FileEntry, directory: Stri
                             if (insideReadOnlyArchive) tempPath.toFile().setWritable(false)
                             VirtualFileSystemRegistry.create(tempPath, openProgress)
                         }
-                        if (indicator.isCanceled || disposed || currentVfs !== outer) {
+                        if (indicator.isCanceled || disposed || currentVfs !== outer || currentPath != startPath) {
                             vfs.close()
                             tempFile?.parentFile?.let { VfsTempCleanup.discard(it.toPath()) }
                             return@withContext
