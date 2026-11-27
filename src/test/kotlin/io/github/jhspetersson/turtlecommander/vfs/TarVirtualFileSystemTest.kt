@@ -824,6 +824,52 @@ class TarVirtualFileSystemTest {
         assertTrue(Files.exists(vfs.root.resolve("renamed.txt")))
     }
 
+    private fun tarOf(vararg names: String): Path {
+        val path = Files.createTempFile("named-", ".tar")
+        TarArchiveOutputStream(Files.newOutputStream(path)).use { out ->
+            out.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX)
+            for (name in names) {
+                val bytes = name.toByteArray()
+                val entry = TarArchiveEntry(name, true)
+                entry.size = bytes.size.toLong()
+                out.putArchiveEntry(entry)
+                out.write(bytes)
+                out.closeArchiveEntry()
+            }
+        }
+        return path
+    }
+
+    private fun assertOpensReadOnlyAndSurvivesAFlush(archive: Path, unextractable: String) {
+        try {
+            val original = Files.readAllBytes(archive)
+            TarVirtualFileSystem(
+                archive,
+                inputStreamFactory = { Files.newInputStream(it) },
+                outputStreamFactory = { Files.newOutputStream(it) },
+            ).use { tarVfs ->
+                assertEquals(listOf(unextractable), tarVfs.unextractableEntries)
+                assertTrue(tarVfs.isReadOnly)
+                Files.writeString(tarVfs.root.resolve("added.txt"), "x")
+                tarVfs.flush()
+            }
+            assertArrayEquals(original, Files.readAllBytes(archive))
+        } finally {
+            Files.deleteIfExists(archive)
+        }
+    }
+
+    @Test
+    fun `an entry whose name points outside the archive makes it read-only instead of vanishing on repack`() {
+        assertOpensReadOnlyAndSurvivesAFlush(tarOf("a.txt", "../outside.txt"), "../outside.txt")
+    }
+
+    @Test
+    fun `an entry whose name ends with a dot makes the archive read-only on windows`() {
+        org.junit.Assume.assumeTrue(System.getProperty("os.name").startsWith("Windows"))
+        assertOpensReadOnlyAndSurvivesAFlush(tarOf("a.txt", "notes."), "notes.")
+    }
+
     @Test
     fun `entry that cannot be extracted makes the archive read-only instead of vanishing on repack`() {
         val shadowed = Files.createTempFile("shadowed-", ".tar")

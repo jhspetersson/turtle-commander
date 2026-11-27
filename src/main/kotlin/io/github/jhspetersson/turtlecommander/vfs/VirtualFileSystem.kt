@@ -5,6 +5,7 @@ import java.util.concurrent.CopyOnWriteArraySet
 
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.diagnostic.thisLogger
+import com.intellij.openapi.util.SystemInfo
 import io.github.jhspetersson.turtlecommander.model.FileEntry
 import io.github.jhspetersson.turtlecommander.util.isSameDirectoryEntry
 import io.github.jhspetersson.turtlecommander.util.renameInPlace
@@ -356,15 +357,38 @@ internal fun <V> MutableMap<String, V>.renameEntryKeys(oldName: String, newName:
     }
 }
 
-internal fun entryNameIsAltered(baseDir: Path, entryName: String): Boolean {
+internal fun entryNameIsAltered(
+    baseDir: Path,
+    entryName: String,
+    isWindows: Boolean = SystemInfo.isWindows,
+): Boolean {
     val cleanName = entryName.removeSuffix("/")
     if (cleanName.isEmpty() || cleanName == ".") return false
+    if (isWindows && windowsAltersName(cleanName)) return true
     return try {
         baseDir.resolve(cleanName)
         false
     } catch (_: InvalidPathException) {
         true
     }
+}
+
+private val WINDOWS_DEVICE_NAMES = setOf("CON", "PRN", "AUX", "NUL") +
+    (1..9).flatMap { listOf("COM$it", "LPT$it") }
+
+internal fun windowsAltersName(entryName: String): Boolean =
+    entryName.split('/', '\\').any { segment ->
+        if (segment.isEmpty() || segment == "." || segment == "..") return@any false
+        segment.endsWith('.') || segment.endsWith(' ') ||
+            segment.substringBefore('.').trimEnd(' ').uppercase() in WINDOWS_DEVICE_NAMES
+    }
+
+internal fun entryNameEscapes(baseDir: Path, entryName: String): Boolean {
+    val cleanName = entryName.removeSuffix("/")
+    if (cleanName.isEmpty() || cleanName == ".") return false
+    if (resolveEntryPath(baseDir, entryName) != null) return false
+    val normalized = runCatching { baseDir.resolve(cleanName).normalize() }.getOrNull() ?: return true
+    return normalized != baseDir.normalize()
 }
 
 private val ILLEGAL_FILENAME_CHARS = charArrayOf('<', '>', ':', '"', '|', '?', '*')
@@ -632,6 +656,9 @@ abstract class AbstractTempDirVirtualFileSystem(
         val alwaysReadOnly = isReadOnly && unextractable.isEmpty() && !archiveNotWritable
         if (resolved != null && !alwaysReadOnly && entryNameIsAltered(baseDir, entryName)) {
             reportUnextractable(entryName, IOException("the name is not valid on this system and is shown changed"))
+        }
+        if (resolved == null && !alwaysReadOnly && entryNameEscapes(baseDir, entryName)) {
+            reportUnextractable(entryName, IOException("the name points outside the archive and is not shown"))
         }
         return resolved
     }
