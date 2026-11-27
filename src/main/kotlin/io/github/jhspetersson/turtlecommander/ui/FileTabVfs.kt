@@ -21,6 +21,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import com.intellij.openapi.progress.ProcessCanceledException
+import java.io.Closeable
 import java.io.IOException
 import java.nio.channels.FileChannel
 import java.nio.file.FileSystemException
@@ -262,15 +263,20 @@ internal suspend fun FileTab.saveArchiveAndRelist(
     relativePath: String,
     selectName: String?,
     requestFocus: Boolean,
+    holdArchive: Boolean = false,
     change: suspend () -> Unit = {},
 ) {
     val vfs = stack.last().vfs
     val mutex = VfsWriteLocks.of(stack.first().vfs)
     mutex.withLock {
+        val held = if (holdArchive) holdArchives(listOf(stack)) else emptyList()
         try {
             change()
         } finally {
-            withContext(Dispatchers.IO) { saveArchiveStackLocked(stack) }
+            withContext(Dispatchers.IO) {
+                releaseArchives(held)
+                saveArchiveStackLocked(stack)
+            }
         }
     }
     stack.first().let { SharedVfsRegistry.notifyMutated(it.vfs, it.mutationListener) }
@@ -380,25 +386,51 @@ internal fun FileTab.archivePosition(): ArchivePosition? {
     return ArchivePosition(vfsStack.toList(), vfsRelativePath(vfs, currentPath))
 }
 
-internal suspend fun FileTab.changeArchiveAndRelist(selectName: String? = null, change: suspend () -> Unit) {
+internal suspend fun FileTab.changeArchiveAndRelist(
+    selectName: String? = null,
+    holdArchive: Boolean = true,
+    change: suspend () -> Unit,
+) {
     val position = archivePosition()
     if (position == null) {
         change()
         refreshAfterVfsChange(selectName)
         return
     }
-    changeArchiveAndRelist(position, selectName, change = change)
+    changeArchiveAndRelist(position, selectName, holdArchive = holdArchive, change = change)
 }
 
 internal suspend fun FileTab.changeArchiveAndRelist(
     position: ArchivePosition,
     selectName: String? = null,
     checkWritable: Boolean = true,
+    holdArchive: Boolean = true,
     change: suspend () -> Unit,
 ) {
     if (checkWritable) archiveWriteRefusal(position.stack)?.let { throw it }
     invalidateFreeSpaceCache()
-    saveArchiveAndRelist(position.stack, position.relativePath, selectName, requestFocus = true, change = change)
+    saveArchiveAndRelist(
+        position.stack, position.relativePath, selectName,
+        requestFocus = true, holdArchive = holdArchive, change = change,
+    )
+}
+
+internal fun holdArchiveOpen(archive: Path): Closeable? = try {
+    FileChannel.open(archive, StandardOpenOption.WRITE)
+} catch (_: IOException) {
+    null
+}
+
+internal suspend fun FileTab.holdArchives(stacks: List<List<VfsStackEntry>>): List<Closeable> =
+    withContext(Dispatchers.IO) {
+        stacks.filter { stack -> stack.none { it.vfs.isReadOnly } }
+            .mapNotNull { it.firstOrNull()?.vfs?.archivePath }
+            .distinct()
+            .mapNotNull { archiveHold(it) }
+    }
+
+internal fun releaseArchives(held: List<Closeable>) {
+    held.forEach { runCatching { it.close() } }
 }
 
 internal fun archiveWriteObstacle(archive: Path): IOException? = try {

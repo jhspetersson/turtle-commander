@@ -139,6 +139,60 @@ class ArchiveInUseIntegrationTest : BasePlatformTestCase() {
         assertFalse(ran.get())
     }
 
+    private fun namesOnDisk(): Set<String> =
+        org.apache.commons.compress.archivers.tar.TarArchiveInputStream(Files.newInputStream(tarPath)).use { tar ->
+            generateSequence { tar.nextEntry }.map { it.name }.toSet()
+        }
+
+    fun testTheArchiveIsHeldWhileAChangeRunsAndReleasedBeforeTheSave() {
+        val tab = openTar()
+        val held = AtomicReference<Path>()
+        val released = AtomicBoolean()
+        val heldDuringChange = AtomicBoolean()
+        tab.archiveHold = { path ->
+            held.set(path)
+            java.io.Closeable { released.set(true) }
+        }
+        val doomed = tab.currentPath.resolve("keep.txt")
+        Files.writeString(tab.currentPath.resolve("added.txt"), "x")
+
+        project.service<FileOperationService>().launch {
+            tab.changeArchiveAndRelist {
+                heldDuringChange.set(held.get() == tarPath && !released.get())
+                Files.delete(doomed)
+            }
+        }
+
+        waitFor("archive saved") { namesOnDisk() == setOf("added.txt") }
+        assertTrue(heldDuringChange.get())
+        assertTrue(released.get())
+    }
+
+    fun testAnotherProgramCannotLockTheArchiveWhileAChangeRuns() {
+        if (!SystemInfo.isWindows) return
+        val tab = openTar()
+        val doomed = tab.currentPath.resolve("keep.txt")
+        Files.writeString(tab.currentPath.resolve("added.txt"), "x")
+        val started = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+
+        project.service<FileOperationService>().launch {
+            tab.changeArchiveAndRelist {
+                started.countDown()
+                release.await(10, java.util.concurrent.TimeUnit.SECONDS)
+                Files.delete(doomed)
+            }
+        }
+        assertTrue(started.await(10, java.util.concurrent.TimeUnit.SECONDS))
+        val lockAttempt = runCatching {
+            FileChannel.open(tarPath, StandardOpenOption.READ, ExtendedOpenOption.NOSHARE_WRITE, ExtendedOpenOption.NOSHARE_DELETE).close()
+        }
+        release.countDown()
+
+        assertTrue(lockAttempt.exceptionOrNull() is java.nio.file.FileSystemException)
+        waitFor("archive saved") { namesOnDisk() == setOf("added.txt") }
+    }
+
     fun testAnArchiveNobodyHoldsHasNoObstacle() {
         assertNull(archiveWriteObstacle(tarPath))
         assertNull(archiveWriteObstacle(tempDir.resolve("missing.tar")))

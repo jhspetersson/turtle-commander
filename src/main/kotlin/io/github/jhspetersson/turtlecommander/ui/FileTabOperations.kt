@@ -178,21 +178,26 @@ internal fun FileTab.runTransfer(
                 indicator.isIndeterminate = false
 
                 withLocks(transferWriteLocks(sources + listOf(destination))) {
-                    op(
-                        sources,
-                        destination,
-                        initialPolicy,
-                        { count, name ->
-                            indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
-                            indicator.text = "$progressVerb $count / $totalFiles"
-                            indicator.text2 = name
-                        },
-                        { path -> askOverwriteConfirm(path) },
-                        { path, error ->
-                            fileErrorNotification("Failed to $errorVerb ${path.fileName}: ${fileErrorMessage(error)}")
-                        },
-                        { indicator.isCanceled },
-                    )
+                    val held = holdArchives(listOfNotNull(destinationArchive, sourceArchive))
+                    try {
+                        op(
+                            sources,
+                            destination,
+                            initialPolicy,
+                            { count, name ->
+                                indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
+                                indicator.text = "$progressVerb $count / $totalFiles"
+                                indicator.text2 = name
+                            },
+                            { path -> askOverwriteConfirm(path) },
+                            { path, error ->
+                                fileErrorNotification("Failed to $errorVerb ${path.fileName}: ${fileErrorMessage(error)}")
+                            },
+                            { indicator.isCanceled },
+                        )
+                    } finally {
+                        withContext(Dispatchers.IO) { releaseArchives(held) }
+                    }
                     if (destinationArchive != null) {
                         withContext(Dispatchers.IO) { saveArchiveStackLocked(destinationArchive) }
                     }
@@ -810,7 +815,12 @@ internal fun FileTab.performPack() {
                 }
                 if (position != null) {
                     try {
-                        changeArchiveAndRelist(position, checkWritable = deleteAfterPacking, change = work)
+                        changeArchiveAndRelist(
+                            position,
+                            checkWritable = deleteAfterPacking,
+                            holdArchive = deleteAfterPacking,
+                            change = work,
+                        )
                     } catch (e: IOException) {
                         fileErrorNotification("Packing failed: ${fileErrorMessage(e)}", e)
                     }
@@ -1245,7 +1255,7 @@ internal fun FileTab.performRename(entry: FileEntry, newName: String) {
                 renamePath(entry.path, newName, vfs)
             }
             if (vfs != null) {
-                changeArchiveAndRelist(selectName = newName, change = rename)
+                changeArchiveAndRelist(selectName = newName, holdArchive = false, change = rename)
             } else {
                 rename()
                 navigateTo(currentPath, selectName = newName)

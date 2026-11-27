@@ -58,6 +58,7 @@ import com.intellij.openapi.diagnostic.thisLogger
 import java.awt.*
 import java.awt.datatransfer.DataFlavor
 import java.awt.event.*
+import java.io.Closeable
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
@@ -1715,6 +1716,7 @@ class FileTab(
         fileErrorNotification(archiveSaveFailureMessage(vfs, cause), cause)
     }
     internal var archiveWriteProbe: (Path) -> IOException? = ::archiveWriteObstacle
+    internal var archiveHold: (Path) -> Closeable? = ::holdArchiveOpen
     internal val directorySizesInFlight: MutableSet<Path> = ConcurrentHashMap.newKeySet()
     internal var directorySizeWalker: (Path) -> Long = ::walkDirectorySize
 
