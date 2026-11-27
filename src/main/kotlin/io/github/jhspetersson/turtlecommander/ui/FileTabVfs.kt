@@ -373,18 +373,32 @@ internal fun FileTab.onSharedVfsMutated() {
     }
 }
 
+internal class ArchivePosition(val stack: List<VfsStackEntry>, val relativePath: String)
+
+internal fun FileTab.archivePosition(): ArchivePosition? {
+    val vfs = currentVfs ?: return null
+    return ArchivePosition(vfsStack.toList(), vfsRelativePath(vfs, currentPath))
+}
+
 internal suspend fun FileTab.changeArchiveAndRelist(selectName: String? = null, change: suspend () -> Unit) {
-    val vfs = currentVfs
-    if (vfs == null) {
+    val position = archivePosition()
+    if (position == null) {
         change()
         refreshAfterVfsChange(selectName)
         return
     }
-    val stack = vfsStack.toList()
-    val relativePath = vfsRelativePath(vfs, currentPath)
-    archiveWriteRefusal(stack)?.let { throw it }
+    changeArchiveAndRelist(position, selectName, change = change)
+}
+
+internal suspend fun FileTab.changeArchiveAndRelist(
+    position: ArchivePosition,
+    selectName: String? = null,
+    checkWritable: Boolean = true,
+    change: suspend () -> Unit,
+) {
+    if (checkWritable) archiveWriteRefusal(position.stack)?.let { throw it }
     invalidateFreeSpaceCache()
-    saveArchiveAndRelist(stack, relativePath, selectName, requestFocus = true, change = change)
+    saveArchiveAndRelist(position.stack, position.relativePath, selectName, requestFocus = true, change = change)
 }
 
 internal fun archiveWriteObstacle(archive: Path): IOException? = try {

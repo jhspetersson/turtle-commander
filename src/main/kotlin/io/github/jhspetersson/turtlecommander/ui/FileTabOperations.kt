@@ -720,6 +720,7 @@ internal fun FileTab.performPack() {
 
     val archiveService = project.service<ArchiveService>()
     val finalArchivePath = archivePath
+    val position = archivePosition()
 
     fileOps.launch {
         // The exists probe can block on a network destination — stat off the EDT,
@@ -744,85 +745,96 @@ internal fun FileTab.performPack() {
                 val totalFiles = countFiles(sourcePaths)
                 indicator.isIndeterminate = false
 
-                val failedPaths = ConcurrentHashMap.newKeySet<Path>()
-                try {
-                    val packedCount = when (format) {
-                        ArchiveFormat.ZIP -> archiveService.packZip(
-                            finalArchivePath, sourcePaths, appendToExisting,
-                            onProgress = { count, name ->
-                                indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
-                                indicator.text = "Packing $count / $totalFiles"
-                                indicator.text2 = name
-                            },
-                            onError = { path, error ->
-                                failedPaths.add(path)
-                                fileErrorNotification("Failed to pack ${path.fileName}: ${fileErrorMessage(error)}")
-                            },
-                            isCancelled = { indicator.isCanceled },
-                        )
-                        ArchiveFormat.TAR_GZ -> archiveService.packTarGz(
-                            finalArchivePath, sourcePaths,
-                            onProgress = { count, name ->
-                                indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
-                                indicator.text = "Packing $count / $totalFiles"
-                                indicator.text2 = name
-                            },
-                            onError = { path, error ->
-                                failedPaths.add(path)
-                                fileErrorNotification("Failed to pack ${path.fileName}: ${fileErrorMessage(error)}")
-                            },
-                            isCancelled = { indicator.isCanceled },
-                        )
-                    }
-
-                    if (!indicator.isCanceled && deleteAfterPacking && (packedCount > 0 || failedPaths.isEmpty())) {
-                        val deletablePaths = sourcesSafeToDelete(sourcePaths, failedPaths)
-                        val keptCount = sourcePaths.size - deletablePaths.size
-                        if (keptCount > 0) {
-                            fileErrorNotification(
-                                "Kept $keptCount source ${if (keptCount == 1) "item" else "items"} " +
-                                    "that failed to pack completely",
-                            )
-                        }
-                        if (deletablePaths.isNotEmpty()) {
-                            indicator.fraction = 0.0
-                            indicator.text = "Deleting source files..."
-
-                            fileOps.deleteFilesWithProgress(
-                                paths = deletablePaths,
+                val work: suspend () -> Unit = {
+                    val failedPaths = ConcurrentHashMap.newKeySet<Path>()
+                    try {
+                        val packedCount = when (format) {
+                            ArchiveFormat.ZIP -> archiveService.packZip(
+                                finalArchivePath, sourcePaths, appendToExisting,
                                 onProgress = { count, name ->
                                     indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
-                                    indicator.text = "Deleting $count / $totalFiles"
+                                    indicator.text = "Packing $count / $totalFiles"
                                     indicator.text2 = name
                                 },
                                 onError = { path, error ->
-                                    fileErrorNotification("Failed to delete ${path.fileName}: ${fileErrorMessage(error)}")
+                                    failedPaths.add(path)
+                                    fileErrorNotification("Failed to pack ${path.fileName}: ${fileErrorMessage(error)}")
+                                },
+                                isCancelled = { indicator.isCanceled },
+                            )
+                            ArchiveFormat.TAR_GZ -> archiveService.packTarGz(
+                                finalArchivePath, sourcePaths,
+                                onProgress = { count, name ->
+                                    indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
+                                    indicator.text = "Packing $count / $totalFiles"
+                                    indicator.text2 = name
+                                },
+                                onError = { path, error ->
+                                    failedPaths.add(path)
+                                    fileErrorNotification("Failed to pack ${path.fileName}: ${fileErrorMessage(error)}")
                                 },
                                 isCancelled = { indicator.isCanceled },
                             )
                         }
+
+                        if (!indicator.isCanceled && deleteAfterPacking && (packedCount > 0 || failedPaths.isEmpty())) {
+                            val deletablePaths = sourcesSafeToDelete(sourcePaths, failedPaths)
+                            val keptCount = sourcePaths.size - deletablePaths.size
+                            if (keptCount > 0) {
+                                fileErrorNotification(
+                                    "Kept $keptCount source ${if (keptCount == 1) "item" else "items"} " +
+                                        "that failed to pack completely",
+                                )
+                            }
+                            if (deletablePaths.isNotEmpty()) {
+                                indicator.fraction = 0.0
+                                indicator.text = "Deleting source files..."
+
+                                fileOps.deleteFilesWithProgress(
+                                    paths = deletablePaths,
+                                    onProgress = { count, name ->
+                                        indicator.fraction = if (totalFiles > 0) count.toDouble() / totalFiles else 1.0
+                                        indicator.text = "Deleting $count / $totalFiles"
+                                        indicator.text2 = name
+                                    },
+                                    onError = { path, error ->
+                                        fileErrorNotification("Failed to delete ${path.fileName}: ${fileErrorMessage(error)}")
+                                    },
+                                    isCancelled = { indicator.isCanceled },
+                                )
+                            }
+                        }
+                    } catch (e: Exception) {
+                        fileErrorNotification("Packing failed: ${fileErrorMessage(e)}")
                     }
-                } catch (e: Exception) {
-                    fileErrorNotification("Packing failed: ${fileErrorMessage(e)}")
+                }
+                if (position != null) {
+                    try {
+                        changeArchiveAndRelist(position, checkWritable = deleteAfterPacking, change = work)
+                    } catch (e: IOException) {
+                        fileErrorNotification("Packing failed: ${fileErrorMessage(e)}", e)
+                    }
+                } else {
+                    work()
                 }
 
-                refreshPanelsAfterPack(finalArchivePath)
+                refreshPanelsAfterPack(finalArchivePath, relistSelf = position == null)
             }
         }
     }
 }
 
-internal suspend fun FileTab.refreshPanelsAfterPack(archivePath: Path) {
+internal suspend fun FileTab.refreshPanelsAfterPack(archivePath: Path, relistSelf: Boolean = true) {
     val archiveFileName = archivePath.fileName.toString()
     val archiveParent = archivePath.parent
     if (archiveParent != null) fileOps.invalidateListingCache(archiveParent)
     if (archiveParent != null && archiveParent == currentPath) {
-        refreshAfterVfsChange(selectName = archiveFileName)
+        if (relistSelf) refreshAfterVfsChange(selectName = archiveFileName)
         withContext(Dispatchers.EDT) {
             onRefreshOtherPanel()
         }
     } else {
-        refreshAfterVfsChange()
+        if (relistSelf) refreshAfterVfsChange()
         val otherPath = otherPanelPathProvider()
         if (archiveParent != null && otherPath != null && archiveParent == otherPath) {
             withContext(Dispatchers.EDT) {

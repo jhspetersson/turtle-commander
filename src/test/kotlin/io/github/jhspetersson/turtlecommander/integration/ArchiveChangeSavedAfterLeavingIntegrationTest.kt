@@ -9,6 +9,7 @@ import io.github.jhspetersson.turtlecommander.service.FileOperationService
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.ui.FileManagerPanel
 import io.github.jhspetersson.turtlecommander.ui.FileTab
+import io.github.jhspetersson.turtlecommander.ui.archivePosition
 import io.github.jhspetersson.turtlecommander.ui.changeArchiveAndRelist
 import io.github.jhspetersson.turtlecommander.ui.exitVfs
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
@@ -101,6 +102,33 @@ class ArchiveChangeSavedAfterLeavingIntegrationTest : BasePlatformTestCase() {
 
         waitFor("archive on disk lost the deleted file") { namesOnDisk() == setOf("keep.txt") }
         assertEquals(tempDir, tab.currentPath)
+    }
+
+    fun testAPositionTakenBeforeALongStepSavesTheArchiveItWasTakenIn() {
+        val tab = openTar()
+        val doomed = tab.currentPath.resolve("doomed.txt")
+        val position = tab.archivePosition()!!
+        val started = CountDownLatch(1)
+        val probes = java.util.concurrent.atomic.AtomicInteger()
+        tab.archiveWriteProbe = {
+            probes.incrementAndGet()
+            null
+        }
+
+        project.service<FileOperationService>().launch {
+            tab.changeArchiveAndRelist(position, checkWritable = false) {
+                started.countDown()
+                release.await(10, TimeUnit.SECONDS)
+                Files.delete(doomed)
+            }
+        }
+        assertTrue(started.await(10, TimeUnit.SECONDS))
+        tab.exitVfs()
+        waitFor("tab left the archive") { !tab.isInsideArchive }
+        release.countDown()
+
+        waitFor("archive on disk lost the deleted file") { namesOnDisk() == setOf("keep.txt") }
+        assertEquals(0, probes.get())
     }
 
     fun testADeleteIsSavedAndRelistedWhenTheTabStays() {
