@@ -300,6 +300,20 @@ class PakVirtualFileSystemTest {
     }
 
     @Test
+    fun `a pak that would pass 4 GB aborts the repack instead of wrapping its offsets`() {
+        pakPath = writePak(linkedMapOf("a.txt" to "a".toByteArray()))
+        val original = Files.readAllBytes(pakPath)
+        val pak = PakVirtualFileSystem(pakPath)
+        vfs = pak
+        createSparseStub(pak.root.resolve("huge.bin"), 0x1_0000_0000L)
+
+        val error = assertThrows(java.io.IOException::class.java) { pak.flush() }
+
+        assertTrue(generateSequence<Throwable>(error) { it.cause }.any { it.message?.contains("4 GB") == true })
+        assertArrayEquals(original, Files.readAllBytes(pakPath))
+    }
+
+    @Test
     fun `a name of exactly 56 bytes is stored`() {
         val name = "d".repeat(30) + "/" + "f".repeat(21) + ".txt"
         pakPath = writePak(linkedMapOf("keep.txt" to "keep me around".toByteArray()))

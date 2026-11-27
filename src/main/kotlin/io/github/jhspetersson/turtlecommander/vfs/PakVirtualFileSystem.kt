@@ -228,13 +228,14 @@ class PakVirtualFileSystem(
             }
             files.add(relativeName to path)
         }
+        requireFitsPak(HEADER_SIZE + files.sumOf { Files.size(it.second) } + files.size * DIRECTORY_ENTRY_SIZE)
 
         repackAtomically(archivePath) { target ->
         RandomAccessFile(target.toFile(), "rw").use { raf ->
             raf.setLength(0)
             raf.seek(HEADER_SIZE.toLong())
 
-            data class WrittenEntry(val name: String, val offset: Long, val size: Int)
+            data class WrittenEntry(val name: String, val offset: Long, val size: Long)
             val directory = ArrayList<WrittenEntry>(files.size)
             val buffer = ByteArray(64 * 1024)
             for ((name, path) in files) {
@@ -248,17 +249,18 @@ class PakVirtualFileSystem(
                         size += read
                     }
                 }
-                directory.add(WrittenEntry(name, offset, size.toInt()))
+                directory.add(WrittenEntry(name, offset, size))
             }
 
             val dirOffset = raf.filePointer
+            requireFitsPak(dirOffset + directory.size * DIRECTORY_ENTRY_SIZE)
             for (entry in directory) {
                 val nameField = ByteArray(NAME_SIZE)
                 val nameBytes = entry.name.toByteArray(StandardCharsets.US_ASCII)
                 System.arraycopy(nameBytes, 0, nameField, 0, nameBytes.size)
                 raf.write(nameField)
                 raf.write(leInt32(entry.offset.toInt()))
-                raf.write(leInt32(entry.size))
+                raf.write(leInt32(entry.size.toInt()))
             }
 
             raf.seek(0)
@@ -266,6 +268,12 @@ class PakVirtualFileSystem(
             raf.write(leInt32(dirOffset.toInt()))
             raf.write(leInt32(directory.size * DIRECTORY_ENTRY_SIZE.toInt()))
         }
+        }
+    }
+
+    private fun requireFitsPak(archiveSize: Long) {
+        if (archiveSize > MAX_ARCHIVE_SIZE) {
+            throw IOException("a PAK archive cannot be larger than 4 GB")
         }
     }
 
@@ -337,5 +345,6 @@ class PakVirtualFileSystem(
         private const val HEADER_SIZE = 12
         private const val DIRECTORY_ENTRY_SIZE = 64L
         private const val NAME_SIZE = 56
+        private const val MAX_ARCHIVE_SIZE = 0xFFFFFFFFL
     }
 }
