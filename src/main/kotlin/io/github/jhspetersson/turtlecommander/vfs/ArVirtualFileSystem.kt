@@ -70,6 +70,8 @@ class ArVirtualFileSystem(
 
     private var symbols: List<ArSymbol>? = null
 
+    private var wideSymbols = false
+
     /**
      * Metadata captured at extract time keyed by the original AR entry name. Repack uses this
      * to preserve mode/uid/gid/mtime rather than resetting every entry to 0644/root/root.
@@ -85,6 +87,8 @@ class ArVirtualFileSystem(
         val progress = takeOpenProgress()
         entryMetadata.clear()
         symbols = null
+        wideSymbols = false
+        var startsWithSymbolTable = false
         val headerOffsets = memberHeaderOffsets()
         Files.newInputStream(archivePath).use { raw ->
             ArArchiveInputStream(raw).use { ar ->
@@ -94,8 +98,19 @@ class ArVirtualFileSystem(
                     ordinal++
                     if (progress.isCancelled) break
                     progress.onEntry(0, 0, entry.name)
-                    if (ordinal == 0 && entry.name.isEmpty()) {
-                        symbols = parseSymbolTable(ar.readBytes())
+                    val wide = entry.name.trimEnd('/') == WIDE_SYMBOL_TABLE
+                    if (ordinal == 0 && (entry.name.isEmpty() || wide)) {
+                        wideSymbols = wide
+                        startsWithSymbolTable = true
+                        symbols = parseSymbolTable(ar.readBytes(), wide)
+                        entry = ar.nextEntry
+                        continue
+                    }
+                    if (ordinal == 1 && startsWithSymbolTable && entry.name.isEmpty()) {
+                        reportUnextractable(
+                            MICROSOFT_LINKER_MEMBER,
+                            IOException("a Microsoft library index cannot be rewritten"),
+                        )
                         entry = ar.nextEntry
                         continue
                     }
@@ -153,7 +168,8 @@ class ArVirtualFileSystem(
                     }
                     members.sortWith(compareBy({ it.metadata?.ordinal ?: Int.MAX_VALUE }, { it.name }))
                     symbolTableFor(members)?.let { table ->
-                        ar.putArchiveEntry(ArArchiveEntry("/", table.size.toLong(), 0, 0, 0, System.currentTimeMillis() / 1000))
+                        val tableName = if (wideSymbols) "$WIDE_SYMBOL_TABLE/" else "/"
+                        ar.putArchiveEntry(ArArchiveEntry(tableName, table.size.toLong(), 0, 0, 0, System.currentTimeMillis() / 1000))
                         ar.write(table)
                         ar.closeArchiveEntry()
                     }
@@ -200,11 +216,13 @@ class ArVirtualFileSystem(
         offsets
     }.getOrDefault(emptyList())
 
-    private fun parseSymbolTable(bytes: ByteArray): List<ArSymbol>? = runCatching {
+    private fun parseSymbolTable(bytes: ByteArray, wide: Boolean): List<ArSymbol>? = runCatching {
         val buffer = ByteBuffer.wrap(bytes)
-        val count = buffer.int
-        if (count < 0 || count.toLong() * Int.SIZE_BYTES > buffer.remaining()) return null
-        val offsets = LongArray(count) { buffer.int.toLong() and 0xFFFFFFFFL }
+        val width = if (wide) Long.SIZE_BYTES else Int.SIZE_BYTES
+        val declared = if (wide) buffer.long else buffer.int.toLong()
+        if (declared < 0 || declared * width > buffer.remaining()) return null
+        val count = declared.toInt()
+        val offsets = LongArray(count) { if (wide) buffer.long else buffer.int.toLong() and 0xFFFFFFFFL }
         val result = ArrayList<ArSymbol>(count)
         var start = buffer.position()
         for (offset in offsets) {
@@ -221,17 +239,21 @@ class ArVirtualFileSystem(
         if (members.any { !it.unchanged }) return null
         val present = members.mapNotNull { it.metadata?.headerOffset }.toSet()
         val kept = recorded.filter { it.memberOffset in present }
-        val tableSize = Int.SIZE_BYTES + kept.size * Int.SIZE_BYTES + kept.sumOf { it.name.size + 1 }
+        val width = if (wideSymbols) Long.SIZE_BYTES else Int.SIZE_BYTES
+        val tableSize = width + kept.size * width + kept.sumOf { it.name.size + 1 }
         var position = MAGIC_LENGTH + HEADER_LENGTH + tableSize + tableSize % 2
         val moved = HashMap<Long, Long>()
         for (member in members) {
             member.metadata?.let { moved[it.headerOffset] = position }
             position += member.storedLength
         }
-        if (position > 0xFFFFFFFFL) return null
+        if (!wideSymbols && position > 0xFFFFFFFFL) return null
         val table = ByteBuffer.allocate(tableSize)
-        table.putInt(kept.size)
-        for (symbol in kept) table.putInt(moved.getValue(symbol.memberOffset).toInt())
+        if (wideSymbols) table.putLong(kept.size.toLong()) else table.putInt(kept.size)
+        for (symbol in kept) {
+            val offset = moved.getValue(symbol.memberOffset)
+            if (wideSymbols) table.putLong(offset) else table.putInt(offset.toInt())
+        }
         for (symbol in kept) {
             table.put(symbol.name)
             table.put(0)
@@ -248,5 +270,7 @@ class ArVirtualFileSystem(
         private const val SIZE_FIELD_OFFSET = 48
         private const val SIZE_FIELD_LENGTH = 10
         private const val GNU_NAME_TABLE = "//"
+        private const val WIDE_SYMBOL_TABLE = "/SYM64"
+        private const val MICROSOFT_LINKER_MEMBER = "second linker member"
     }
 }

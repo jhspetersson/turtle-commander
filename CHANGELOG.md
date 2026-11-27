@@ -14,6 +14,7 @@
 - Another program can no longer lock an archive while files inside it are being changed
 - Saving a PAK archive that would grow past 4 GB fails with a message instead of writing a broken archive
 - An archive with entry names Windows cannot keep (trailing dot or space, device names) or that point outside the archive opens read-only instead of renaming or dropping them on save
+- Static libraries keep a 64-bit symbol table when a member is renamed or deleted, and libraries with a Microsoft linker index open read-only instead of losing it
 
 ## [0.7.125] - 2026-11-24
 
