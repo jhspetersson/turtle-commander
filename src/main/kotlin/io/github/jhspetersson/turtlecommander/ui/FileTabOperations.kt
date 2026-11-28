@@ -33,6 +33,7 @@ import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
 import io.github.jhspetersson.turtlecommander.util.countFiles
 import io.github.jhspetersson.turtlecommander.util.fileErrorMessage
 import io.github.jhspetersson.turtlecommander.util.formatSize
+import io.github.jhspetersson.turtlecommander.util.isPipeOrDevice
 import io.github.jhspetersson.turtlecommander.util.withIndicatorProgress
 import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 import io.github.jhspetersson.turtlecommander.vfs.SharedVfsRegistry
@@ -1008,6 +1009,10 @@ internal fun FileTab.openFile(entry: FileEntry) {
         return
     }
     fileOps.launch {
+        if (withContext(Dispatchers.IO) { isPipeOrDevice(entry.path) }) {
+            fileErrorNotification("${entry.name} is a named pipe or device and cannot be opened")
+            return@launch
+        }
         val virtualFile = withContext(Dispatchers.IO) {
             val vf = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(entry.path)
             vf?.fileType // pre-cache file type detection off EDT

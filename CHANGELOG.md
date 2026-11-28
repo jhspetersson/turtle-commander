@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Copying a hash of, viewing, or showing a thumbnail for a named pipe no longer hangs
+
 ## [0.7.126] - 2026-11-27
 
 ### Fixed

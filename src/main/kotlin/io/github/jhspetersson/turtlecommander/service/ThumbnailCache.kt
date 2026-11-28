@@ -9,6 +9,7 @@ import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.util.ui.ImageUtil
 import io.github.jhspetersson.turtlecommander.settings.ThumbnailSize
 import io.github.jhspetersson.turtlecommander.settings.TurtleCommanderSettings
+import io.github.jhspetersson.turtlecommander.util.isPipeOrDevice
 import io.github.jhspetersson.turtlecommander.vfs.OpenVfsRegistry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -278,6 +279,7 @@ class ThumbnailCache(private val scope: CoroutineScope) {
     }
 
     private suspend fun readSubsampledThumbnail(path: Path, targetSize: Int): BufferedImage? {
+        if (isPipeOrDevice(path)) return null
         materializeSiblingsInBulk(path)
         // ImageIO.createImageInputStream goes through java.io.FileInputStream — a sparse-stub
         // file in a lazy VFS would yield zero bytes and no readable thumbnail. Materialise

@@ -123,6 +123,18 @@ class ThumbnailCacheStalenessTest : BasePlatformTestCase() {
         }
     }
 
+    fun testANamedPipeWithAnImageNameIsNotRead() {
+        if (java.io.File.separatorChar != '/') return
+        val pipe = tmp.resolve("pipe.png")
+        if (runCatching { ProcessBuilder("mkfifo", pipe.toString()).start().waitFor() }.getOrNull() != 0) return
+
+        assertTrue(cache.requestThumbnail(pipe, Files.getLastModifiedTime(pipe), { true }, {}))
+        pollUntil("load to finish") { !cache.isLoading(pipe) }
+
+        assertTrue(cache.isKnownUndecodable(pipe))
+        assertNull(cache.getCachedThumbnail(pipe))
+    }
+
     fun testCorruptDiskCacheEntryIsRegeneratedNotMarkedUndecodable() {
         val image = writeImage(tmp, "photo.png", 2)
         val cachePath = cache.getCachePath(image, ThumbnailSize.SMALL.cacheSize)!!

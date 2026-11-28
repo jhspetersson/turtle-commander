@@ -1,7 +1,9 @@
 package io.github.jhspetersson.turtlecommander.service
 
+import com.intellij.openapi.progress.EmptyProgressIndicator
 import io.github.jhspetersson.turtlecommander.dialog.FileSearchCriteria
 import io.github.jhspetersson.turtlecommander.dialog.NamePatternMode
+import io.github.jhspetersson.turtlecommander.util.HashComputations
 import io.github.jhspetersson.turtlecommander.util.isPipeOrDevice
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -84,6 +86,26 @@ class NamedPipeDoesNotBlockTest {
             assertThrows(IOException::class.java) {
                 copyPreservingAttributes(pipe, dir.resolve("copy.txt"), replaceExisting = false)
             }
+        }
+    }
+
+    @Test
+    fun `hashing a named pipe is refused`() {
+        val indicator = EmptyProgressIndicator()
+        finishesInTime {
+            assertThrows(IOException::class.java) { HashComputations.crc16(pipe, indicator) }
+            assertThrows(IOException::class.java) { HashComputations.crc32(pipe, indicator) }
+            assertThrows(IOException::class.java) { HashComputations.digest(pipe, "SHA-256", indicator) }
+        }
+    }
+
+    @Test
+    fun `hashing through a link to a named pipe is refused`() {
+        val link = root.resolve("link.txt")
+        Files.createSymbolicLink(link, pipe)
+
+        finishesInTime {
+            assertThrows(IOException::class.java) { HashComputations.digest(link, "MD5", EmptyProgressIndicator()) }
         }
     }
 
